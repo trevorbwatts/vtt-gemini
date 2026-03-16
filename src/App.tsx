@@ -516,6 +516,7 @@ export function DMScreen() {
                 players={campaign.players || []}
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
+                onClose={() => setRightSidebarOpen(false)}
               />
             )}
           </div>

@@ -351,17 +351,18 @@ export const MapView: React.FC<MapViewProps> = ({
                 <Swords size={12} /> Roll Initiative ({selectedTokenIds.length})
               </button>
             )}
-            <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-            <button 
-              onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-              className={cn(
-                "h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center",
-                rightSidebarOpen && "text-[var(--accent)]"
-              )}
-              title="Toggle Combat"
-            >
-              <Swords size={16} />
-            </button>
+            {!rightSidebarOpen && (
+              <>
+                <div className="h-6 w-px bg-[var(--line)] shrink-0" />
+                <button 
+                  onClick={() => setRightSidebarOpen(true)}
+                  className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
+                  title="Open Initiative Tracker"
+                >
+                  <Swords size={16} />
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
