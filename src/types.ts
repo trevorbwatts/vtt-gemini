@@ -9,6 +9,7 @@ declare global {
       sendStateUpdate: (state: any) => void;
       onStateUpdate: (callback: (state: any) => void) => void;
       removeStateUpdateListener: () => void;
+      importDndBeyondCharacter: (url: string) => Promise<any>;
     }
   }
 }
@@ -71,6 +72,8 @@ export interface Combatant {
   darkvision?: number;
   classes?: ClassDefinition[];
   dndBeyondId?: string;
+  dndBeyondUrl?: string;
+  proficiencyBonus?: number;
   description?: string;
   stats?: {
     str: number;

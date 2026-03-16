@@ -753,7 +753,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 visibilityPolygons={visibilityPolygons}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
-                opacity={isPlayerView ? 1.0 : 0.25}
+                opacity={isPlayerView ? 1.0 : 0.5}
               />
             </Layer>
           )}

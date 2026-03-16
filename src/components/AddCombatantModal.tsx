@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus } from 'lucide-react';
+import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, AlertCircle } from 'lucide-react';
 import { Combatant, cn } from '../types';
+import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 
 interface AddCombatantModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [darkvision, setDarkvision] = useState(0);
   const [url, setUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,23 +52,29 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const handleImport = async () => {
     if (!url.trim()) return;
     setIsImporting(true);
+    setImportError(null);
     try {
-      // Mock import logic
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!window.electronAPI?.importDndBeyondCharacter) {
+        setImportError('D&D Beyond import requires the Desktop App. Please use the Electron build.');
+        return;
+      }
+
+      const result = await window.electronAPI.importDndBeyondCharacter(url);
+
+      if (result.error) {
+        setImportError(result.error);
+        return;
+      }
+
+      const parsed = parseDndBeyondCharacter(result.data);
       onAdd({
-        name: "Imported Character",
-        hp: 25,
-        maxHp: 25,
-        ac: 15,
-        initiative: 0,
+        ...parsed,
         type,
-        stats: { str: 12, dex: 14, con: 14, int: 10, wis: 12, cha: 10 },
-        actions: [],
-        darkvision: 60
+        dndBeyondUrl: url.trim(),
       });
       resetAndClose();
-    } catch (error) {
-      console.error("Import failed", error);
+    } catch (error: any) {
+      setImportError(error.message || 'An unexpected error occurred.');
     } finally {
       setIsImporting(false);
     }
@@ -79,6 +87,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     setDarkvision(0);
     setUrl('');
     setAvatar(null);
+    setImportError(null);
     onClose();
   };
 
@@ -246,28 +255,30 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
-                    <LinkIcon size={12} /> Character URL
+                    <LinkIcon size={12} /> D&D Beyond Character URL
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://www.dndbeyond.com/characters/..."
-                      className="flex-1 bg-black border border-[var(--line)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--accent)] transition-colors"
-                    />
-                    <button
-                      disabled={!url.trim() || isImporting}
-                      onClick={handleImport}
-                      className="btn-ghost px-4 py-3 rounded-xl"
-                    >
-                      {isImporting ? 'Importing...' : '+ Import Character'}
-                    </button>
-                  </div>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={url}
+                    onChange={(e) => { setUrl(e.target.value); setImportError(null); }}
+                    placeholder="https://www.dndbeyond.com/characters/12345678"
+                    className="w-full bg-black border border-[var(--line)] rounded-xl px-4 py-3 text-sm outline-none focus:border-[var(--accent)] transition-colors"
+                    onKeyDown={(e) => e.key === 'Enter' && handleImport()}
+                  />
+                  <p className="text-[10px] opacity-30 italic">
+                    The character must be set to Public on D&D Beyond.
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-end gap-4 pt-4">
+                {importError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                    <span>{importError}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-4 pt-2">
                   <button 
                     onClick={() => setStep('choice')}
                     className="btn-text opacity-40 hover:opacity-100"
@@ -277,9 +288,16 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                   <button
                     disabled={!url.trim() || isImporting}
                     onClick={handleImport}
-                    className="btn-filled px-6 py-2.5 rounded-lg disabled:opacity-30"
+                    className="btn-filled px-6 py-2.5 rounded-lg disabled:opacity-30 flex items-center gap-2"
                   >
-                    Add {type === 'player' ? 'Player' : 'NPC'}
+                    {isImporting ? (
+                      <>
+                        <span className="animate-spin">⟳</span>
+                        Importing...
+                      </>
+                    ) : (
+                      <>Import Character</>
+                    )}
                   </button>
                 </div>
               </div>

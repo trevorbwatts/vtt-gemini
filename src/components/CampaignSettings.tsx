@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Campaign, Combatant, cn, ClassDefinition } from '../types';
 import { X, Plus, Trash2, User, Shield, Heart, Sword, Zap, Wind, Eye, RefreshCw } from 'lucide-react';
-import { fetchDnDBeyondCharacter } from '../services/dndBeyondService';
+import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 
 interface CampaignSettingsProps {
   campaign: Campaign;
@@ -53,31 +53,47 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, on
   };
 
   const syncCharacter = async (combatantId: string) => {
-    const combatant = campaign.players.find(p => p.id === combatantId);
-    if (!combatant || !combatant.dndBeyondId) return;
-    
+    const combatant = campaign.players.find(p => p.id === combatantId)
+      || campaign.npcs.find(n => n.id === combatantId);
+    if (!combatant) return;
+
+    // Need a URL or ID to re-sync
+    const syncUrl = combatant.dndBeyondUrl
+      || (combatant.dndBeyondId ? `https://www.dndbeyond.com/characters/${combatant.dndBeyondId}` : null);
+    if (!syncUrl) return;
+
+    if (!window.electronAPI?.importDndBeyondCharacter) {
+      alert('Re-sync requires the Desktop App.');
+      return;
+    }
+
     setIsImporting(true);
     try {
-      const data = await fetchDnDBeyondCharacter(combatant.dndBeyondId);
-      if (data) {
-        updateCombatant(combatantId, {
-          name: data.name,
-          hp: data.hp,
-          maxHp: data.maxHp,
-          ac: data.ac,
-          species: data.species,
-          speed: data.speed,
-          darkvision: data.darkvision,
-          classes: data.classes,
-          initiative: data.initiative
-        });
+      const result = await window.electronAPI.importDndBeyondCharacter(syncUrl);
+      if (result.error) {
+        alert(`Sync failed: ${result.error}`);
+        return;
       }
+      const parsed = parseDndBeyondCharacter(result.data);
+      updateCombatant(combatantId, {
+        name: parsed.name,
+        hp: parsed.hp,
+        maxHp: parsed.maxHp,
+        ac: parsed.ac,
+        species: parsed.species,
+        speed: parsed.speed,
+        darkvision: parsed.darkvision,
+        classes: parsed.classes,
+        initiative: parsed.initiative,
+        stats: parsed.stats,
+        actions: parsed.actions,
+        spells: parsed.spells,
+        avatar: parsed.avatar,
+        proficiencyBonus: parsed.proficiencyBonus,
+        dndBeyondId: parsed.dndBeyondId,
+      });
     } catch (err: any) {
-      if (err.message === 'CHARACTER_PRIVATE') {
-        alert("Failed to sync: Character is now Private.");
-      } else {
-        alert("Failed to sync with D&D Beyond. Please try again later.");
-      }
+      alert('Failed to sync with D&D Beyond. Please try again later.');
     } finally {
       setIsImporting(false);
     }
