@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster } from '../types';
 import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
 
@@ -312,16 +313,30 @@ export const MapView: React.FC<MapViewProps> = ({
       {!isPlayerView && (
         <div className="h-10 border-b border-[var(--line)] bg-[var(--surface)] flex justify-between items-center shrink-0">
           <div className="flex items-center h-full">
-            <button 
-              onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-              className={cn(
-                "h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center",
-                leftSidebarOpen && "text-[var(--accent)]"
+            <AnimatePresence>
+              {!leftSidebarOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ 
+                    opacity: 1, 
+                    transition: { delay: 0.2, duration: 0.1 } 
+                  }}
+                  exit={{ 
+                    opacity: 0, 
+                    transition: { delay: 0, duration: 0.05 } 
+                  }}
+                  className="flex items-center h-full"
+                >
+                  <button 
+                    onClick={() => setLeftSidebarOpen(true)}
+                    className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
+                    title="Open Notes"
+                  >
+                    <FileText size={12} />
+                  </button>
+                </motion.div>
               )}
-              title="Toggle Notes"
-            >
-              <FileText size={16} />
-            </button>
+            </AnimatePresence>
             <div className="h-6 w-px bg-[var(--line)] shrink-0" />
             
             <div className="flex items-center gap-4 px-4">
@@ -351,18 +366,31 @@ export const MapView: React.FC<MapViewProps> = ({
                 <Swords size={12} /> Roll Initiative ({selectedTokenIds.length})
               </button>
             )}
-            {!rightSidebarOpen && (
-              <>
-                <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-                <button 
-                  onClick={() => setRightSidebarOpen(true)}
-                  className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
-                  title="Open Initiative Tracker"
+            <AnimatePresence>
+              {!rightSidebarOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ 
+                    opacity: 1, 
+                    transition: { delay: 0.2, duration: 0.1 } 
+                  }}
+                  exit={{ 
+                    opacity: 0, 
+                    transition: { delay: 0, duration: 0.05 } 
+                  }}
+                  className="flex items-center h-full"
                 >
-                  <Swords size={16} />
-                </button>
-              </>
-            )}
+                  <div className="h-6 w-px bg-[var(--line)] shrink-0" />
+                  <button 
+                    onClick={() => setRightSidebarOpen(true)}
+                    className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
+                    title="Open Initiative Tracker"
+                  >
+                    <Swords size={12} />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}

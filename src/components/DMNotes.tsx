@@ -7,7 +7,8 @@ import {
   Info, 
   Skull,
   Trash2,
-  FileText
+  FileText,
+  ChevronLeft
 } from 'lucide-react';
 
 interface DMNotesProps {
@@ -15,6 +16,7 @@ interface DMNotesProps {
   onChange: (notes: MapNote[]) => void;
   title: string;
   onTitleChange?: (title: string) => void;
+  onClose?: () => void;
 }
 
 export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteType; size?: number; className?: string }) => {
@@ -28,7 +30,7 @@ export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteTyp
   }
 };
 
-export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitleChange }) => {
+export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitleChange, onClose }) => {
   const removeNote = (id: string) => {
     onChange(notes.filter(n => n.id !== id));
   };
@@ -40,6 +42,9 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
           <FileText size={12} className="opacity-50" />
           <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Notes</h3>
         </div>
+        <button onClick={onClose} className="opacity-30 hover:opacity-100 transition-opacity">
+          <ChevronLeft size={16} />
+        </button>
       </div>
       
       <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">

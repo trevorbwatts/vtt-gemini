@@ -252,12 +252,13 @@ export function DMScreen() {
       <motion.aside
         initial={false}
         animate={{ width: navSidebarOpen ? 320 : 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
         className={cn(
           "h-full bg-[var(--surface)] overflow-hidden shrink-0 z-30",
           navSidebarOpen && "border-r border-[var(--line)]"
         )}
       >
-        <div className="w-[320px] h-full flex flex-col pt-2">
+        <div className="w-[320px] h-full flex flex-col">
           <div className="h-14 px-6 border-b border-[var(--line)] flex items-center justify-between shrink-0">
             <button 
               onClick={() => setCampaign(null)}
@@ -274,7 +275,7 @@ export function DMScreen() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
             {/* Campaign Section */}
             <div>
               <div className="space-y-3">
@@ -302,7 +303,7 @@ export function DMScreen() {
               </div>
             </div>
 
-            <div className="h-px bg-[var(--line)] opacity-10" />
+            <div className="h-px bg-[var(--line)]" />
 
             {/* Players Section */}
             <div>
@@ -327,7 +328,7 @@ export function DMScreen() {
               </div>
             </div>
 
-            <div className="h-px bg-[var(--line)] opacity-10" />
+            <div className="h-px bg-[var(--line)]" />
 
             {/* NPCs Section */}
             <div>
@@ -352,7 +353,7 @@ export function DMScreen() {
               </div>
             </div>
 
-            <div className="h-px bg-[var(--line)] opacity-10" />
+            <div className="h-px bg-[var(--line)]" />
 
             {/* Scenarios Section */}
             <div>
@@ -393,6 +394,8 @@ export function DMScreen() {
                 ))}
               </div>
             </div>
+
+            <div className="h-px bg-[var(--line)]" />
           </div>
 
           <div className="p-6 border-t border-[var(--line)] shrink-0">
@@ -413,14 +416,28 @@ export function DMScreen() {
         {/* Header */}
         <header className="border-b border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between h-14 shrink-0 z-20">
           <div className="flex items-center gap-4">
-            {!navSidebarOpen && (
-              <button 
-                onClick={() => setNavSidebarOpen(true)}
-                className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
-              >
-                <Menu size={20} className="group-hover:text-[var(--accent)] transition-colors" />
-              </button>
-            )}
+            <AnimatePresence>
+              {!navSidebarOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ 
+                    opacity: 1, 
+                    transition: { delay: 0.2, duration: 0.1 } 
+                  }}
+                  exit={{ 
+                    opacity: 0, 
+                    transition: { delay: 0, duration: 0.05 } 
+                  }}
+                >
+                  <button 
+                    onClick={() => setNavSidebarOpen(true)}
+                    className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
+                  >
+                    <Menu size={20} className="group-hover:text-[var(--accent)] transition-colors" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="flex items-center gap-3 text-lg font-serif font-bold tracking-tight">
               <span className="opacity-40">{campaign.name}</span>
               {currentScenario && (
@@ -455,6 +472,7 @@ export function DMScreen() {
         <motion.aside
           initial={false}
           animate={{ width: leftSidebarOpen ? 320 : 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className={cn(
             "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
             leftSidebarOpen && "border-r border-[var(--line)]"
@@ -468,6 +486,7 @@ export function DMScreen() {
                 onChange={updateMapNotes} 
                 title={currentScenario.name}
                 onTitleChange={updateScenarioName}
+                onClose={() => setLeftSidebarOpen(false)}
               />
             )}
           </div>
@@ -502,6 +521,7 @@ export function DMScreen() {
         <motion.aside
           initial={false}
           animate={{ width: rightSidebarOpen ? 350 : 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className={cn(
             "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
             rightSidebarOpen && "border-l border-[var(--line)]"
