@@ -582,9 +582,9 @@ export const MapView: React.FC<MapViewProps> = ({
                 </button>
                 <button 
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-enemy' } : null)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--btn-bg)] hover:text-white transition-colors group"
+                  className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[#ef4444] hover:text-white transition-colors group"
                 >
-                  <Skull size={14} className="text-[var(--accent)] group-hover:text-white" />
+                  <Skull size={14} className="text-[#ef4444] group-hover:text-white" />
                   <span className="flex-1 text-left">Add an Enemy</span>
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
@@ -707,7 +707,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <div className="flex flex-col h-[400px]">
                 <div className="p-3 border-b border-[var(--line)] bg-black/10 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
-                    <Skull size={14} className="text-[var(--accent)]" />
+                    <Skull size={14} className="text-[#ef4444]" />
                     <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">Bestiary</p>
                   </div>
                   <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
@@ -816,7 +816,7 @@ export const MapView: React.FC<MapViewProps> = ({
                               }
                               setContextMenu(null);
                             }}
-                            className="btn-filled w-full py-2 rounded-lg"
+                            className="btn-filled w-full py-2 rounded-lg !bg-[#ef4444] shadow-lg shadow-[#ef4444]/20"
                           >
                             <PlusCircle size={14} />
                             Add {monsterQuantity > 1 ? `${monsterQuantity} Tokens` : 'to Map'}
@@ -825,7 +825,7 @@ export const MapView: React.FC<MapViewProps> = ({
                       </>
                     ) : (
                       <div className="flex-1 flex flex-col items-center justify-center opacity-20 p-8 text-center">
-                        <Skull size={48} className="mb-4" />
+                        <Skull size={48} className="mb-4 text-[#ef4444]" />
                         <p className="text-sm font-sans uppercase tracking-widest">Select a monster to view details</p>
                       </div>
                     )}

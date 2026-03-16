@@ -89,10 +89,13 @@ export const CombatView: React.FC<CombatViewProps> = ({
     <div className="h-full flex flex-col bg-transparent relative z-10 font-sans">
       {/* Title Row */}
       <div className="h-10 px-5 border-b border-[var(--line)] flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-3">
-          <Swords size={12} className="opacity-50 text-[var(--ink)]" />
-          <h3 className="text-[12px] uppercase tracking-[0.15em] opacity-50 font-bold text-[var(--ink)]">Initiative Tracker</h3>
-        </div>
+        <button 
+          onClick={onClose}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity group"
+        >
+          <Swords size={12} className="opacity-50 text-[var(--ink)] group-hover:opacity-100 transition-opacity" />
+          <h3 className="text-[12px] uppercase tracking-[0.15em] opacity-50 font-bold text-[var(--ink)] group-hover:opacity-100 transition-opacity">Initiative Tracker</h3>
+        </button>
         <button onClick={onClose} className="opacity-30 hover:opacity-100 transition-opacity text-[var(--ink)]">
           <ChevronRight size={16} />
         </button>

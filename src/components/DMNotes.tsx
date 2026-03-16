@@ -38,10 +38,13 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
   return (
     <div className="h-full flex flex-col bg-transparent relative z-10">
       <div className="h-10 px-3 border-b border-[var(--line)] bg-black/5 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-2">
-          <FileText size={12} className="opacity-50" />
-          <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Notes</h3>
-        </div>
+        <button 
+          onClick={onClose}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity group"
+        >
+          <FileText size={12} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+          <h3 className="text-[10px] uppercase tracking-widest opacity-50 group-hover:opacity-100 font-sans font-bold transition-opacity">Notes</h3>
+        </button>
         <button onClick={onClose} className="opacity-30 hover:opacity-100 transition-opacity">
           <ChevronLeft size={16} />
         </button>
