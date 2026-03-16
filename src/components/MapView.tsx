@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster } from '../types';
+import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
+import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
@@ -25,6 +26,12 @@ interface MapViewProps {
   rightSidebarOpen: boolean;
   setRightSidebarOpen: (open: boolean) => void;
   isPlayerView?: boolean;
+  walls?: WallSegment[];
+  objectWalls?: WallSegment[];
+  portals?: Portal[];
+  gridResolution?: GridResolution;
+  onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
+  onPortalToggle?: (portalId: string) => void;
 }
 
 export const MapView: React.FC<MapViewProps> = ({ 
@@ -45,7 +52,13 @@ export const MapView: React.FC<MapViewProps> = ({
   setLeftSidebarOpen,
   rightSidebarOpen,
   setRightSidebarOpen,
-  isPlayerView = false
+  isPlayerView = false,
+  walls,
+  objectWalls,
+  portals,
+  gridResolution,
+  onWallDataChange,
+  onPortalToggle
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +80,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [monsterQuantity, setMonsterQuantity] = useState(1);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
+  const [showWalls, setShowWalls] = useState(true);
 
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
@@ -130,7 +144,24 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const isUVTT = ['uvtt', 'dd2vtt', 'df2vtt'].includes(ext || '');
+
+    if (isUVTT) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const result = parseUVTTFile(event.target?.result as string);
+          onMapChange(result.mapImage);
+          onWallDataChange?.(result.walls, result.objectWalls, result.portals, result.gridResolution);
+        } catch (err) {
+          alert(`Failed to parse UVTT file: ${(err as Error).message}`);
+        }
+      };
+      reader.readAsText(file);
+    } else {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -350,7 +381,15 @@ export const MapView: React.FC<MapViewProps> = ({
               >
                 <Upload size={12} /> UPLOAD
               </button>
-              <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*" />
+              <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,.uvtt,.dd2vtt,.df2vtt" />
+              {walls && walls.length > 0 && (
+                <button
+                  onClick={() => setShowWalls(!showWalls)}
+                  className="btn-ghost py-1"
+                >
+                  {showWalls ? <Eye size={12} /> : <EyeOff size={12} />} WALLS
+                </button>
+              )}
             </div>
           </div>
 
@@ -438,6 +477,48 @@ export const MapView: React.FC<MapViewProps> = ({
               />
             )}
             
+            {/* Render Walls */}
+            {showWalls && !isPlayerView && walls?.map(wall => (
+              <Line
+                key={wall.id}
+                points={wall.points.flatMap(p => [p.x, p.y])}
+                stroke="#ff6b35"
+                strokeWidth={3}
+                lineCap="round"
+                lineJoin="round"
+                opacity={0.8}
+                listening={false}
+              />
+            ))}
+            {showWalls && !isPlayerView && objectWalls?.map(wall => (
+              <Line
+                key={wall.id}
+                points={wall.points.flatMap(p => [p.x, p.y])}
+                stroke="#ff6b35"
+                strokeWidth={2}
+                lineCap="round"
+                lineJoin="round"
+                opacity={0.5}
+                dash={[6, 3]}
+                listening={false}
+              />
+            ))}
+            {/* Render Portals (Doors/Windows) */}
+            {showWalls && !isPlayerView && portals?.map(portal => (
+              <Line
+                key={portal.id}
+                points={[portal.bounds[0].x, portal.bounds[0].y, portal.bounds[1].x, portal.bounds[1].y]}
+                stroke={portal.closed ? '#4ade80' : '#60a5fa'}
+                strokeWidth={portal.closed ? 4 : 3}
+                lineCap="round"
+                dash={portal.closed ? [] : [8, 6]}
+                opacity={0.9}
+                onClick={() => !isPlayerView && onPortalToggle?.(portal.id)}
+                onTap={() => !isPlayerView && onPortalToggle?.(portal.id)}
+                hitStrokeWidth={12}
+              />
+            ))}
+
             {/* Render Map Notes */}
             {mapNotes.map(note => (
               <Group 

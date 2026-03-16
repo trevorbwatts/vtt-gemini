@@ -84,6 +84,29 @@ export interface Combatant {
   spells?: { name: string; level: number; desc: string }[];
 }
 
+export interface WallPoint {
+  x: number;
+  y: number;
+}
+
+export interface WallSegment {
+  id: string;
+  points: WallPoint[];
+}
+
+export interface Portal {
+  id: string;
+  bounds: [WallPoint, WallPoint];
+  closed: boolean;
+  freestanding: boolean;
+}
+
+export interface GridResolution {
+  mapOrigin: WallPoint;
+  mapSize: WallPoint;
+  pixelsPerGrid: number;
+}
+
 export type MapNoteType = 'treasure' | 'quote' | 'combat' | 'info' | 'trap';
 
 export interface MapNote {
@@ -103,6 +126,10 @@ export interface Scenario {
   combatants: Combatant[];
   activeCombatants: Combatant[];
   mapImage?: string;
+  walls?: WallSegment[];
+  objectWalls?: WallSegment[];
+  portals?: Portal[];
+  gridResolution?: GridResolution;
 }
 
 export interface Campaign {

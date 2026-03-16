@@ -5,7 +5,7 @@ import { CombatView } from './components/CombatView';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
-import { cn, Campaign, Scenario, Combatant } from './types';
+import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution } from './types';
 import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -135,6 +135,38 @@ export function DMScreen() {
     setCampaign(prev => prev ? ({
       ...prev,
       scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, mapImage } : s)
+    }) : prev);
+  };
+
+  const updateWallData = (
+    walls: WallSegment[],
+    objectWalls: WallSegment[],
+    portals: Portal[],
+    gridResolution: GridResolution
+  ) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioId
+          ? { ...s, walls, objectWalls, portals, gridResolution }
+          : s
+      )
+    }) : prev);
+  };
+
+  const togglePortal = (portalId: string) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioId
+          ? {
+              ...s,
+              portals: s.portals?.map(p =>
+                p.id === portalId ? { ...p, closed: !p.closed } : p
+              )
+            }
+          : s
+      )
     }) : prev);
   };
 
@@ -513,6 +545,12 @@ export function DMScreen() {
               setLeftSidebarOpen={setLeftSidebarOpen}
               rightSidebarOpen={rightSidebarOpen}
               setRightSidebarOpen={setRightSidebarOpen}
+              walls={currentScenario.walls}
+              objectWalls={currentScenario.objectWalls}
+              portals={currentScenario.portals}
+              gridResolution={currentScenario.gridResolution}
+              onWallDataChange={updateWallData}
+              onPortalToggle={togglePortal}
             />
           )}
         </main>

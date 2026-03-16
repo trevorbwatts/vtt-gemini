@@ -109,19 +109,19 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                 <h3 className="text-2xl font-serif font-bold tracking-tight">
                   How do you want to add this {type === 'player' ? 'Player' : 'NPC'}?
                 </h3>
-                <div className="flex gap-4 justify-center">
+                <div className="flex flex-col gap-2 max-w-[240px] mx-auto">
                   <button
                     onClick={() => setStep('manual')}
-                    className="btn-filled flex-1 px-6 py-4 rounded-xl text-sm"
+                    className="btn-ghost w-full px-4 py-3 rounded-lg"
                   >
-                    <Edit2 size={20} />
+                    <Edit2 size={14} />
                     <span>Manually</span>
                   </button>
                   <button
                     onClick={() => setStep('import')}
-                    className="btn-ghost flex-1 px-6 py-4 rounded-xl text-sm"
+                    className="btn-ghost w-full px-4 py-3 rounded-lg"
                   >
-                    <Download size={20} />
+                    <Download size={14} />
                     <span>Import from D&D Beyond</span>
                   </button>
                 </div>
@@ -173,14 +173,14 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                 <div className="flex items-center justify-end gap-4 pt-4">
                   <button 
                     onClick={() => setStep('choice')}
-                    className="text-xs font-bold uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity"
+                    className="btn-text opacity-40 hover:opacity-100"
                   >
                     Cancel
                   </button>
                   <button
                     disabled={!name.trim()}
                     onClick={handleManualAdd}
-                    className="btn-filled px-8 py-3 rounded-xl disabled:opacity-30"
+                    className="btn-filled px-6 py-2.5 rounded-lg disabled:opacity-30"
                   >
                     Add {type === 'player' ? 'Player' : 'NPC'}
                   </button>
@@ -216,14 +216,14 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                 <div className="flex items-center justify-end gap-4 pt-4">
                   <button 
                     onClick={() => setStep('choice')}
-                    className="text-xs font-bold uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity"
+                    className="btn-text opacity-40 hover:opacity-100"
                   >
                     Cancel
                   </button>
                   <button
                     disabled={!url.trim() || isImporting}
                     onClick={handleImport}
-                    className="btn-filled px-8 py-3 rounded-xl disabled:opacity-30"
+                    className="btn-filled px-6 py-2.5 rounded-lg disabled:opacity-30"
                   >
                     Add {type === 'player' ? 'Player' : 'NPC'}
                   </button>

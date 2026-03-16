@@ -149,7 +149,7 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, on
                 else updatedCampaign.npcs = [...campaign.npcs, newCombatant];
                 onUpdate(updatedCampaign);
               }}
-              className="btn-filled"
+              className="btn-text"
             >
               <Plus size={14} /> Add {activeTab === 'players' ? 'Player' : 'NPC'}
             </button>
