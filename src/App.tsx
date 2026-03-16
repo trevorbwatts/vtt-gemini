@@ -251,137 +251,139 @@ export function DMScreen() {
       {/* Navigation Sidebar (Full Height, Squishing) */}
       <motion.aside
         initial={false}
-        animate={{ width: navSidebarOpen ? 280 : 0 }}
+        animate={{ width: navSidebarOpen ? 320 : 0 }}
         className={cn(
           "h-full bg-[var(--surface)] overflow-hidden shrink-0 z-30",
           navSidebarOpen && "border-r border-[var(--line)]"
         )}
       >
-        <div className="w-[280px] h-full flex flex-col">
-          <div className="h-14 px-4 border-b border-[var(--line)] flex items-center justify-between bg-black/10 shrink-0">
+        <div className="w-[320px] h-full flex flex-col pt-2">
+          <div className="h-14 px-6 border-b border-[var(--line)] flex items-center justify-between shrink-0">
             <button 
               onClick={() => setCampaign(null)}
-              className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity"
+              className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.15em] opacity-60 hover:opacity-100 transition-opacity"
             >
-              <ArrowLeft size={14} />
+              <ArrowLeft size={16} className="opacity-70" />
               <span>Switch Campaign</span>
             </button>
             <button 
               onClick={() => setNavSidebarOpen(false)}
               className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
             >
-              <Menu size={20} className="text-[var(--accent)]" />
+              <Menu size={22} className="text-[var(--accent)]" />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
             {/* Campaign Section */}
             <div>
-              <div className="px-2 space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Campaign</h3>
+                  <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Campaign</h3>
                   <button 
                     onClick={() => setSettingsOpen(true)}
-                    className="text-[10px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline"
+                    className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80"
                   >
                     Settings
                   </button>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-lg font-bold font-serif tracking-tight truncate">{campaign.name}</div>
+                  <div className="text-[22px] font-bold font-serif tracking-tight truncate text-white">{campaign.name}</div>
                   <button 
                     onClick={() => {
                       setNewCampaignName(campaign.name);
                       setEditCampaignNameOpen(true);
                     }}
-                    className="p-1 hover:bg-black/5 rounded transition-colors opacity-40 hover:opacity-100"
+                    className="p-1.5 hover:bg-black/5 rounded-md transition-colors opacity-30 hover:opacity-100 shrink-0"
                   >
-                    <Edit2 size={12} />
+                    <Edit2 size={14} />
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="h-px bg-[var(--line)] opacity-10 mx-2" />
+            <div className="h-px bg-[var(--line)] opacity-10" />
 
             {/* Players Section */}
             <div>
-              <div className="flex items-center justify-between mb-3 px-2">
-                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Players</h3>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Players</h3>
                 <button 
                   onClick={() => setAddPlayerModalOpen(true)}
-                  className="text-[9px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
                 >
                   + Add Player
                 </button>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {campaign.players.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 transition-all group">
-                    <div className="w-6 h-6 rounded-full bg-[var(--btn-bg)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                  <div key={p.id} className="flex items-center gap-5 px-1 py-1 rounded-lg transition-all group">
+                    <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[13px] font-bold text-white shrink-0">
                       {p.name[0]}
                     </div>
-                    <span className="text-sm font-medium opacity-80 group-hover:opacity-100 truncate">{p.name}</span>
+                    <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{p.name}</span>
                   </div>
                 ))}
               </div>
             </div>
 
+            <div className="h-px bg-[var(--line)] opacity-10" />
+
             {/* NPCs Section */}
             <div>
-              <div className="flex items-center justify-between mb-3 px-2">
-                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">NPCs</h3>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">NPCs</h3>
                 <button 
                   onClick={() => setAddNPCModalOpen(true)}
-                  className="text-[9px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
                 >
                   + Add NPC
                 </button>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {campaign.npcs.map((n) => (
-                  <div key={n.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 transition-all group">
-                    <div className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  <div key={n.id} className="flex items-center gap-5 px-1 py-1 rounded-lg transition-all group">
+                    <div className="w-8 h-8 rounded-full bg-black/20 border border-[var(--line)]/30 flex items-center justify-center text-[13px] font-bold text-white shrink-0">
                       {n.name[0]}
                     </div>
-                    <span className="text-sm font-medium opacity-80 group-hover:opacity-100 truncate">{n.name}</span>
+                    <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{n.name}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="h-px bg-[var(--line)] opacity-10 mx-2" />
+            <div className="h-px bg-[var(--line)] opacity-10" />
 
             {/* Scenarios Section */}
             <div>
-              <div className="flex items-center justify-between mb-3 px-2">
-                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Scenarios</h3>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Scenarios</h3>
                 <button 
                   onClick={addScenario}
-                  className="text-[9px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
                 >
                   + Add Scenario
                 </button>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-3">
                 {campaign.scenarios.map((s) => (
                   <div key={s.id} className="flex items-center gap-2 group">
                     <button
                       onClick={() => setSelectedScenarioId(s.id)}
                       className={cn(
-                        "flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                        "flex-1 flex items-center gap-4 px-5 py-4 rounded-[12px] text-[15px] font-medium transition-all tracking-wide",
                         selectedScenarioId === s.id 
-                          ? "bg-black/5 text-[var(--ink)] border border-[var(--line)]" 
-                          : "hover:bg-black/5 opacity-60 hover:opacity-100 border border-transparent"
+                          ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm" 
+                          : "hover:bg-[#181512] opacity-70 hover:opacity-100 border border-transparent text-white"
                       )}
                     >
-                      <FileText size={14} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
+                      <FileText size={18} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
                       <span className="flex-1 text-left truncate">{s.name}</span>
                     </button>
                     <button 
                       onClick={() => {
                         setSelectedScenarioId(s.id);
-                        // Logic to edit scenario name could go here
+                        // Logic to edit scenario name
                       }}
                       className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
                     >
@@ -393,14 +395,14 @@ export function DMScreen() {
             </div>
           </div>
 
-          <div className="p-4 border-t border-[var(--line)] bg-black/5 space-y-4">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-8 h-8 rounded-full bg-[var(--btn-bg)] flex items-center justify-center text-white font-bold text-xs">
+          <div className="p-6 border-t border-[var(--line)] shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[var(--accent)] flex items-center justify-center text-white font-bold text-[14px] shrink-0">
                 DM
               </div>
               <div className="flex flex-col">
-                <span className="text-xs font-bold">Dungeon Master</span>
-                <span className="text-[9px] opacity-40 font-sans">v1.0.42-PRO</span>
+                <span className="text-[15px] font-bold text-white tracking-wide">Dungeon Master</span>
+                <span className="text-[12px] opacity-40 font-sans tracking-[0.05em] mt-0.5">v1.0</span>
               </div>
             </div>
           </div>
