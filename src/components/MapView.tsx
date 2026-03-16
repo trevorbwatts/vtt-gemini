@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText } from 'lucide-react';
+import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, ZoomIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
@@ -72,6 +72,7 @@ export const MapView: React.FC<MapViewProps> = ({
     stageY: number,
     view: 'root' | 'note' | 'add-player' | 'add-enemy' | 'add-npc'
   } | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'info', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
@@ -81,6 +82,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
   const [showWalls, setShowWalls] = useState(true);
+  const [showZoomSlider, setShowZoomSlider] = useState(false);
+
+  const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
 
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
@@ -120,7 +124,21 @@ export const MapView: React.FC<MapViewProps> = ({
     if (mapImage) {
       const img = new Image();
       img.src = mapImage;
-      img.onload = () => setLoadedImage(img);
+      img.onload = () => {
+        setLoadedImage(img);
+        // Fit map to viewport with padding
+        if (dimensions.width > 0 && dimensions.height > 0) {
+          const padding = 40;
+          const scaleX = (dimensions.width - padding) / img.width;
+          const scaleY = (dimensions.height - padding) / img.height;
+          const fitScale = Math.min(scaleX, scaleY, 1);
+          setStageScale(fitScale);
+          setStagePos({
+            x: (dimensions.width - img.width * fitScale) / 2,
+            y: (dimensions.height - img.height * fitScale) / 2,
+          });
+        }
+      };
     } else {
       setLoadedImage(null);
     }
@@ -218,6 +236,7 @@ export const MapView: React.FC<MapViewProps> = ({
     setMonsterSearch('');
     setSelectedMonster(null);
     setMonsterQuantity(1);
+    setActiveSubmenu(null);
   };
 
   const handleTokenContextMenu = (e: any, tokenId: string) => {
@@ -296,6 +315,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const [isPanning, setIsPanning] = useState(false);
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
+  const [stageScale, setStageScale] = useState(1);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
 
   const handleStageMouseDown = (e: any) => {
     // Only pan on right click (button 2) or middle click (button 1)
@@ -308,16 +329,10 @@ export const MapView: React.FC<MapViewProps> = ({
   const handleStageMouseMove = (e: any) => {
     if (!isPanning) return;
 
-    const stage = e.target.getStage();
     const dx = e.evt.clientX - lastPos.x;
     const dy = e.evt.clientY - lastPos.y;
 
-    const newPos = {
-      x: stage.x() + dx,
-      y: stage.y() + dy,
-    };
-
-    stage.position(newPos);
+    setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
     setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
   };
 
@@ -328,14 +343,36 @@ export const MapView: React.FC<MapViewProps> = ({
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
     const stage = e.target.getStage();
-    const oldPos = stage.position();
-    
-    // Update stage position based on wheel delta
-    // This enables two-finger scroll (panning) on trackpads
-    stage.position({
-      x: oldPos.x - e.evt.deltaX,
-      y: oldPos.y - e.evt.deltaY,
-    });
+
+    if (e.evt.ctrlKey || e.evt.metaKey) {
+      // Ctrl+scroll = zoom toward pointer
+      const scaleBy = 1.08;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const mousePointTo = {
+        x: (pointer.x - stagePos.x) / stageScale,
+        y: (pointer.y - stagePos.y) / stageScale,
+      };
+
+      const newScale = e.evt.deltaY < 0
+        ? stageScale * scaleBy
+        : stageScale / scaleBy;
+
+      const clampedScale = Math.min(Math.max(newScale, 0.05), 5);
+
+      setStageScale(clampedScale);
+      setStagePos({
+        x: pointer.x - mousePointTo.x * clampedScale,
+        y: pointer.y - mousePointTo.y * clampedScale,
+      });
+    } else {
+      // Plain scroll = pan
+      setStagePos(prev => ({
+        x: prev.x - e.evt.deltaX,
+        y: prev.y - e.evt.deltaY,
+      }));
+    }
   };
 
   return (
@@ -390,6 +427,12 @@ export const MapView: React.FC<MapViewProps> = ({
                   {showWalls ? <Eye size={12} /> : <EyeOff size={12} />} WALLS
                 </button>
               )}
+              <button
+                onClick={() => setShowZoomSlider(!showZoomSlider)}
+                className={cn("btn-ghost py-1", showZoomSlider && "bg-white/10")}
+              >
+                <ZoomIn size={12} /> ZOOM
+              </button>
             </div>
           </div>
 
@@ -433,7 +476,35 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
         </div>
       )}
-      
+
+      {/* Zoom Slider Bar */}
+      {!isPlayerView && showZoomSlider && (
+        <div className="h-8 border-b border-[var(--line)] bg-[var(--surface)] flex items-center px-4 gap-3 shrink-0">
+          <span className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold w-8">{Math.round(stageScale * 100)}%</span>
+          <input
+            type="range"
+            min={5}
+            max={500}
+            value={Math.round(stageScale * 100)}
+            onChange={(e) => {
+              const newScale = parseInt(e.target.value) / 100;
+              const centerX = dimensions.width / 2;
+              const centerY = dimensions.height / 2;
+              const pointTo = {
+                x: (centerX - stagePos.x) / stageScale,
+                y: (centerY - stagePos.y) / stageScale,
+              };
+              setStageScale(newScale);
+              setStagePos({
+                x: centerX - pointTo.x * newScale,
+                y: centerY - pointTo.y * newScale,
+              });
+            }}
+            className="flex-1 h-1 accent-[var(--accent)] cursor-pointer"
+          />
+        </div>
+      )}
+
       <div className="flex-1 bg-[#111] relative overflow-hidden">
         {!loadedImage && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10">
@@ -450,9 +521,13 @@ export const MapView: React.FC<MapViewProps> = ({
             </div>
           </div>
         )}
-        <Stage 
-          width={dimensions.width} 
-          height={dimensions.height} 
+        <Stage
+          width={dimensions.width}
+          height={dimensions.height}
+          scaleX={stageScale}
+          scaleY={stageScale}
+          x={stagePos.x}
+          y={stagePos.y}
           onMouseDown={isPlayerView ? undefined : handleStageMouseDown}
           onMouseMove={isPlayerView ? undefined : handleStageMouseMove}
           onMouseUp={isPlayerView ? undefined : handleStageMouseUp}
@@ -591,7 +666,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 }}
               >
                 <Circle
-                  radius={20}
+                  radius={tokenRadius}
                   fill={token.color}
                   stroke={selectedTokenIds.includes(token.id) ? "var(--accent)" : "white"}
                   strokeWidth={selectedTokenIds.includes(token.id) ? 4 : 2}
@@ -606,19 +681,19 @@ export const MapView: React.FC<MapViewProps> = ({
                     strokeWidth={2}
                     lineCap="round"
                     lineJoin="round"
-                    scale={{ x: 0.8, y: 0.8 }}
-                    x={-10}
-                    y={-10}
+                    scale={{ x: tokenRadius / 25, y: tokenRadius / 25 }}
+                    x={-12 * (tokenRadius / 25)}
+                    y={-12 * (tokenRadius / 25)}
                   />
                 )}
                 <Text
                   text={token.name}
-                  fontSize={12}
+                  fontSize={Math.max(10, tokenRadius * 0.55)}
                   fill="white"
-                  y={25}
+                  y={tokenRadius + 5}
                   align="center"
-                  width={100}
-                  x={-50}
+                  width={tokenRadius * 5}
+                  x={-tokenRadius * 2.5}
                   fontStyle="bold"
                   fontFamily="Inter"
                   opacity={token.hidden ? 0.6 : 1}
@@ -632,19 +707,21 @@ export const MapView: React.FC<MapViewProps> = ({
         {contextMenu && (
           <div 
             className={cn(
-              "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200",
-              contextMenu.view === 'add-enemy' ? "w-[600px]" : "w-64"
+              "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
+              contextMenu.view === 'add-enemy' ? "w-[600px] overflow-hidden" : "w-64"
             )}
             style={
               contextMenu.view === 'add-enemy' 
                 ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
                 : { left: contextMenu.stageX, top: contextMenu.stageY }
             }
+            onMouseLeave={() => setActiveSubmenu(null)}
             onClick={(e) => e.stopPropagation()}
           >
             {contextMenu.view === 'root' && (
-              <div className="flex flex-col py-1">
+              <div className="flex flex-col py-1 relative">
                 <button 
+                  onMouseEnter={() => setActiveSubmenu(null)}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'note' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
                 >
@@ -653,15 +730,67 @@ export const MapView: React.FC<MapViewProps> = ({
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
                 <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-50" />
+                
+                {/* Player Flyout Trigger */}
+                <div className="relative">
+                  <button 
+                    onMouseEnter={() => setActiveSubmenu('player')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors group",
+                      activeSubmenu === 'player' ? "bg-blue-500 text-white" : "hover:bg-blue-500 hover:text-white"
+                    )}
+                  >
+                    <User size={14} className={cn(activeSubmenu === 'player' ? "text-white" : "text-blue-500 group-hover:text-white")} />
+                    <span className="flex-1 text-left">Add/Move a Player</span>
+                    <ChevronRight size={12} className="opacity-30" />
+                  </button>
+
+                  {/* Player Submenu */}
+                  {activeSubmenu === 'player' && (
+                    <div className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150">
+                      <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest opacity-30 border-b border-[var(--line)] mb-1">Select Player</div>
+                      {(() => {
+                        const onMap = players.filter(c => tokens.some(t => t.combatantId === c.id));
+                        const notOnMap = players.filter(c => !tokens.some(t => t.combatantId === c.id));
+                        return (
+                          <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                            {notOnMap.map(c => (
+                              <button
+                                key={c.id}
+                                onClick={() => handleCombatantSelect(c, 'player')}
+                                className="w-full text-left px-4 py-2 text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2"
+                              >
+                                <PlusCircle size={12} className="opacity-50" />
+                                {c.name}
+                              </button>
+                            ))}
+                            {onMap.length > 0 && (
+                              <>
+                                {notOnMap.length > 0 && <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-30" />}
+                                {onMap.map(c => (
+                                  <button
+                                    key={c.id}
+                                    onClick={() => handleCombatantSelect(c, 'player')}
+                                    className="w-full text-left px-4 py-2 text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2"
+                                  >
+                                    <ChevronRight size={12} className="opacity-50" />
+                                    {c.name}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                            {players.length === 0 && (
+                              <div className="px-4 py-4 text-center opacity-30 text-[10px] italic">No players found</div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+
                 <button 
-                  onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-player' } : null)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-blue-500 hover:text-white transition-colors group"
-                >
-                  <User size={14} className="text-blue-500 group-hover:text-white" />
-                  <span className="flex-1 text-left">Add/Move a Player</span>
-                  <ChevronRight size={12} className="opacity-30" />
-                </button>
-                <button 
+                  onMouseEnter={() => setActiveSubmenu(null)}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-enemy' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[#ef4444] hover:text-white transition-colors group"
                 >
@@ -669,14 +798,64 @@ export const MapView: React.FC<MapViewProps> = ({
                   <span className="flex-1 text-left">Add an Enemy</span>
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
-                <button 
-                  onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-npc' } : null)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-emerald-500 hover:text-white transition-colors group"
-                >
-                  <Shield size={14} className="text-emerald-500 group-hover:text-white" />
-                  <span className="flex-1 text-left">Add an NPC</span>
-                  <ChevronRight size={12} className="opacity-30" />
-                </button>
+
+                {/* NPC Flyout Trigger */}
+                <div className="relative">
+                  <button 
+                    onMouseEnter={() => setActiveSubmenu('npc')}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors group",
+                      activeSubmenu === 'npc' ? "bg-emerald-500 text-white" : "hover:bg-emerald-500 hover:text-white"
+                    )}
+                  >
+                    <Shield size={14} className={cn(activeSubmenu === 'npc' ? "text-white" : "text-emerald-500 group-hover:text-white")} />
+                    <span className="flex-1 text-left">Add an NPC</span>
+                    <ChevronRight size={12} className="opacity-30" />
+                  </button>
+
+                  {/* NPC Submenu */}
+                  {activeSubmenu === 'npc' && (
+                    <div className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150">
+                      <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest opacity-30 border-b border-[var(--line)] mb-1">Select NPC</div>
+                      {(() => {
+                        const onMap = npcs.filter(c => tokens.some(t => t.combatantId === c.id));
+                        const notOnMap = npcs.filter(c => !tokens.some(t => t.combatantId === c.id));
+                        return (
+                          <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                            {notOnMap.map(c => (
+                              <button
+                                key={c.id}
+                                onClick={() => handleCombatantSelect(c, 'npc')}
+                                className="w-full text-left px-4 py-2 text-xs hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2"
+                              >
+                                <PlusCircle size={12} className="opacity-50" />
+                                {c.name}
+                              </button>
+                            ))}
+                            {onMap.length > 0 && (
+                              <>
+                                {notOnMap.length > 0 && <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-30" />}
+                                {onMap.map(c => (
+                                  <button
+                                    key={c.id}
+                                    onClick={() => handleCombatantSelect(c, 'npc')}
+                                    className="w-full text-left px-4 py-2 text-xs hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2"
+                                  >
+                                    <ChevronRight size={12} className="opacity-50" />
+                                    {c.name}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                            {npcs.length === 0 && (
+                              <div className="px-4 py-4 text-center opacity-30 text-[10px] italic">No NPCs found</div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -723,64 +902,6 @@ export const MapView: React.FC<MapViewProps> = ({
                 >
                   Save Note
                 </button>
-              </div>
-            )}
-
-            {(contextMenu.view === 'add-player' || contextMenu.view === 'add-npc') && (
-              <div className="flex flex-col">
-                <div className="p-3 border-b border-[var(--line)] bg-black/10 flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">
-                    {contextMenu.view === 'add-player' ? 'Select Player' : 'Select NPC'}
-                  </p>
-                  <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
-                </div>
-                <div className="max-h-[300px] overflow-y-auto py-1">
-                  {(() => {
-                    const type = contextMenu.view === 'add-player' ? 'player' : 'npc';
-                    const availableCombatants = contextMenu.view === 'add-player' ? players : npcs;
-                    
-                    const onMap = availableCombatants.filter(c => tokens.some(t => t.combatantId === c.id));
-                    const notOnMap = availableCombatants.filter(c => !tokens.some(t => t.combatantId === c.id));
-
-                    return (
-                      <>
-                        {notOnMap.map(c => (
-                          <button
-                            key={c.id}
-                            onClick={() => handleCombatantSelect(c, type)}
-                            className="w-full text-left px-4 py-2 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors flex items-center gap-2"
-                          >
-                            <PlusCircle size={12} className="opacity-50" />
-                            {c.name}
-                          </button>
-                        ))}
-                        
-                        {onMap.length > 0 && (
-                          <>
-                            <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-30" />
-                            <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest opacity-30 bg-black/5">Already on the map</div>
-                            {onMap.map(c => (
-                              <button
-                                key={c.id}
-                                onClick={() => handleCombatantSelect(c, type)}
-                                className="w-full text-left px-4 py-2 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors flex items-center gap-2"
-                              >
-                                <ChevronRight size={12} className="opacity-50" />
-                                {c.name}
-                              </button>
-                            ))}
-                          </>
-                        )}
-
-                        {availableCombatants.length === 0 && (
-                          <div className="px-4 py-4 text-center opacity-30 text-[10px] italic">
-                            No {type}s found in system
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
               </div>
             )}
 
