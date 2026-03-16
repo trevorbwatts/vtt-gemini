@@ -6,7 +6,10 @@
       "WebFetch(domain:arkenforge.com)",
       "WebFetch(domain:github-wiki-see.page)",
       "Bash(npx tsc:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(grep -n \"import.*konva\\\\|from ''konva''\" \"/c/Users/trevo/OneDrive/Desktop/vtt-gemini/src/components/MapView.tsx\")",
+      "Bash(find /c/Users/trevo/OneDrive/Desktop/vtt-gemini/node_modules/konva -name *.d.ts -type f)",
+      "Bash(grep -E \"^[A-Z].*\\\\.d\\\\.ts$\")"
     ]
   }
 }

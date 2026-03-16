@@ -77,7 +77,11 @@ export function PlayerScreen() {
         setLeftSidebarOpen={() => {}}
         rightSidebarOpen={false}
         setRightSidebarOpen={() => {}}
-        isPlayerView={true} // New prop needed on MapView to hide DM controls
+        isPlayerView={true}
+        walls={currentScenario.walls}
+        objectWalls={currentScenario.objectWalls}
+        portals={currentScenario.portals}
+        gridResolution={currentScenario.gridResolution}
       />
     </div>
   );

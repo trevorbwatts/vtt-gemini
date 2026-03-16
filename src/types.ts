@@ -82,6 +82,7 @@ export interface Combatant {
   };
   actions?: MonsterAction[];
   spells?: { name: string; level: number; desc: string }[];
+  avatar?: string;
 }
 
 export interface WallPoint {

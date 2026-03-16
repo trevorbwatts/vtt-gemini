@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2 } from 'lucide-react';
+import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus } from 'lucide-react';
 import { Combatant, cn } from '../types';
 
 interface AddCombatantModalProps {
@@ -19,6 +19,16 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [darkvision, setDarkvision] = useState(0);
   const [url, setUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatar(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const handleManualAdd = () => {
     if (!name.trim()) return;
@@ -31,7 +41,8 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
       type,
       stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
       actions: [],
-      darkvision
+      darkvision,
+      ...(avatar ? { avatar } : {})
     });
     resetAndClose();
   };
@@ -67,6 +78,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     setAc(10);
     setDarkvision(0);
     setUrl('');
+    setAvatar(null);
     onClose();
   };
 
@@ -130,6 +142,48 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
 
             {step === 'manual' && (
               <div className="space-y-6">
+
+                {/* Avatar Upload */}
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    className={cn(
+                      "w-24 h-24 rounded-full border-2 border-dashed border-[var(--line)] flex items-center justify-center overflow-hidden transition-all hover:border-[var(--accent)] group relative",
+                      avatar ? "border-solid border-[var(--accent)]" : ""
+                    )}
+                  >
+                    {avatar ? (
+                      <>
+                        <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <ImagePlus size={20} className="text-white" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-[var(--accent)] opacity-40 group-hover:opacity-100 transition-opacity">
+                        <ImagePlus size={22} />
+                        <span className="text-[9px] uppercase font-bold tracking-wider">Avatar</span>
+                      </div>
+                    )}
+                  </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+                  {avatar && (
+                    <button
+                      onClick={() => setAvatar(null)}
+                      className="text-[9px] font-bold uppercase tracking-widest opacity-30 hover:opacity-70 transition-opacity"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">

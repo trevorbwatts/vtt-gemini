@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, ZoomIn } from 'lucide-react';
+import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, ZoomIn, Cloud } from 'lucide-react';
+import { extractBlockingSegments, computeVisibilityPolygon } from '../utils/visibility';
+import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
@@ -83,9 +85,29 @@ export const MapView: React.FC<MapViewProps> = ({
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
   const [showWalls, setShowWalls] = useState(true);
   const [showZoomSlider, setShowZoomSlider] = useState(false);
+  const [showFog, setShowFog] = useState(true);
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
+
+  const blockingSegments = useMemo(
+    () => extractBlockingSegments(walls || [], objectWalls || [], portals || []),
+    [walls, objectWalls, portals]
+  );
+
+  const playerTokenPositions = useMemo(
+    () => tokens.filter(t => t.type === 'player' && !t.hidden),
+    [tokens]
+  );
+
+  const visibilityPolygons = useMemo(
+    () => playerTokenPositions.map(t =>
+      computeVisibilityPolygon({ x: t.x, y: t.y }, blockingSegments)
+    ),
+    [playerTokenPositions, blockingSegments]
+  );
+
+  const hasFogData = blockingSegments.length > 0;
 
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
@@ -449,6 +471,14 @@ export const MapView: React.FC<MapViewProps> = ({
               >
                 <ZoomIn size={12} /> ZOOM
               </button>
+              {hasFogData && (
+                <button
+                  onClick={() => setShowFog(!showFog)}
+                  className={cn("btn-ghost py-1", showFog && "bg-white/10")}
+                >
+                  <Cloud size={12} /> FOG
+                </button>
+              )}
             </div>
           </div>
 
@@ -717,6 +747,16 @@ export const MapView: React.FC<MapViewProps> = ({
               </Group>
             ))}
           </Layer>
+          {(isPlayerView || showFog) && hasFogData && loadedImage && (
+            <Layer listening={false}>
+              <FogOfWarLayer
+                visibilityPolygons={visibilityPolygons}
+                mapWidth={loadedImage.width}
+                mapHeight={loadedImage.height}
+                opacity={isPlayerView ? 1.0 : 0.25}
+              />
+            </Layer>
+          )}
         </Stage>
 
         {/* Context Menu / Note Creator */}
