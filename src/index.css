@@ -13,8 +13,8 @@
     --bg: #0c0a09; /* stone-950 */
     --ink: #e7e5e4; /* stone-200 */
     --line: #292524; /* stone-800 */
-    --accent: #E9BE59; /* New Gold */
-    --btn-bg: #D48A17; /* Button Gold */
+    --accent: #CD7F32; /* Bronze Accent */
+    --btn-bg: #8B4513; /* SaddleBrown Button BG */
     --surface: #1c1917; /* stone-900 */
     --surface-hover: #292524; /* stone-800 */
     --parchment-texture: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
@@ -30,6 +30,42 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-serif);
+  }
+}
+
+/* ── Button System ─────────────────────────────────── */
+@layer components {
+  /* Filled: solid purple, white text */
+  .btn-filled {
+    @apply inline-flex items-center justify-center gap-2
+           px-4 py-2 rounded-lg
+           bg-[var(--btn-bg)] text-white
+           text-[10px] font-bold uppercase tracking-widest
+           hover:brightness-110 active:brightness-95
+           disabled:opacity-30
+           transition-all;
+  }
+
+  /* Ghost: purple border + text, transparent bg */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           px-4 py-2 rounded-lg
+           border border-[var(--accent)] text-[var(--accent)]
+           text-[10px] font-bold uppercase tracking-widest
+           hover:bg-[var(--accent)] hover:text-white
+           active:brightness-95
+           disabled:opacity-30
+           transition-all;
+  }
+
+  /* Text-only: purple text, no border/bg */
+  .btn-text {
+    @apply inline-flex items-center justify-center gap-2
+           text-[var(--accent)]
+           text-[10px] font-bold uppercase tracking-widest
+           hover:brightness-125
+           disabled:opacity-30
+           transition-all;
   }
 }
 

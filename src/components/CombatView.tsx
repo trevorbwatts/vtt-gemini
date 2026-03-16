@@ -102,13 +102,13 @@ export const CombatView: React.FC<CombatViewProps> = ({
       <div className="px-5 py-4 flex gap-3 shrink-0">
         <button 
           onClick={clearCombat}
-          className="flex-1 py-2.5 bg-[#181512] border border-[#2e261d] rounded text-[11px] font-bold uppercase tracking-[0.15em] hover:bg-[#201c18] transition-colors text-white"
+          className="btn-ghost flex-1 py-2.5 rounded"
         >
           Clear
         </button>
         <button 
           onClick={nextTurn}
-          className="flex-[2] py-2.5 bg-[#e9be59] text-black rounded text-[11px] font-bold uppercase tracking-[0.15em] hover:opacity-90 transition-colors shadow-lg shadow-[#e9be59]/10 flex items-center justify-center gap-2"
+          className="btn-filled flex-[2] py-2.5 rounded flex items-center justify-center gap-2"
         >
           Next &rarr;
         </button>
@@ -130,7 +130,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
                 className={cn(
                   "relative overflow-hidden rounded-lg border transition-all flex items-stretch h-[76px]",
                   activeCombatantId === c.id 
-                    ? "bg-[#1d1a16] border-[#e9be59] shadow-[0_0_15px_rgba(233,190,89,0.1)]" 
+                    ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]" 
                     : "bg-[#181512] border-[#2e261d]"
                 )}
               >
@@ -166,7 +166,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
                       <div className="flex-1 flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-[var(--accent)] transition-all shadow-[0_0_8px_rgba(233,190,89,0.3)]"
+                            className="h-full bg-[var(--accent)] transition-all shadow-[0_0_8px_rgba(205,127,50,0.3)]"
                             style={{ width: `${(c.hp / c.maxHp) * 100}%` }}
                           />
                         </div>

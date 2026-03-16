@@ -97,13 +97,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
                   <div className="flex gap-2">
                     <button 
                       onClick={handleCreate}
-                      className="flex-1 bg-[var(--btn-bg)] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:opacity-90 transition-all"
+                      className="btn-filled flex-1 py-3 rounded-xl"
                     >
                       Initialize
                     </button>
                     <button 
                       onClick={() => setIsCreating(false)}
-                      className="px-4 py-3 rounded-xl border border-[var(--line)] hover:bg-black/5 transition-all text-xs uppercase tracking-widest"
+                      className="btn-ghost px-4 py-3 rounded-xl"
                     >
                       Cancel
                     </button>

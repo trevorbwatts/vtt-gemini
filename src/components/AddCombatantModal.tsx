@@ -112,14 +112,14 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                 <div className="flex gap-4 justify-center">
                   <button
                     onClick={() => setStep('manual')}
-                    className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-[var(--accent)] text-white rounded-xl font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[var(--accent)]/20"
+                    className="btn-filled flex-1 px-6 py-4 rounded-xl text-sm"
                   >
                     <Edit2 size={20} />
                     <span>Manually</span>
                   </button>
                   <button
                     onClick={() => setStep('import')}
-                    className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-[#E9BE59] text-black rounded-xl font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[#E9BE59]/20"
+                    className="btn-ghost flex-1 px-6 py-4 rounded-xl text-sm"
                   >
                     <Download size={20} />
                     <span>Import from D&D Beyond</span>
@@ -180,7 +180,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                   <button
                     disabled={!name.trim()}
                     onClick={handleManualAdd}
-                    className="px-8 py-3 bg-[var(--btn-bg)] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-30 transition-all shadow-lg shadow-[var(--btn-bg)]/20"
+                    className="btn-filled px-8 py-3 rounded-xl disabled:opacity-30"
                   >
                     Add {type === 'player' ? 'Player' : 'NPC'}
                   </button>
@@ -206,7 +206,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                     <button
                       disabled={!url.trim() || isImporting}
                       onClick={handleImport}
-                      className="px-4 py-3 border border-[#E9BE59] text-[#E9BE59] rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#E9BE59] hover:text-black transition-all"
+                      className="btn-ghost px-4 py-3 rounded-xl"
                     >
                       {isImporting ? 'Importing...' : '+ Import Character'}
                     </button>
@@ -223,7 +223,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                   <button
                     disabled={!url.trim() || isImporting}
                     onClick={handleImport}
-                    className="px-8 py-3 bg-[#E9BE59] text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-30 transition-all shadow-lg shadow-[#E9BE59]/20"
+                    className="btn-filled px-8 py-3 rounded-xl disabled:opacity-30"
                   >
                     Add {type === 'player' ? 'Player' : 'NPC'}
                   </button>

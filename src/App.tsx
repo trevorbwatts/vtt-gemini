@@ -283,7 +283,7 @@ export function DMScreen() {
                   <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Campaign</h3>
                   <button 
                     onClick={() => setSettingsOpen(true)}
-                    className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80"
+                    className="btn-text"
                   >
                     Settings
                   </button>
@@ -311,7 +311,7 @@ export function DMScreen() {
                 <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Players</h3>
                 <button 
                   onClick={() => setAddPlayerModalOpen(true)}
-                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
+                  className="btn-text"
                 >
                   + Add Player
                 </button>
@@ -336,7 +336,7 @@ export function DMScreen() {
                 <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">NPCs</h3>
                 <button 
                   onClick={() => setAddNPCModalOpen(true)}
-                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
+                  className="btn-text"
                 >
                   + Add NPC
                 </button>
@@ -361,7 +361,7 @@ export function DMScreen() {
                 <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Scenarios</h3>
                 <button 
                   onClick={addScenario}
-                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
+                  className="btn-text"
                 >
                   + Add Scenario
                 </button>
@@ -458,7 +458,7 @@ export function DMScreen() {
                     alert("Player Screen is only available in the Electron Desktop App.");
                 }
               }}
-              className="flex items-center gap-2 px-3 py-1.5 border border-[var(--accent)] text-[var(--accent)] rounded-md text-[10px] font-bold uppercase tracking-widest hover:bg-[var(--accent)] hover:text-[var(--bg)] transition-all"
+              className="btn-ghost"
             >
               <MonitorUp size={14} />
               <span>Launch Player Screen</span>
@@ -592,13 +592,13 @@ export function DMScreen() {
                 <div className="flex gap-3 pt-2">
                   <button 
                     onClick={() => setEditCampaignNameOpen(false)}
-                    className="flex-1 px-4 py-3 rounded-xl border border-[var(--line)] text-xs font-bold uppercase tracking-widest hover:bg-black/5 transition-all"
+                    className="btn-ghost flex-1 py-3 rounded-xl"
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={updateCampaignName}
-                    className="flex-1 px-4 py-3 rounded-xl bg-[var(--btn-bg)] text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[var(--btn-bg)]/20"
+                    className="btn-filled flex-1 py-3 rounded-xl"
                   >
                     Save Changes
                   </button>

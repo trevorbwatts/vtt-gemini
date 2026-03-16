@@ -346,7 +346,7 @@ export const MapView: React.FC<MapViewProps> = ({
               </div>
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-3 py-1 border border-[var(--ink)] text-[var(--ink)] rounded text-[10px] font-sans hover:bg-[var(--ink)] hover:text-[var(--bg)] transition-all"
+                className="btn-ghost py-1"
               >
                 <Upload size={12} /> UPLOAD
               </button>
@@ -361,7 +361,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   onStartCombat(selectedTokenIds);
                   setSelectedTokenIds([]);
                 }}
-                className="flex items-center gap-2 px-4 py-1 bg-[var(--btn-bg)] text-white rounded text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[var(--btn-bg)]/20 animate-in fade-in slide-in-from-right-4 mr-2"
+                className="btn-filled px-4 py-1 rounded animate-in fade-in slide-in-from-right-4 mr-2"
               >
                 <Swords size={12} /> Roll Initiative ({selectedTokenIds.length})
               </button>
@@ -403,7 +403,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <p className="text-lg opacity-40 font-sans">Upload a map to get started</p>
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-3 px-8 py-4 bg-[var(--btn-bg)] text-white rounded-xl text-sm font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-xl shadow-[var(--btn-bg)]/20"
+                className="btn-filled px-8 py-4 rounded-xl text-sm shadow-xl"
               >
                 <Upload size={20} />
                 <span>Upload Map</span>
@@ -554,7 +554,11 @@ export const MapView: React.FC<MapViewProps> = ({
               "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200",
               contextMenu.view === 'add-enemy' ? "w-[600px]" : "w-64"
             )}
-            style={{ left: contextMenu.stageX, top: contextMenu.stageY }}
+            style={
+              contextMenu.view === 'add-enemy' 
+                ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
+                : { left: contextMenu.stageX, top: contextMenu.stageY }
+            }
             onClick={(e) => e.stopPropagation()}
           >
             {contextMenu.view === 'root' && (
@@ -634,7 +638,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 <button
                   disabled={!noteDraft.content.trim()}
                   onClick={saveNote}
-                  className="w-full py-2 bg-[var(--btn-bg)] text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-30 transition-all"
+                  className="btn-filled w-full py-2 rounded-lg disabled:opacity-30"
                 >
                   Save Note
                 </button>
@@ -812,7 +816,7 @@ export const MapView: React.FC<MapViewProps> = ({
                               }
                               setContextMenu(null);
                             }}
-                            className="w-full py-2 bg-[var(--btn-bg)] text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-colors flex items-center justify-center gap-2"
+                            className="btn-filled w-full py-2 rounded-lg"
                           >
                             <PlusCircle size={14} />
                             Add {monsterQuantity > 1 ? `${monsterQuantity} Tokens` : 'to Map'}
