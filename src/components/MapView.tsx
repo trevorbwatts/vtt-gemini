@@ -85,6 +85,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showZoomSlider, setShowZoomSlider] = useState(false);
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
+  const tokenScale = tokenRadius / 20;
 
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
@@ -126,23 +127,38 @@ export const MapView: React.FC<MapViewProps> = ({
       img.src = mapImage;
       img.onload = () => {
         setLoadedImage(img);
-        // Fit map to viewport with padding
         if (dimensions.width > 0 && dimensions.height > 0) {
-          const padding = 40;
-          const scaleX = (dimensions.width - padding) / img.width;
-          const scaleY = (dimensions.height - padding) / img.height;
-          const fitScale = Math.min(scaleX, scaleY, 1);
-          setStageScale(fitScale);
+          // Target a consistent token screen size of ~40px radius
+          const targetTokenScreenRadius = 18;
+          let scale: number;
+
+          if (gridResolution && gridResolution.pixelsPerGrid > 0) {
+            // Token radius in source image = pixelsPerGrid * 0.4
+            // We want (pixelsPerGrid * 0.4) * scale = targetTokenScreenRadius
+            const sourceTokenRadius = gridResolution.pixelsPerGrid * 0.4;
+            scale = targetTokenScreenRadius / sourceTokenRadius;
+          } else {
+            // No grid info: fit the map snugly in the viewport
+            const padding = 80;
+            scale = Math.min(
+              (dimensions.width - padding) / img.width,
+              (dimensions.height - padding) / img.height,
+              1
+            );
+          }
+
+          const clampedScale = Math.min(Math.max(scale, 0.05), 5);
+          setStageScale(clampedScale);
           setStagePos({
-            x: (dimensions.width - img.width * fitScale) / 2,
-            y: (dimensions.height - img.height * fitScale) / 2,
+            x: (dimensions.width - img.width * clampedScale) / 2,
+            y: (dimensions.height - img.height * clampedScale) / 2,
           });
         }
       };
     } else {
       setLoadedImage(null);
     }
-  }, [mapImage]);
+  }, [mapImage, gridResolution]);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -669,8 +685,8 @@ export const MapView: React.FC<MapViewProps> = ({
                   radius={tokenRadius}
                   fill={token.color}
                   stroke={selectedTokenIds.includes(token.id) ? "var(--accent)" : "white"}
-                  strokeWidth={selectedTokenIds.includes(token.id) ? 4 : 2}
-                  shadowBlur={selectedTokenIds.includes(token.id) ? 15 : 5}
+                  strokeWidth={selectedTokenIds.includes(token.id) ? 4 * tokenScale : 2 * tokenScale}
+                  shadowBlur={selectedTokenIds.includes(token.id) ? 15 * tokenScale : 5 * tokenScale}
                   shadowColor={selectedTokenIds.includes(token.id) ? "var(--accent)" : "black"}
                   opacity={token.hidden ? 0.4 : 1}
                 />
