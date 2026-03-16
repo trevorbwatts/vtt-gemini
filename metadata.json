@@ -1,0 +1,5 @@
+{
+  "name": "Dungeon Master Screen VTT",
+  "description": "A professional DM screen prototype with rich text notes, interactive map with token placement, and combat initiative tracking.",
+  "requestFramePermissions": []
+}

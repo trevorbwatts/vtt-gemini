@@ -1,0 +1,646 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { DMNotes } from './components/DMNotes';
+import { MapView } from './components/MapView';
+import { CombatView } from './components/CombatView';
+import { CampaignSettings } from './components/CampaignSettings';
+import { SplashScreen } from './components/SplashScreen';
+import { PlayerScreen } from './components/PlayerScreen';
+import { cn, Campaign, Scenario, Combatant } from './types';
+import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+import { AddCombatantModal } from './components/AddCombatantModal';
+
+export function DMScreen() {
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const [navSidebarOpen, setNavSidebarOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editCampaignNameOpen, setEditCampaignNameOpen] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState('');
+  const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
+  const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
+
+  // Campaign State
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+
+  // Persistence
+  useEffect(() => {
+    if (campaign) {
+      const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
+      const index = savedCampaigns.findIndex((c: Campaign) => c.id === campaign.id);
+      if (index >= 0) {
+        savedCampaigns[index] = campaign;
+      } else {
+        savedCampaigns.push(campaign);
+      }
+      localStorage.setItem('dungeon_master_campaigns', JSON.stringify(savedCampaigns));
+    }
+  }, [campaign]);
+
+  // IPC Sync to Player Screen
+  useEffect(() => {
+    if (campaign && selectedScenarioId && window.electronAPI) {
+      window.electronAPI.sendStateUpdate({ campaign, scenarioId: selectedScenarioId });
+    }
+  }, [campaign, selectedScenarioId]);
+
+  const handleCreateCampaign = (name: string) => {
+    const newCampaign: Campaign = {
+      id: `c-${Date.now()}`,
+      name,
+      players: [],
+      npcs: [],
+      persistentEnemies: [],
+      scenarios: [
+        {
+          id: `s-${Date.now()}`,
+          name: 'Initial Scenario',
+          notes: '<h2>Welcome to your new campaign</h2><p>Start by adding some notes or tokens to the map.</p>',
+          mapNotes: [],
+          tokens: [],
+          combatants: [],
+          activeCombatants: []
+        }
+      ]
+    };
+    setCampaign(newCampaign);
+    setSelectedScenarioId(newCampaign.scenarios[0].id);
+  };
+
+  const handleSelectCampaign = (selected: Campaign) => {
+    // Migrate old data if necessary
+    const migrated = {
+      ...selected,
+      players: selected.players || [],
+      npcs: selected.npcs || [],
+      persistentEnemies: selected.persistentEnemies || [],
+      scenarios: (selected.scenarios || []).map(s => ({
+        ...s,
+        tokens: s.tokens || [],
+        combatants: s.combatants || [],
+        activeCombatants: s.activeCombatants || [],
+        mapNotes: s.mapNotes || []
+      }))
+    };
+    setCampaign(migrated);
+    setSelectedScenarioId(migrated.scenarios[0]?.id || null);
+  };
+
+  const currentScenario = useMemo(() => {
+    if (!campaign || !selectedScenarioId) return null;
+    return campaign.scenarios.find(s => s.id === selectedScenarioId) || campaign.scenarios[0];
+  }, [campaign, selectedScenarioId]);
+
+  if (!campaign) {
+    return <SplashScreen onSelectCampaign={handleSelectCampaign} onCreateCampaign={handleCreateCampaign} />;
+  }
+
+  const updateScenarioName = (name: string) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, name } : s)
+    }) : prev);
+  };
+
+  const updateCampaignName = () => {
+    if (!newCampaignName.trim()) return;
+    setCampaign(prev => prev ? ({ ...prev, name: newCampaignName }) : prev);
+    setEditCampaignNameOpen(false);
+  };
+
+  const updateMapNotes = (mapNotes: any[]) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, mapNotes } : s)
+    }) : prev);
+  };
+
+  const updateScenarioTokens = (tokens: any[]) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, tokens } : s)
+    }) : prev);
+  };
+
+  const updateActiveCombatants = (activeCombatants: Combatant[]) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, activeCombatants } : s)
+    }) : prev);
+  };
+
+  const updateScenarioMap = (mapImage: string) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, mapImage } : s)
+    }) : prev);
+  };
+
+  const addEnemyToMap = (monster: any, x: number, y: number) => {
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const newEnemyId = `e-${uniqueId}`;
+    const newEnemy: Combatant = {
+      id: newEnemyId,
+      name: monster.name,
+      hp: monster.hp,
+      maxHp: monster.hp,
+      ac: monster.ac,
+      initiative: 0,
+      type: 'enemy',
+      description: monster.description,
+      stats: monster.stats,
+      actions: monster.actions,
+    };
+
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? {
+        ...s,
+        tokens: [...s.tokens, {
+          id: `t-${uniqueId}`,
+          combatantId: newEnemyId,
+          name: newEnemy.name,
+          type: 'enemy',
+          x,
+          y,
+          color: '#ef4444'
+        }],
+        combatants: [...(s.combatants || []), newEnemy]
+      } : s),
+      persistentEnemies: monster.isBoss ? [...prev.persistentEnemies, newEnemy] : prev.persistentEnemies
+    }) : prev);
+  };
+
+  const startCombat = (tokenIds: string[]) => {
+    if (!currentScenario) return;
+    
+    const selectedTokens = currentScenario.tokens.filter(t => tokenIds.includes(t.id));
+    const currentActive = [...(currentScenario.activeCombatants || [])];
+    const newCombatants: Combatant[] = [];
+
+    selectedTokens.forEach(token => {
+      // Use the token's ID as the unique key in the combat tracker to allow multiple instances of same monster
+      const combatantTrackerId = `combat-${token.id}`;
+      
+      // Don't add if already in combat
+      if (currentActive.some(c => c.id === combatantTrackerId)) return;
+
+      let baseCombatant: Combatant | undefined;
+      
+      if (token.type === 'player') {
+        baseCombatant = campaign.players.find(p => p.id === token.combatantId);
+      } else if (token.type === 'npc') {
+        baseCombatant = campaign.npcs.find(n => n.id === token.combatantId);
+      } else {
+        baseCombatant = campaign.persistentEnemies.find(e => e.id === token.combatantId);
+        if (!baseCombatant && currentScenario.combatants) {
+          baseCombatant = currentScenario.combatants.find(c => c.id === token.combatantId);
+        }
+      }
+
+      if (baseCombatant) {
+        const dexMod = baseCombatant.stats ? Math.floor((baseCombatant.stats.dex - 10) / 2) : 0;
+        const roll = Math.floor(Math.random() * 20) + 1 + dexMod;
+        
+        newCombatants.push({
+          ...baseCombatant,
+          id: combatantTrackerId,
+          initiative: roll
+        });
+      } else {
+        // Fallback for tokens without a full combatant record
+        const roll = Math.floor(Math.random() * 20) + 1;
+        newCombatants.push({
+          id: combatantTrackerId,
+          name: token.name,
+          type: token.type,
+          hp: 10,
+          maxHp: 10,
+          ac: 10,
+          initiative: roll
+        });
+      }
+    });
+
+    if (newCombatants.length > 0) {
+      updateActiveCombatants([...currentActive, ...newCombatants]);
+    }
+    setRightSidebarOpen(true);
+  };
+
+  const addScenario = () => {
+    const newId = `s-${Date.now()}`;
+    const newScenario: Scenario = {
+      id: newId,
+      name: 'New Scenario',
+      notes: '<h2>New Scenario</h2><p>Start by adding some notes or tokens to the map.</p>',
+      mapNotes: [],
+      tokens: [],
+      combatants: [],
+      activeCombatants: [],
+      mapImage: undefined
+    };
+    setCampaign(prev => prev ? ({ ...prev, scenarios: [...prev.scenarios, newScenario] }) : prev);
+    setSelectedScenarioId(newId);
+  };
+
+  return (
+    <div className="h-screen flex flex-row font-sans overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
+      {/* Navigation Sidebar (Full Height, Squishing) */}
+      <motion.aside
+        initial={false}
+        animate={{ width: navSidebarOpen ? 280 : 0 }}
+        className={cn(
+          "h-full bg-[var(--surface)] overflow-hidden shrink-0 z-30",
+          navSidebarOpen && "border-r border-[var(--line)]"
+        )}
+      >
+        <div className="w-[280px] h-full flex flex-col">
+          <div className="h-14 px-4 border-b border-[var(--line)] flex items-center justify-between bg-black/10 shrink-0">
+            <button 
+              onClick={() => setCampaign(null)}
+              className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity"
+            >
+              <ArrowLeft size={14} />
+              <span>Switch Campaign</span>
+            </button>
+            <button 
+              onClick={() => setNavSidebarOpen(false)}
+              className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
+            >
+              <Menu size={20} className="text-[var(--accent)]" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            {/* Campaign Section */}
+            <div>
+              <div className="px-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Campaign</h3>
+                  <button 
+                    onClick={() => setSettingsOpen(true)}
+                    className="text-[10px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline"
+                  >
+                    Settings
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-lg font-bold font-serif tracking-tight truncate">{campaign.name}</div>
+                  <button 
+                    onClick={() => {
+                      setNewCampaignName(campaign.name);
+                      setEditCampaignNameOpen(true);
+                    }}
+                    className="p-1 hover:bg-black/5 rounded transition-colors opacity-40 hover:opacity-100"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-[var(--line)] opacity-10 mx-2" />
+
+            {/* Players Section */}
+            <div>
+              <div className="flex items-center justify-between mb-3 px-2">
+                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Players</h3>
+                <button 
+                  onClick={() => setAddPlayerModalOpen(true)}
+                  className="text-[9px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+                >
+                  + Add Player
+                </button>
+              </div>
+              <div className="space-y-1">
+                {campaign.players.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 transition-all group">
+                    <div className="w-6 h-6 rounded-full bg-[var(--btn-bg)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                      {p.name[0]}
+                    </div>
+                    <span className="text-sm font-medium opacity-80 group-hover:opacity-100 truncate">{p.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* NPCs Section */}
+            <div>
+              <div className="flex items-center justify-between mb-3 px-2">
+                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">NPCs</h3>
+                <button 
+                  onClick={() => setAddNPCModalOpen(true)}
+                  className="text-[9px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+                >
+                  + Add NPC
+                </button>
+              </div>
+              <div className="space-y-1">
+                {campaign.npcs.map((n) => (
+                  <div key={n.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 transition-all group">
+                    <div className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {n.name[0]}
+                    </div>
+                    <span className="text-sm font-medium opacity-80 group-hover:opacity-100 truncate">{n.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-px bg-[var(--line)] opacity-10 mx-2" />
+
+            {/* Scenarios Section */}
+            <div>
+              <div className="flex items-center justify-between mb-3 px-2">
+                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Scenarios</h3>
+                <button 
+                  onClick={addScenario}
+                  className="text-[9px] uppercase tracking-widest font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
+                >
+                  + Add Scenario
+                </button>
+              </div>
+              <div className="space-y-1">
+                {campaign.scenarios.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 group">
+                    <button
+                      onClick={() => setSelectedScenarioId(s.id)}
+                      className={cn(
+                        "flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                        selectedScenarioId === s.id 
+                          ? "bg-black/5 text-[var(--ink)] border border-[var(--line)]" 
+                          : "hover:bg-black/5 opacity-60 hover:opacity-100 border border-transparent"
+                      )}
+                    >
+                      <FileText size={14} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
+                      <span className="flex-1 text-left truncate">{s.name}</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSelectedScenarioId(s.id);
+                        // Logic to edit scenario name could go here
+                      }}
+                      className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-[var(--line)] bg-black/5 space-y-4">
+            <div className="flex items-center gap-3 px-2">
+              <div className="w-8 h-8 rounded-full bg-[var(--btn-bg)] flex items-center justify-center text-white font-bold text-xs">
+                DM
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold">Dungeon Master</span>
+                <span className="text-[9px] opacity-40 font-sans">v1.0.42-PRO</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.aside>
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="border-b border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between h-14 shrink-0 z-20">
+          <div className="flex items-center gap-4">
+            {!navSidebarOpen && (
+              <button 
+                onClick={() => setNavSidebarOpen(true)}
+                className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
+              >
+                <Menu size={20} className="group-hover:text-[var(--accent)] transition-colors" />
+              </button>
+            )}
+            <div className="flex items-center gap-3 text-lg font-serif font-bold tracking-tight">
+              <span className="opacity-40">{campaign.name}</span>
+              {currentScenario && (
+                <>
+                  <ChevronRight size={16} className="opacity-20 shrink-0" />
+                  <span className="text-[var(--accent)]">{currentScenario.name}</span>
+                </>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => {
+                if (window.electronAPI) {
+                    window.electronAPI.launchPlayerScreen();
+                } else {
+                    alert("Player Screen is only available in the Electron Desktop App.");
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 border border-[var(--accent)] text-[var(--accent)] rounded-md text-[10px] font-bold uppercase tracking-widest hover:bg-[var(--accent)] hover:text-[var(--bg)] transition-all"
+            >
+              <MonitorUp size={14} />
+              <span>Launch Player Screen</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Main Layout */}
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Left Sidebar: Scenario Notes */}
+        <motion.aside
+          initial={false}
+          animate={{ width: leftSidebarOpen ? 320 : 0 }}
+          className={cn(
+            "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
+            leftSidebarOpen && "border-r border-[var(--line)]"
+          )}
+        >
+          <div className="w-[320px] h-full relative">
+            <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
+            {currentScenario && (
+              <DMNotes 
+                notes={currentScenario.mapNotes} 
+                onChange={updateMapNotes} 
+                title={currentScenario.name}
+                onTitleChange={updateScenarioName}
+              />
+            )}
+          </div>
+        </motion.aside>
+
+        {/* Center: Map View (Always Present) */}
+        <main className="flex-1 relative bg-[#111] overflow-hidden">
+          {currentScenario && (
+            <MapView 
+              tokens={currentScenario.tokens || []} 
+              onTokensChange={updateScenarioTokens}
+              scenarioName={currentScenario.name}
+              mapImage={currentScenario.mapImage}
+              onMapChange={updateScenarioMap}
+              mapNotes={currentScenario.mapNotes || []}
+              onMapNotesChange={updateMapNotes}
+              players={campaign.players || []}
+              npcs={campaign.npcs || []}
+              persistentEnemies={campaign.persistentEnemies || []}
+              scenarioCombatants={currentScenario.combatants || []}
+              onAddEnemy={addEnemyToMap}
+              onStartCombat={startCombat}
+              leftSidebarOpen={leftSidebarOpen}
+              setLeftSidebarOpen={setLeftSidebarOpen}
+              rightSidebarOpen={rightSidebarOpen}
+              setRightSidebarOpen={setRightSidebarOpen}
+            />
+          )}
+        </main>
+
+        {/* Right Sidebar: Combat View */}
+        <motion.aside
+          initial={false}
+          animate={{ width: rightSidebarOpen ? 350 : 0 }}
+          className={cn(
+            "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
+            rightSidebarOpen && "border-l border-[var(--line)]"
+          )}
+        >
+          <div className="w-[350px] h-full relative">
+            <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
+            {currentScenario && (
+              <CombatView 
+                activeCombatants={currentScenario.activeCombatants || []}
+                onActiveCombatantsChange={updateActiveCombatants}
+                players={campaign.players || []}
+                npcs={campaign.npcs || []}
+                persistentEnemies={campaign.persistentEnemies || []}
+              />
+            )}
+          </div>
+        </motion.aside>
+      </div>
+
+      {/* Campaign Settings Modal */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <CampaignSettings 
+              campaign={campaign}
+              onUpdate={setCampaign}
+              onClose={() => setSettingsOpen(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Campaign Name Modal */}
+      <AnimatePresence>
+        {editCampaignNameOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-6 border-b border-[var(--line)] flex justify-between items-center">
+                <h2 className="text-lg font-serif font-bold">Edit Campaign Name</h2>
+                <button onClick={() => setEditCampaignNameOpen(false)} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">New Campaign Name</label>
+                  <input 
+                    type="text" 
+                    value={newCampaignName}
+                    onChange={(e) => setNewCampaignName(e.target.value)}
+                    className="w-full bg-black/5 border border-[var(--line)] rounded-lg px-4 py-3 font-serif text-lg focus:outline-none focus:border-[var(--accent)] transition-colors"
+                    placeholder="Enter campaign name..."
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && updateCampaignName()}
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setEditCampaignNameOpen(false)}
+                    className="flex-1 px-4 py-3 rounded-xl border border-[var(--line)] text-xs font-bold uppercase tracking-widest hover:bg-black/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={updateCampaignName}
+                    className="flex-1 px-4 py-3 rounded-xl bg-[var(--btn-bg)] text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[var(--btn-bg)]/20"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AddCombatantModal 
+        isOpen={addPlayerModalOpen}
+        onClose={() => setAddPlayerModalOpen(false)}
+        type="player"
+        onAdd={(p) => {
+          setCampaign(prev => prev ? ({
+            ...prev,
+            players: [...prev.players, { ...p, id: `p-${Date.now()}` } as Combatant]
+          }) : prev);
+        }}
+      />
+
+      <AddCombatantModal 
+        isOpen={addNPCModalOpen}
+        onClose={() => setAddNPCModalOpen(false)}
+        type="npc"
+        onAdd={(n) => {
+          setCampaign(prev => prev ? ({
+            ...prev,
+            npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
+          }) : prev);
+        }}
+      />
+
+      {/* Footer */}
+      <footer className="h-6 border-t border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between text-[9px] font-sans opacity-50 uppercase tracking-widest shrink-0 z-20">
+        <div className="flex gap-4">
+          <span>SYSTEM: ONLINE</span>
+          <span>SESSION: 042</span>
+          <span className="text-[var(--accent)]">CAMPAIGN: {campaign.name}</span>
+        </div>
+        <div className="flex gap-4">
+          <span>LATENCY: 24MS</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+  );
+}
+
+// Router Component
+export default function App() {
+  const [isPlayerView, setIsPlayerView] = useState(false);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setIsPlayerView(window.location.hash === '#player');
+    };
+    
+    // Initial check
+    handleHashChange();
+    
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  return isPlayerView ? <PlayerScreen /> : <DMScreen />;
+}
