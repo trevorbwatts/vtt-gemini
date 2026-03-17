@@ -4,6 +4,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   launchPlayerScreen: () => ipcRenderer.send('launch-player-screen'),
   closePlayerScreen: () => ipcRenderer.send('close-player-screen'),
   sendStateUpdate: (state: any) => ipcRenderer.send('dm-state-update', state),
+  sendPlayerTokenUpdate: (tokens: any) => ipcRenderer.send('player-token-update', tokens),
+  onPlayerTokenUpdate: (callback: (tokens: any) => void) => {
+    ipcRenderer.on('player-token-update', (_event, tokens) => callback(tokens));
+  },
+  removePlayerTokenUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-token-update');
+  },
   sendPlayerMode: (mode: string) => ipcRenderer.send('player-mode-update', mode),
   onStateUpdate: (callback: (value: any) => void) => {
     ipcRenderer.on('player-state-update', (_event, value) => callback(value));

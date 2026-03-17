@@ -18,32 +18,32 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
   return (
     <Shape
       sceneFunc={(ctx) => {
-        // Access the native canvas 2D context
         const c = ctx._context as CanvasRenderingContext2D;
 
         c.save();
-        c.beginPath();
 
-        // Outer rectangle (the fog) — clockwise
-        c.moveTo(0, 0);
-        c.lineTo(mapWidth, 0);
-        c.lineTo(mapWidth, mapHeight);
-        c.lineTo(0, mapHeight);
-        c.closePath();
+        // Fill the entire map with fog
+        c.fillStyle = 'black';
+        c.fillRect(0, 0, mapWidth, mapHeight);
 
-        // Cut out each visibility polygon — counter-clockwise (evenodd will invert these)
+        // Use destination-out to erase the visible areas
+        // This way overlapping polygons just erase the same area — no inversion
+        c.globalCompositeOperation = 'destination-out';
+
         for (const polygon of visibilityPolygons) {
           if (polygon.length < 3) continue;
+          c.beginPath();
           c.moveTo(polygon[0].x, polygon[0].y);
-          // Draw in reverse order to create counter-clockwise winding
-          for (let i = polygon.length - 1; i >= 1; i--) {
+          for (let i = 1; i < polygon.length; i++) {
             c.lineTo(polygon[i].x, polygon[i].y);
           }
           c.closePath();
+          c.fillStyle = 'black';
+          c.fill();
         }
 
-        c.fillStyle = 'black';
-        c.fill('evenodd');
+        // Reset compositing
+        c.globalCompositeOperation = 'source-over';
         c.restore();
       }}
       opacity={opacity}

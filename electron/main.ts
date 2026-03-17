@@ -115,6 +115,13 @@ ipcMain.on('player-mode-update', (_event, mode: string) => {
   }
 });
 
+// When the Player moves tokens, proxy it back to the DM window
+ipcMain.on('player-token-update', (_event, tokens) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-token-update', tokens);
+  }
+});
+
 // When the DM updates the campaign state, proxy it to the Player window
 ipcMain.on('dm-state-update', (_event, state) => {
   if (playerWindow) {

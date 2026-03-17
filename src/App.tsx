@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DMNotes } from './components/DMNotes';
 import { MapView } from './components/MapView';
 import { CombatView } from './components/CombatView';
@@ -17,7 +17,6 @@ export function DMScreen() {
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [navSidebarOpen, setNavSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editCampaignNameOpen, setEditCampaignNameOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
@@ -28,6 +27,8 @@ export function DMScreen() {
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const selectedScenarioIdRef = useRef(selectedScenarioId);
+  selectedScenarioIdRef.current = selectedScenarioId;
 
   // Persistence
   useEffect(() => {
@@ -71,6 +72,29 @@ export function DMScreen() {
       window.electronAPI.sendPlayerMode(playerMode);
     }
   }, [playerMode, playerScreenOpen]);
+
+  // Listen for token updates from the Player screen
+  useEffect(() => {
+    if (window.electronAPI?.onPlayerTokenUpdate) {
+      window.electronAPI.onPlayerTokenUpdate((tokens: any) => {
+        const scenarioId = selectedScenarioIdRef.current;
+        setCampaign(prev => {
+          if (!prev || !scenarioId) return prev;
+          return {
+            ...prev,
+            scenarios: prev.scenarios.map(s =>
+              s.id === scenarioId ? { ...s, tokens } : s
+            ),
+          };
+        });
+      });
+    }
+    return () => {
+      if (window.electronAPI?.removePlayerTokenUpdateListener) {
+        window.electronAPI.removePlayerTokenUpdateListener();
+      }
+    };
+  }, []);
 
   const handleCreateCampaign = (name: string) => {
     const newCampaign: Campaign = {
@@ -130,10 +154,9 @@ export function DMScreen() {
     }) : prev);
   };
 
-  const updateCampaignName = () => {
-    if (!newCampaignName.trim()) return;
-    setCampaign(prev => prev ? ({ ...prev, name: newCampaignName }) : prev);
-    setEditCampaignNameOpen(false);
+  const updateCampaignName = (name: string) => {
+    if (!name.trim()) return;
+    setCampaign(prev => prev ? ({ ...prev, name }) : prev);
   };
 
   const updateMapNotes = (mapNotes: any[]) => {
@@ -350,15 +373,6 @@ export function DMScreen() {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[22px] font-bold font-serif tracking-tight truncate text-white">{campaign.name}</div>
-                  <button 
-                    onClick={() => {
-                      setNewCampaignName(campaign.name);
-                      setEditCampaignNameOpen(true);
-                    }}
-                    className="p-1.5 hover:bg-black/5 rounded-md transition-colors opacity-30 hover:opacity-100 shrink-0"
-                  >
-                    <Edit2 size={14} />
-                  </button>
                 </div>
               </div>
             </div>
@@ -669,54 +683,7 @@ export function DMScreen() {
         )}
       </AnimatePresence>
 
-      {/* Edit Campaign Name Modal */}
-      <AnimatePresence>
-        {editCampaignNameOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="p-6 border-b border-[var(--line)] flex justify-between items-center">
-                <h2 className="text-lg font-serif font-bold">Edit Campaign Name</h2>
-                <button onClick={() => setEditCampaignNameOpen(false)} className="p-2 hover:bg-black/5 rounded-full transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">New Campaign Name</label>
-                  <input 
-                    type="text" 
-                    value={newCampaignName}
-                    onChange={(e) => setNewCampaignName(e.target.value)}
-                    className="w-full bg-black/5 border border-[var(--line)] rounded-lg px-4 py-3 font-serif text-lg focus:outline-none focus:border-[var(--accent)] transition-colors"
-                    placeholder="Enter campaign name..."
-                    autoFocus
-                    onKeyDown={(e) => e.key === 'Enter' && updateCampaignName()}
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button 
-                    onClick={() => setEditCampaignNameOpen(false)}
-                    className="btn-ghost flex-1 py-3 rounded-xl"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={updateCampaignName}
-                    className="btn-filled flex-1 py-3 rounded-xl"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
 
       <AddCombatantModal 
         isOpen={addPlayerModalOpen}

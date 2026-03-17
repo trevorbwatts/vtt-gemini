@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { MapView } from './MapView';
-import { Campaign, Scenario, Combatant } from '../types';
+import { Campaign, Scenario, Combatant, Token } from '../types';
 
 export function PlayerScreen() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -22,7 +22,6 @@ export function PlayerScreen() {
     }
 
     // Listen for state updates from the DM Screen via IPC
-    // The state update now includes playerMode so we get it reliably
     const handleStateUpdate = (newState: { campaign: Campaign, scenarioId: string, playerMode?: string }) => {
       setCampaign(newState.campaign);
       setCurrentScenarioId(newState.scenarioId);
@@ -51,6 +50,23 @@ export function PlayerScreen() {
         }
     };
   }, []);
+
+  // When the player drags tokens, send the update back to the DM
+  const handleTokensChange = useCallback((newTokens: Token[]) => {
+    if (window.electronAPI?.sendPlayerTokenUpdate) {
+      window.electronAPI.sendPlayerTokenUpdate(newTokens);
+    }
+    // Also update local state so the drag feels instant
+    setCampaign(prev => {
+      if (!prev || !currentScenarioId) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s =>
+          s.id === currentScenarioId ? { ...s, tokens: newTokens } : s
+        ),
+      };
+    });
+  }, [currentScenarioId]);
 
   // Setup mode: show blank state
   if (mode === 'setup') {
@@ -83,10 +99,10 @@ export function PlayerScreen() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-black pointer-events-none">
+    <div className="h-screen w-screen overflow-hidden bg-black">
       <MapView
         tokens={currentScenario.tokens || []}
-        onTokensChange={() => {}}
+        onTokensChange={handleTokensChange}
         scenarioName={currentScenario.name}
         mapImage={currentScenario.mapImage}
         onMapChange={() => {}}

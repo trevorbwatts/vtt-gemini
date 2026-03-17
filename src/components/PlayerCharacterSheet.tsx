@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, User } from 'lucide-react';
+import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, Sword, Sparkles, BookOpen, Award, Backpack } from 'lucide-react';
 import { Combatant, cn } from '../types';
 
 interface PlayerCharacterSheetProps {
@@ -14,6 +14,19 @@ const STAT_LABELS: Record<string, string> = {
   str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA',
 };
 
+const CURATED_COLORS = [
+  '#3b82f6', // Blue
+  '#ef4444', // Red
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#f97316', // Orange
+  '#06b6d4', // Cyan
+  '#84cc16', // Lime
+  '#6366f1', // Indigo
+];
+
 const statMod = (val: number) => {
   const m = Math.floor((val - 10) / 2);
   return (m >= 0 ? '+' : '') + m;
@@ -23,6 +36,16 @@ const getLevel = (p: Combatant) => p.classes?.reduce((s, c) => s + c.level, 0) |
 const getClassSummary = (p: Combatant) =>
   p.classes?.map(c => `${c.name} ${c.level}`).join(' / ') || '';
 
+type SheetTab = 'actions' | 'spells' | 'features' | 'feats' | 'inventory';
+
+const TABS: { id: SheetTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'actions',  label: 'Actions',           icon: <Sword size={13} /> },
+  { id: 'spells',   label: 'Spells',            icon: <Sparkles size={13} /> },
+  { id: 'features', label: 'Features & Traits', icon: <BookOpen size={13} /> },
+  { id: 'feats',    label: 'Feats',             icon: <Award size={13} /> },
+  { id: 'inventory',label: 'Inventory',         icon: <Backpack size={13} /> },
+];
+
 export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
   player,
   onClose,
@@ -30,27 +53,128 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
   onColorChange,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [colorsOpen, setColorsOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activeTab, setActiveTab] = useState<SheetTab>('actions');
   const menuRef = useRef<HTMLDivElement>(null);
-  const colorInputRef = useRef<HTMLInputElement>(null);
+  const colorsRef = useRef<HTMLDivElement>(null);
 
-  // Close 3-dot menu on outside click
+  // Close menus on outside click
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !colorsOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+      }
+      if (colorsOpen && colorsRef.current && !colorsRef.current.contains(e.target as Node)) {
+        setColorsOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
+  }, [menuOpen, colorsOpen]);
 
   if (!player) return null;
 
   const level = getLevel(player);
   const classSummary = getClassSummary(player);
   const ringColor = player.color || '#3b82f6';
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'actions':
+        return player.actions && player.actions.length > 0 ? (
+          <div className="space-y-2">
+            {player.actions.map((action, i) => (
+              <div key={i} className="bg-black/20 border border-white/5 rounded-lg p-3 text-xs">
+                <div className="font-bold text-[var(--accent)] mb-1">{action.name}</div>
+                <div className="opacity-60 leading-relaxed">{action.desc}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyTab label="No actions listed." />
+        );
+
+      case 'spells':
+        return player.spells && player.spells.length > 0 ? (
+          <div className="space-y-2">
+            {player.spells.map((spell, i) => (
+              <div key={i} className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-3 text-xs">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-bold text-blue-400">{spell.name}</span>
+                  <span className="text-[9px] opacity-40 uppercase tracking-wide">
+                    {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+                  </span>
+                </div>
+                <div className="opacity-60 leading-relaxed">{spell.desc}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyTab label="No spells listed." />
+        );
+
+      case 'features':
+        return player.features && player.features.length > 0 ? (
+          <div className="space-y-2">
+            {player.features.map((feat, i) => (
+              <div key={i} className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 text-xs">
+                <div className="flex justify-between items-start mb-1">
+                  <span className="font-bold text-emerald-400">{feat.name}</span>
+                  {feat.source && (
+                    <span className="text-[9px] opacity-40 uppercase tracking-wide shrink-0 ml-2">{feat.source}</span>
+                  )}
+                </div>
+                <div className="opacity-60 leading-relaxed">{feat.desc}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyTab label="No features or traits listed." />
+        );
+
+      case 'feats':
+        return player.feats && player.feats.length > 0 ? (
+          <div className="space-y-2">
+            {player.feats.map((feat, i) => (
+              <div key={i} className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-3 text-xs">
+                <div className="font-bold text-amber-400 mb-1">{feat.name}</div>
+                <div className="opacity-60 leading-relaxed">{feat.desc}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyTab label="No feats listed." />
+        );
+
+      case 'inventory':
+        return player.inventory && player.inventory.length > 0 ? (
+          <div className="space-y-1.5">
+            {player.inventory.map((item, i) => (
+              <div key={i} className="bg-black/20 border border-white/5 rounded-lg p-3 text-xs flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white">{item.name}</span>
+                    {item.equipped && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded">
+                        Equipped
+                      </span>
+                    )}
+                  </div>
+                  {item.desc && <div className="opacity-50 leading-relaxed mt-0.5">{item.desc}</div>}
+                </div>
+                {item.quantity != null && item.quantity !== 1 && (
+                  <span className="shrink-0 text-[11px] font-mono opacity-40">x{item.quantity}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyTab label="No inventory items listed." />
+        );
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -64,13 +188,13 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
           className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         />
 
-        {/* Sheet */}
+        {/* Sheet — wider: max-w-4xl */}
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 24 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 24 }}
           transition={{ type: 'spring', bounce: 0.18, duration: 0.35 }}
-          className="relative w-full max-w-3xl max-h-[90vh] bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -118,25 +242,41 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
               )}
             </div>
 
-            {/* Right controls: color picker + 3-dot menu + close */}
+            {/* Right controls */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Color Picker */}
-              <div className="relative">
+              {/* Color swatch */}
+              <div className="relative" ref={colorsRef}>
                 <button
-                  onClick={() => colorInputRef.current?.click()}
-                  className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white/50 transition-colors shadow-md flex items-center justify-center overflow-hidden"
+                  onClick={() => setColorsOpen(!colorsOpen)}
+                  className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white/50 transition-colors shadow-md"
                   style={{ background: ringColor }}
                   title="Change token color"
-                >
-                  <span className="sr-only">Pick color</span>
-                </button>
-                <input
-                  ref={colorInputRef}
-                  type="color"
-                  value={ringColor}
-                  onChange={(e) => onColorChange(player.id, e.target.value)}
-                  className="absolute opacity-0 pointer-events-none w-0 h-0"
                 />
+                <AnimatePresence>
+                  {colorsOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute right-0 top-full mt-2 p-3 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl z-10 w-[184px]"
+                    >
+                      <div className="grid grid-cols-5 gap-2">
+                        {CURATED_COLORS.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => { onColorChange(player.id, c); setColorsOpen(false); }}
+                            className={cn(
+                              "w-6 h-6 rounded-full border border-white/10 hover:scale-110 transition-transform",
+                              c === ringColor ? "ring-2 ring-white ring-offset-2 ring-offset-[var(--surface)]" : ""
+                            )}
+                            style={{ background: c }}
+                          />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* 3-dot Menu */}
@@ -200,7 +340,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
             {/* Quick Stats Row */}
             <div className="grid grid-cols-4 gap-3">
               {[
@@ -222,7 +362,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
               ))}
             </div>
 
-            {/* Extra badges */}
+            {/* Badges row */}
             <div className="flex flex-wrap gap-2">
               {player.proficiencyBonus && (
                 <span className="px-3 py-1 bg-[var(--accent)]/15 border border-[var(--accent)]/30 rounded-full text-[11px] font-bold text-[var(--accent)]">
@@ -272,55 +412,34 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
               </div>
             )}
 
-            {/* Two-column: Actions + Spells */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Actions */}
-              <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-3">Actions</h3>
-                {player.actions && player.actions.length > 0 ? (
-                  <div className="space-y-2">
-                    {player.actions.map((action, i) => (
-                      <div
-                        key={i}
-                        className="bg-black/20 border border-white/5 rounded-lg p-3 text-xs"
-                      >
-                        <div className="font-bold italic text-[var(--accent)] mb-1">{action.name}</div>
-                        <div className="opacity-60 leading-relaxed">{action.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs opacity-30 italic">No actions listed.</p>
-                )}
-              </div>
+            {/* Divider */}
+            <div className="border-t border-white/5" />
 
-              {/* Spells */}
-              <div>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-3">Spells</h3>
-                {player.spells && player.spells.length > 0 ? (
-                  <div className="space-y-2">
-                    {player.spells.map((spell, i) => (
-                      <div
-                        key={i}
-                        className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-3 text-xs"
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold italic text-blue-400">{spell.name}</span>
-                          <span className="text-[9px] opacity-40 uppercase tracking-wide">
-                            {spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
-                          </span>
-                        </div>
-                        <div className="opacity-60 leading-relaxed">{spell.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs opacity-30 italic">No spells listed.</p>
-                )}
-              </div>
+            {/* Tab Bar */}
+            <div className="flex gap-1 bg-black/20 rounded-xl p-1 shrink-0">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                    activeTab === tab.id
+                      ? "bg-[var(--surface)] text-white shadow-sm"
+                      : "opacity-40 hover:opacity-70"
+                  )}
+                >
+                  {tab.icon}
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
             </div>
 
-            {/* Description */}
+            {/* Tab Content */}
+            <div className="min-h-[120px]">
+              {renderTabContent()}
+            </div>
+
+            {/* Description / Notes */}
             {player.description && (
               <div>
                 <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-3">Notes</h3>
@@ -335,3 +454,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
     </AnimatePresence>
   );
 };
+
+const EmptyTab: React.FC<{ label: string }> = ({ label }) => (
+  <p className="text-xs opacity-30 italic py-4 text-center">{label}</p>
+);

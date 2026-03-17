@@ -86,6 +86,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showWalls, setShowWalls] = useState(true);
 
   const [showFog, setShowFog] = useState(true);
+  const [draggingPositions, setDraggingPositions] = useState<Record<string, { x: number; y: number }>>({});
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
@@ -96,8 +97,10 @@ export const MapView: React.FC<MapViewProps> = ({
   );
 
   const playerTokenPositions = useMemo(
-    () => tokens.filter(t => t.type === 'player' && !t.hidden),
-    [tokens]
+    () => tokens
+      .filter(t => t.type === 'player' && !t.hidden)
+      .map(t => draggingPositions[t.id] ? { ...t, ...draggingPositions[t.id] } : t),
+    [tokens, draggingPositions]
   );
 
   const visibilityPolygons = useMemo(
@@ -269,8 +272,21 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
+  const handleDragMove = (id: string, e: any) => {
+    const pos = { x: e.target.x(), y: e.target.y() };
+    setDraggingPositions(prev => ({
+      ...prev,
+      [id]: pos,
+    }));
+  };
+
   const handleDragEnd = (id: string, e: any) => {
-    onTokensChange(tokens.map(t => 
+    setDraggingPositions(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    onTokensChange(tokens.map(t =>
       t.id === id ? { ...t, x: e.target.x(), y: e.target.y() } : t
     ));
   };
@@ -705,6 +721,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 x={token.x}
                 y={token.y}
                 draggable
+                onDragMove={(e) => handleDragMove(token.id, e)}
                 onDragEnd={(e) => handleDragEnd(token.id, e)}
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {

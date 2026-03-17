@@ -4,6 +4,19 @@ import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, Ale
 import { Combatant, cn } from '../types';
 import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 
+const CURATED_COLORS = [
+  '#3b82f6', // Blue
+  '#ef4444', // Red
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#f97316', // Orange
+  '#06b6d4', // Cyan
+  '#84cc16', // Lime
+  '#6366f1', // Indigo
+];
+
 interface AddCombatantModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -239,12 +252,19 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                     <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
                       Color
                     </label>
-                    <input
-                      type="color"
-                      value={color}
-                      onChange={(e) => setColor(e.target.value)}
-                      className="w-full h-11 bg-black border border-[var(--line)] rounded-xl px-2 py-1 outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
-                    />
+                    <div className="flex flex-wrap gap-2 py-1">
+                      {CURATED_COLORS.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setColor(c)}
+                          className={cn(
+                            "w-8 h-8 rounded-full border border-white/10 transition-all hover:scale-110",
+                            color === c ? "ring-2 ring-white ring-offset-2 ring-offset-[var(--surface)] scale-110" : "opacity-60 hover:opacity-100"
+                          )}
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -272,12 +292,19 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                   <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
                     Color
                   </label>
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="w-full h-11 bg-black border border-[var(--line)] rounded-xl px-2 py-1 outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
-                  />
+                  <div className="flex flex-wrap gap-2 py-1">
+                    {CURATED_COLORS.map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setColor(c)}
+                        className={cn(
+                          "w-8 h-8 rounded-full border border-white/10 transition-all hover:scale-110",
+                          color === c ? "ring-2 ring-white ring-offset-2 ring-offset-[var(--surface)] scale-110" : "opacity-60 hover:opacity-100"
+                        )}
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">

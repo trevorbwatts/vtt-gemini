@@ -15,6 +15,9 @@ declare global {
       removeStateUpdateListener: () => void;
       removePlayerModeListener: () => void;
       removePlayerScreenStatusListener: () => void;
+      sendPlayerTokenUpdate: (tokens: any) => void;
+      onPlayerTokenUpdate: (callback: (tokens: any) => void) => void;
+      removePlayerTokenUpdateListener: () => void;
       importDndBeyondCharacter: (url: string) => Promise<any>;
     }
   }
@@ -92,6 +95,9 @@ export interface Combatant {
   };
   actions?: MonsterAction[];
   spells?: { name: string; level: number; desc: string }[];
+  features?: { name: string; desc: string; source?: string }[];
+  feats?: { name: string; desc: string }[];
+  inventory?: { name: string; quantity?: number; desc?: string; equipped?: boolean }[];
   avatar?: string;
   color?: string;
 }
