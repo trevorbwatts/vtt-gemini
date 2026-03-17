@@ -6,7 +6,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution } from './types';
-import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp } from 'lucide-react';
+import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -20,6 +20,8 @@ export function DMScreen() {
   const [newCampaignName, setNewCampaignName] = useState('');
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
+  const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
+  const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
 
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -45,6 +47,28 @@ export function DMScreen() {
       window.electronAPI.sendStateUpdate({ campaign, scenarioId: selectedScenarioId });
     }
   }, [campaign, selectedScenarioId]);
+
+  // Listen for player screen open/close events from Electron
+  useEffect(() => {
+    if (window.electronAPI?.onPlayerScreenStatus) {
+      window.electronAPI.onPlayerScreenStatus((isOpen: boolean) => {
+        setPlayerScreenOpen(isOpen);
+        if (!isOpen) setPlayerMode('setup');
+      });
+    }
+    return () => {
+      if (window.electronAPI?.removePlayerScreenStatusListener) {
+        window.electronAPI.removePlayerScreenStatusListener();
+      }
+    };
+  }, []);
+
+  // Send player mode changes to the player window
+  useEffect(() => {
+    if (window.electronAPI?.sendPlayerMode && playerScreenOpen) {
+      window.electronAPI.sendPlayerMode(playerMode);
+    }
+  }, [playerMode, playerScreenOpen]);
 
   const handleCreateCampaign = (name: string) => {
     const newCampaign: Campaign = {
@@ -483,19 +507,52 @@ export function DMScreen() {
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <button 
+          <div className="flex items-center gap-2">
+            {playerScreenOpen && (
+              <div className="flex items-center bg-black/40 rounded-lg p-0.5 mr-2">
+                <button
+                  onClick={() => setPlayerMode('setup')}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all",
+                    playerMode === 'setup'
+                      ? "bg-white/15 text-white shadow-sm"
+                      : "text-white/40 hover:text-white/60"
+                  )}
+                >
+                  Setup
+                </button>
+                <button
+                  onClick={() => setPlayerMode('play')}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all",
+                    playerMode === 'play'
+                      ? "bg-white/15 text-white shadow-sm"
+                      : "text-white/40 hover:text-white/60"
+                  )}
+                >
+                  Play
+                </button>
+              </div>
+            )}
+            <button
               onClick={() => {
-                if (window.electronAPI) {
-                    window.electronAPI.launchPlayerScreen();
+                if (!window.electronAPI) {
+                  alert("Player Screen is only available in the Electron Desktop App.");
+                  return;
+                }
+                if (playerScreenOpen) {
+                  window.electronAPI.closePlayerScreen();
+                  setPlayerScreenOpen(false);
+                  setPlayerMode('setup');
                 } else {
-                    alert("Player Screen is only available in the Electron Desktop App.");
+                  window.electronAPI.launchPlayerScreen();
+                  setPlayerScreenOpen(true);
                 }
               }}
               className="btn-ghost"
             >
-              <MonitorUp size={14} />
-              <span>Launch Player Screen</span>
+              {playerScreenOpen ? <MonitorX size={14} /> : <MonitorUp size={14} />}
+              <span>{playerScreenOpen ? 'Close Player Screen' : 'Launch Player Screen'}</span>
             </button>
           </div>
         </header>

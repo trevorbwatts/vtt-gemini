@@ -6,9 +6,15 @@ declare global {
   interface Window {
     electronAPI?: {
       launchPlayerScreen: () => void;
+      closePlayerScreen: () => void;
       sendStateUpdate: (state: any) => void;
+      sendPlayerMode: (mode: string) => void;
       onStateUpdate: (callback: (state: any) => void) => void;
+      onPlayerModeUpdate: (callback: (mode: string) => void) => void;
+      onPlayerScreenStatus: (callback: (isOpen: boolean) => void) => void;
       removeStateUpdateListener: () => void;
+      removePlayerModeListener: () => void;
+      removePlayerScreenStatusListener: () => void;
       importDndBeyondCharacter: (url: string) => Promise<any>;
     }
   }
@@ -87,6 +93,7 @@ export interface Combatant {
   actions?: MonsterAction[];
   spells?: { name: string; level: number; desc: string }[];
   avatar?: string;
+  color?: string;
 }
 
 export interface WallPoint {

@@ -5,13 +5,13 @@ import { Campaign, Scenario, Combatant } from '../types';
 export function PlayerScreen() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [currentScenarioId, setCurrentScenarioId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'setup' | 'play'>('setup');
 
   useEffect(() => {
     // Attempt to load the initial state from localStorage just in case
     try {
       const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
       if (savedCampaigns.length > 0) {
-          // For simplicity in the prototype, we just grab the first one if not explicitly told otherwise
           setCampaign(savedCampaigns[0]);
           if(savedCampaigns[0].scenarios.length > 0) {
               setCurrentScenarioId(savedCampaigns[0].scenarios[0].id);
@@ -31,12 +31,34 @@ export function PlayerScreen() {
         window.electronAPI.onStateUpdate(handleStateUpdate);
     }
 
+    // Listen for mode changes from DM
+    if (window.electronAPI?.onPlayerModeUpdate) {
+        window.electronAPI.onPlayerModeUpdate((newMode: string) => {
+          setMode(newMode as 'setup' | 'play');
+        });
+    }
+
     return () => {
         if (window.electronAPI) {
             window.electronAPI.removeStateUpdateListener();
         }
+        if (window.electronAPI?.removePlayerModeListener) {
+            window.electronAPI.removePlayerModeListener();
+        }
     };
   }, []);
+
+  // Setup mode: show blank state
+  if (mode === 'setup') {
+    return (
+      <div className="h-screen w-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-white/20 font-serif text-3xl tracking-widest mb-3">Setup Mode</div>
+          <div className="text-white/10 font-sans text-sm tracking-wide">The DM is preparing the session...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!campaign || !currentScenarioId) {
     return (
@@ -58,14 +80,13 @@ export function PlayerScreen() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-black pointer-events-none">
-      {/* Player Screen is strictly read-only for now, so we pass empty handlers for modifications */}
       <MapView
         tokens={currentScenario.tokens || []}
         onTokensChange={() => {}}
         scenarioName={currentScenario.name}
         mapImage={currentScenario.mapImage}
         onMapChange={() => {}}
-        mapNotes={[]} // Map notes are hidden on the player screen
+        mapNotes={[]}
         onMapNotesChange={() => {}}
         players={campaign.players || []}
         npcs={campaign.npcs || []}

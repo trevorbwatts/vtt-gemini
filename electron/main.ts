@@ -62,6 +62,10 @@ function createPlayerWindow() {
 
   playerWindow.on('closed', () => {
     playerWindow = null;
+    // Notify DM window that player screen was closed
+    if (dmWindow) {
+      dmWindow.webContents.send('player-screen-status', false);
+    }
   });
 }
 
@@ -83,6 +87,23 @@ app.on('window-all-closed', () => {
 
 ipcMain.on('launch-player-screen', () => {
   createPlayerWindow();
+  // Notify DM window that the player screen is now open
+  if (dmWindow) {
+    dmWindow.webContents.send('player-screen-status', true);
+  }
+});
+
+ipcMain.on('close-player-screen', () => {
+  if (playerWindow) {
+    playerWindow.close();
+    playerWindow = null;
+  }
+});
+
+ipcMain.on('player-mode-update', (_event, mode: string) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('player-mode-update', mode);
+  }
 });
 
 // When the DM updates the campaign state, proxy it to the Player window

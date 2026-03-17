@@ -357,7 +357,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (existingToken) {
       // Move existing token
       onTokensChange(tokens.map(t => 
-        t.id === existingToken.id ? { ...t, x: contextMenu.x, y: contextMenu.y, avatar: combatant.avatar } : t
+        t.id === existingToken.id ? { ...t, x: contextMenu.x, y: contextMenu.y, avatar: combatant.avatar, color: combatant.color || t.color } : t
       ));
     } else {
       // Add new token
@@ -369,7 +369,7 @@ export const MapView: React.FC<MapViewProps> = ({
         type,
         x: contextMenu.x,
         y: contextMenu.y,
-        color: colors[type],
+        color: combatant.color || colors[type],
         avatar: combatant.avatar,
       };
       onTokensChange([...tokens, newToken]);
@@ -722,7 +722,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 <Circle
                   radius={tokenRadius}
                   fill={token.avatar ? "transparent" : token.color}
-                  stroke={selectedTokenIds.includes(token.id) ? "var(--accent)" : "white"}
+                  stroke={selectedTokenIds.includes(token.id) ? "var(--accent)" : token.color}
                   strokeWidth={selectedTokenIds.includes(token.id) ? 4 * tokenScale : 2 * tokenScale}
                   shadowBlur={selectedTokenIds.includes(token.id) ? 15 * tokenScale : 5 * tokenScale}
                   shadowColor={selectedTokenIds.includes(token.id) ? "var(--accent)" : "black"}

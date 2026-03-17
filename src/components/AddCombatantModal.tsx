@@ -18,6 +18,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [name, setName] = useState('');
   const [ac, setAc] = useState(10);
   const [darkvision, setDarkvision] = useState(0);
+  const [color, setColor] = useState(type === 'player' ? '#3b82f6' : '#10b981');
   const [url, setUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
       stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
       actions: [],
       darkvision,
+      color,
       ...(avatar ? { avatar } : {})
     });
     resetAndClose();
@@ -70,6 +72,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
       onAdd({
         ...parsed,
         type,
+        color,
         dndBeyondUrl: url.trim(),
       });
       resetAndClose();
@@ -85,6 +88,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     setName('');
     setAc(10);
     setDarkvision(0);
+    setColor(type === 'player' ? '#3b82f6' : '#10b981');
     setUrl('');
     setAvatar(null);
     setImportError(null);
@@ -231,6 +235,17 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                       />
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
+                      Color
+                    </label>
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      className="w-full h-11 bg-black border border-[var(--line)] rounded-xl px-2 py-1 outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-4 pt-4">
@@ -253,6 +268,17 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
 
             {step === 'import' && (
               <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
+                    Color
+                  </label>
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-full h-11 bg-black border border-[var(--line)] rounded-xl px-2 py-1 outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
+                  />
+                </div>
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
                     <LinkIcon size={12} /> D&D Beyond Character URL
