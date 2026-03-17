@@ -184,6 +184,7 @@ export function DMScreen() {
       description: monster.description,
       stats: monster.stats,
       actions: monster.actions,
+      avatar: monster.avatar,
     };
 
     setCampaign(prev => prev ? ({
@@ -197,7 +198,8 @@ export function DMScreen() {
           type: 'enemy',
           x,
           y,
-          color: '#ef4444'
+          color: '#ef4444',
+          avatar: newEnemy.avatar
         }],
         combatants: [...(s.combatants || []), newEnemy]
       } : s),

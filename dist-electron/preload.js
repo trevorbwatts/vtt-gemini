@@ -10,5 +10,6 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     // We need to clean up listeners to avoid memory leaks
     removeStateUpdateListener: () => {
         electron_1.ipcRenderer.removeAllListeners('player-state-update');
-    }
+    },
+    importDndBeyondCharacter: (url) => electron_1.ipcRenderer.invoke('fetch-dndb-character', url),
 });

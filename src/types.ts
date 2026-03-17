@@ -27,6 +27,7 @@ export interface Token {
   color: string;
   hidden?: boolean;
   combatantId?: string;
+  avatar?: string;
 }
 
 export interface ClassDefinition {

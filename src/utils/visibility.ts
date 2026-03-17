@@ -44,17 +44,24 @@ export function extractBlockingSegments(
  */
 export function computeVisibilityPolygon(
   observer: WallPoint,
-  segments: Segment[]
+  segments: Segment[],
+  mapWidth: number,
+  mapHeight: number
 ): WallPoint[] {
-  if (segments.length === 0) {
-    return [];
-  }
+  // Add map boundary segments so rays always hit something
+  const allSegments: Segment[] = [
+    ...segments,
+    { a: { x: 0, y: 0 }, b: { x: mapWidth, y: 0 } },           // top
+    { a: { x: mapWidth, y: 0 }, b: { x: mapWidth, y: mapHeight } }, // right
+    { a: { x: mapWidth, y: mapHeight }, b: { x: 0, y: mapHeight } }, // bottom
+    { a: { x: 0, y: mapHeight }, b: { x: 0, y: 0 } },           // left
+  ];
 
   // Collect all unique endpoints
   const endpointSet = new Set<string>();
   const endpoints: WallPoint[] = [];
 
-  for (const seg of segments) {
+  for (const seg of allSegments) {
     const ka = `${seg.a.x},${seg.a.y}`;
     const kb = `${seg.b.x},${seg.b.y}`;
     if (!endpointSet.has(ka)) {
@@ -86,7 +93,7 @@ export function computeVisibilityPolygon(
     let closestT = Infinity;
     let closestPoint: WallPoint | null = null;
 
-    for (const seg of segments) {
+    for (const seg of allSegments) {
       const hit = raySegmentIntersection(observer, dx, dy, seg);
       if (hit !== null && hit.t < closestT) {
         closestT = hit.t;
@@ -96,12 +103,6 @@ export function computeVisibilityPolygon(
 
     if (closestPoint) {
       intersections.push({ angle, point: closestPoint });
-    } else {
-      // No wall hit — extend ray to large distance
-      intersections.push({
-        angle,
-        point: { x: observer.x + dx * 10000, y: observer.y + dy * 10000 },
-      });
     }
   }
 

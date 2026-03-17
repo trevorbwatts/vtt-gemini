@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, ZoomIn, Cloud } from 'lucide-react';
+import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from 'lucide-react';
 import { extractBlockingSegments, computeVisibilityPolygon } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -84,7 +84,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
   const [showWalls, setShowWalls] = useState(true);
-  const [showZoomSlider, setShowZoomSlider] = useState(false);
+
   const [showFog, setShowFog] = useState(true);
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
@@ -101,10 +101,18 @@ export const MapView: React.FC<MapViewProps> = ({
   );
 
   const visibilityPolygons = useMemo(
-    () => playerTokenPositions.map(t =>
-      computeVisibilityPolygon({ x: t.x, y: t.y }, blockingSegments)
-    ),
-    [playerTokenPositions, blockingSegments]
+    () => {
+      if (!loadedImage) return [];
+      return playerTokenPositions.map(t =>
+        computeVisibilityPolygon(
+          { x: t.x, y: t.y },
+          blockingSegments,
+          loadedImage.width,
+          loadedImage.height
+        )
+      );
+    },
+    [playerTokenPositions, blockingSegments, loadedImage]
   );
 
   const hasFogData = blockingSegments.length > 0;
@@ -139,6 +147,39 @@ export const MapView: React.FC<MapViewProps> = ({
         scale={{ x: 0.5, y: 0.5 }}
         x={-6}
         y={-6}
+      />
+    );
+  };
+
+  const TokenAvatar = ({ url, radius }: { url: string; radius: number }) => {
+    const [image, setImage] = useState<HTMLImageElement | null>(null);
+
+    useEffect(() => {
+      if (!url) return;
+      const img = new window.Image();
+      img.src = url;
+      img.onload = () => setImage(img);
+    }, [url]);
+
+    if (!image) return null;
+
+    const size = radius * 2;
+    const minDim = Math.min(image.width, image.height);
+
+    return (
+      <KonvaImage
+        image={image}
+        width={size}
+        height={size}
+        x={-radius}
+        y={-radius}
+        cornerRadius={radius}
+        crop={{
+          x: (image.width - minDim) / 2,
+          y: (image.height - minDim) / 2,
+          width: minDim,
+          height: minDim,
+        }}
       />
     );
   };
@@ -316,7 +357,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (existingToken) {
       // Move existing token
       onTokensChange(tokens.map(t => 
-        t.id === existingToken.id ? { ...t, x: contextMenu.x, y: contextMenu.y } : t
+        t.id === existingToken.id ? { ...t, x: contextMenu.x, y: contextMenu.y, avatar: combatant.avatar } : t
       ));
     } else {
       // Add new token
@@ -329,6 +370,7 @@ export const MapView: React.FC<MapViewProps> = ({
         x: contextMenu.x,
         y: contextMenu.y,
         color: colors[type],
+        avatar: combatant.avatar,
       };
       onTokensChange([...tokens, newToken]);
     }
@@ -465,12 +507,6 @@ export const MapView: React.FC<MapViewProps> = ({
                   {showWalls ? <Eye size={12} /> : <EyeOff size={12} />} WALLS
                 </button>
               )}
-              <button
-                onClick={() => setShowZoomSlider(!showZoomSlider)}
-                className={cn("btn-ghost py-1", showZoomSlider && "bg-white/10")}
-              >
-                <ZoomIn size={12} /> ZOOM
-              </button>
               {hasFogData && (
                 <button
                   onClick={() => setShowFog(!showFog)}
@@ -520,34 +556,6 @@ export const MapView: React.FC<MapViewProps> = ({
               )}
             </AnimatePresence>
           </div>
-        </div>
-      )}
-
-      {/* Zoom Slider Bar */}
-      {!isPlayerView && showZoomSlider && (
-        <div className="h-8 border-b border-[var(--line)] bg-[var(--surface)] flex items-center px-4 gap-3 shrink-0">
-          <span className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold w-8">{Math.round(stageScale * 100)}%</span>
-          <input
-            type="range"
-            min={5}
-            max={500}
-            value={Math.round(stageScale * 100)}
-            onChange={(e) => {
-              const newScale = parseInt(e.target.value) / 100;
-              const centerX = dimensions.width / 2;
-              const centerY = dimensions.height / 2;
-              const pointTo = {
-                x: (centerX - stagePos.x) / stageScale,
-                y: (centerY - stagePos.y) / stageScale,
-              };
-              setStageScale(newScale);
-              setStagePos({
-                x: centerX - pointTo.x * newScale,
-                y: centerY - pointTo.y * newScale,
-              });
-            }}
-            className="flex-1 h-1 accent-[var(--accent)] cursor-pointer"
-          />
         </div>
       )}
 
@@ -713,13 +721,21 @@ export const MapView: React.FC<MapViewProps> = ({
               >
                 <Circle
                   radius={tokenRadius}
-                  fill={token.color}
+                  fill={token.avatar ? "transparent" : token.color}
                   stroke={selectedTokenIds.includes(token.id) ? "var(--accent)" : "white"}
                   strokeWidth={selectedTokenIds.includes(token.id) ? 4 * tokenScale : 2 * tokenScale}
                   shadowBlur={selectedTokenIds.includes(token.id) ? 15 * tokenScale : 5 * tokenScale}
                   shadowColor={selectedTokenIds.includes(token.id) ? "var(--accent)" : "black"}
                   opacity={token.hidden ? 0.4 : 1}
                 />
+                {token.avatar && (
+                  <Group opacity={token.hidden ? 0.4 : 1}>
+                    <TokenAvatar 
+                      url={token.avatar} 
+                      radius={tokenRadius - (selectedTokenIds.includes(token.id) ? 2 * tokenScale : 1 * tokenScale)} 
+                    />
+                  </Group>
+                )}
                 {token.hidden && (
                   <Path
                     data="M9.88 9.88l-3.29-3.29m7.53 7.53l3.29 3.29M3 3l18 18M10.37 4.37a11 11 0 0 1 10.63 7.63 11 11 0 0 1-7.01 6.14m-3.99-.14A11 11 0 0 1 3 12a11 11 0 0 1 3.17-4.83m2.22 2.22a3 3 0 0 0 4.24 4.24"
