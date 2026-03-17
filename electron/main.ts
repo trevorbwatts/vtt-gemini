@@ -44,14 +44,15 @@ function createPlayerWindow() {
   const externalDisplay = displays.find(d => d.id !== primaryDisplay.id);
   const targetDisplay = externalDisplay || primaryDisplay;
 
-  // Use workArea (excludes taskbar) instead of bounds for better sizing.
-  // Don't use `fullscreen: true` in the constructor — on Windows it often
-  // ignores the x/y and opens on the primary monitor.
+  // Use bounds instead of workArea to cover the entire screen including the taskbar.
+  // We create it frameless at the exact x/y of the target display,
+  // then set it to fullscreen after creation to prevent Windows from
+  // forcefully moving it back to the primary display.
   playerWindow = new BrowserWindow({
-    x: targetDisplay.workArea.x,
-    y: targetDisplay.workArea.y,
-    width: targetDisplay.workArea.width,
-    height: targetDisplay.workArea.height,
+    x: targetDisplay.bounds.x,
+    y: targetDisplay.bounds.y,
+    width: targetDisplay.bounds.width,
+    height: targetDisplay.bounds.height,
     frame: false,          // frameless for a clean player experience
     title: 'VTT Player Map',
     webPreferences: {
@@ -61,8 +62,8 @@ function createPlayerWindow() {
     },
   });
 
-  // Maximize on the target display (this respects the x/y we set above)
-  playerWindow.maximize();
+  // Make it truly fullscreen on the target display
+  playerWindow.setFullScreen(true);
   playerWindow.setMenuBarVisibility(false);
 
   const isDev = process.env.NODE_ENV === 'development';
