@@ -5,6 +5,7 @@ import { CombatView } from './components/CombatView';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
+import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
 import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution } from './types';
 import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -22,6 +23,7 @@ export function DMScreen() {
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
   const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -44,9 +46,9 @@ export function DMScreen() {
   // IPC Sync to Player Screen
   useEffect(() => {
     if (campaign && selectedScenarioId && window.electronAPI) {
-      window.electronAPI.sendStateUpdate({ campaign, scenarioId: selectedScenarioId });
+      window.electronAPI.sendStateUpdate({ campaign, scenarioId: selectedScenarioId, playerMode });
     }
-  }, [campaign, selectedScenarioId]);
+  }, [campaign, selectedScenarioId, playerMode]);
 
   // Listen for player screen open/close events from Electron
   useEffect(() => {
@@ -376,12 +378,22 @@ export function DMScreen() {
               </div>
               <div className="space-y-2">
                 {campaign.players.map((p) => (
-                  <div key={p.id} className="flex items-center gap-5 px-1 py-1 rounded-lg transition-all group">
-                    <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[13px] font-bold text-white shrink-0">
-                      {p.name[0]}
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedPlayerId(p.id)}
+                    className="w-full flex items-center gap-5 px-1 py-1 rounded-lg transition-all group hover:bg-white/5 text-left"
+                  >
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0 overflow-hidden"
+                      style={{ background: p.color || 'var(--accent)' }}
+                    >
+                      {p.avatar
+                        ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
+                        : p.name[0]
+                      }
                     </div>
                     <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{p.name}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -727,6 +739,35 @@ export function DMScreen() {
             ...prev,
             npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
           }) : prev);
+        }}
+      />
+
+      {/* Player Character Sheet Modal */}
+      <PlayerCharacterSheet
+        player={campaign.players.find(p => p.id === selectedPlayerId) || null}
+        onClose={() => setSelectedPlayerId(null)}
+        onDelete={(playerId) => {
+          setCampaign(prev => prev ? ({
+            ...prev,
+            players: prev.players.filter(p => p.id !== playerId)
+          }) : prev);
+          setSelectedPlayerId(null);
+        }}
+        onColorChange={(playerId, color) => {
+          setCampaign(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
+              // Also update any matching tokens in all scenarios
+              scenarios: prev.scenarios.map(s => ({
+                ...s,
+                tokens: s.tokens.map(t =>
+                  t.combatantId === playerId ? { ...t, color } : t
+                )
+              }))
+            };
+          });
         }}
       />
 

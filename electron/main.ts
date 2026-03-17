@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'path';
 
 let dmWindow: BrowserWindow | null = null;
@@ -38,9 +38,18 @@ function createPlayerWindow() {
     return;
   }
 
+  // Try to open on a secondary display, fall back to primary
+  const displays = screen.getAllDisplays();
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const externalDisplay = displays.find(d => d.id !== primaryDisplay.id);
+  const targetDisplay = externalDisplay || primaryDisplay;
+
   playerWindow = new BrowserWindow({
-    width: 1920,
-    height: 1080,
+    x: targetDisplay.bounds.x,
+    y: targetDisplay.bounds.y,
+    width: targetDisplay.bounds.width,
+    height: targetDisplay.bounds.height,
+    fullscreen: !!externalDisplay,
     title: 'VTT Player Map',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

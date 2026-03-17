@@ -22,16 +22,20 @@ export function PlayerScreen() {
     }
 
     // Listen for state updates from the DM Screen via IPC
-    const handleStateUpdate = (newState: { campaign: Campaign, scenarioId: string }) => {
+    // The state update now includes playerMode so we get it reliably
+    const handleStateUpdate = (newState: { campaign: Campaign, scenarioId: string, playerMode?: string }) => {
       setCampaign(newState.campaign);
       setCurrentScenarioId(newState.scenarioId);
+      if (newState.playerMode) {
+        setMode(newState.playerMode as 'setup' | 'play');
+      }
     };
 
     if (window.electronAPI) {
         window.electronAPI.onStateUpdate(handleStateUpdate);
     }
 
-    // Listen for mode changes from DM
+    // Also listen for dedicated mode updates (for instant toggle response)
     if (window.electronAPI?.onPlayerModeUpdate) {
         window.electronAPI.onPlayerModeUpdate((newMode: string) => {
           setMode(newMode as 'setup' | 'play');

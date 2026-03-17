@@ -1139,10 +1139,14 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
         )}
 
-        {/* Token Detail Panel */}
+        {/* Token Detail Panel — only for non-player tokens; players use the Character Sheet modal */}
         {selectedTokenIds.length === 1 && (() => {
           const tokenId = selectedTokenIds[0];
           const token = tokens.find(t => t.id === tokenId);
+
+          // Players get the dedicated Character Sheet modal via the main menu
+          if (token?.type === 'player') return null;
+
           const combatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
           const combatant = combatants.find(c => c.id === token?.combatantId);
           
