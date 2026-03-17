@@ -18,6 +18,9 @@ declare global {
       sendPlayerTokenUpdate: (tokens: any) => void;
       onPlayerTokenUpdate: (callback: (tokens: any) => void) => void;
       removePlayerTokenUpdateListener: () => void;
+      sendDMTokenUpdate: (tokens: any) => void;
+      onDMTokenUpdate: (callback: (tokens: any) => void) => void;
+      removeDMTokenUpdateListener: () => void;
       importDndBeyondCharacter: (url: string) => Promise<any>;
     }
   }

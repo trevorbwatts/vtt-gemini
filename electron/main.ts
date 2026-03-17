@@ -129,6 +129,13 @@ ipcMain.on('dm-state-update', (_event, state) => {
   }
 });
 
+// When the DM drags tokens, proxy them swiftly to the Player window
+ipcMain.on('dm-token-update', (_event, tokens) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dm-token-update', tokens);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

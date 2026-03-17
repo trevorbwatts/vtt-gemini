@@ -87,6 +87,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const [showFog, setShowFog] = useState(true);
   const [draggingPositions, setDraggingPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const lastBroadcastRef = useRef(0);
+  const BROADCAST_INTERVAL = 32; // ~30fps throttle for IPC drag broadcasts
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
@@ -278,6 +280,19 @@ export const MapView: React.FC<MapViewProps> = ({
       ...prev,
       [id]: pos,
     }));
+
+    // Throttle IPC broadcasts to ~30fps for performance
+    const now = Date.now();
+    if (now - lastBroadcastRef.current < BROADCAST_INTERVAL) return;
+    lastBroadcastRef.current = now;
+
+    // Broadcast token update to the other screen
+    const updatedTokens = tokens.map(t => t.id === id ? { ...t, ...pos } : t);
+    if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+      window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
+    } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+      window.electronAPI.sendDMTokenUpdate(updatedTokens);
+    }
   };
 
   const handleDragEnd = (id: string, e: any) => {

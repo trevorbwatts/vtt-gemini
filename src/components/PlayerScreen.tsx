@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MapView } from './MapView';
 import { Campaign, Scenario, Combatant, Token } from '../types';
 
@@ -6,6 +6,8 @@ export function PlayerScreen() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [currentScenarioId, setCurrentScenarioId] = useState<string | null>(null);
   const [mode, setMode] = useState<'setup' | 'play'>('setup');
+  const currentScenarioIdRef = useRef(currentScenarioId);
+  currentScenarioIdRef.current = currentScenarioId;
 
   useEffect(() => {
     // Attempt to load the initial state from localStorage just in case
@@ -41,9 +43,26 @@ export function PlayerScreen() {
         });
     }
 
+    // Listen for high-frequency token updates from the DM (e.g. while dragging)
+    if (window.electronAPI?.onDMTokenUpdate) {
+        window.electronAPI.onDMTokenUpdate((newTokens: Token[]) => {
+          setCampaign(prev => {
+            const scenarioId = currentScenarioIdRef.current;
+            if (!prev || !scenarioId) return prev;
+            return {
+              ...prev,
+              scenarios: prev.scenarios.map(s =>
+                s.id === scenarioId ? { ...s, tokens: newTokens } : s
+              ),
+            };
+          });
+        });
+    }
+
     return () => {
         if (window.electronAPI) {
             window.electronAPI.removeStateUpdateListener();
+            window.electronAPI.removeDMTokenUpdateListener?.();
         }
         if (window.electronAPI?.removePlayerModeListener) {
             window.electronAPI.removePlayerModeListener();
