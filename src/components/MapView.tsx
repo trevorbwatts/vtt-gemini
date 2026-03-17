@@ -34,13 +34,14 @@ interface MapViewProps {
   gridResolution?: GridResolution;
   onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
   onPortalToggle?: (portalId: string) => void;
+  onDragStatusChange?: (isDragging: boolean) => void;
 }
 
-export const MapView: React.FC<MapViewProps> = ({ 
-  tokens, 
-  onTokensChange, 
-  scenarioName, 
-  mapImage, 
+export const MapView: React.FC<MapViewProps> = ({
+  tokens,
+  onTokensChange,
+  scenarioName,
+  mapImage,
   onMapChange,
   mapNotes,
   onMapNotesChange,
@@ -60,17 +61,18 @@ export const MapView: React.FC<MapViewProps> = ({
   portals,
   gridResolution,
   onWallDataChange,
-  onPortalToggle
+  onPortalToggle,
+  onDragStatusChange
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  
-  const [contextMenu, setContextMenu] = useState<{ 
-    x: number, 
-    y: number, 
-    stageX: number, 
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number,
+    y: number,
+    stageX: number,
     stageY: number,
     view: 'root' | 'note' | 'add-player' | 'add-enemy' | 'add-npc'
   } | null>(null);
@@ -238,7 +240,7 @@ export const MapView: React.FC<MapViewProps> = ({
           });
         }
       });
-      
+
       observer.observe(containerRef.current);
       return () => observer.disconnect();
     }
@@ -295,19 +297,35 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
+  const handleDragStart = () => {
+    onDragStatusChange?.(true);
+  };
+
   const handleDragEnd = (id: string, e: any) => {
     setDraggingPositions(prev => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
-    onTokensChange(tokens.map(t =>
+    onDragStatusChange?.(false);
+
+    // Send final position via the commit channel
+    const updatedTokens = tokens.map(t =>
       t.id === id ? { ...t, x: e.target.x(), y: e.target.y() } : t
-    ));
+    );
+
+    // Broadcast one final time so the other screen gets the exact end position
+    if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+      window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
+    } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+      window.electronAPI.sendDMTokenUpdate(updatedTokens);
+    }
+
+    onTokensChange(updatedTokens);
   };
 
   const handleNoteDragEnd = (id: string, e: any) => {
-    onMapNotesChange(mapNotes.map(n => 
+    onMapNotesChange(mapNotes.map(n =>
       n.id === id ? { ...n, x: e.target.x(), y: e.target.y() } : n
     ));
   };
@@ -330,7 +348,7 @@ export const MapView: React.FC<MapViewProps> = ({
     setTokenContextMenu(null);
     const stage = e.target.getStage();
     const pointerPosition = stage.getPointerPosition();
-    
+
     // Coordinates relative to the stage's draggable content
     const transform = stage.getAbsoluteTransform().copy();
     transform.invert();
@@ -353,10 +371,10 @@ export const MapView: React.FC<MapViewProps> = ({
     e.evt.preventDefault();
     e.cancelBubble = true; // Stop propagation to stage
     setContextMenu(null);
-    
+
     const stage = e.target.getStage();
     const pointerPosition = stage.getPointerPosition();
-    
+
     setTokenContextMenu({
       x: pointerPosition.x,
       y: pointerPosition.y,
@@ -365,7 +383,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const toggleTokenVisibility = (tokenId: string) => {
-    onTokensChange(tokens.map(t => 
+    onTokensChange(tokens.map(t =>
       t.id === tokenId ? { ...t, hidden: !t.hidden } : t
     ));
     setTokenContextMenu(null);
@@ -384,10 +402,10 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!contextMenu) return;
 
     const existingToken = tokens.find(t => t.combatantId === combatant.id);
-    
+
     if (existingToken) {
       // Move existing token
-      onTokensChange(tokens.map(t => 
+      onTokensChange(tokens.map(t =>
         t.id === existingToken.id ? { ...t, x: contextMenu.x, y: contextMenu.y, avatar: combatant.avatar, color: combatant.color || t.color } : t
       ));
     } else {
@@ -410,7 +428,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const saveNote = () => {
     if (!contextMenu || !noteDraft.content.trim()) return;
-    
+
     const newNote: MapNote = {
       id: Math.random().toString(36).substr(2, 9),
       type: noteDraft.type,
@@ -418,7 +436,7 @@ export const MapView: React.FC<MapViewProps> = ({
       x: contextMenu.x,
       y: contextMenu.y
     };
-    
+
     onMapNotesChange([...mapNotes, newNote]);
     setContextMenu(null);
     setNoteDraft({ type: 'info', content: '' });
@@ -496,17 +514,17 @@ export const MapView: React.FC<MapViewProps> = ({
               {!leftSidebarOpen && (
                 <motion.div
                   initial={{ opacity: 0 }}
-                  animate={{ 
-                    opacity: 1, 
-                    transition: { delay: 0.2, duration: 0.1 } 
+                  animate={{
+                    opacity: 1,
+                    transition: { delay: 0.2, duration: 0.1 }
                   }}
-                  exit={{ 
-                    opacity: 0, 
-                    transition: { delay: 0, duration: 0.05 } 
+                  exit={{
+                    opacity: 0,
+                    transition: { delay: 0, duration: 0.05 }
                   }}
                   className="flex items-center h-full"
                 >
-                  <button 
+                  <button
                     onClick={() => setLeftSidebarOpen(true)}
                     className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
                     title="Open Notes"
@@ -517,13 +535,13 @@ export const MapView: React.FC<MapViewProps> = ({
               )}
             </AnimatePresence>
             <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-            
+
             <div className="flex items-center gap-4 px-4">
               <div className="flex items-center gap-2">
                 <MapIcon size={12} className="opacity-50" />
                 <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Map</h3>
               </div>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="btn-ghost py-1"
               >
@@ -551,7 +569,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
           <div className="flex items-center h-full">
             {selectedTokenIds.length > 0 && (
-              <button 
+              <button
                 onClick={() => {
                   onStartCombat(selectedTokenIds);
                   setSelectedTokenIds([]);
@@ -565,18 +583,18 @@ export const MapView: React.FC<MapViewProps> = ({
               {!rightSidebarOpen && (
                 <motion.div
                   initial={{ opacity: 0 }}
-                  animate={{ 
-                    opacity: 1, 
-                    transition: { delay: 0.2, duration: 0.1 } 
+                  animate={{
+                    opacity: 1,
+                    transition: { delay: 0.2, duration: 0.1 }
                   }}
-                  exit={{ 
-                    opacity: 0, 
-                    transition: { delay: 0, duration: 0.05 } 
+                  exit={{
+                    opacity: 0,
+                    transition: { delay: 0, duration: 0.05 }
                   }}
                   className="flex items-center h-full"
                 >
                   <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-                  <button 
+                  <button
                     onClick={() => setRightSidebarOpen(true)}
                     className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
                     title="Open Initiative Tracker"
@@ -596,7 +614,7 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="max-w-md space-y-6">
               <h2 className="text-6xl font-serif font-bold tracking-tight">Scenario Map</h2>
               <p className="text-lg opacity-40 font-sans">Upload a map to get started</p>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="btn-filled px-8 py-4 rounded-xl text-sm shadow-xl"
               >
@@ -636,7 +654,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 height={loadedImage.height}
               />
             )}
-            
+
             {/* Render Walls */}
             {showWalls && !isPlayerView && walls?.map(wall => (
               <Line
@@ -681,9 +699,9 @@ export const MapView: React.FC<MapViewProps> = ({
 
             {/* Render Map Notes */}
             {mapNotes.map(note => (
-              <Group 
-                key={note.id} 
-                x={note.x} 
+              <Group
+                key={note.id}
+                x={note.x}
                 y={note.y}
                 draggable
                 onDragEnd={(e) => handleNoteDragEnd(note.id, e)}
@@ -733,16 +751,17 @@ export const MapView: React.FC<MapViewProps> = ({
             {tokens.map(token => (
               <Group
                 key={token.id}
-                x={token.x}
-                y={token.y}
+                x={draggingPositions[token.id]?.x ?? token.x}
+                y={draggingPositions[token.id]?.y ?? token.y}
                 draggable
+                onDragStart={handleDragStart}
                 onDragMove={(e) => handleDragMove(token.id, e)}
                 onDragEnd={(e) => handleDragEnd(token.id, e)}
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {
                   e.cancelBubble = true;
                   if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey) {
-                    setSelectedTokenIds(prev => 
+                    setSelectedTokenIds(prev =>
                       prev.includes(token.id) ? prev.filter(id => id !== token.id) : [...prev, token.id]
                     );
                   } else {
@@ -762,9 +781,9 @@ export const MapView: React.FC<MapViewProps> = ({
                 />
                 {token.avatar && (
                   <Group opacity={token.hidden ? 0.4 : 1}>
-                    <TokenAvatar 
-                      url={token.avatar} 
-                      radius={tokenRadius - (selectedTokenIds.includes(token.id) ? 2 * tokenScale : 1 * tokenScale)} 
+                    <TokenAvatar
+                      url={token.avatar}
+                      radius={tokenRadius - (selectedTokenIds.includes(token.id) ? 2 * tokenScale : 1 * tokenScale)}
                     />
                   </Group>
                 )}
@@ -809,13 +828,13 @@ export const MapView: React.FC<MapViewProps> = ({
 
         {/* Context Menu / Note Creator */}
         {contextMenu && (
-          <div 
+          <div
             className={cn(
               "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
               contextMenu.view === 'add-enemy' ? "w-[600px] overflow-hidden" : "w-64"
             )}
             style={
-              contextMenu.view === 'add-enemy' 
+              contextMenu.view === 'add-enemy'
                 ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
                 : { left: contextMenu.stageX, top: contextMenu.stageY }
             }
@@ -824,7 +843,7 @@ export const MapView: React.FC<MapViewProps> = ({
           >
             {contextMenu.view === 'root' && (
               <div className="flex flex-col py-1 relative">
-                <button 
+                <button
                   onMouseEnter={() => setActiveSubmenu(null)}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'note' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
@@ -834,10 +853,10 @@ export const MapView: React.FC<MapViewProps> = ({
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
                 <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-50" />
-                
+
                 {/* Player Flyout Trigger */}
                 <div className="relative">
-                  <button 
+                  <button
                     onMouseEnter={() => setActiveSubmenu('player')}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors group",
@@ -893,7 +912,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   )}
                 </div>
 
-                <button 
+                <button
                   onMouseEnter={() => setActiveSubmenu(null)}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-enemy' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[#ef4444] hover:text-white transition-colors group"
@@ -905,7 +924,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
                 {/* NPC Flyout Trigger */}
                 <div className="relative">
-                  <button 
+                  <button
                     onMouseEnter={() => setActiveSubmenu('npc')}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors group",
@@ -969,7 +988,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Add Map Note</span>
                   <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
                 </div>
-                
+
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
                   {(['treasure', 'quote', 'combat', 'info', 'trap'] as MapNoteType[]).map(type => (
                     <button
@@ -1018,14 +1037,14 @@ export const MapView: React.FC<MapViewProps> = ({
                   </div>
                   <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
                 </div>
-                
+
                 <div className="flex-1 flex overflow-hidden">
                   {/* Left Panel: List */}
                   <div className="w-1/2 border-r border-[var(--line)] flex flex-col overflow-hidden">
                     <div className="p-2 border-b border-[var(--line)]">
                       <div className="relative">
                         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
-                        <input 
+                        <input
                           autoFocus
                           type="text"
                           value={monsterSearch}
@@ -1068,7 +1087,7 @@ export const MapView: React.FC<MapViewProps> = ({
                             </div>
                           </div>
                           <p className="text-[10px] italic opacity-50 mb-4">{selectedMonster.type}</p>
-                          
+
                           <div className="grid grid-cols-6 gap-1 mb-4 text-center">
                             {Object.entries(selectedMonster.stats).map(([stat, val]) => (
                               <div key={stat} className="bg-black/20 rounded p-1">
@@ -1099,14 +1118,14 @@ export const MapView: React.FC<MapViewProps> = ({
                           <div className="flex items-center justify-between px-1">
                             <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Quantity</span>
                             <div className="flex items-center gap-3 bg-black/20 rounded-lg p-1">
-                              <button 
+                              <button
                                 onClick={() => setMonsterQuantity(Math.max(1, monsterQuantity - 1))}
                                 className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
                               >
                                 -
                               </button>
                               <span className="text-xs font-bold w-4 text-center">{monsterQuantity}</span>
-                              <button 
+                              <button
                                 onClick={() => setMonsterQuantity(Math.min(20, monsterQuantity + 1))}
                                 className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
                               >
@@ -1144,15 +1163,15 @@ export const MapView: React.FC<MapViewProps> = ({
 
         {/* Token Context Menu */}
         {tokenContextMenu && (
-          <div 
+          <div
             className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden w-48 animate-in fade-in zoom-in-95 duration-150"
-            style={{ left: tokenContextMenu.x, top: tokenContextMenu.y }} 
+            style={{ left: tokenContextMenu.x, top: tokenContextMenu.y }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-2 border-b border-[var(--line)] bg-black/10">
               <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 px-2">Token Options</p>
             </div>
-            <button 
+            <button
               onClick={() => toggleTokenVisibility(tokenContextMenu.tokenId)}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
             >
@@ -1162,7 +1181,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 <><EyeOff size={14} /> Hide Token</>
               )}
             </button>
-            <button 
+            <button
               onClick={() => deleteToken(tokenContextMenu.tokenId)}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--btn-bg)] hover:text-white transition-colors text-[var(--btn-bg)]"
             >
@@ -1181,7 +1200,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
           const combatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
           const combatant = combatants.find(c => c.id === token?.combatantId);
-          
+
           if (!combatant) return null;
 
           return (
@@ -1200,7 +1219,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     )}
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setSelectedTokenId(null);
                     setSelectedTokenIds([]);

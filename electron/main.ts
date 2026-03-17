@@ -44,12 +44,15 @@ function createPlayerWindow() {
   const externalDisplay = displays.find(d => d.id !== primaryDisplay.id);
   const targetDisplay = externalDisplay || primaryDisplay;
 
+  // Use workArea (excludes taskbar) instead of bounds for better sizing.
+  // Don't use `fullscreen: true` in the constructor — on Windows it often
+  // ignores the x/y and opens on the primary monitor.
   playerWindow = new BrowserWindow({
-    x: targetDisplay.bounds.x,
-    y: targetDisplay.bounds.y,
-    width: targetDisplay.bounds.width,
-    height: targetDisplay.bounds.height,
-    fullscreen: !!externalDisplay,
+    x: targetDisplay.workArea.x,
+    y: targetDisplay.workArea.y,
+    width: targetDisplay.workArea.width,
+    height: targetDisplay.workArea.height,
+    frame: false,          // frameless for a clean player experience
     title: 'VTT Player Map',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -58,7 +61,8 @@ function createPlayerWindow() {
     },
   });
 
-  // Remove the standard UI frame for the player screen
+  // Maximize on the target display (this respects the x/y we set above)
+  playerWindow.maximize();
   playerWindow.setMenuBarVisibility(false);
 
   const isDev = process.env.NODE_ENV === 'development';
@@ -122,10 +126,17 @@ ipcMain.on('player-token-update', (_event, tokens) => {
   }
 });
 
-// When the DM updates the campaign state, proxy it to the Player window
+  // When the DM updates the campaign state, proxy it to the Player window
 ipcMain.on('dm-state-update', (_event, state) => {
   if (playerWindow) {
     playerWindow.webContents.send('player-state-update', state);
+  }
+});
+
+// When the Player moves tokens, proxy it back to the DM window
+ipcMain.on('player-token-update', (_event, tokens) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-token-update', tokens);
   }
 });
 

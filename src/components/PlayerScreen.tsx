@@ -6,25 +6,37 @@ export function PlayerScreen() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [currentScenarioId, setCurrentScenarioId] = useState<string | null>(null);
   const [mode, setMode] = useState<'setup' | 'play'>('setup');
+
+  // Refs to avoid stale closures in IPC callbacks
   const currentScenarioIdRef = useRef(currentScenarioId);
   currentScenarioIdRef.current = currentScenarioId;
+
+  // Track whether the player is actively dragging a token.
+  // While dragging, we MUST ignore incoming state updates from the DM,
+  // otherwise the full-state broadcast will overwrite our drag position.
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
     // Attempt to load the initial state from localStorage just in case
     try {
       const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
       if (savedCampaigns.length > 0) {
-          setCampaign(savedCampaigns[0]);
-          if(savedCampaigns[0].scenarios.length > 0) {
-              setCurrentScenarioId(savedCampaigns[0].scenarios[0].id);
-          }
+        setCampaign(savedCampaigns[0]);
+        if (savedCampaigns[0].scenarios.length > 0) {
+          setCurrentScenarioId(savedCampaigns[0].scenarios[0].id);
+        }
       }
     } catch (e) {
       console.error("Failed to load initial campaign state for Player Screen");
     }
 
-    // Listen for state updates from the DM Screen via IPC
-    const handleStateUpdate = (newState: { campaign: Campaign, scenarioId: string, playerMode?: string }) => {
+    // Listen for full state updates from the DM Screen via IPC
+    const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string }) => {
+      // CRITICAL: Skip state updates while the player is dragging a token.
+      // The DM's campaign useEffect fires on every campaign change and
+      // broadcasts the full state back — this would overwrite our drag.
+      if (isDraggingRef.current) return;
+
       setCampaign(newState.campaign);
       setCurrentScenarioId(newState.scenarioId);
       if (newState.playerMode) {
@@ -33,40 +45,44 @@ export function PlayerScreen() {
     };
 
     if (window.electronAPI) {
-        window.electronAPI.onStateUpdate(handleStateUpdate);
+      window.electronAPI.onStateUpdate(handleStateUpdate);
     }
 
-    // Also listen for dedicated mode updates (for instant toggle response)
+    // Listen for dedicated mode updates (for instant toggle response)
     if (window.electronAPI?.onPlayerModeUpdate) {
-        window.electronAPI.onPlayerModeUpdate((newMode: string) => {
-          setMode(newMode as 'setup' | 'play');
-        });
+      window.electronAPI.onPlayerModeUpdate((newMode: string) => {
+        setMode(newMode as 'setup' | 'play');
+      });
     }
 
-    // Listen for high-frequency token updates from the DM (e.g. while dragging)
+    // Listen for high-frequency token updates from the DM (e.g. while DM is dragging)
     if (window.electronAPI?.onDMTokenUpdate) {
-        window.electronAPI.onDMTokenUpdate((newTokens: Token[]) => {
-          setCampaign(prev => {
-            const scenarioId = currentScenarioIdRef.current;
-            if (!prev || !scenarioId) return prev;
-            return {
-              ...prev,
-              scenarios: prev.scenarios.map(s =>
-                s.id === scenarioId ? { ...s, tokens: newTokens } : s
-              ),
-            };
-          });
+      window.electronAPI.onDMTokenUpdate((newTokens: Token[]) => {
+        // Also skip DM token updates if WE are dragging — otherwise our
+        // local drag gets overwritten by the DM's view of the token positions.
+        if (isDraggingRef.current) return;
+
+        setCampaign(prev => {
+          const scenarioId = currentScenarioIdRef.current;
+          if (!prev || !scenarioId) return prev;
+          return {
+            ...prev,
+            scenarios: prev.scenarios.map(s =>
+              s.id === scenarioId ? { ...s, tokens: newTokens } : s
+            ),
+          };
         });
+      });
     }
 
     return () => {
-        if (window.electronAPI) {
-            window.electronAPI.removeStateUpdateListener();
-            window.electronAPI.removeDMTokenUpdateListener?.();
-        }
-        if (window.electronAPI?.removePlayerModeListener) {
-            window.electronAPI.removePlayerModeListener();
-        }
+      if (window.electronAPI) {
+        window.electronAPI.removeStateUpdateListener();
+        window.electronAPI.removeDMTokenUpdateListener?.();
+      }
+      if (window.electronAPI?.removePlayerModeListener) {
+        window.electronAPI.removePlayerModeListener();
+      }
     };
   }, []);
 
@@ -77,15 +93,21 @@ export function PlayerScreen() {
     }
     // Also update local state so the drag feels instant
     setCampaign(prev => {
-      if (!prev || !currentScenarioId) return prev;
+      const scenarioId = currentScenarioIdRef.current;
+      if (!prev || !scenarioId) return prev;
       return {
         ...prev,
         scenarios: prev.scenarios.map(s =>
-          s.id === currentScenarioId ? { ...s, tokens: newTokens } : s
+          s.id === scenarioId ? { ...s, tokens: newTokens } : s
         ),
       };
     });
-  }, [currentScenarioId]);
+  }, []);
+
+  // Callback from MapView to track drag state
+  const handleDragStatusChange = useCallback((dragging: boolean) => {
+    isDraggingRef.current = dragging;
+  }, []);
 
   // Setup mode: show blank state
   if (mode === 'setup') {
@@ -110,11 +132,11 @@ export function PlayerScreen() {
   const currentScenario = campaign.scenarios.find(s => s.id === currentScenarioId);
 
   if (!currentScenario) {
-     return (
-        <div className="h-screen w-screen bg-black flex items-center justify-center text-white/30 font-serif text-2xl tracking-widest">
-            Loading Scenario...
-        </div>
-     );
+    return (
+      <div className="h-screen w-screen bg-black flex items-center justify-center text-white/30 font-serif text-2xl tracking-widest">
+        Loading Scenario...
+      </div>
+    );
   }
 
   return (
@@ -142,6 +164,7 @@ export function PlayerScreen() {
         objectWalls={currentScenario.objectWalls}
         portals={currentScenario.portals}
         gridResolution={currentScenario.gridResolution}
+        onDragStatusChange={handleDragStatusChange}
       />
     </div>
   );

@@ -38,9 +38,20 @@ function createPlayerWindow() {
         playerWindow.focus();
         return;
     }
+    // Try to open on a secondary display, fall back to primary
+    const displays = electron_1.screen.getAllDisplays();
+    const primaryDisplay = electron_1.screen.getPrimaryDisplay();
+    const externalDisplay = displays.find(d => d.id !== primaryDisplay.id);
+    const targetDisplay = externalDisplay || primaryDisplay;
+    // Use workArea (excludes taskbar) instead of bounds for better sizing.
+    // Don't use `fullscreen: true` in the constructor — on Windows it often
+    // ignores the x/y and opens on the primary monitor.
     playerWindow = new electron_1.BrowserWindow({
-        width: 1920,
-        height: 1080,
+        x: targetDisplay.workArea.x,
+        y: targetDisplay.workArea.y,
+        width: targetDisplay.workArea.width,
+        height: targetDisplay.workArea.height,
+        frame: false, // frameless for a clean player experience
         title: 'VTT Player Map',
         webPreferences: {
             preload: path_1.default.join(__dirname, 'preload.js'),
@@ -48,7 +59,8 @@ function createPlayerWindow() {
             contextIsolation: true,
         },
     });
-    // Remove the standard UI frame for the player screen
+    // Maximize on the target display (this respects the x/y we set above)
+    playerWindow.maximize();
     playerWindow.setMenuBarVisibility(false);
     const isDev = process.env.NODE_ENV === 'development';
     if (isDev) {
@@ -60,6 +72,10 @@ function createPlayerWindow() {
     }
     playerWindow.on('closed', () => {
         playerWindow = null;
+        // Notify DM window that player screen was closed
+        if (dmWindow) {
+            dmWindow.webContents.send('player-screen-status', false);
+        }
     });
 }
 electron_1.app.whenReady().then(() => {
@@ -77,11 +93,44 @@ electron_1.app.on('window-all-closed', () => {
 // --- IPC Communication between Windows ---
 electron_1.ipcMain.on('launch-player-screen', () => {
     createPlayerWindow();
+    // Notify DM window that the player screen is now open
+    if (dmWindow) {
+        dmWindow.webContents.send('player-screen-status', true);
+    }
+});
+electron_1.ipcMain.on('close-player-screen', () => {
+    if (playerWindow) {
+        playerWindow.close();
+        playerWindow = null;
+    }
+});
+electron_1.ipcMain.on('player-mode-update', (_event, mode) => {
+    if (playerWindow) {
+        playerWindow.webContents.send('player-mode-update', mode);
+    }
+});
+// When the Player moves tokens, proxy it back to the DM window
+electron_1.ipcMain.on('player-token-update', (_event, tokens) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-token-update', tokens);
+    }
 });
 // When the DM updates the campaign state, proxy it to the Player window
 electron_1.ipcMain.on('dm-state-update', (_event, state) => {
     if (playerWindow) {
         playerWindow.webContents.send('player-state-update', state);
+    }
+});
+// When the Player moves tokens, proxy it back to the DM window
+electron_1.ipcMain.on('player-token-update', (_event, tokens) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-token-update', tokens);
+    }
+});
+// When the DM drags tokens, proxy them swiftly to the Player window
+electron_1.ipcMain.on('dm-token-update', (_event, tokens) => {
+    if (playerWindow) {
+        playerWindow.webContents.send('dm-token-update', tokens);
     }
 });
 // D&D Beyond character import

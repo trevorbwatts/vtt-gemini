@@ -77,14 +77,22 @@ export function DMScreen() {
   useEffect(() => {
     if (window.electronAPI?.onPlayerTokenUpdate) {
       window.electronAPI.onPlayerTokenUpdate((tokens: any) => {
-        const scenarioId = selectedScenarioIdRef.current;
+        console.log('[DM] Received player token update:', tokens);
+        
+        // We use the functional state update to always get the freshest campaign
         setCampaign(prev => {
+          const scenarioId = selectedScenarioIdRef.current;
           if (!prev || !scenarioId) return prev;
+          
           return {
             ...prev,
-            scenarios: prev.scenarios.map(s =>
-              s.id === scenarioId ? { ...s, tokens } : s
-            ),
+            scenarios: prev.scenarios.map(s => {
+              if (s.id === scenarioId) {
+                console.log('[DM] Applying tokens to scenario', scenarioId);
+                return { ...s, tokens };
+              }
+              return s;
+            }),
           };
         });
       });
