@@ -88,9 +88,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showWalls, setShowWalls] = useState(true);
 
   const [showFog, setShowFog] = useState(true);
-  const [draggingPositions, setDraggingPositions] = useState<Record<string, { x: number; y: number }>>({});
+  // Use a ref for dragging positions so we can read them without triggering React re-renders.
+  // Konva moves the node natively during drag; we just need the position for IPC broadcasts.
+  const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const lastBroadcastRef = useRef(0);
-  const BROADCAST_INTERVAL = 32; // ~30fps throttle for IPC drag broadcasts
+  const BROADCAST_INTERVAL = 50; // ~20fps throttle — smooth on TV, much lighter on IPC
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
@@ -101,10 +103,8 @@ export const MapView: React.FC<MapViewProps> = ({
   );
 
   const playerTokenPositions = useMemo(
-    () => tokens
-      .filter(t => t.type === 'player' && !t.hidden)
-      .map(t => draggingPositions[t.id] ? { ...t, ...draggingPositions[t.id] } : t),
-    [tokens, draggingPositions]
+    () => tokens.filter(t => t.type === 'player' && !t.hidden),
+    [tokens]
   );
 
   const visibilityPolygons = useMemo(
@@ -278,12 +278,10 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const handleDragMove = (id: string, e: any) => {
     const pos = { x: e.target.x(), y: e.target.y() };
-    setDraggingPositions(prev => ({
-      ...prev,
-      [id]: pos,
-    }));
+    // Update ref only — no React state update, no re-render during drag
+    draggingPositionsRef.current[id] = pos;
 
-    // Throttle IPC broadcasts to ~30fps for performance
+    // Throttle IPC broadcasts to ~20fps for performance
     const now = Date.now();
     if (now - lastBroadcastRef.current < BROADCAST_INTERVAL) return;
     lastBroadcastRef.current = now;
@@ -302,19 +300,16 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleDragEnd = (id: string, e: any) => {
-    setDraggingPositions(prev => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
+    // Clear the ref entry for this token
+    delete draggingPositionsRef.current[id];
     onDragStatusChange?.(false);
 
-    // Send final position via the commit channel
+    // Commit final position
     const updatedTokens = tokens.map(t =>
       t.id === id ? { ...t, x: e.target.x(), y: e.target.y() } : t
     );
 
-    // Broadcast one final time so the other screen gets the exact end position
+    // Broadcast final position so the other screen snaps to the exact end position
     if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
       window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
     } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
@@ -751,8 +746,8 @@ export const MapView: React.FC<MapViewProps> = ({
             {tokens.map(token => (
               <Group
                 key={token.id}
-                x={draggingPositions[token.id]?.x ?? token.x}
-                y={draggingPositions[token.id]?.y ?? token.y}
+                x={token.x}
+                y={token.y}
                 draggable
                 onDragStart={handleDragStart}
                 onDragMove={(e) => handleDragMove(token.id, e)}
