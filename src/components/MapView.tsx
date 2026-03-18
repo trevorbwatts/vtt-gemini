@@ -93,6 +93,8 @@ export const MapView: React.FC<MapViewProps> = ({
   const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const lastBroadcastRef = useRef(0);
   const BROADCAST_INTERVAL = 50; // ~20fps throttle — smooth on TV, much lighter on IPC
+  // Live drag position overrides for player view — drives real-time fog recomputation
+  const [livePlayerPos, setLivePlayerPos] = useState<Record<string, { x: number; y: number }>>({});
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
@@ -103,8 +105,10 @@ export const MapView: React.FC<MapViewProps> = ({
   );
 
   const playerTokenPositions = useMemo(
-    () => tokens.filter(t => t.type === 'player' && !t.hidden),
-    [tokens]
+    () => tokens.filter(t => t.type === 'player' && !t.hidden).map(t =>
+      livePlayerPos[t.id] ? { ...t, ...livePlayerPos[t.id] } : t
+    ),
+    [tokens, livePlayerPos]
   );
 
   const visibilityPolygons = useMemo(
@@ -287,12 +291,15 @@ export const MapView: React.FC<MapViewProps> = ({
     if (now - lastBroadcastRef.current < BROADCAST_INTERVAL) return;
     lastBroadcastRef.current = now;
 
-    // Broadcast token update to the other screen
-    const updatedTokens = tokens.map(t => t.id === id ? { ...t, ...pos } : t);
-    if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-      window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
-    } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
-      window.electronAPI.sendDMTokenUpdate(updatedTokens);
+    if (isPlayerView) {
+      // Update live position so fog/visibility recomputes during drag
+      setLivePlayerPos(prev => ({ ...prev, [id]: pos }));
+    } else {
+      // Broadcast to player screen in real-time (DM drag)
+      const updatedTokens = tokens.map(t => t.id === id ? { ...t, ...pos } : t);
+      if (window.electronAPI?.sendDMTokenUpdate) {
+        window.electronAPI.sendDMTokenUpdate(updatedTokens);
+      }
     }
   };
 
@@ -301,8 +308,9 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleDragEnd = (id: string, e: any) => {
-    // Clear the ref entry for this token
+    // Clear the ref entry and live position override for this token
     delete draggingPositionsRef.current[id];
+    setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
     onDragStatusChange?.(false);
 
     // Commit final position
