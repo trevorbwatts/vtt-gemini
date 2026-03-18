@@ -176,30 +176,66 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
-  const NoteMapIcon = ({ type, color }: { type: MapNoteType, color: string }) => {
-    const paths = {
-      treasure: "M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v1.5M21 7.5H3M21 7.5v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5M12 7.5V20",
-      quote: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 7h8M8 11h8",
-      combat: "M14.5 17.5 3 6V3h3l11.5 11.5M13 19l-2 2-3-3-2 2L3 17l2-2-3-3 2-2 3 3 2-2M14.5 17.5 19 13M21 6V3h-3l-4.5 4.5",
-      info: "M12 16V12M12 8H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z",
-      trap: "M9 10L9.01 10M15 10L15.01 10M12 2C7.03 2 3 6.03 3 11C3 13.08 3.71 14.99 4.9 16.5C5.45 17.19 6.13 17.8 6.9 18.27L6.9 20C6.9 21.1 7.8 22 8.9 22L15.1 22C16.2 22 17.1 21.1 17.1 20L17.1 18.27C17.87 17.8 18.55 17.19 19.1 16.5C20.29 14.99 21 13.08 21 11C21 6.03 16.97 2 12 2Z"
-    };
+  const NoteMapIcon = ({ type }: { type: MapNoteType }) => {
+    const noteRadius = tokenRadius * 0.6;
+    const s = noteRadius / 28;
+    const offset = -(12 * s);
+    const sp = { stroke: 'white', strokeWidth: 2, lineCap: 'round' as const, lineJoin: 'round' as const, fill: '' };
 
-    const noteRadius = tokenRadius * 0.25;
-    const iconScale = noteRadius / 28;
-    const iconOffset = -(noteRadius * 3 / 7);
-    return (
-      <Path
-        data={paths[type]}
-        stroke={color}
-        strokeWidth={2}
-        lineCap="round"
-        lineJoin="round"
-        scale={{ x: iconScale, y: iconScale }}
-        x={iconOffset}
-        y={iconOffset}
-      />
-    );
+    const icon = (() => {
+      switch (type) {
+        case 'treasure':
+          return (
+            <Group>
+              <Path data="M10.5 3 8 9l4 13 4-13-2.5-6" {...sp} />
+              <Path data="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z" {...sp} />
+              <Path data="M2 9h20" {...sp} />
+            </Group>
+          );
+        case 'quote':
+          return (
+            <Group>
+              <Path data="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" {...sp} />
+              <Path data="M14 14a2 2 0 0 0 2-2V8h-2" {...sp} />
+              <Path data="M8 14a2 2 0 0 0 2-2V8H8" {...sp} />
+            </Group>
+          );
+        case 'combat':
+          return (
+            <Group>
+              <Line points={[14.5,17.5, 3,6, 3,3, 6,3, 17.5,14.5]} {...sp} />
+              <Line points={[14.5,6.5, 18,3, 21,3, 21,6, 17.5,9.5]} {...sp} />
+              <Line points={[13,19, 19,13]} {...sp} />
+              <Line points={[16,16, 20,20]} {...sp} />
+              <Line points={[19,21, 21,19]} {...sp} />
+              <Line points={[5,14, 9,18]} {...sp} />
+              <Line points={[7,17, 4,20]} {...sp} />
+              <Line points={[3,19, 5,21]} {...sp} />
+            </Group>
+          );
+        case 'info':
+          return (
+            <Group>
+              <Circle x={12} y={12} radius={10} {...sp} />
+              <Path data="M12 16v-4" {...sp} />
+              <Circle x={12} y={8} radius={1} fill="white" stroke="white" strokeWidth={0} />
+            </Group>
+          );
+        case 'trap':
+          return (
+            <Group>
+              <Path data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z" {...sp} />
+              <Circle x={15} y={12} radius={1} fill="white" stroke="white" strokeWidth={0} />
+              <Circle x={9} y={12} radius={1} fill="white" stroke="white" strokeWidth={0} />
+              <Path data="m12.5 17-.5-1-.5 1h1z" fill="white" stroke="white" strokeWidth={0} />
+            </Group>
+          );
+        default:
+          return null;
+      }
+    })();
+
+    return <Group scale={{ x: s, y: s }} x={offset} y={offset}>{icon}</Group>;
   };
 
   useEffect(() => {
@@ -775,14 +811,14 @@ export const MapView: React.FC<MapViewProps> = ({
                 onMouseLeave={() => setHoveredNoteId(null)}
               >
                 <Circle
-                  radius={tokenRadius * 0.25}
-                  fill="#1a1a1a"
-                  stroke={hoveredNoteId === note.id ? "var(--accent)" : "#333"}
+                  radius={tokenRadius * 0.6}
+                  fill={getNoteColor(note.type)}
+                  stroke={hoveredNoteId === note.id ? "white" : "rgba(0,0,0,0.4)"}
                   strokeWidth={1}
                   shadowBlur={hoveredNoteId === note.id ? 10 : 5}
                   shadowColor="black"
                 />
-                <NoteMapIcon type={note.type} color={getNoteColor(note.type)} />
+                <NoteMapIcon type={note.type} />
 
                 {/* Tooltip */}
                 {hoveredNoteId === note.id && (
@@ -792,20 +828,20 @@ export const MapView: React.FC<MapViewProps> = ({
                       stroke="rgba(255,255,255,0.1)"
                       strokeWidth={1}
                       cornerRadius={4}
-                      width={Math.min(200, note.content.length * 8 + 20)}
-                      height={Math.ceil(note.content.length / 25) * 16 + 12}
-                      x={-Math.min(200, note.content.length * 8 + 20) / 2}
-                      y={-(Math.ceil(note.content.length / 25) * 16 + 12)}
+                      width={Math.min(400, note.content.length * 16 + 20)}
+                      height={Math.ceil(note.content.length / 25) * 32 + 12}
+                      x={-Math.min(400, note.content.length * 16 + 20) / 2}
+                      y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
                       shadowBlur={10}
                     />
                     <Text
                       text={note.content}
                       fill="white"
-                      fontSize={11}
+                      fontSize={22}
                       padding={8}
-                      width={Math.min(200, note.content.length * 8 + 20)}
-                      x={-Math.min(200, note.content.length * 8 + 20) / 2}
-                      y={-(Math.ceil(note.content.length / 25) * 16 + 12)}
+                      width={Math.min(400, note.content.length * 16 + 20)}
+                      x={-Math.min(400, note.content.length * 16 + 20) / 2}
+                      y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
                       align="center"
                       fontFamily="Inter"
                     />

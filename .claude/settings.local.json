@@ -9,7 +9,13 @@
       "Bash(npx vite:*)",
       "Bash(grep -n \"import.*konva\\\\|from ''konva''\" \"/c/Users/trevo/OneDrive/Desktop/vtt-gemini/src/components/MapView.tsx\")",
       "Bash(find /c/Users/trevo/OneDrive/Desktop/vtt-gemini/node_modules/konva -name *.d.ts -type f)",
-      "Bash(grep -E \"^[A-Z].*\\\\.d\\\\.ts$\")"
+      "Bash(grep -E \"^[A-Z].*\\\\.d\\\\.ts$\")",
+      "Bash(grep -rn \"fontawesome\\\\|font-awesome\\\\|@fortawesome\\\\|fa-kit\\\\|fa-solid\" C:UserstrevoOneDriveDesktopvtt-gemini/ --include=*.html --include=*.json --include=*.ts --include=*.tsx -l)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(echo \"=== $f ===\")",
+      "Read(//c/Users/trevo/OneDrive/Desktop/vtt-gemini/node_modules/lucide-react/dist/esm/icons/**)",
+      "Bash(done)"
     ]
   }
 }
