@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Campaign, Combatant, cn, ClassDefinition } from '../types';
-import { X, Plus, Trash2, User, Shield, Heart, Sword, Zap, Wind, Eye, RefreshCw, Settings } from 'lucide-react';
+import { X, Plus, Trash2, User, Shield, Heart, Sword, Zap, Wind, Eye, RefreshCw, Settings } from '../icons';
 import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 
 interface CampaignSettingsProps {

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from 'lucide-react';
+import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';

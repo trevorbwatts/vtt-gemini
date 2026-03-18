@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Combatant, cn, ClassDefinition } from '../types';
-import { Plus, Trash2, ChevronUp, ChevronDown, Heart, Shield, Zap, Swords, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Heart, Shield, Zap, Swords, ChevronRight } from '../icons';
 import { motion, Reorder } from 'motion/react';
 
 const getCharacterLevel = (classes?: ClassDefinition[]) => {

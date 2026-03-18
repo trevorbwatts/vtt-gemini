@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, Sword, Sparkles, BookOpen, Award, Backpack } from 'lucide-react';
+import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, Sword, Sparkles, BookOpen, Award, Backpack } from '../icons';
 import { Combatant, cn } from '../types';
 
 interface PlayerCharacterSheetProps {

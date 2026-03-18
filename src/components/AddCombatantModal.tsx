@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, AlertCircle } from 'lucide-react';
+import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, AlertCircle } from '../icons';
 import { Combatant, cn } from '../types';
 import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 

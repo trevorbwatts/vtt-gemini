@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Campaign } from '../types';
-import { Plus, FolderOpen, Sword, Trash2, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, FolderOpen, Sword, Trash2, ChevronRight, Sparkles } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SplashScreenProps {

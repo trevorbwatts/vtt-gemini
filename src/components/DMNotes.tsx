@@ -1,15 +1,15 @@
 import React from 'react';
 import { MapNote, MapNoteType } from '../types';
-import { 
-  Package, 
-  MessageSquareQuote, 
-  Swords, 
-  Info, 
+import {
+  Package,
+  MessageSquareQuote,
+  Swords,
+  Info,
   Skull,
   Trash2,
   FileText,
   ChevronLeft
-} from 'lucide-react';
+} from '../icons';
 
 interface DMNotesProps {
   notes: MapNote[];

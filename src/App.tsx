@@ -7,7 +7,7 @@ import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
 import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution } from './types';
-import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from 'lucide-react';
+import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
