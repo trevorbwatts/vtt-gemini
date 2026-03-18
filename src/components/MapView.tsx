@@ -35,6 +35,8 @@ interface MapViewProps {
   onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
   onPortalToggle?: (portalId: string) => void;
   onDragStatusChange?: (isDragging: boolean) => void;
+  onViewportCenter?: (center: { x: number; y: number }) => void;
+  viewportCenter?: { x: number; y: number } | null;
 }
 
 export const MapView: React.FC<MapViewProps> = ({
@@ -62,7 +64,9 @@ export const MapView: React.FC<MapViewProps> = ({
   gridResolution,
   onWallDataChange,
   onPortalToggle,
-  onDragStatusChange
+  onDragStatusChange,
+  onViewportCenter,
+  viewportCenter,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -224,10 +228,18 @@ export const MapView: React.FC<MapViewProps> = ({
           const clampedScale = Math.min(Math.max(scale, 0.05), 5);
           const finalScale = isPlayerView ? clampedScale * 1.15 : clampedScale;
           setStageScale(finalScale);
-          setStagePos({
-            x: (dimensions.width - img.width * finalScale) / 2,
-            y: (dimensions.height - img.height * finalScale) / 2,
-          });
+          if (isPlayerView && viewportCenter) {
+            // Center the player's view on the same map-space point the DM is looking at
+            setStagePos({
+              x: dimensions.width / 2 - viewportCenter.x * finalScale,
+              y: dimensions.height / 2 - viewportCenter.y * finalScale,
+            });
+          } else {
+            setStagePos({
+              x: (dimensions.width - img.width * finalScale) / 2,
+              y: (dimensions.height - img.height * finalScale) / 2,
+            });
+          }
         }
       };
     } else {
@@ -472,6 +484,15 @@ export const MapView: React.FC<MapViewProps> = ({
   const handleStageMouseUp = () => {
     setIsPanning(false);
   };
+
+  // Emit the DM's current viewport center (in map-space) whenever pan/zoom changes
+  useEffect(() => {
+    if (!isPlayerView && dimensions.width > 0 && stageScale > 0) {
+      const cx = (-stagePos.x + dimensions.width / 2) / stageScale;
+      const cy = (-stagePos.y + dimensions.height / 2) / stageScale;
+      onViewportCenter?.({ x: cx, y: cy });
+    }
+  }, [stagePos, stageScale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();

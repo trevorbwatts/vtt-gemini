@@ -30,6 +30,7 @@ export function DMScreen() {
   const selectedScenarioIdRef = useRef(selectedScenarioId);
   selectedScenarioIdRef.current = selectedScenarioId;
   const skipStateBroadcastRef = useRef(false);
+  const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
 
   // Persistence
   useEffect(() => {
@@ -45,6 +46,11 @@ export function DMScreen() {
     }
   }, [campaign]);
 
+  // Reset viewport center when the scenario changes so the player gets a fresh default view
+  useEffect(() => {
+    dmViewportCenterRef.current = null;
+  }, [selectedScenarioId]);
+
   // IPC Sync to Player Screen
   useEffect(() => {
     if (campaign && selectedScenarioId && window.electronAPI) {
@@ -52,7 +58,12 @@ export function DMScreen() {
         skipStateBroadcastRef.current = false; // Reset but don't broadcast
         return;
       }
-      window.electronAPI.sendStateUpdate({ campaign, scenarioId: selectedScenarioId, playerMode });
+      window.electronAPI.sendStateUpdate({
+        campaign,
+        scenarioId: selectedScenarioId,
+        playerMode,
+        viewportCenter: dmViewportCenterRef.current,
+      });
     }
   }, [campaign, selectedScenarioId, playerMode]);
 
@@ -650,6 +661,7 @@ export function DMScreen() {
                 gridResolution={currentScenario.gridResolution}
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}
+                onViewportCenter={(center) => { dmViewportCenterRef.current = center; }}
               />
             )}
           </main>

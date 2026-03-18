@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapView } from './MapView';
-import { Campaign, Scenario, Combatant, Token } from '../types';
+import { Campaign, Token } from '../types';
 
 export function PlayerScreen() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -109,6 +109,15 @@ export function PlayerScreen() {
     isDraggingRef.current = dragging;
   }, []);
 
+  // Derive viewport center from the first available player token so the
+  // map opens centered on that token rather than on an arbitrary map corner.
+  const viewportCenter = useMemo(() => {
+    if (!campaign || !currentScenarioId) return null;
+    const scenario = campaign.scenarios.find(s => s.id === currentScenarioId);
+    const firstPlayerToken = scenario?.tokens?.find(t => t.type === 'player');
+    return firstPlayerToken ? { x: firstPlayerToken.x, y: firstPlayerToken.y } : null;
+  }, [campaign?.id, currentScenarioId]); // Only recompute on scenario/campaign switch, not every token move
+
   // Setup mode: show blank state
   if (mode === 'setup') {
     return (
@@ -165,6 +174,7 @@ export function PlayerScreen() {
         portals={currentScenario.portals}
         gridResolution={currentScenario.gridResolution}
         onDragStatusChange={handleDragStatusChange}
+        viewportCenter={viewportCenter}
       />
     </div>
   );
