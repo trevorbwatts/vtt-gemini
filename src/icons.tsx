@@ -42,6 +42,7 @@ export const FileText = (p: IconProps) => <FA name="file-lines" {...p} />;
 export const Map = (p: IconProps) => <FA name="map" {...p} />;
 export const Cloud = (p: IconProps) => <FA name="cloud" {...p} />;
 export const Package = (p: IconProps) => <FA name="box" {...p} />;
+export const TreasureChest = (p: IconProps) => <FA name="treasure-chest" {...p} />;
 export const ImagePlus = (p: IconProps) => <FA name="image" {...p} />;
 
 // Combat / D&D

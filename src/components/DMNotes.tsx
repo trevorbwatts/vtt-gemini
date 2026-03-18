@@ -1,7 +1,7 @@
 import React from 'react';
 import { MapNote, MapNoteType } from '../types';
 import {
-  Package,
+  TreasureChest,
   MessageSquareQuote,
   Swords,
   Info,
@@ -21,7 +21,7 @@ interface DMNotesProps {
 
 export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteType; size?: number; className?: string }) => {
   switch (type) {
-    case 'treasure': return <Package size={size} className={`text-[var(--accent)] ${className}`} />;
+    case 'treasure': return <TreasureChest size={size} className={`text-[var(--accent)] ${className}`} />;
     case 'quote': return <MessageSquareQuote size={size} className={`text-blue-400 ${className}`} />;
     case 'combat': return <Swords size={size} className={`text-[var(--accent)] ${className}`} />;
     case 'info': return <Info size={size} className={`text-emerald-400 ${className}`} />;

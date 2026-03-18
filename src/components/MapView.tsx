@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Package, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
+import { Upload, User, Skull, Shield, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -38,6 +38,39 @@ interface MapViewProps {
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
 }
+
+const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (!url) return;
+    const img = new window.Image();
+    img.src = url;
+    img.onload = () => setImage(img);
+  }, [url]);
+
+  if (!image) return null;
+
+  const size = radius * 2;
+  const minDim = Math.min(image.width, image.height);
+
+  return (
+    <KonvaImage
+      image={image}
+      width={size}
+      height={size}
+      x={-radius}
+      y={-radius}
+      cornerRadius={radius}
+      crop={{
+        x: (image.width - minDim) / 2,
+        y: (image.height - minDim) / 2,
+        width: minDim,
+        height: minDim,
+      }}
+    />
+  );
+};
 
 export const MapView: React.FC<MapViewProps> = ({
   tokens,
@@ -152,6 +185,9 @@ export const MapView: React.FC<MapViewProps> = ({
       trap: "M9 10L9.01 10M15 10L15.01 10M12 2C7.03 2 3 6.03 3 11C3 13.08 3.71 14.99 4.9 16.5C5.45 17.19 6.13 17.8 6.9 18.27L6.9 20C6.9 21.1 7.8 22 8.9 22L15.1 22C16.2 22 17.1 21.1 17.1 20L17.1 18.27C17.87 17.8 18.55 17.19 19.1 16.5C20.29 14.99 21 13.08 21 11C21 6.03 16.97 2 12 2Z"
     };
 
+    const noteRadius = tokenRadius * 0.25;
+    const iconScale = noteRadius / 28;
+    const iconOffset = -(noteRadius * 3 / 7);
     return (
       <Path
         data={paths[type]}
@@ -159,42 +195,9 @@ export const MapView: React.FC<MapViewProps> = ({
         strokeWidth={2}
         lineCap="round"
         lineJoin="round"
-        scale={{ x: 0.5, y: 0.5 }}
-        x={-6}
-        y={-6}
-      />
-    );
-  };
-
-  const TokenAvatar = ({ url, radius }: { url: string; radius: number }) => {
-    const [image, setImage] = useState<HTMLImageElement | null>(null);
-
-    useEffect(() => {
-      if (!url) return;
-      const img = new window.Image();
-      img.src = url;
-      img.onload = () => setImage(img);
-    }, [url]);
-
-    if (!image) return null;
-
-    const size = radius * 2;
-    const minDim = Math.min(image.width, image.height);
-
-    return (
-      <KonvaImage
-        image={image}
-        width={size}
-        height={size}
-        x={-radius}
-        y={-radius}
-        cornerRadius={radius}
-        crop={{
-          x: (image.width - minDim) / 2,
-          y: (image.height - minDim) / 2,
-          width: minDim,
-          height: minDim,
-        }}
+        scale={{ x: iconScale, y: iconScale }}
+        x={iconOffset}
+        y={iconOffset}
       />
     );
   };
@@ -245,7 +248,7 @@ export const MapView: React.FC<MapViewProps> = ({
     } else {
       setLoadedImage(null);
     }
-  }, [mapImage, gridResolution]);
+  }, [mapImage, gridResolution?.pixelsPerGrid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (containerRef.current) {
@@ -303,11 +306,11 @@ export const MapView: React.FC<MapViewProps> = ({
     if (now - lastBroadcastRef.current < BROADCAST_INTERVAL) return;
     lastBroadcastRef.current = now;
 
-    if (isPlayerView) {
-      // Update live position so fog/visibility recomputes during drag
-      setLivePlayerPos(prev => ({ ...prev, [id]: pos }));
-    } else {
-      // Broadcast to player screen in real-time (DM drag)
+    // Update live position so fog/visibility recomputes during drag (both views)
+    setLivePlayerPos(prev => ({ ...prev, [id]: pos }));
+
+    if (!isPlayerView) {
+      // Also broadcast to player screen in real-time (DM drag)
       const updatedTokens = tokens.map(t => t.id === id ? { ...t, ...pos } : t);
       if (window.electronAPI?.sendDMTokenUpdate) {
         window.electronAPI.sendDMTokenUpdate(updatedTokens);
@@ -462,6 +465,41 @@ export const MapView: React.FC<MapViewProps> = ({
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+
+  // Two-finger pan for player view
+  const twoFingerPanRef = useRef<{ midX: number; midY: number } | null>(null);
+
+  const handleTouchStart = (e: any) => {
+    if (e.evt.touches.length === 2) {
+      const t1 = e.evt.touches[0];
+      const t2 = e.evt.touches[1];
+      twoFingerPanRef.current = {
+        midX: (t1.clientX + t2.clientX) / 2,
+        midY: (t1.clientY + t2.clientY) / 2,
+      };
+      e.evt.preventDefault();
+    }
+  };
+
+  const handleTouchMove = (e: any) => {
+    if (e.evt.touches.length === 2 && twoFingerPanRef.current) {
+      const t1 = e.evt.touches[0];
+      const t2 = e.evt.touches[1];
+      const midX = (t1.clientX + t2.clientX) / 2;
+      const midY = (t1.clientY + t2.clientY) / 2;
+      const dx = midX - twoFingerPanRef.current.midX;
+      const dy = midY - twoFingerPanRef.current.midY;
+      setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      twoFingerPanRef.current = { midX, midY };
+      e.evt.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (e: any) => {
+    if (e.evt.touches.length < 2) {
+      twoFingerPanRef.current = null;
+    }
+  };
 
   const handleStageMouseDown = (e: any) => {
     // Only pan on right click (button 2) or middle click (button 1)
@@ -662,6 +700,9 @@ export const MapView: React.FC<MapViewProps> = ({
           onMouseLeave={isPlayerView ? undefined : handleStageMouseUp}
           onContextMenu={isPlayerView ? undefined : handleContextMenu}
           onWheel={isPlayerView ? undefined : handleWheel}
+          onTouchStart={isPlayerView ? handleTouchStart : undefined}
+          onTouchMove={isPlayerView ? handleTouchMove : undefined}
+          onTouchEnd={isPlayerView ? handleTouchEnd : undefined}
           onClick={(e) => {
             if (isPlayerView) return;
             // Only close on left click
@@ -734,7 +775,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 onMouseLeave={() => setHoveredNoteId(null)}
               >
                 <Circle
-                  radius={14}
+                  radius={tokenRadius * 0.25}
                   fill="#1a1a1a"
                   stroke={hoveredNoteId === note.id ? "var(--accent)" : "#333"}
                   strokeWidth={1}
@@ -776,8 +817,8 @@ export const MapView: React.FC<MapViewProps> = ({
             {tokens.map(token => (
               <Group
                 key={token.id}
-                x={token.x}
-                y={token.y}
+                x={livePlayerPos[token.id]?.x ?? token.x}
+                y={livePlayerPos[token.id]?.y ?? token.y}
                 draggable
                 onDragStart={handleDragStart}
                 onDragMove={(e) => handleDragMove(token.id, e)}
