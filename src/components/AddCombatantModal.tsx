@@ -7,7 +7,7 @@ import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 const CURATED_COLORS = [
   '#3b82f6', // Blue
   '#ef4444', // Red
-  '#10b981', // Emerald
+  '#059669', // Emerald
   '#f59e0b', // Amber
   '#8b5cf6', // Violet
   '#ec4899', // Pink
@@ -31,7 +31,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [name, setName] = useState('');
   const [ac, setAc] = useState(10);
   const [darkvision, setDarkvision] = useState(0);
-  const [color, setColor] = useState(type === 'player' ? '#3b82f6' : '#10b981');
+  const [color, setColor] = useState(type === 'player' ? '#3b82f6' : '#059669');
   const [url, setUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     setName('');
     setAc(10);
     setDarkvision(0);
-    setColor(type === 'player' ? '#3b82f6' : '#10b981');
+    setColor(type === 'player' ? '#3b82f6' : '#059669');
     setUrl('');
     setAvatar(null);
     setImportError(null);

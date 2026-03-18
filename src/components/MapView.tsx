@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, MessageSquareQuote, Swords, Info, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
+import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -115,7 +115,7 @@ export const MapView: React.FC<MapViewProps> = ({
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
-  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'info', content: '' });
+  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [monsterSearch, setMonsterSearch] = useState('');
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
@@ -123,6 +123,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
   const [showWalls, setShowWalls] = useState(true);
+  const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
+  const selectionRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const [showFog, setShowFog] = useState(true);
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
@@ -167,11 +170,11 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
-      case 'treasure': return '#E9BE59';
+      case 'treasure': return '#CD7F32';
       case 'quote': return '#60a5fa';
-      case 'combat': return '#f87171';
-      case 'info': return '#34d399';
-      case 'trap': return '#a78bfa';
+      case 'warning': return '#ef4444';
+      case 'secret': return '#a855f7';
+      case 'clue': return '#059669';
       default: return '#ffffff';
     }
   };
@@ -195,39 +198,34 @@ export const MapView: React.FC<MapViewProps> = ({
         case 'quote':
           return (
             <Group>
-              <Path data="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" {...sp} />
-              <Path data="M14 14a2 2 0 0 0 2-2V8h-2" {...sp} />
-              <Path data="M8 14a2 2 0 0 0 2-2V8H8" {...sp} />
+              <Path data="M12 7v14" {...sp} />
+              <Path data="M16 12h2" {...sp} />
+              <Path data="M16 8h2" {...sp} />
+              <Path data="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" {...sp} />
+              <Path data="M6 12h2" {...sp} />
+              <Path data="M6 8h2" {...sp} />
             </Group>
           );
-        case 'combat':
+        case 'warning':
           return (
             <Group>
-              <Line points={[14.5,17.5, 3,6, 3,3, 6,3, 17.5,14.5]} {...sp} />
-              <Line points={[14.5,6.5, 18,3, 21,3, 21,6, 17.5,9.5]} {...sp} />
-              <Line points={[13,19, 19,13]} {...sp} />
-              <Line points={[16,16, 20,20]} {...sp} />
-              <Line points={[19,21, 21,19]} {...sp} />
-              <Line points={[5,14, 9,18]} {...sp} />
-              <Line points={[7,17, 4,20]} {...sp} />
-              <Line points={[3,19, 5,21]} {...sp} />
+              <Path data="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" {...sp} />
+              <Path data="M12 9v4" {...sp} />
+              <Circle x={12} y={17} radius={0.5} fill="white" stroke="white" strokeWidth={1} />
             </Group>
           );
-        case 'info':
+        case 'secret':
           return (
             <Group>
-              <Circle x={12} y={12} radius={10} {...sp} />
-              <Path data="M12 16v-4" {...sp} />
-              <Circle x={12} y={8} radius={1} fill="white" stroke="white" strokeWidth={0} />
+              <Path data="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" {...sp} />
+              <Circle x={12} y={12} radius={3} {...sp} />
             </Group>
           );
-        case 'trap':
+        case 'clue':
           return (
             <Group>
-              <Path data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z" {...sp} />
-              <Circle x={15} y={12} radius={1} fill="white" stroke="white" strokeWidth={0} />
-              <Circle x={9} y={12} radius={1} fill="white" stroke="white" strokeWidth={0} />
-              <Path data="m12.5 17-.5-1-.5 1h1z" fill="white" stroke="white" strokeWidth={0} />
+              <Path data="m21 21-4.34-4.34" {...sp} />
+              <Circle x={11} y={11} radius={8} {...sp} />
             </Group>
           );
         default:
@@ -332,44 +330,102 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
+  const multiDragStartRef = useRef<{
+    draggedId: string;
+    draggedStart: { x: number; y: number };
+    othersStart: Record<string, { x: number; y: number }>;
+  } | null>(null);
+
+  const handleDragStart = (id: string) => {
+    onDragStatusChange?.(true);
+    const isMulti = selectedTokenIds.includes(id) && selectedTokenIds.length > 1;
+    if (isMulti) {
+      const draggedToken = tokens.find(t => t.id === id);
+      if (!draggedToken) return;
+      const othersStart: Record<string, { x: number; y: number }> = {};
+      selectedTokenIds.forEach(tid => {
+        if (tid !== id) {
+          const t = tokens.find(tok => tok.id === tid);
+          if (t) othersStart[tid] = { x: t.x, y: t.y };
+        }
+      });
+      multiDragStartRef.current = {
+        draggedId: id,
+        draggedStart: { x: draggedToken.x, y: draggedToken.y },
+        othersStart,
+      };
+    } else {
+      multiDragStartRef.current = null;
+    }
+  };
+
   const handleDragMove = (id: string, e: any) => {
     const pos = { x: e.target.x(), y: e.target.y() };
-    // Update ref only — no React state update, no re-render during drag
     draggingPositionsRef.current[id] = pos;
 
-    // Throttle IPC broadcasts to ~20fps for performance
+    // Move all other selected tokens by the same delta
+    const multi = multiDragStartRef.current;
+    if (multi && multi.draggedId === id) {
+      const dx = pos.x - multi.draggedStart.x;
+      const dy = pos.y - multi.draggedStart.y;
+      Object.entries(multi.othersStart).forEach(([tid, start]) => {
+        draggingPositionsRef.current[tid] = { x: start.x + dx, y: start.y + dy };
+      });
+    }
+
     const now = Date.now();
     if (now - lastBroadcastRef.current < BROADCAST_INTERVAL) return;
     lastBroadcastRef.current = now;
 
-    // Update live position so fog/visibility recomputes during drag (both views)
-    setLivePlayerPos(prev => ({ ...prev, [id]: pos }));
+    // Build live positions for fog/visibility and IPC
+    const liveUpdates: Record<string, { x: number; y: number }> = { [id]: pos };
+    const multi2 = multiDragStartRef.current;
+    if (multi2 && multi2.draggedId === id) {
+      const dx = pos.x - multi2.draggedStart.x;
+      const dy = pos.y - multi2.draggedStart.y;
+      Object.entries(multi2.othersStart).forEach(([tid, start]) => {
+        liveUpdates[tid] = { x: start.x + dx, y: start.y + dy };
+      });
+    }
+    setLivePlayerPos(prev => ({ ...prev, ...liveUpdates }));
 
     if (!isPlayerView) {
-      // Also broadcast to player screen in real-time (DM drag)
-      const updatedTokens = tokens.map(t => t.id === id ? { ...t, ...pos } : t);
+      const updatedTokens = tokens.map(t => liveUpdates[t.id] ? { ...t, ...liveUpdates[t.id] } : t);
       if (window.electronAPI?.sendDMTokenUpdate) {
         window.electronAPI.sendDMTokenUpdate(updatedTokens);
       }
     }
   };
 
-  const handleDragStart = () => {
-    onDragStatusChange?.(true);
-  };
-
   const handleDragEnd = (id: string, e: any) => {
-    // Clear the ref entry and live position override for this token
-    delete draggingPositionsRef.current[id];
-    setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
+    const finalPos = { x: e.target.x(), y: e.target.y() };
+    const multi = multiDragStartRef.current;
+
+    let updatedTokens;
+    if (multi && multi.draggedId === id) {
+      const dx = finalPos.x - multi.draggedStart.x;
+      const dy = finalPos.y - multi.draggedStart.y;
+      updatedTokens = tokens.map(t => {
+        if (t.id === id) return { ...t, ...finalPos };
+        if (multi.othersStart[t.id]) return { ...t, x: multi.othersStart[t.id].x + dx, y: multi.othersStart[t.id].y + dy };
+        return t;
+      });
+      // Clear live overrides for all dragged tokens
+      setLivePlayerPos(prev => {
+        const next = { ...prev };
+        delete next[id];
+        Object.keys(multi.othersStart).forEach(tid => delete next[tid]);
+        return next;
+      });
+      multiDragStartRef.current = null;
+    } else {
+      delete draggingPositionsRef.current[id];
+      setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
+      updatedTokens = tokens.map(t => t.id === id ? { ...t, ...finalPos } : t);
+    }
+
     onDragStatusChange?.(false);
 
-    // Commit final position
-    const updatedTokens = tokens.map(t =>
-      t.id === id ? { ...t, x: e.target.x(), y: e.target.y() } : t
-    );
-
-    // Broadcast final position so the other screen snaps to the exact end position
     if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
       window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
     } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
@@ -386,7 +442,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const addToken = (type: Token['type']) => {
-    const colors = { player: '#3b82f6', enemy: '#ef4444', npc: '#10b981' };
+    const colors = { player: '#3b82f6', enemy: '#ef4444', npc: '#059669' };
     const newToken: Token = {
       id: Math.random().toString(36).substr(2, 9),
       name: `New ${type}`,
@@ -465,7 +521,7 @@ export const MapView: React.FC<MapViewProps> = ({
       ));
     } else {
       // Add new token
-      const colors = { player: '#3b82f6', enemy: '#ef4444', npc: '#10b981' };
+      const colors = { player: '#3b82f6', enemy: '#ef4444', npc: '#059669' };
       const newToken: Token = {
         id: Math.random().toString(36).substr(2, 9),
         combatantId: combatant.id,
@@ -494,7 +550,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
     onMapNotesChange([...mapNotes, newNote]);
     setContextMenu(null);
-    setNoteDraft({ type: 'info', content: '' });
+    setNoteDraft({ type: 'treasure', content: '' });
   };
 
   const [isPanning, setIsPanning] = useState(false);
@@ -537,26 +593,61 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
+  const getCanvasPos = (stage: any) => {
+    const pos = stage.getPointerPosition();
+    const transform = stage.getAbsoluteTransform().copy().invert();
+    return transform.point(pos);
+  };
+
   const handleStageMouseDown = (e: any) => {
-    // Only pan on right click (button 2) or middle click (button 1)
     if (e.evt.button === 2 || e.evt.button === 1) {
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
+    } else if (e.evt.button === 0) {
+      const canvas = getCanvasPos(e.target.getStage());
+      selectionStartRef.current = canvas;
+      selectionRectRef.current = { x: canvas.x, y: canvas.y, w: 0, h: 0 };
+      setSelectionRect(selectionRectRef.current);
     }
   };
 
   const handleStageMouseMove = (e: any) => {
-    if (!isPanning) return;
-
-    const dx = e.evt.clientX - lastPos.x;
-    const dy = e.evt.clientY - lastPos.y;
-
-    setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
-    setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
+    if (isPanning) {
+      const dx = e.evt.clientX - lastPos.x;
+      const dy = e.evt.clientY - lastPos.y;
+      setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
+    } else if (selectionStartRef.current) {
+      const canvas = getCanvasPos(e.target.getStage());
+      const start = selectionStartRef.current;
+      const rect = {
+        x: Math.min(start.x, canvas.x),
+        y: Math.min(start.y, canvas.y),
+        w: Math.abs(canvas.x - start.x),
+        h: Math.abs(canvas.y - start.y),
+      };
+      selectionRectRef.current = rect;
+      setSelectionRect({ ...rect });
+    }
   };
 
   const handleStageMouseUp = () => {
     setIsPanning(false);
+    const rect = selectionRectRef.current;
+    if (selectionStartRef.current && rect && (rect.w > 5 || rect.h > 5)) {
+      const { x, y, w, h } = rect;
+      const selected = tokens
+        .filter(t => {
+          const tx = livePlayerPos[t.id]?.x ?? t.x;
+          const ty = livePlayerPos[t.id]?.y ?? t.y;
+          return tx >= x && tx <= x + w && ty >= y && ty <= y + h;
+        })
+        .map(t => t.id);
+      if (selected.length > 0) setSelectedTokenIds(selected);
+    }
+    selectionStartRef.current = null;
+    selectionRectRef.current = null;
+    setSelectionRect(null);
   };
 
   // Emit the DM's current viewport center (in map-space) whenever pan/zoom changes
@@ -741,10 +832,12 @@ export const MapView: React.FC<MapViewProps> = ({
           onTouchEnd={isPlayerView ? handleTouchEnd : undefined}
           onClick={(e) => {
             if (isPlayerView) return;
-            // Only close on left click
             if (e.evt.button === 0) {
               setContextMenu(null);
               setTokenContextMenu(null);
+              setLeftSidebarOpen(false);
+              setSelectedTokenIds([]);
+              setSelectedTokenId(null);
             }
           }}
         >
@@ -809,6 +902,8 @@ export const MapView: React.FC<MapViewProps> = ({
                 onDragEnd={(e) => handleNoteDragEnd(note.id, e)}
                 onMouseEnter={() => setHoveredNoteId(note.id)}
                 onMouseLeave={() => setHoveredNoteId(null)}
+                onMouseDown={(e) => { e.cancelBubble = true; }}
+                onClick={(e) => { e.cancelBubble = true; setLeftSidebarOpen(true); }}
               >
                 <Circle
                   radius={tokenRadius * 0.6}
@@ -850,13 +945,29 @@ export const MapView: React.FC<MapViewProps> = ({
               </Group>
             ))}
 
+            {/* Marquee selection rect (DM only) */}
+            {!isPlayerView && selectionRect && selectionRect.w > 0 && (
+              <Rect
+                x={selectionRect.x}
+                y={selectionRect.y}
+                width={selectionRect.w}
+                height={selectionRect.h}
+                fill="rgba(205,127,50,0.08)"
+                stroke="#CD7F32"
+                strokeWidth={1 / stageScale}
+                dash={[6 / stageScale, 4 / stageScale]}
+                listening={false}
+              />
+            )}
+
             {tokens.map(token => (
               <Group
                 key={token.id}
                 x={livePlayerPos[token.id]?.x ?? token.x}
                 y={livePlayerPos[token.id]?.y ?? token.y}
                 draggable
-                onDragStart={handleDragStart}
+                onMouseDown={(e) => { e.cancelBubble = true; }}
+                onDragStart={() => handleDragStart(token.id)}
                 onDragMove={(e) => handleDragMove(token.id, e)}
                 onDragEnd={(e) => handleDragEnd(token.id, e)}
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
@@ -875,17 +986,27 @@ export const MapView: React.FC<MapViewProps> = ({
                 <Circle
                   radius={tokenRadius}
                   fill={token.avatar ? "transparent" : token.color}
-                  stroke={selectedTokenIds.includes(token.id) ? "var(--accent)" : token.color}
-                  strokeWidth={selectedTokenIds.includes(token.id) ? 4 * tokenScale : 2 * tokenScale}
-                  shadowBlur={selectedTokenIds.includes(token.id) ? 15 * tokenScale : 5 * tokenScale}
-                  shadowColor={selectedTokenIds.includes(token.id) ? "var(--accent)" : "black"}
+                  stroke={token.color}
+                  strokeWidth={2 * tokenScale}
+                  shadowBlur={5 * tokenScale}
+                  shadowColor="black"
                   opacity={token.hidden ? 0.4 : 1}
                 />
+                {selectedTokenIds.includes(token.id) && !isPlayerView && (
+                  /* Inner rim — above drop shadow */
+                  <Circle
+                    radius={tokenRadius * 1.05}
+                    fill=""
+                    stroke="white"
+                    strokeWidth={tokenScale}
+                    opacity={token.hidden ? 0.4 : 1}
+                  />
+                )}
                 {token.avatar && (
                   <Group opacity={token.hidden ? 0.4 : 1}>
                     <TokenAvatar
                       url={token.avatar}
-                      radius={tokenRadius - (selectedTokenIds.includes(token.id) ? 2 * tokenScale : 1 * tokenScale)}
+                      radius={tokenRadius - tokenScale}
                     />
                   </Group>
                 )}
@@ -1092,14 +1213,15 @@ export const MapView: React.FC<MapViewProps> = ({
                 </div>
 
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
-                  {(['treasure', 'quote', 'combat', 'info', 'trap'] as MapNoteType[]).map(type => (
+                  {(['treasure', 'quote', 'warning', 'secret', 'clue'] as MapNoteType[]).map(type => (
                     <button
                       key={type}
                       onClick={() => setNoteDraft(prev => ({ ...prev, type }))}
                       className={cn(
                         "p-2 rounded-md transition-all",
-                        noteDraft.type === type ? "bg-[var(--accent)] text-white scale-110 shadow-lg" : "hover:bg-white/5 opacity-40 hover:opacity-100"
+                        noteDraft.type === type ? "scale-110 shadow-lg" : "hover:bg-white/5 opacity-40 hover:opacity-100"
                       )}
+                      style={noteDraft.type === type ? { backgroundColor: getNoteColor(type) } : undefined}
                     >
                       <NoteIcon type={type} size={18} className={noteDraft.type === type ? "text-white" : ""} />
                     </button>

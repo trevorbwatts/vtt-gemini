@@ -2,13 +2,14 @@ import React from 'react';
 import { MapNote, MapNoteType } from '../types';
 import {
   TreasureChest,
-  MessageSquareQuote,
-  Swords,
-  Info,
-  Skull,
+  BookOpenText,
+  TriangleAlert,
+  Eye,
+  Search,
   Trash2,
   FileText,
-  ChevronLeft
+  ChevronLeft,
+  Info,
 } from '../icons';
 
 interface DMNotesProps {
@@ -22,10 +23,10 @@ interface DMNotesProps {
 export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteType; size?: number; className?: string }) => {
   switch (type) {
     case 'treasure': return <TreasureChest size={size} className={`text-[var(--accent)] ${className}`} />;
-    case 'quote': return <MessageSquareQuote size={size} className={`text-blue-400 ${className}`} />;
-    case 'combat': return <Swords size={size} className={`text-[var(--accent)] ${className}`} />;
-    case 'info': return <Info size={size} className={`text-emerald-400 ${className}`} />;
-    case 'trap': return <Skull size={size} className={`text-purple-400 ${className}`} />;
+    case 'quote': return <BookOpenText size={size} className={`text-blue-400 ${className}`} />;
+    case 'warning': return <TriangleAlert size={size} className={`text-red-400 ${className}`} />;
+    case 'secret': return <Eye size={size} className={`text-purple-400 ${className}`} />;
+    case 'clue': return <Search size={size} className={`text-emerald-500 ${className}`} />;
     default: return null;
   }
 };
@@ -59,31 +60,24 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
           </div>
         ) : (
           notes.map((note) => (
-            <div 
-              key={note.id} 
-              className="group p-3 rounded border border-[var(--line)] bg-[var(--surface-hover)] hover:border-[var(--accent)] transition-all relative"
+            <div
+              key={note.id}
+              className="group px-3 py-2 rounded border border-[var(--line)] bg-[var(--surface-hover)] hover:border-[var(--accent)] transition-all"
             >
-              <div className="flex items-start gap-3">
-                <div className="shrink-0 mt-0.5">
+              <div className="flex items-center gap-3">
+                <div className="shrink-0">
                   <NoteIcon type={note.type} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[var(--ink)] whitespace-pre-wrap break-words leading-relaxed font-serif italic">
-                    {note.content}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[8px] font-sans opacity-30 uppercase tracking-tighter">
-                      POS: {Math.round(note.x)}, {Math.round(note.y)}
-                    </span>
-                    <button 
-                      onClick={() => removeNote(note.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--accent)]/10 rounded text-[var(--accent)] transition-all"
-                      title="Remove Note"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
+                <p className="text-sm text-[var(--ink)] flex-1 min-w-0 whitespace-pre-wrap break-words leading-relaxed font-serif italic">
+                  {note.content}
+                </p>
+                <button
+                  onClick={() => removeNote(note.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--accent)]/10 rounded text-[var(--accent)] transition-all shrink-0"
+                  title="Remove Note"
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
             </div>
           ))

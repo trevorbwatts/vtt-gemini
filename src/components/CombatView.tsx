@@ -141,7 +141,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
                 <div className={cn(
                   "w-1.5 shrink-0",
                   c.type === 'enemy' ? "bg-red-500" : 
-                  c.type === 'player' ? "bg-blue-500" : "bg-emerald-500"
+                  c.type === 'player' ? "bg-blue-500" : "bg-emerald-600"
                 )} />
 
                 <div className="flex-1 py-3 pr-3 flex items-center gap-4">

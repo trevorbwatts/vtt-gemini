@@ -128,7 +128,7 @@ export interface GridResolution {
   pixelsPerGrid: number;
 }
 
-export type MapNoteType = 'treasure' | 'quote' | 'combat' | 'info' | 'trap';
+export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'secret' | 'clue';
 
 export interface MapNote {
   id: string;

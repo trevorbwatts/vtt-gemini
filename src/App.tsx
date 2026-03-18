@@ -609,33 +609,9 @@ export function DMScreen() {
         </header>
 
         {/* Main Layout */}
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Left Sidebar: Scenario Notes */}
-          <motion.aside
-            initial={false}
-            animate={{ width: leftSidebarOpen ? 320 : 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className={cn(
-              "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
-              leftSidebarOpen && "border-r border-[var(--line)]"
-            )}
-          >
-            <div className="w-[320px] h-full relative">
-              <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
-              {currentScenario && (
-                <DMNotes
-                  notes={currentScenario.mapNotes}
-                  onChange={updateMapNotes}
-                  title={currentScenario.name}
-                  onTitleChange={updateScenarioName}
-                  onClose={() => setLeftSidebarOpen(false)}
-                />
-              )}
-            </div>
-          </motion.aside>
-
-          {/* Center: Map View (Always Present) */}
-          <main className="flex-1 relative bg-[#111] overflow-hidden">
+        <div className="flex-1 overflow-hidden relative">
+          {/* Center: Map View (Always Present, full area) */}
+          <main className="w-full h-full relative bg-[#111] overflow-hidden">
             {currentScenario && (
               <MapView
                 tokens={currentScenario.tokens || []}
@@ -666,17 +642,35 @@ export function DMScreen() {
             )}
           </main>
 
-          {/* Right Sidebar: Combat View */}
+          {/* Left Sidebar: Notes (overlay) */}
           <motion.aside
             initial={false}
-            animate={{ width: rightSidebarOpen ? 350 : 0 }}
+            animate={{ x: leftSidebarOpen ? 0 : -320 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className={cn(
-              "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
-              rightSidebarOpen && "border-l border-[var(--line)]"
-            )}
+            className="absolute inset-y-0 left-0 w-[320px] bg-[var(--surface)] border-r border-[var(--line)] z-20 overflow-hidden"
           >
-            <div className="w-[350px] h-full relative">
+            <div className="w-full h-full relative">
+              <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
+              {currentScenario && (
+                <DMNotes
+                  notes={currentScenario.mapNotes}
+                  onChange={updateMapNotes}
+                  title={currentScenario.name}
+                  onTitleChange={updateScenarioName}
+                  onClose={() => setLeftSidebarOpen(false)}
+                />
+              )}
+            </div>
+          </motion.aside>
+
+          {/* Right Sidebar: Combat View (overlay) */}
+          <motion.aside
+            initial={false}
+            animate={{ x: rightSidebarOpen ? 0 : 350 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute inset-y-0 right-0 w-[350px] bg-[var(--surface)] border-l border-[var(--line)] z-20 overflow-hidden"
+          >
+            <div className="w-full h-full relative">
               <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
               {currentScenario && (
                 <CombatView

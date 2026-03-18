@@ -17,7 +17,7 @@ const STAT_LABELS: Record<string, string> = {
 const CURATED_COLORS = [
   '#3b82f6', // Blue
   '#ef4444', // Red
-  '#10b981', // Emerald
+  '#059669', // Emerald
   '#f59e0b', // Amber
   '#8b5cf6', // Violet
   '#ec4899', // Pink
