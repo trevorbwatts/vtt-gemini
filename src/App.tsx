@@ -29,6 +29,7 @@ export function DMScreen() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const selectedScenarioIdRef = useRef(selectedScenarioId);
   selectedScenarioIdRef.current = selectedScenarioId;
+  const skipStateBroadcastRef = useRef(false);
 
   // Persistence
   useEffect(() => {
@@ -47,6 +48,10 @@ export function DMScreen() {
   // IPC Sync to Player Screen
   useEffect(() => {
     if (campaign && selectedScenarioId && window.electronAPI) {
+      if (skipStateBroadcastRef.current) {
+        skipStateBroadcastRef.current = false; // Reset but don't broadcast
+        return;
+      }
       window.electronAPI.sendStateUpdate({ campaign, scenarioId: selectedScenarioId, playerMode });
     }
   }, [campaign, selectedScenarioId, playerMode]);
@@ -77,13 +82,14 @@ export function DMScreen() {
   useEffect(() => {
     if (window.electronAPI?.onPlayerTokenUpdate) {
       window.electronAPI.onPlayerTokenUpdate((tokens: any) => {
-        console.log('[DM] Received player token update:', tokens);
-        
+        // Skip state broadcast for high-frequency localized token updates
+        skipStateBroadcastRef.current = true;
+
         // We use the functional state update to always get the freshest campaign
         setCampaign(prev => {
           const scenarioId = selectedScenarioIdRef.current;
           if (!prev || !scenarioId) return prev;
-          
+
           return {
             ...prev,
             scenarios: prev.scenarios.map(s => {
@@ -217,11 +223,11 @@ export function DMScreen() {
       scenarios: prev.scenarios.map(s =>
         s.id === selectedScenarioId
           ? {
-              ...s,
-              portals: s.portals?.map(p =>
-                p.id === portalId ? { ...p, closed: !p.closed } : p
-              )
-            }
+            ...s,
+            portals: s.portals?.map(p =>
+              p.id === portalId ? { ...p, closed: !p.closed } : p
+            )
+          }
           : s
       )
     }) : prev);
@@ -266,7 +272,7 @@ export function DMScreen() {
 
   const startCombat = (tokenIds: string[]) => {
     if (!currentScenario) return;
-    
+
     const selectedTokens = currentScenario.tokens.filter(t => tokenIds.includes(t.id));
     const currentActive = [...(currentScenario.activeCombatants || [])];
     const newCombatants: Combatant[] = [];
@@ -274,12 +280,12 @@ export function DMScreen() {
     selectedTokens.forEach(token => {
       // Use the token's ID as the unique key in the combat tracker to allow multiple instances of same monster
       const combatantTrackerId = `combat-${token.id}`;
-      
+
       // Don't add if already in combat
       if (currentActive.some(c => c.id === combatantTrackerId)) return;
 
       let baseCombatant: Combatant | undefined;
-      
+
       if (token.type === 'player') {
         baseCombatant = campaign.players.find(p => p.id === token.combatantId);
       } else if (token.type === 'npc') {
@@ -294,7 +300,7 @@ export function DMScreen() {
       if (baseCombatant) {
         const dexMod = baseCombatant.stats ? Math.floor((baseCombatant.stats.dex - 10) / 2) : 0;
         const roll = Math.floor(Math.random() * 20) + 1 + dexMod;
-        
+
         newCombatants.push({
           ...baseCombatant,
           id: combatantTrackerId,
@@ -351,14 +357,14 @@ export function DMScreen() {
       >
         <div className="w-[320px] h-full flex flex-col">
           <div className="h-14 px-6 border-b border-[var(--line)] flex items-center justify-between shrink-0">
-            <button 
+            <button
               onClick={() => setCampaign(null)}
               className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.15em] opacity-60 hover:opacity-100 transition-opacity"
             >
               <ArrowLeft size={16} className="opacity-70" />
               <span>Switch Campaign</span>
             </button>
-            <button 
+            <button
               onClick={() => setNavSidebarOpen(false)}
               className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
             >
@@ -372,7 +378,7 @@ export function DMScreen() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Campaign</h3>
-                  <button 
+                  <button
                     onClick={() => setSettingsOpen(true)}
                     className="btn-text"
                   >
@@ -391,7 +397,7 @@ export function DMScreen() {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Players</h3>
-                <button 
+                <button
                   onClick={() => setAddPlayerModalOpen(true)}
                   className="btn-text"
                 >
@@ -426,7 +432,7 @@ export function DMScreen() {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">NPCs</h3>
-                <button 
+                <button
                   onClick={() => setAddNPCModalOpen(true)}
                   className="btn-text"
                 >
@@ -451,7 +457,7 @@ export function DMScreen() {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-[11px] uppercase tracking-[0.15em] opacity-40 font-sans font-bold">Scenarios</h3>
-                <button 
+                <button
                   onClick={addScenario}
                   className="btn-text"
                 >
@@ -465,15 +471,15 @@ export function DMScreen() {
                       onClick={() => setSelectedScenarioId(s.id)}
                       className={cn(
                         "flex-1 flex items-center gap-4 px-5 py-4 rounded-[12px] text-[15px] font-medium transition-all tracking-wide",
-                        selectedScenarioId === s.id 
-                          ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm" 
+                        selectedScenarioId === s.id
+                          ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm"
                           : "hover:bg-[#181512] opacity-70 hover:opacity-100 border border-transparent text-white"
                       )}
                     >
                       <FileText size={18} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
                       <span className="flex-1 text-left truncate">{s.name}</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         setSelectedScenarioId(s.id);
                         // Logic to edit scenario name
@@ -512,16 +518,16 @@ export function DMScreen() {
               {!navSidebarOpen && (
                 <motion.div
                   initial={{ opacity: 0 }}
-                  animate={{ 
-                    opacity: 1, 
-                    transition: { delay: 0.2, duration: 0.1 } 
+                  animate={{
+                    opacity: 1,
+                    transition: { delay: 0.2, duration: 0.1 }
                   }}
-                  exit={{ 
-                    opacity: 0, 
-                    transition: { delay: 0, duration: 0.05 } 
+                  exit={{
+                    opacity: 0,
+                    transition: { delay: 0, duration: 0.05 }
                   }}
                 >
-                  <button 
+                  <button
                     onClick={() => setNavSidebarOpen(true)}
                     className="p-2 hover:bg-black/5 rounded-lg transition-colors group"
                   >
@@ -540,7 +546,7 @@ export function DMScreen() {
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {playerScreenOpen && (
               <div className="flex items-center bg-black/40 rounded-lg p-0.5 mr-2">
@@ -594,171 +600,171 @@ export function DMScreen() {
         {/* Main Layout */}
         <div className="flex-1 flex overflow-hidden relative">
           {/* Left Sidebar: Scenario Notes */}
-        <motion.aside
-          initial={false}
-          animate={{ width: leftSidebarOpen ? 320 : 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className={cn(
-            "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
-            leftSidebarOpen && "border-r border-[var(--line)]"
-          )}
-        >
-          <div className="w-[320px] h-full relative">
-            <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
-            {currentScenario && (
-              <DMNotes 
-                notes={currentScenario.mapNotes} 
-                onChange={updateMapNotes} 
-                title={currentScenario.name}
-                onTitleChange={updateScenarioName}
-                onClose={() => setLeftSidebarOpen(false)}
-              />
+          <motion.aside
+            initial={false}
+            animate={{ width: leftSidebarOpen ? 320 : 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className={cn(
+              "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
+              leftSidebarOpen && "border-r border-[var(--line)]"
             )}
-          </div>
-        </motion.aside>
+          >
+            <div className="w-[320px] h-full relative">
+              <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
+              {currentScenario && (
+                <DMNotes
+                  notes={currentScenario.mapNotes}
+                  onChange={updateMapNotes}
+                  title={currentScenario.name}
+                  onTitleChange={updateScenarioName}
+                  onClose={() => setLeftSidebarOpen(false)}
+                />
+              )}
+            </div>
+          </motion.aside>
 
-        {/* Center: Map View (Always Present) */}
-        <main className="flex-1 relative bg-[#111] overflow-hidden">
-          {currentScenario && (
-            <MapView 
-              tokens={currentScenario.tokens || []} 
-              onTokensChange={updateScenarioTokens}
-              scenarioName={currentScenario.name}
-              mapImage={currentScenario.mapImage}
-              onMapChange={updateScenarioMap}
-              mapNotes={currentScenario.mapNotes || []}
-              onMapNotesChange={updateMapNotes}
-              players={campaign.players || []}
-              npcs={campaign.npcs || []}
-              persistentEnemies={campaign.persistentEnemies || []}
-              scenarioCombatants={currentScenario.combatants || []}
-              onAddEnemy={addEnemyToMap}
-              onStartCombat={startCombat}
-              leftSidebarOpen={leftSidebarOpen}
-              setLeftSidebarOpen={setLeftSidebarOpen}
-              rightSidebarOpen={rightSidebarOpen}
-              setRightSidebarOpen={setRightSidebarOpen}
-              walls={currentScenario.walls}
-              objectWalls={currentScenario.objectWalls}
-              portals={currentScenario.portals}
-              gridResolution={currentScenario.gridResolution}
-              onWallDataChange={updateWallData}
-              onPortalToggle={togglePortal}
-            />
-          )}
-        </main>
-
-        {/* Right Sidebar: Combat View */}
-        <motion.aside
-          initial={false}
-          animate={{ width: rightSidebarOpen ? 350 : 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className={cn(
-            "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
-            rightSidebarOpen && "border-l border-[var(--line)]"
-          )}
-        >
-          <div className="w-[350px] h-full relative">
-            <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
+          {/* Center: Map View (Always Present) */}
+          <main className="flex-1 relative bg-[#111] overflow-hidden">
             {currentScenario && (
-              <CombatView 
-                activeCombatants={currentScenario.activeCombatants || []}
-                onActiveCombatantsChange={updateActiveCombatants}
+              <MapView
+                tokens={currentScenario.tokens || []}
+                onTokensChange={updateScenarioTokens}
+                scenarioName={currentScenario.name}
+                mapImage={currentScenario.mapImage}
+                onMapChange={updateScenarioMap}
+                mapNotes={currentScenario.mapNotes || []}
+                onMapNotesChange={updateMapNotes}
                 players={campaign.players || []}
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
-                onClose={() => setRightSidebarOpen(false)}
+                scenarioCombatants={currentScenario.combatants || []}
+                onAddEnemy={addEnemyToMap}
+                onStartCombat={startCombat}
+                leftSidebarOpen={leftSidebarOpen}
+                setLeftSidebarOpen={setLeftSidebarOpen}
+                rightSidebarOpen={rightSidebarOpen}
+                setRightSidebarOpen={setRightSidebarOpen}
+                walls={currentScenario.walls}
+                objectWalls={currentScenario.objectWalls}
+                portals={currentScenario.portals}
+                gridResolution={currentScenario.gridResolution}
+                onWallDataChange={updateWallData}
+                onPortalToggle={togglePortal}
               />
             )}
-          </div>
-        </motion.aside>
-      </div>
+          </main>
 
-      {/* Campaign Settings Modal */}
-      <AnimatePresence>
-        {settingsOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          {/* Right Sidebar: Combat View */}
+          <motion.aside
+            initial={false}
+            animate={{ width: rightSidebarOpen ? 350 : 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className={cn(
+              "bg-[var(--surface)] overflow-hidden shrink-0 z-10",
+              rightSidebarOpen && "border-l border-[var(--line)]"
+            )}
           >
-            <CampaignSettings 
-              campaign={campaign}
-              onUpdate={setCampaign}
-              onClose={() => setSettingsOpen(false)}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="w-[350px] h-full relative">
+              <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
+              {currentScenario && (
+                <CombatView
+                  activeCombatants={currentScenario.activeCombatants || []}
+                  onActiveCombatantsChange={updateActiveCombatants}
+                  players={campaign.players || []}
+                  npcs={campaign.npcs || []}
+                  persistentEnemies={campaign.persistentEnemies || []}
+                  onClose={() => setRightSidebarOpen(false)}
+                />
+              )}
+            </div>
+          </motion.aside>
+        </div>
+
+        {/* Campaign Settings Modal */}
+        <AnimatePresence>
+          {settingsOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <CampaignSettings
+                campaign={campaign}
+                onUpdate={setCampaign}
+                onClose={() => setSettingsOpen(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
 
 
-      <AddCombatantModal 
-        isOpen={addPlayerModalOpen}
-        onClose={() => setAddPlayerModalOpen(false)}
-        type="player"
-        onAdd={(p) => {
-          setCampaign(prev => prev ? ({
-            ...prev,
-            players: [...prev.players, { ...p, id: `p-${Date.now()}` } as Combatant]
-          }) : prev);
-        }}
-      />
-
-      <AddCombatantModal 
-        isOpen={addNPCModalOpen}
-        onClose={() => setAddNPCModalOpen(false)}
-        type="npc"
-        onAdd={(n) => {
-          setCampaign(prev => prev ? ({
-            ...prev,
-            npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
-          }) : prev);
-        }}
-      />
-
-      {/* Player Character Sheet Modal */}
-      <PlayerCharacterSheet
-        player={campaign.players.find(p => p.id === selectedPlayerId) || null}
-        onClose={() => setSelectedPlayerId(null)}
-        onDelete={(playerId) => {
-          setCampaign(prev => prev ? ({
-            ...prev,
-            players: prev.players.filter(p => p.id !== playerId)
-          }) : prev);
-          setSelectedPlayerId(null);
-        }}
-        onColorChange={(playerId, color) => {
-          setCampaign(prev => {
-            if (!prev) return prev;
-            return {
+        <AddCombatantModal
+          isOpen={addPlayerModalOpen}
+          onClose={() => setAddPlayerModalOpen(false)}
+          type="player"
+          onAdd={(p) => {
+            setCampaign(prev => prev ? ({
               ...prev,
-              players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
-              // Also update any matching tokens in all scenarios
-              scenarios: prev.scenarios.map(s => ({
-                ...s,
-                tokens: s.tokens.map(t =>
-                  t.combatantId === playerId ? { ...t, color } : t
-                )
-              }))
-            };
-          });
-        }}
-      />
+              players: [...prev.players, { ...p, id: `p-${Date.now()}` } as Combatant]
+            }) : prev);
+          }}
+        />
 
-      {/* Footer */}
-      <footer className="h-6 border-t border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between text-[9px] font-sans opacity-50 uppercase tracking-widest shrink-0 z-20">
-        <div className="flex gap-4">
-          <span>SYSTEM: ONLINE</span>
-          <span>SESSION: 042</span>
-          <span className="text-[var(--accent)]">CAMPAIGN: {campaign.name}</span>
-        </div>
-        <div className="flex gap-4">
-          <span>LATENCY: 24MS</span>
-        </div>
-      </footer>
+        <AddCombatantModal
+          isOpen={addNPCModalOpen}
+          onClose={() => setAddNPCModalOpen(false)}
+          type="npc"
+          onAdd={(n) => {
+            setCampaign(prev => prev ? ({
+              ...prev,
+              npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
+            }) : prev);
+          }}
+        />
+
+        {/* Player Character Sheet Modal */}
+        <PlayerCharacterSheet
+          player={campaign.players.find(p => p.id === selectedPlayerId) || null}
+          onClose={() => setSelectedPlayerId(null)}
+          onDelete={(playerId) => {
+            setCampaign(prev => prev ? ({
+              ...prev,
+              players: prev.players.filter(p => p.id !== playerId)
+            }) : prev);
+            setSelectedPlayerId(null);
+          }}
+          onColorChange={(playerId, color) => {
+            setCampaign(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
+                // Also update any matching tokens in all scenarios
+                scenarios: prev.scenarios.map(s => ({
+                  ...s,
+                  tokens: s.tokens.map(t =>
+                    t.combatantId === playerId ? { ...t, color } : t
+                  )
+                }))
+              };
+            });
+          }}
+        />
+
+        {/* Footer */}
+        <footer className="h-6 border-t border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between text-[9px] font-sans opacity-50 uppercase tracking-widest shrink-0 z-20">
+          <div className="flex gap-4">
+            <span>SYSTEM: ONLINE</span>
+            <span>SESSION: 042</span>
+            <span className="text-[var(--accent)]">CAMPAIGN: {campaign.name}</span>
+          </div>
+          <div className="flex gap-4">
+            <span>LATENCY: 24MS</span>
+          </div>
+        </footer>
+      </div>
     </div>
-  </div>
   );
 }
 
@@ -770,10 +776,10 @@ export default function App() {
     const handleHashChange = () => {
       setIsPlayerView(window.location.hash === '#player');
     };
-    
+
     // Initial check
     handleHashChange();
-    
+
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);

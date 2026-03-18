@@ -218,10 +218,11 @@ export const MapView: React.FC<MapViewProps> = ({
           }
 
           const clampedScale = Math.min(Math.max(scale, 0.05), 5);
-          setStageScale(clampedScale);
+          const finalScale = isPlayerView ? clampedScale * 1.15 : clampedScale;
+          setStageScale(finalScale);
           setStagePos({
-            x: (dimensions.width - img.width * clampedScale) / 2,
-            y: (dimensions.height - img.height * clampedScale) / 2,
+            x: (dimensions.width - img.width * finalScale) / 2,
+            y: (dimensions.height - img.height * finalScale) / 2,
           });
         }
       };
