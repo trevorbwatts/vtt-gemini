@@ -61,6 +61,10 @@ export {
   // Monitor
   MonitorUp,
   MonitorX,
+
+  // Lighting
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 // Treasure chest — lucide's Gem icon

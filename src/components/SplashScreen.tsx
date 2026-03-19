@@ -51,14 +51,14 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
           <motion.div 
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
-            className="inline-flex items-center justify-center w-16 h-16 bg-[var(--btn-bg)] rounded-2xl shadow-2xl shadow-[var(--btn-bg)]/20 mb-6 rotate-3"
+            className="inline-flex items-center justify-center w-16 h-16 bg-[var(--btn-bg)] rounded-2xl shadow-2xl shadow-[var(--btn-bg)]/20 mb-6"
           >
             <Sword size={32} className="text-white" />
           </motion.div>
-          <h1 className="text-7xl font-bold tracking-tighter mb-2 uppercase italic font-serif">
+          <h1 className="text-7xl font-bold tracking-tighter mb-2 font-serif">
             Dungeon <span className="text-[var(--accent)]">Master</span>
           </h1>
-          <p className="text-xs font-mono uppercase tracking-[0.4em] opacity-40">Campaign Orchestrator v1.0</p>
+          <p className="text-xs font-mono uppercase tracking-[0.4em] opacity-40">Campaign Orchestrator</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
@@ -168,14 +168,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
           </div>
         </div>
 
-        {/* Footer Meta */}
-        <div className="mt-16 flex items-center gap-8 opacity-20 text-[10px] font-mono uppercase tracking-[0.3em]">
-          <span>Secure Local Storage</span>
-          <span>•</span>
-          <span>Cloud Sync Ready</span>
-          <span>•</span>
-          <span>Encrypted Session</span>
-        </div>
       </motion.div>
     </div>
   );

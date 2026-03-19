@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
+import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -133,6 +133,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const didMarqueeRef = useRef(false);
 
   const [showFog, setShowFog] = useState(true);
+  const [darknessOpen, setDarknessOpen] = useState(false);
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
   // Konva moves the node natively during drag; we just need the position for IPC broadcasts.
   const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -597,6 +598,34 @@ export const MapView: React.FC<MapViewProps> = ({
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const spaceHeldRef = useRef(false);
+
+  useEffect(() => {
+    if (isPlayerView) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable) return;
+      e.preventDefault();
+      if (!spaceHeldRef.current) {
+        spaceHeldRef.current = true;
+        setSpaceHeld(true);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      spaceHeldRef.current = false;
+      setSpaceHeld(false);
+      setIsPanning(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [isPlayerView]);
 
   // Two-finger pan for player view
   const twoFingerPanRef = useRef<{ midX: number; midY: number } | null>(null);
@@ -640,7 +669,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseDown = (e: any) => {
-    if (e.evt.button === 2 || e.evt.button === 1) {
+    if (e.evt.button === 2 || e.evt.button === 1 || (e.evt.button === 0 && spaceHeldRef.current)) {
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
     } else if (e.evt.button === 0) {
@@ -798,14 +827,37 @@ export const MapView: React.FC<MapViewProps> = ({
                 </button>
               )}
               <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-              <select
-                value={darknessLevel ?? 'dark'}
-                onChange={e => onDarknessLevelChange?.(e.target.value as 'daylight' | 'dark')}
-                className="bg-transparent text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 border border-[var(--line)] rounded px-2 py-0.5 cursor-pointer"
-              >
-                <option value="daylight">Daylight</option>
-                <option value="dark">Dark</option>
-              </select>
+              <div className="relative">
+                <button
+                  onClick={() => setDarknessOpen(o => !o)}
+                  className="btn-ghost py-1 gap-2 w-[110px] justify-between"
+                >
+                  <span className="flex items-center gap-1.5">
+                    {(darknessLevel ?? 'dark') === 'daylight'
+                      ? <Sun size={12} />
+                      : <Moon size={12} />
+                    }
+                    {(darknessLevel ?? 'dark') === 'daylight' ? 'Daylight' : 'Dark'}
+                  </span>
+                  <ChevronDown size={10} className="opacity-50" />
+                </button>
+                {darknessOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-full bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 overflow-hidden">
+                    {([['daylight', 'Daylight', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
+                      <button
+                        key={val}
+                        onClick={() => { onDarknessLevelChange?.(val); setDarknessOpen(false); }}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-widest hover:bg-white/5 transition-colors',
+                          (darknessLevel ?? 'dark') === val && 'text-[var(--accent)]'
+                        )}
+                      >
+                        <Icon size={12} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -850,7 +902,7 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      <div className="flex-1 bg-[#111] relative overflow-hidden">
+      <div className="flex-1 bg-[#111] relative overflow-hidden" style={{ cursor: isPanning && spaceHeld ? 'grabbing' : spaceHeld ? 'grab' : undefined }}>
         {!loadedImage && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10">
             <div className="max-w-md space-y-6">

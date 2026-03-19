@@ -433,7 +433,7 @@ export function DMScreen() {
                   >
                     <div
                       className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0 overflow-hidden"
-                      style={{ background: p.color || 'var(--accent)' }}
+                      style={{ background: p.avatar ? 'transparent' : (p.color || 'var(--accent)'), outline: `2px solid ${p.color || 'var(--accent)'}`, outlineOffset: '2px' }}
                     >
                       {p.avatar
                         ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
