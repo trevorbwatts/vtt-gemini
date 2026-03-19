@@ -228,6 +228,15 @@ export function DMScreen() {
     }) : prev);
   };
 
+  const updateDarknessLevel = (level: 'daylight' | 'dim' | 'dark') => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioId ? { ...s, darknessLevel: level } : s
+      )
+    }) : prev);
+  };
+
   const togglePortal = (portalId: string) => {
     setCampaign(prev => prev ? ({
       ...prev,
@@ -638,6 +647,8 @@ export function DMScreen() {
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}
                 onViewportCenter={(center) => { dmViewportCenterRef.current = center; }}
+                darknessLevel={currentScenario.darknessLevel}
+                onDarknessLevelChange={updateDarknessLevel}
               />
             )}
           </main>

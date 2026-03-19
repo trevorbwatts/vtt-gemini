@@ -113,6 +113,85 @@ export function computeVisibilityPolygon(
 }
 
 /**
+ * Clip a visibility polygon to a circle centered on the observer.
+ *
+ * Because the visibility polygon is star-shaped from the observer, every
+ * vertex lies along a ray from that point.  We simply clamp each vertex to
+ * the circle radius and insert arc interpolation wherever two consecutive
+ * vertices were both clamped (i.e. both beyond the radius in open space).
+ */
+export function clipPolygonToCircle(
+  polygon: WallPoint[],
+  center: WallPoint,
+  radiusPx: number
+): WallPoint[] {
+  if (polygon.length < 3) return [];
+
+  const r2 = radiusPx * radiusPx;
+
+  // Clamp a point to the circle by projecting back along its ray from center.
+  const clamp = (p: WallPoint): { point: WallPoint; wasOutside: boolean } => {
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 <= r2) return { point: p, wasOutside: false };
+    const d = Math.sqrt(d2);
+    return { point: { x: center.x + (dx / d) * radiusPx, y: center.y + (dy / d) * radiusPx }, wasOutside: true };
+  };
+
+  // Generate arc sample points between two circle-boundary points (shortest arc).
+  const arcBetween = (p1: WallPoint, p2: WallPoint): WallPoint[] => {
+    const a1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+    const a2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+    let diff = a2 - a1;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    const STEP = 5 * Math.PI / 180; // 5° resolution
+    const steps = Math.ceil(Math.abs(diff) / STEP);
+    if (steps <= 1) return [];
+    const pts: WallPoint[] = [];
+    for (let i = 1; i < steps; i++) {
+      const a = a1 + diff * (i / steps);
+      pts.push({ x: center.x + radiusPx * Math.cos(a), y: center.y + radiusPx * Math.sin(a) });
+    }
+    return pts;
+  };
+
+  const clamped = polygon.map(clamp);
+  const output: WallPoint[] = [];
+  const n = clamped.length;
+
+  for (let i = 0; i < n; i++) {
+    const curr = clamped[i];
+    const prev = clamped[(i + n - 1) % n];
+    // When two consecutive boundary-projected points are adjacent, fill the
+    // gap with arc samples so the circle edge looks smooth.
+    if (curr.wasOutside && prev.wasOutside) {
+      output.push(...arcBetween(prev.point, curr.point));
+    }
+    output.push(curr.point);
+  }
+
+  return output.length >= 3 ? output : [];
+}
+
+/**
+ * Compute a radius-limited visibility polygon.
+ * Returns [] when radiusPx <= 0 (token has no vision).
+ */
+export function computeRadiusLimitedVisibilityPolygon(
+  observer: WallPoint,
+  segments: Segment[],
+  mapWidth: number,
+  mapHeight: number,
+  radiusPx: number
+): WallPoint[] {
+  if (radiusPx <= 0) return [];
+  const polygon = computeVisibilityPolygon(observer, segments, mapWidth, mapHeight);
+  return clipPolygonToCircle(polygon, observer, radiusPx);
+}
+
+/**
  * Ray-segment intersection test.
  * Ray: observer + t * (dx, dy), t > 0
  * Segment: a + u * (b - a), 0 <= u <= 1

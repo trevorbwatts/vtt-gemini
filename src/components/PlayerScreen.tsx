@@ -175,6 +175,7 @@ export function PlayerScreen() {
         gridResolution={currentScenario.gridResolution}
         onDragStatusChange={handleDragStatusChange}
         viewportCenter={viewportCenter}
+        darknessLevel={currentScenario.darknessLevel}
       />
     </div>
   );

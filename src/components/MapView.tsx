@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution } from '../types';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud } from '../icons';
-import { extractBlockingSegments, computeVisibilityPolygon } from '../utils/visibility';
+import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
@@ -37,6 +37,8 @@ interface MapViewProps {
   onDragStatusChange?: (isDragging: boolean) => void;
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
+  darknessLevel?: 'daylight' | 'dim' | 'dark';
+  onDarknessLevelChange?: (level: 'daylight' | 'dim' | 'dark') => void;
 }
 
 const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
@@ -100,6 +102,8 @@ export const MapView: React.FC<MapViewProps> = ({
   onDragStatusChange,
   onViewportCenter,
   viewportCenter,
+  darknessLevel,
+  onDarknessLevelChange,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +130,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectionRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const didMarqueeRef = useRef(false);
 
   const [showFog, setShowFog] = useState(true);
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
@@ -151,9 +156,10 @@ export const MapView: React.FC<MapViewProps> = ({
     [tokens, livePlayerPos]
   );
 
+  // DM-only unlimited visibility polygons (skip on player view — playerVisionData handles that)
   const visibilityPolygons = useMemo(
     () => {
-      if (!loadedImage) return [];
+      if (isPlayerView || !loadedImage) return [];
       return playerTokenPositions.map(t =>
         computeVisibilityPolygon(
           { x: t.x, y: t.y },
@@ -163,8 +169,50 @@ export const MapView: React.FC<MapViewProps> = ({
         )
       );
     },
-    [playerTokenPositions, blockingSegments, loadedImage]
+    [playerTokenPositions, blockingSegments, loadedImage, isPlayerView]
   );
+
+  // Player-view visibility: respects darkness level and per-token darkvision radius.
+  // The DM view continues to use the unlimited `visibilityPolygons` above.
+  const playerVisionData = useMemo((): { fogPolygons: WallPoint[][], dimPolygons: WallPoint[][] } => {
+    if (!isPlayerView || !loadedImage) return { fogPolygons: [], dimPolygons: [] };
+
+    const level = darknessLevel ?? 'dark';
+    const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const fogPolygons: WallPoint[][] = [];
+    const dimPolygons: WallPoint[][] = [];
+    const { width: mapW, height: mapH } = loadedImage;
+
+    for (const t of playerTokenPositions) {
+      const combatant = allCombatants.find(c => c.id === t.combatantId);
+      const darkvisionFt = combatant?.darkvision ?? 0;
+      const darkvisionPx = gridResolution
+        ? (darkvisionFt / 5) * gridResolution.pixelsPerGrid
+        : darkvisionFt * 4;
+      const origin = { x: t.x, y: t.y };
+      const fullPoly = computeVisibilityPolygon(origin, blockingSegments, mapW, mapH);
+
+      if (level === 'daylight') {
+        fogPolygons.push(fullPoly);
+      } else if (level === 'dim') {
+        if (darkvisionFt > 0) {
+          fogPolygons.push(clipPolygonToCircle(fullPoly, origin, darkvisionPx));
+        } else {
+          fogPolygons.push(fullPoly);
+          dimPolygons.push(fullPoly);
+        }
+      } else {
+        // Dark: only darkvision tokens can see, within their radius
+        if (darkvisionFt > 0) {
+          fogPolygons.push(clipPolygonToCircle(fullPoly, origin, darkvisionPx));
+        }
+        // 0 darkvision = no vision, nothing pushed
+      }
+    }
+
+    return { fogPolygons, dimPolygons };
+  }, [isPlayerView, loadedImage, darknessLevel, playerTokenPositions, blockingSegments,
+      players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
   const hasFogData = blockingSegments.length > 0;
 
@@ -643,7 +691,10 @@ export const MapView: React.FC<MapViewProps> = ({
           return tx >= x && tx <= x + w && ty >= y && ty <= y + h;
         })
         .map(t => t.id);
-      if (selected.length > 0) setSelectedTokenIds(selected);
+      if (selected.length > 0) {
+        setSelectedTokenIds(selected);
+        didMarqueeRef.current = true;
+      }
     }
     selectionStartRef.current = null;
     selectionRectRef.current = null;
@@ -754,6 +805,16 @@ export const MapView: React.FC<MapViewProps> = ({
                   <Cloud size={12} /> FOG
                 </button>
               )}
+              <div className="h-6 w-px bg-[var(--line)] shrink-0" />
+              <select
+                value={darknessLevel ?? 'dark'}
+                onChange={e => onDarknessLevelChange?.(e.target.value as 'daylight' | 'dim' | 'dark')}
+                className="bg-transparent text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 border border-[var(--line)] rounded px-2 py-0.5 cursor-pointer"
+              >
+                <option value="daylight">Daylight</option>
+                <option value="dim">Dim</option>
+                <option value="dark">Dark</option>
+              </select>
             </div>
           </div>
 
@@ -833,6 +894,10 @@ export const MapView: React.FC<MapViewProps> = ({
           onClick={(e) => {
             if (isPlayerView) return;
             if (e.evt.button === 0) {
+              if (didMarqueeRef.current) {
+                didMarqueeRef.current = false;
+                return;
+              }
               setContextMenu(null);
               setTokenContextMenu(null);
               setLeftSidebarOpen(false);
@@ -1040,7 +1105,8 @@ export const MapView: React.FC<MapViewProps> = ({
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
-                visibilityPolygons={visibilityPolygons}
+                visibilityPolygons={isPlayerView ? playerVisionData.fogPolygons : visibilityPolygons}
+                dimPolygons={isPlayerView ? playerVisionData.dimPolygons : undefined}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
                 opacity={isPlayerView ? 1.0 : 0.5}

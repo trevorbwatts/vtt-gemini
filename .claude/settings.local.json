@@ -15,7 +15,9 @@
       "Bash(do)",
       "Bash(echo \"=== $f ===\")",
       "Read(//c/Users/trevo/OneDrive/Desktop/vtt-gemini/node_modules/lucide-react/dist/esm/icons/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini/src -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini/src -type f -name *.tsx -o -name *.ts)"
     ]
   }
 }
