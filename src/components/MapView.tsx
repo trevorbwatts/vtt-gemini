@@ -25,6 +25,9 @@ interface MapViewProps {
   onStartCombat: (tokenIds: string[]) => void;
   leftSidebarOpen: boolean;
   setLeftSidebarOpen: (open: boolean) => void;
+  onNoteClick?: (noteId: string) => void;
+  onAddScenario?: () => void;
+  panToNote?: MapNote | null;
   rightSidebarOpen: boolean;
   setRightSidebarOpen: (open: boolean) => void;
   isPlayerView?: boolean;
@@ -90,6 +93,9 @@ export const MapView: React.FC<MapViewProps> = ({
   onStartCombat,
   leftSidebarOpen,
   setLeftSidebarOpen,
+  onNoteClick,
+  onAddScenario,
+  panToNote,
   rightSidebarOpen,
   setRightSidebarOpen,
   isPlayerView = false,
@@ -121,6 +127,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
+  const [showChangeMapModal, setShowChangeMapModal] = useState(false);
   const [monsterSearch, setMonsterSearch] = useState('');
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [monsterQuantity, setMonsterQuantity] = useState(1);
@@ -602,6 +609,14 @@ export const MapView: React.FC<MapViewProps> = ({
   const spaceHeldRef = useRef(false);
 
   useEffect(() => {
+    if (!panToNote) return;
+    setStagePos({
+      x: dimensions.width / 2 - panToNote.x * stageScale,
+      y: dimensions.height / 2 - panToNote.y * stageScale,
+    });
+  }, [panToNote]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (isPlayerView) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
@@ -804,10 +819,16 @@ export const MapView: React.FC<MapViewProps> = ({
                 <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Map</h3>
               </div>
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (mapImage && (tokens.length > 0 || mapNotes.length > 0)) {
+                    setShowChangeMapModal(true);
+                  } else {
+                    fileInputRef.current?.click();
+                  }
+                }}
                 className="btn-ghost py-1"
               >
-                <Upload size={12} /> UPLOAD
+                <Upload size={12} /> {mapImage ? 'CHANGE MAP' : 'UPLOAD MAP'}
               </button>
               <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,.uvtt,.dd2vtt,.df2vtt" />
               {walls && walls.length > 0 && (
@@ -1116,7 +1137,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   onMouseEnter={() => setHoveredNoteId(note.id)}
                   onMouseLeave={() => setHoveredNoteId(null)}
                   onMouseDown={(e) => { e.cancelBubble = true; }}
-                  onClick={(e) => { e.cancelBubble = true; setLeftSidebarOpen(true); }}
+                  onClick={(e) => { e.cancelBubble = true; setLeftSidebarOpen(true); onNoteClick?.(note.id); }}
                 >
                   <Circle
                     radius={tokenRadius * 0.6}
@@ -1128,33 +1149,42 @@ export const MapView: React.FC<MapViewProps> = ({
                   />
                   <NoteMapIcon type={note.type} />
 
-                  {/* Tooltip */}
-                  {hoveredNoteId === note.id && (
-                    <Group y={-25} x={0}>
-                      <Rect
-                        fill="rgba(0,0,0,0.9)"
-                        stroke="rgba(255,255,255,0.1)"
-                        strokeWidth={1}
-                        cornerRadius={4}
-                        width={Math.min(400, note.content.length * 16 + 20)}
-                        height={Math.ceil(note.content.length / 25) * 32 + 12}
-                        x={-Math.min(400, note.content.length * 16 + 20) / 2}
-                        y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
-                        shadowBlur={10}
-                      />
-                      <Text
-                        text={note.content}
-                        fill="white"
-                        fontSize={22}
-                        padding={8}
-                        width={Math.min(400, note.content.length * 16 + 20)}
-                        x={-Math.min(400, note.content.length * 16 + 20) / 2}
-                        y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
-                        align="center"
-                        fontFamily="Inter"
-                      />
-                    </Group>
-                  )}
+                  {/* Tooltip — scale-independent: cancel zoom so it's always the same screen size */}
+                  {hoveredNoteId === note.id && (() => {
+                    const s = 1 / stageScale;
+                    const fontSize = 16;
+                    const padding = 10;
+                    const tooltipW = 280;
+                    const tooltipH = fontSize + padding * 2;
+                    return (
+                      <Group scaleX={s} scaleY={s} y={-(tokenRadius * 0.6) - (tooltipH + 8) / stageScale} x={0}>
+                        <Rect
+                          fill="rgba(0,0,0,0.9)"
+                          stroke="rgba(255,255,255,0.1)"
+                          strokeWidth={1}
+                          cornerRadius={4}
+                          width={tooltipW}
+                          height={tooltipH}
+                          x={-tooltipW / 2}
+                          y={0}
+                          shadowBlur={10}
+                        />
+                        <Text
+                          text={note.content.split('\n')[0]}
+                          fill="white"
+                          fontSize={16}
+                          padding={padding}
+                          wrap="none"
+                          ellipsis={true}
+                          width={tooltipW}
+                          x={-tooltipW / 2}
+                          y={0}
+                          align="center"
+                          fontFamily="Inter"
+                        />
+                      </Group>
+                    );
+                  })()}
                 </Group>
               ))}
             </Layer>
@@ -1641,6 +1671,79 @@ export const MapView: React.FC<MapViewProps> = ({
             </div>
           );
         })()}
+
+      {/* Change Map Warning Modal */}
+      <AnimatePresence>
+        {showChangeMapModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowChangeMapModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[420px] p-6 mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Upload size={18} className="text-yellow-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base font-serif mb-1">Change Map?</h3>
+                  <p className="text-sm opacity-60 leading-relaxed">
+                    This scenario has {tokens.length > 0 && mapNotes.length > 0
+                      ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''} and ${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
+                      : tokens.length > 0
+                        ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`
+                        : `${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
+                    } placed on the current map. Uploading a new map will remove all of them.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-black/20 border border-[var(--line)] rounded-xl p-3 mb-5 text-xs opacity-60 leading-relaxed">
+                If you want to keep this scenario's content, consider creating a new scenario instead.
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    setShowChangeMapModal(false);
+                    fileInputRef.current?.click();
+                  }}
+                  className="btn-filled py-2.5 rounded-xl"
+                >
+                  Change Map Anyway
+                </button>
+                {onAddScenario && (
+                  <button
+                    onClick={() => {
+                      setShowChangeMapModal(false);
+                      onAddScenario();
+                    }}
+                    className="btn-ghost py-2.5 rounded-xl"
+                  >
+                    Create New Scenario Instead
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowChangeMapModal(false)}
+                  className="py-2 text-xs opacity-40 hover:opacity-70 transition-opacity"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
-import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution } from './types';
+import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution, MapNote } from './types';
 import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,6 +14,8 @@ import { AddCombatantModal } from './components/AddCombatantModal';
 
 export function DMScreen() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
+  const [highlightedNoteId, setHighlightedNoteId] = useState<string | null>(null);
+  const [panToNote, setPanToNote] = useState<MapNote | null>(null);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [navSidebarOpen, setNavSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -638,6 +640,9 @@ export function DMScreen() {
                 onStartCombat={startCombat}
                 leftSidebarOpen={leftSidebarOpen}
                 setLeftSidebarOpen={setLeftSidebarOpen}
+                onNoteClick={(id) => setHighlightedNoteId(id)}
+                onAddScenario={addScenario}
+                panToNote={panToNote}
                 rightSidebarOpen={rightSidebarOpen}
                 setRightSidebarOpen={setRightSidebarOpen}
                 walls={currentScenario.walls}
@@ -669,6 +674,11 @@ export function DMScreen() {
                   title={currentScenario.name}
                   onTitleChange={updateScenarioName}
                   onClose={() => setLeftSidebarOpen(false)}
+                  highlightedNoteId={highlightedNoteId}
+                  onNoteNavigate={(note) => {
+                    setHighlightedNoteId(note.id);
+                    setPanToNote({ ...note });
+                  }}
                 />
               )}
             </div>

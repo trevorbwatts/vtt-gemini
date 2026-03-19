@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MapNote, MapNoteType } from '../types';
 import {
   TreasureChest,
@@ -7,6 +7,7 @@ import {
   Eye,
   Search,
   Trash2,
+  Edit2,
   FileText,
   ChevronLeft,
   Info,
@@ -18,6 +19,8 @@ interface DMNotesProps {
   title: string;
   onTitleChange?: (title: string) => void;
   onClose?: () => void;
+  highlightedNoteId?: string | null;
+  onNoteNavigate?: (note: MapNote) => void;
 }
 
 export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteType; size?: number; className?: string }) => {
@@ -31,15 +34,45 @@ export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteTyp
   }
 };
 
-export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitleChange, onClose }) => {
+export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitleChange, onClose, highlightedNoteId, onNoteNavigate }) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlightedNoteId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [highlightedNoteId]);
+
+  useEffect(() => {
+    if (editingId && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.select();
+    }
+  }, [editingId]);
+
   const removeNote = (id: string) => {
     onChange(notes.filter(n => n.id !== id));
+  };
+
+  const startEdit = (note: MapNote) => {
+    setEditingId(note.id);
+    setEditContent(note.content);
+  };
+
+  const commitEdit = () => {
+    if (editingId) {
+      onChange(notes.map(n => n.id === editingId ? { ...n, content: editContent } : n));
+      setEditingId(null);
+    }
   };
 
   return (
     <div className="h-full flex flex-col bg-transparent relative z-10">
       <div className="h-10 px-3 border-b border-[var(--line)] bg-black/5 flex justify-between items-center shrink-0">
-        <button 
+        <button
           onClick={onClose}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity group"
         >
@@ -50,7 +83,7 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
           <ChevronLeft size={16} />
         </button>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
         {notes.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-20 text-center p-4">
@@ -59,28 +92,59 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
             <p className="text-[10px] mt-1">Right-click on the map to add a note</p>
           </div>
         ) : (
-          notes.map((note) => (
-            <div
-              key={note.id}
-              className="group px-3 py-2 rounded border border-[var(--line)] bg-[var(--surface-hover)] hover:border-[var(--accent)] transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className="shrink-0">
-                  <NoteIcon type={note.type} />
+          notes.map((note) => {
+            const isHighlighted = note.id === highlightedNoteId;
+            const isEditing = note.id === editingId;
+            return (
+              <div
+                key={note.id}
+                ref={isHighlighted ? highlightedRef : undefined}
+                onClick={() => onNoteNavigate?.(note)}
+                className={`group px-3 py-2 rounded border transition-all ${onNoteNavigate ? 'cursor-pointer' : ''} ${
+                  isHighlighted
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/10'
+                    : 'border-[var(--line)] bg-[var(--surface-hover)] hover:border-[var(--accent)]'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    <NoteIcon type={note.type} />
+                  </div>
+                  {isEditing ? (
+                    <textarea
+                      ref={textareaRef}
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      onBlur={commitEdit}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitEdit(); } if (e.key === 'Escape') setEditingId(null); }}
+                      className="flex-1 min-w-0 text-sm text-[var(--ink)] bg-black/20 border border-[var(--accent)]/50 rounded px-2 py-1 resize-none leading-relaxed font-sans"
+                      rows={Math.max(2, Math.ceil(editContent.length / 30))}
+                    />
+                  ) : (
+                    <p className="text-sm text-[var(--ink)] flex-1 min-w-0 whitespace-pre-wrap break-words leading-relaxed font-sans">
+                      {note.content}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => startEdit(note)}
+                      className="p-1 hover:bg-[var(--accent)]/10 rounded text-[var(--accent)] transition-all"
+                      title="Edit Note"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                    <button
+                      onClick={() => removeNote(note.id)}
+                      className="p-1 hover:bg-[var(--accent)]/10 rounded text-[var(--accent)] transition-all"
+                      title="Remove Note"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
-                <p className="text-sm text-[var(--ink)] flex-1 min-w-0 whitespace-pre-wrap break-words leading-relaxed font-serif italic">
-                  {note.content}
-                </p>
-                <button
-                  onClick={() => removeNote(note.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--accent)]/10 rounded text-[var(--accent)] transition-all shrink-0"
-                  title="Remove Note"
-                >
-                  <Trash2 size={12} />
-                </button>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
