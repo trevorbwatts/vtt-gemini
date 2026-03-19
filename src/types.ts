@@ -56,6 +56,7 @@ export interface MonsterAction {
 export interface Monster {
   id: string;
   name: string;
+  source: '2014' | '2024';
   hp: number;
   ac: number;
   type: string;
@@ -70,6 +71,18 @@ export interface Monster {
     wis: number;
     cha: number;
   };
+  size?: string;
+  speed?: string;
+  senses?: string;
+  languages?: string;
+  saves?: string;
+  immunities?: string;
+  resistances?: string;
+  conditionImmunities?: string;
+  specialAbilities?: MonsterAction[];
+  legendaryActions?: MonsterAction[];
+  reactions?: MonsterAction[];
+  xp?: number;
 }
 
 export interface Combatant {

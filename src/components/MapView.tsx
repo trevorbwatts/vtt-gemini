@@ -129,6 +129,8 @@ export const MapView: React.FC<MapViewProps> = ({
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [showChangeMapModal, setShowChangeMapModal] = useState(false);
   const [monsterSearch, setMonsterSearch] = useState('');
+  const [showSource2014, setShowSource2014] = useState(true);
+  const [showSource2024, setShowSource2024] = useState(true);
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [monsterQuantity, setMonsterQuantity] = useState(1);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
@@ -1395,7 +1397,7 @@ export const MapView: React.FC<MapViewProps> = ({
             )}
 
             {contextMenu.view === 'add-enemy' && (
-              <div className="flex flex-col h-[400px]">
+              <div className="flex flex-col h-[500px]">
                 <div className="p-3 border-b border-[var(--line)] bg-black/10 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <Skull size={14} className="text-[#ef4444]" />
@@ -1420,8 +1422,21 @@ export const MapView: React.FC<MapViewProps> = ({
                         />
                       </div>
                     </div>
+                    <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
+                        <span className="text-[10px] opacity-60">2014</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
+                        <span className="text-[10px] opacity-60">2024</span>
+                      </label>
+                    </div>
                     <div className="flex-1 overflow-y-auto py-1">
-                      {BESTIARY.filter(m => m.name.toLowerCase().includes(monsterSearch.toLowerCase())).map(m => (
+                      {BESTIARY.filter(m =>
+                        m.name.toLowerCase().includes(monsterSearch.toLowerCase()) &&
+                        ((showSource2014 && m.source === '2014') || (showSource2024 && m.source === '2024'))
+                      ).map(m => (
                         <button
                           key={m.id}
                           onClick={() => setSelectedMonster(m)}
@@ -1434,7 +1449,10 @@ export const MapView: React.FC<MapViewProps> = ({
                             <span className="font-bold">{m.name}</span>
                             <span className={cn("text-[9px] opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>{m.type}</span>
                           </div>
-                          <span className={cn("text-[9px] font-sans opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className={cn("text-[9px] font-sans opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
+                            <span className={cn("text-[8px] font-sans opacity-30", selectedMonster?.id === m.id ? "text-white" : "")}>{m.source}</span>
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -1444,17 +1462,29 @@ export const MapView: React.FC<MapViewProps> = ({
                   <div className="w-1/2 flex flex-col overflow-hidden bg-black/5">
                     {selectedMonster ? (
                       <>
-                        <div className="flex-1 overflow-y-auto p-4">
-                          <div className="flex items-center justify-between mb-2">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                          {/* Header: Name + Badges */}
+                          <div className="flex items-center justify-between">
                             <h4 className="text-lg font-bold tracking-tight">{selectedMonster.name}</h4>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5 shrink-0">
                               <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-[10px] font-bold">HP {selectedMonster.hp}</div>
                               <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-[10px] font-bold">AC {selectedMonster.ac}</div>
+                              <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">CR {selectedMonster.cr}</div>
                             </div>
                           </div>
-                          <p className="text-[10px] italic opacity-50 mb-4">{selectedMonster.type}</p>
+                          <p className="text-[10px] italic opacity-50 -mt-2">{selectedMonster.type}</p>
 
-                          <div className="grid grid-cols-6 gap-1 mb-4 text-center">
+                          {/* Speed / Senses / Languages */}
+                          {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (
+                            <div className="text-[10px] space-y-0.5 opacity-60">
+                              {selectedMonster.speed && <div><span className="font-bold">Speed:</span> {selectedMonster.speed}</div>}
+                              {selectedMonster.senses && <div><span className="font-bold">Senses:</span> {selectedMonster.senses}</div>}
+                              {selectedMonster.languages && <div><span className="font-bold">Languages:</span> {selectedMonster.languages}</div>}
+                            </div>
+                          )}
+
+                          {/* Stats Grid */}
+                          <div className="grid grid-cols-6 gap-1 text-center">
                             {Object.entries(selectedMonster.stats).map(([stat, val]) => (
                               <div key={stat} className="bg-black/20 rounded p-1">
                                 <div className="text-[8px] uppercase opacity-50">{stat}</div>
@@ -1463,22 +1493,83 @@ export const MapView: React.FC<MapViewProps> = ({
                             ))}
                           </div>
 
-                          <div className="space-y-3">
+                          {/* Saves & Defenses */}
+                          {(selectedMonster.saves || selectedMonster.immunities || selectedMonster.resistances || selectedMonster.conditionImmunities) && (
+                            <div className="text-[10px] space-y-0.5 opacity-60">
+                              {selectedMonster.saves && <div><span className="font-bold">Saves:</span> {selectedMonster.saves}</div>}
+                              {selectedMonster.resistances && <div><span className="font-bold">Resistances:</span> {selectedMonster.resistances}</div>}
+                              {selectedMonster.immunities && <div><span className="font-bold">Immunities:</span> {selectedMonster.immunities}</div>}
+                              {selectedMonster.conditionImmunities && <div><span className="font-bold">Cond. Immunities:</span> {selectedMonster.conditionImmunities}</div>}
+                            </div>
+                          )}
+
+                          {/* Description */}
+                          {selectedMonster.description && (
                             <div>
                               <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Description</h5>
                               <p className="text-xs leading-relaxed opacity-70">{selectedMonster.description}</p>
                             </div>
+                          )}
+
+                          {/* Traits / Special Abilities */}
+                          {selectedMonster.specialAbilities && selectedMonster.specialAbilities.length > 0 && (
                             <div>
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Actions</h5>
+                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Traits</h5>
                               <div className="space-y-2">
-                                {selectedMonster.actions.map((action, i) => (
-                                  <div key={i} className="text-xs">
-                                    <span className="font-bold italic">{action.name}.</span> {action.desc}
+                                {selectedMonster.specialAbilities.map((ability, i) => (
+                                  <div key={i} className="text-xs leading-relaxed">
+                                    <span className="font-bold italic text-purple-400">{ability.name}.</span>{' '}
+                                    <span className="opacity-80 whitespace-pre-wrap">{ability.desc}</span>
                                   </div>
                                 ))}
                               </div>
                             </div>
-                          </div>
+                          )}
+
+                          {/* Actions */}
+                          {selectedMonster.actions.length > 0 && (
+                            <div>
+                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Actions</h5>
+                              <div className="space-y-2">
+                                {selectedMonster.actions.map((action, i) => (
+                                  <div key={i} className="text-xs leading-relaxed">
+                                    <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}
+                                    <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Reactions */}
+                          {selectedMonster.reactions && selectedMonster.reactions.length > 0 && (
+                            <div>
+                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Reactions</h5>
+                              <div className="space-y-2">
+                                {selectedMonster.reactions.map((reaction, i) => (
+                                  <div key={i} className="text-xs leading-relaxed">
+                                    <span className="font-bold italic text-blue-400">{reaction.name}.</span>{' '}
+                                    <span className="opacity-80 whitespace-pre-wrap">{reaction.desc}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Legendary Actions */}
+                          {selectedMonster.legendaryActions && selectedMonster.legendaryActions.length > 0 && (
+                            <div>
+                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Legendary Actions</h5>
+                              <div className="space-y-2">
+                                {selectedMonster.legendaryActions.map((action, i) => (
+                                  <div key={i} className="text-xs leading-relaxed">
+                                    <span className="font-bold italic text-amber-400">{action.name}.</span>{' '}
+                                    <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] space-y-3">
                           <div className="flex items-center justify-between px-1">
