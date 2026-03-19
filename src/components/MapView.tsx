@@ -37,8 +37,8 @@ interface MapViewProps {
   onDragStatusChange?: (isDragging: boolean) => void;
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
-  darknessLevel?: 'daylight' | 'dim' | 'dark';
-  onDarknessLevelChange?: (level: 'daylight' | 'dim' | 'dark') => void;
+  darknessLevel?: 'daylight' | 'dark';
+  onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
 }
 
 const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
@@ -174,13 +174,12 @@ export const MapView: React.FC<MapViewProps> = ({
 
   // Player-view visibility: respects darkness level and per-token darkvision radius.
   // The DM view continues to use the unlimited `visibilityPolygons` above.
-  const playerVisionData = useMemo((): { fogPolygons: WallPoint[][], dimPolygons: WallPoint[][] } => {
-    if (!isPlayerView || !loadedImage) return { fogPolygons: [], dimPolygons: [] };
+  const playerVisionData = useMemo((): WallPoint[][] => {
+    if (!isPlayerView || !loadedImage) return [];
 
     const level = darknessLevel ?? 'dark';
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const fogPolygons: WallPoint[][] = [];
-    const dimPolygons: WallPoint[][] = [];
     const { width: mapW, height: mapH } = loadedImage;
 
     for (const t of playerTokenPositions) {
@@ -194,23 +193,16 @@ export const MapView: React.FC<MapViewProps> = ({
 
       if (level === 'daylight') {
         fogPolygons.push(fullPoly);
-      } else if (level === 'dim') {
-        if (darkvisionFt > 0) {
-          fogPolygons.push(clipPolygonToCircle(fullPoly, origin, darkvisionPx));
-        } else {
-          fogPolygons.push(fullPoly);
-          dimPolygons.push(fullPoly);
-        }
       } else {
         // Dark: only darkvision tokens can see, within their radius
         if (darkvisionFt > 0) {
           fogPolygons.push(clipPolygonToCircle(fullPoly, origin, darkvisionPx));
         }
-        // 0 darkvision = no vision, nothing pushed
+        // 0 darkvision = no vision
       }
     }
 
-    return { fogPolygons, dimPolygons };
+    return fogPolygons;
   }, [isPlayerView, loadedImage, darknessLevel, playerTokenPositions, blockingSegments,
       players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
@@ -808,11 +800,10 @@ export const MapView: React.FC<MapViewProps> = ({
               <div className="h-6 w-px bg-[var(--line)] shrink-0" />
               <select
                 value={darknessLevel ?? 'dark'}
-                onChange={e => onDarknessLevelChange?.(e.target.value as 'daylight' | 'dim' | 'dark')}
+                onChange={e => onDarknessLevelChange?.(e.target.value as 'daylight' | 'dark')}
                 className="bg-transparent text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 border border-[var(--line)] rounded px-2 py-0.5 cursor-pointer"
               >
                 <option value="daylight">Daylight</option>
-                <option value="dim">Dim</option>
                 <option value="dark">Dark</option>
               </select>
             </div>
@@ -957,58 +948,6 @@ export const MapView: React.FC<MapViewProps> = ({
               />
             ))}
 
-            {/* Render Map Notes */}
-            {mapNotes.map(note => (
-              <Group
-                key={note.id}
-                x={note.x}
-                y={note.y}
-                draggable
-                onDragEnd={(e) => handleNoteDragEnd(note.id, e)}
-                onMouseEnter={() => setHoveredNoteId(note.id)}
-                onMouseLeave={() => setHoveredNoteId(null)}
-                onMouseDown={(e) => { e.cancelBubble = true; }}
-                onClick={(e) => { e.cancelBubble = true; setLeftSidebarOpen(true); }}
-              >
-                <Circle
-                  radius={tokenRadius * 0.6}
-                  fill={getNoteColor(note.type)}
-                  stroke={hoveredNoteId === note.id ? "white" : "rgba(0,0,0,0.4)"}
-                  strokeWidth={1}
-                  shadowBlur={hoveredNoteId === note.id ? 10 : 5}
-                  shadowColor="black"
-                />
-                <NoteMapIcon type={note.type} />
-
-                {/* Tooltip */}
-                {hoveredNoteId === note.id && (
-                  <Group y={-25} x={0}>
-                    <Rect
-                      fill="rgba(0,0,0,0.9)"
-                      stroke="rgba(255,255,255,0.1)"
-                      strokeWidth={1}
-                      cornerRadius={4}
-                      width={Math.min(400, note.content.length * 16 + 20)}
-                      height={Math.ceil(note.content.length / 25) * 32 + 12}
-                      x={-Math.min(400, note.content.length * 16 + 20) / 2}
-                      y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
-                      shadowBlur={10}
-                    />
-                    <Text
-                      text={note.content}
-                      fill="white"
-                      fontSize={22}
-                      padding={8}
-                      width={Math.min(400, note.content.length * 16 + 20)}
-                      x={-Math.min(400, note.content.length * 16 + 20) / 2}
-                      y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
-                      align="center"
-                      fontFamily="Inter"
-                    />
-                  </Group>
-                )}
-              </Group>
-            ))}
 
             {/* Marquee selection rect (DM only) */}
             {!isPlayerView && selectionRect && selectionRect.w > 0 && (
@@ -1105,12 +1044,67 @@ export const MapView: React.FC<MapViewProps> = ({
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
-                visibilityPolygons={isPlayerView ? playerVisionData.fogPolygons : visibilityPolygons}
-                dimPolygons={isPlayerView ? playerVisionData.dimPolygons : undefined}
+                visibilityPolygons={isPlayerView ? playerVisionData : visibilityPolygons}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
-                opacity={isPlayerView ? 1.0 : 0.5}
+                opacity={isPlayerView ? 1.0 : 0.7}
               />
+            </Layer>
+          )}
+          {/* Map Notes — above fog so they're always visible to the DM */}
+          {!isPlayerView && mapNotes.length > 0 && (
+            <Layer>
+              {mapNotes.map(note => (
+                <Group
+                  key={note.id}
+                  x={note.x}
+                  y={note.y}
+                  draggable
+                  onDragEnd={(e) => handleNoteDragEnd(note.id, e)}
+                  onMouseEnter={() => setHoveredNoteId(note.id)}
+                  onMouseLeave={() => setHoveredNoteId(null)}
+                  onMouseDown={(e) => { e.cancelBubble = true; }}
+                  onClick={(e) => { e.cancelBubble = true; setLeftSidebarOpen(true); }}
+                >
+                  <Circle
+                    radius={tokenRadius * 0.6}
+                    fill={getNoteColor(note.type)}
+                    stroke={hoveredNoteId === note.id ? "white" : "rgba(0,0,0,0.4)"}
+                    strokeWidth={1}
+                    shadowBlur={hoveredNoteId === note.id ? 10 : 5}
+                    shadowColor="black"
+                  />
+                  <NoteMapIcon type={note.type} />
+
+                  {/* Tooltip */}
+                  {hoveredNoteId === note.id && (
+                    <Group y={-25} x={0}>
+                      <Rect
+                        fill="rgba(0,0,0,0.9)"
+                        stroke="rgba(255,255,255,0.1)"
+                        strokeWidth={1}
+                        cornerRadius={4}
+                        width={Math.min(400, note.content.length * 16 + 20)}
+                        height={Math.ceil(note.content.length / 25) * 32 + 12}
+                        x={-Math.min(400, note.content.length * 16 + 20) / 2}
+                        y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
+                        shadowBlur={10}
+                      />
+                      <Text
+                        text={note.content}
+                        fill="white"
+                        fontSize={22}
+                        padding={8}
+                        width={Math.min(400, note.content.length * 16 + 20)}
+                        x={-Math.min(400, note.content.length * 16 + 20) / 2}
+                        y={-(Math.ceil(note.content.length / 25) * 32 + 12)}
+                        align="center"
+                        fontFamily="Inter"
+                      />
+                    </Group>
+                  )}
+                </Group>
+              ))}
             </Layer>
           )}
         </Stage>

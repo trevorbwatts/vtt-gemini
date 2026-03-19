@@ -151,7 +151,7 @@ export interface Scenario {
   objectWalls?: WallSegment[];
   portals?: Portal[];
   gridResolution?: GridResolution;
-  darknessLevel?: 'daylight' | 'dim' | 'dark';
+  darknessLevel?: 'daylight' | 'dark';
 }
 
 export interface Campaign {

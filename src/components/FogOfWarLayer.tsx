@@ -4,7 +4,6 @@ import { WallPoint } from '../types';
 
 interface FogOfWarLayerProps {
   visibilityPolygons: WallPoint[][];
-  dimPolygons?: WallPoint[][];
   mapWidth: number;
   mapHeight: number;
   opacity: number;
@@ -12,7 +11,6 @@ interface FogOfWarLayerProps {
 
 export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
   visibilityPolygons,
-  dimPolygons,
   mapWidth,
   mapHeight,
   opacity,
@@ -24,8 +22,10 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
 
         c.save();
 
-        // Fill the entire map with fog
-        c.fillStyle = 'black';
+        // Fill the entire map with fog, baking opacity into the fill color so
+        // destination-out cuts clean holes without offscreen-buffer compositing
+        // artifacts (which occur when the Shape node itself has opacity < 1).
+        c.fillStyle = `rgba(0, 0, 0, ${opacity})`;
         c.fillRect(0, 0, mapWidth, mapHeight);
 
         // Use destination-out to erase the visible areas
@@ -44,28 +44,11 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
           c.fill();
         }
 
-        // Dim light overlay: re-darken areas where tokens see in dim light
-        // (non-darkvision characters in Dim darkness mode)
-        if (dimPolygons && dimPolygons.length > 0) {
-          c.globalCompositeOperation = 'source-over';
-          c.fillStyle = 'rgba(0, 0, 0, 0.42)';
-          for (const polygon of dimPolygons) {
-            if (polygon.length < 3) continue;
-            c.beginPath();
-            c.moveTo(polygon[0].x, polygon[0].y);
-            for (let i = 1; i < polygon.length; i++) {
-              c.lineTo(polygon[i].x, polygon[i].y);
-            }
-            c.closePath();
-            c.fill();
-          }
-        }
-
         // Reset compositing
         c.globalCompositeOperation = 'source-over';
         c.restore();
       }}
-      opacity={opacity}
+      opacity={1}
       listening={false}
       perfectDrawEnabled={false}
     />

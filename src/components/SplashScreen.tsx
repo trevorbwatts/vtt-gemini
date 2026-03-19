@@ -15,7 +15,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
 
   useEffect(() => {
     const campaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
-    setSavedCampaigns(campaigns);
+    setSavedCampaigns([...campaigns].reverse());
   }, []);
 
   const handleCreate = () => {
@@ -26,9 +26,10 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
 
   const deleteCampaign = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = savedCampaigns.filter(c => c.id !== id);
-    setSavedCampaigns(updated);
+    const all = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]') as Campaign[];
+    const updated = all.filter((c: Campaign) => c.id !== id);
     localStorage.setItem('dungeon_master_campaigns', JSON.stringify(updated));
+    setSavedCampaigns([...updated].reverse());
   };
 
   return (

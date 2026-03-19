@@ -8,6 +8,10 @@
 }
 
 @layer base {
+  *:focus {
+    outline: none;
+  }
+
   :root {
     /* Dark Mode D&D Aesthetic - Warmer Stone Grays */
     --bg: #0c0a09; /* stone-950 */

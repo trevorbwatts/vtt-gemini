@@ -228,7 +228,7 @@ export function DMScreen() {
     }) : prev);
   };
 
-  const updateDarknessLevel = (level: 'daylight' | 'dim' | 'dark') => {
+  const updateDarknessLevel = (level: 'daylight' | 'dark') => {
     setCampaign(prev => prev ? ({
       ...prev,
       scenarios: prev.scenarios.map(s =>
@@ -769,17 +769,6 @@ export function DMScreen() {
           }}
         />
 
-        {/* Footer */}
-        <footer className="h-6 border-t border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between text-[9px] font-sans opacity-50 uppercase tracking-widest shrink-0 z-20">
-          <div className="flex gap-4">
-            <span>SYSTEM: ONLINE</span>
-            <span>SESSION: 042</span>
-            <span className="text-[var(--accent)]">CAMPAIGN: {campaign.name}</span>
-          </div>
-          <div className="flex gap-4">
-            <span>LATENCY: 24MS</span>
-          </div>
-        </footer>
       </div>
     </div>
   );
