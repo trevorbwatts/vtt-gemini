@@ -1463,16 +1463,28 @@ export const MapView: React.FC<MapViewProps> = ({
                     {selectedMonster ? (
                       <>
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                          {/* Header: Name + Badges */}
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-lg font-bold tracking-tight">{selectedMonster.name}</h4>
-                            <div className="flex gap-1.5 shrink-0">
-                              <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-[10px] font-bold">HP {selectedMonster.hp}</div>
-                              <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-[10px] font-bold">AC {selectedMonster.ac}</div>
-                              <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">CR {selectedMonster.cr}</div>
+                          {/* Header: Avatar + Name + Badges */}
+                          <div className="flex items-center gap-3">
+                            {selectedMonster.avatar && (
+                              <img
+                                src={selectedMonster.avatar}
+                                alt={selectedMonster.name}
+                                className="w-12 h-12 rounded-full object-cover shrink-0 bg-black/20"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-lg font-bold tracking-tight truncate">{selectedMonster.name}</h4>
+                              <p className="text-[10px] italic opacity-50">{selectedMonster.type}</p>
+                            </div>
+                            <div className="flex flex-col gap-1 shrink-0 items-end">
+                              <div className="flex gap-1.5">
+                                <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-[10px] font-bold">HP {selectedMonster.hp}</div>
+                                <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-[10px] font-bold">AC {selectedMonster.ac}</div>
+                              </div>
+                              <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold self-end">CR {selectedMonster.cr}</div>
                             </div>
                           </div>
-                          <p className="text-[10px] italic opacity-50 -mt-2">{selectedMonster.type}</p>
 
                           {/* Speed / Senses / Languages */}
                           {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (

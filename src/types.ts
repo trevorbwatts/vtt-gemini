@@ -83,6 +83,7 @@ export interface Monster {
   legendaryActions?: MonsterAction[];
   reactions?: MonsterAction[];
   xp?: number;
+  avatar?: string;
 }
 
 export interface Combatant {
