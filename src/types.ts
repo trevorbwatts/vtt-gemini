@@ -115,6 +115,8 @@ export interface Combatant {
   features?: { name: string; desc: string; source?: string }[];
   feats?: { name: string; desc: string }[];
   inventory?: { name: string; quantity?: number; desc?: string; equipped?: boolean }[];
+  skills?: { name: string; ability: string; modifier: number; proficient: boolean; expertise: boolean }[];
+  savingThrows?: Record<string, { modifier: number; proficient: boolean }>;
   avatar?: string;
   color?: string;
 }

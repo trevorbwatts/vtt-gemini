@@ -47,6 +47,7 @@ export {
   TriangleAlert,
   Wind,
   Award,
+  Brain,
   BookOpen,
   BookOpenText,
   Backpack,

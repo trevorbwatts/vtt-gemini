@@ -17,6 +17,8 @@ const CURATED_COLORS = [
   '#6366f1', // Indigo
 ];
 
+const PLAYER_COLORS = CURATED_COLORS.filter(c => c !== '#ef4444');
+
 interface AddCombatantModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -253,7 +255,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                       Color
                     </label>
                     <div className="flex flex-wrap gap-2 py-1">
-                      {CURATED_COLORS.map(c => (
+                      {(type === 'player' ? PLAYER_COLORS : CURATED_COLORS).map(c => (
                         <button
                           key={c}
                           onClick={() => setColor(c)}
@@ -293,7 +295,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                     Color
                   </label>
                   <div className="flex flex-wrap gap-2 py-1">
-                    {CURATED_COLORS.map(c => (
+                    {PLAYER_COLORS.map(c => (
                       <button
                         key={c}
                         onClick={() => setColor(c)}

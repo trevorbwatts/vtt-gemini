@@ -11,6 +11,7 @@ import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileTex
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
+import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 
 export function DMScreen() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
@@ -774,6 +775,45 @@ export function DMScreen() {
                     t.combatantId === playerId ? { ...t, color } : t
                   )
                 }))
+              };
+            });
+          }}
+          onRefresh={async (playerId) => {
+            const player = campaign.players.find(p => p.id === playerId);
+            if (!player) return;
+            const syncUrl = player.dndBeyondUrl
+              || (player.dndBeyondId ? `https://www.dndbeyond.com/characters/${player.dndBeyondId}` : null);
+            if (!syncUrl || !window.electronAPI?.importDndBeyondCharacter) return;
+            const result = await window.electronAPI.importDndBeyondCharacter(syncUrl);
+            if (result.error) throw new Error(result.error);
+            const parsed = parseDndBeyondCharacter(result.data);
+            setCampaign(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                players: prev.players.map(p => p.id === playerId ? {
+                  ...p,
+                  name: parsed.name ?? p.name,
+                  hp: parsed.hp ?? p.hp,
+                  maxHp: parsed.maxHp ?? p.maxHp,
+                  ac: parsed.ac ?? p.ac,
+                  species: parsed.species ?? p.species,
+                  speed: parsed.speed ?? p.speed,
+                  darkvision: parsed.darkvision ?? p.darkvision,
+                  classes: parsed.classes ?? p.classes,
+                  initiative: parsed.initiative ?? p.initiative,
+                  stats: parsed.stats ?? p.stats,
+                  proficiencyBonus: parsed.proficiencyBonus ?? p.proficiencyBonus,
+                  actions: parsed.actions ?? p.actions,
+                  features: parsed.features ?? p.features,
+                  feats: parsed.feats ?? p.feats,
+                  inventory: parsed.inventory ?? p.inventory,
+                  skills: parsed.skills ?? p.skills,
+                  savingThrows: parsed.savingThrows ?? p.savingThrows,
+                  spells: parsed.spells ?? p.spells,
+                  avatar: parsed.avatar ?? p.avatar,
+                  dndBeyondId: parsed.dndBeyondId ?? p.dndBeyondId,
+                } : p),
               };
             });
           }}

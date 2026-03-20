@@ -155,7 +155,7 @@ function getSpells(data: any): { name: string; level: number; desc: string }[] {
     spells.push({
       name: def.name,
       level: def.level || 0,
-      desc: stripHtml(def.description || ''),
+      desc: sanitizeHtml(def.description || ''),
     });
   };
 
@@ -173,44 +173,151 @@ function getSpells(data: any): { name: string; level: number; desc: string }[] {
   return spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
 }
 
-// --- Actions (class features, racial traits) ---
+// --- Actions (activatable combat/resource abilities from DDB top-level actions) ---
 
 function getActions(data: any): MonsterAction[] {
-  const actions: MonsterAction[] = [];
   const seen = new Set<string>();
-
-  const addAction = (name: string, desc: string) => {
-    if (!name || seen.has(name)) return;
+  const result: MonsterAction[] = [];
+  const allGroups = [
+    ...(data.actions?.class || []),
+    ...(data.actions?.race || []),
+    ...(data.actions?.feat || []),
+    ...(data.actions?.background || []),
+    ...(data.actions?.item || []),
+  ];
+  for (const a of allGroups) {
+    const name = a.name;
+    const desc = a.snippet ? stripHtml(a.snippet) : sanitizeHtml(a.description || '');
+    if (!name || seen.has(name)) continue;
     seen.add(name);
-    actions.push({ name, desc: stripHtml(desc || '') });
-  };
+    result.push({ name, desc });
+  }
+  return result;
+}
 
-  // Class features
-  (data.classes || []).forEach((c: any) => {
-    (c.definition?.classFeatures || []).forEach((f: any) => {
-      if (f.requiredLevel <= c.level) {
-        addAction(f.name, f.description);
+// --- Features & Traits (class features, subclass features, racial traits) ---
+
+function getFeatures(data: any): { name: string; desc: string; source?: string }[] {
+  const seen = new Set<string>();
+  const result: { name: string; desc: string; source?: string }[] = [];
+
+  for (const c of data.classes || []) {
+    const className = c.definition?.name || 'Class';
+    for (const f of c.definition?.classFeatures || []) {
+      if (f.requiredLevel <= c.level && f.name && !seen.has(f.name)) {
+        seen.add(f.name);
+        result.push({ name: f.name, desc: sanitizeHtml(f.description || ''), source: className });
       }
-    });
-    // Subclass features
-    (c.subclassDefinition?.classFeatures || []).forEach((f: any) => {
-      if (f.requiredLevel <= c.level) {
-        addAction(f.name, f.description);
+    }
+    const subName = c.subclassDefinition?.name;
+    for (const f of c.subclassDefinition?.classFeatures || []) {
+      if (f.requiredLevel <= c.level && f.name && !seen.has(f.name)) {
+        seen.add(f.name);
+        result.push({ name: f.name, desc: sanitizeHtml(f.description || ''), source: subName || className });
       }
-    });
-  });
+    }
+  }
 
-  // Racial traits
-  (data.race?.racialTraits || []).forEach((t: any) => {
-    addAction(t.definition?.name, t.definition?.description);
-  });
+  const speciesName = data.race?.fullName || data.race?.baseRaceName || 'Species';
+  for (const t of data.race?.racialTraits || []) {
+    const name = t.definition?.name;
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      result.push({ name, desc: sanitizeHtml(t.definition?.description || ''), source: speciesName });
+    }
+  }
 
-  // Feats
-  (data.feats || []).forEach((f: any) => {
-    addAction(f.definition?.name, f.definition?.description);
-  });
+  return result;
+}
 
-  return actions;
+// --- Feats ---
+
+function getFeats(data: any): { name: string; desc: string }[] {
+  return (data.feats || [])
+    .filter((f: any) => f.definition?.name)
+    .map((f: any) => ({
+      name: f.definition.name,
+      desc: sanitizeHtml(f.definition.description || ''),
+    }));
+}
+
+// --- Saving Throws ---
+
+const SAVE_SUBTYPES: Record<string, string> = {
+  str: 'strength-saving-throws',
+  dex: 'dexterity-saving-throws',
+  con: 'constitution-saving-throws',
+  int: 'intelligence-saving-throws',
+  wis: 'wisdom-saving-throws',
+  cha: 'charisma-saving-throws',
+};
+
+function getSavingThrows(data: any): Record<string, { modifier: number; proficient: boolean }> {
+  const mods = getAllModifiers(data);
+  const prof = PROFICIENCY_BY_LEVEL[getLevel(data)] || 2;
+  const result: Record<string, { modifier: number; proficient: boolean }> = {};
+
+  for (const [ability, subType] of Object.entries(SAVE_SUBTYPES)) {
+    const statId = { str: 1, dex: 2, con: 3, int: 4, wis: 5, cha: 6 }[ability]!;
+    const abilityMod = getStatBonus(data, statId);
+    const proficient = mods.some(m => m.type === 'proficiency' && m.subType === subType);
+    result[ability] = { modifier: abilityMod + (proficient ? prof : 0), proficient };
+  }
+
+  return result;
+}
+
+// --- Skills ---
+
+const SKILLS: { name: string; ability: string; subType: string }[] = [
+  { name: 'Acrobatics',     ability: 'dex', subType: 'acrobatics' },
+  { name: 'Animal Handling',ability: 'wis', subType: 'animal-handling' },
+  { name: 'Arcana',         ability: 'int', subType: 'arcana' },
+  { name: 'Athletics',      ability: 'str', subType: 'athletics' },
+  { name: 'Deception',      ability: 'cha', subType: 'deception' },
+  { name: 'History',        ability: 'int', subType: 'history' },
+  { name: 'Insight',        ability: 'wis', subType: 'insight' },
+  { name: 'Intimidation',   ability: 'cha', subType: 'intimidation' },
+  { name: 'Investigation',  ability: 'int', subType: 'investigation' },
+  { name: 'Medicine',       ability: 'wis', subType: 'medicine' },
+  { name: 'Nature',         ability: 'int', subType: 'nature' },
+  { name: 'Perception',     ability: 'wis', subType: 'perception' },
+  { name: 'Performance',    ability: 'cha', subType: 'performance' },
+  { name: 'Persuasion',     ability: 'cha', subType: 'persuasion' },
+  { name: 'Religion',       ability: 'int', subType: 'religion' },
+  { name: 'Sleight of Hand',ability: 'dex', subType: 'sleight-of-hand' },
+  { name: 'Stealth',        ability: 'dex', subType: 'stealth' },
+  { name: 'Survival',       ability: 'wis', subType: 'survival' },
+];
+
+const STAT_ID_MAP: Record<string, number> = {
+  str: 1, dex: 2, con: 3, int: 4, wis: 5, cha: 6,
+};
+
+function getSkills(data: any): { name: string; ability: string; modifier: number; proficient: boolean; expertise: boolean }[] {
+  const mods = getAllModifiers(data);
+  const prof = PROFICIENCY_BY_LEVEL[getLevel(data)] || 2;
+
+  return SKILLS.map(({ name, ability, subType }) => {
+    const abilityMod = getStatBonus(data, STAT_ID_MAP[ability]);
+    const proficient = mods.some(m => m.type === 'proficiency' && m.subType === subType);
+    const expertise = mods.some(m => m.type === 'expertise' && m.subType === subType);
+    const bonus = expertise ? prof * 2 : proficient ? prof : 0;
+    return { name, ability, modifier: abilityMod + bonus, proficient, expertise };
+  });
+}
+
+// --- Inventory ---
+
+function getInventory(data: any): { name: string; quantity?: number; desc?: string; equipped?: boolean }[] {
+  return (data.inventory || [])
+    .filter((item: any) => item.definition?.name)
+    .map((item: any) => ({
+      name: item.definition.name,
+      quantity: item.quantity ?? 1,
+      desc: item.definition.description ? sanitizeHtml(item.definition.description) : undefined,
+      equipped: item.equipped ?? false,
+    }));
 }
 
 // --- Utility ---
@@ -223,6 +330,28 @@ function stripHtml(html: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Keeps safe formatting tags (<p>, <strong>, <em>, <br>, <ul>, <ol>, <li>)
+// so rich descriptions can be rendered as HTML in the UI.
+function sanitizeHtml(html: string): string {
+  const allowed = ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li'];
+  return html
+    // Strip attributes from tags and drop disallowed tags entirely
+    .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*\/?>/gi, (match, tag: string) => {
+      const t = tag.toLowerCase();
+      if (!allowed.includes(t)) return '';
+      const closing = match.startsWith('</');
+      if (closing) return `</${t}>`;
+      if (t === 'br') return '<br/>';
+      return `<${t}>`;
+    })
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)))
     .trim();
 }
 
@@ -256,6 +385,11 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
       cha: getStatValue(data, STAT_IDS.CHA),
     },
     actions: getActions(data),
+    features: getFeatures(data),
+    feats: getFeats(data),
+    inventory: getInventory(data),
+    skills: getSkills(data),
+    savingThrows: getSavingThrows(data),
     spells: getSpells(data),
     avatar: data.decorations?.avatarUrl || undefined,
   };
