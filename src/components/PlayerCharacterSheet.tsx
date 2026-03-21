@@ -238,7 +238,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
                     ? `${s.aoeSize ? `${s.aoeSize}ft ` : ''}${AOE_LABELS[s.aoeType]}`
                     : undefined;
                   const saveBadge = s.saveAbility
-                    ? `${s.saveAbility.toUpperCase()} Save`
+                    ? `${s.saveAbility.toUpperCase()} SAVE`
                     : undefined;
                   return (
                     <AccordionCard key={i} name={s.name} desc={s.desc}

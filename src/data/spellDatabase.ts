@@ -76,6 +76,7 @@ export function resolveSpells(spellNames: string[]): {
  */
 export function parseSpellcastingTrait(desc: string): {
   preamble: string;
+  saveDc?: number;
   spells: ReturnType<typeof resolveSpells>;
 } {
   const lines = desc.split('\n').filter(Boolean);
@@ -99,8 +100,12 @@ export function parseSpellcastingTrait(desc: string): {
     });
   }
 
+  const dcMatch = preamble.match(/DC\s*(\d+)/i);
+  const saveDc = dcMatch ? parseInt(dcMatch[1], 10) : undefined;
+
   return {
     preamble,
+    saveDc,
     spells: resolveSpells(spellNames),
   };
 }

@@ -1205,7 +1205,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 {selectedTokenIds.includes(token.id) && !isPlayerView && (
                   /* Inner rim — above drop shadow */
                   <Circle
-                    radius={r * 1.05}
+                    radius={r + 1.5 * tokenScale}
                     fill=""
                     stroke="white"
                     strokeWidth={tokenScale}
@@ -1961,25 +1961,27 @@ export const MapView: React.FC<MapViewProps> = ({
               <div className="flex items-center justify-between p-3 border-b border-[var(--line)] bg-black/20 shrink-0">
                 <div className="flex items-center gap-4 flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: token?.color }} />
-                    <h4 className="font-bold text-sm tracking-tight truncate">{combatant.name}</h4>
+                    <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: token?.color }} />
+                    <h4 className="font-bold text-base tracking-tight truncate">{combatant.name}</h4>
                   </div>
-                  {/* HP bar + controls */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/50">
-                        <span>{combatant.hp}/{combatant.maxHp} HP</span>
-                        <span className="opacity-40">·</span>
-                        <span>AC {combatant.ac}</span>
-                      </div>
-                      <div className="w-32 h-1.5 bg-black/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[var(--accent)] transition-all shadow-[0_0_6px_rgba(205,127,50,0.4)]"
-                          style={{ width: `${hpPct}%` }}
-                        />
-                      </div>
+                  {/* Stats & controls */}
+                  <div className="flex items-center gap-4 shrink-0 px-2 justify-end">
+                    <div className="text-xs font-bold text-white/50 uppercase tracking-widest">
+                      AC {combatant.ac}
                     </div>
-                    <div className="flex items-center gap-1">
+
+                    <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden ml-2 shadow-inner">
+                      <div
+                        className="h-full bg-[var(--accent)] transition-all shadow-[0_0_6px_rgba(205,127,50,0.4)]"
+                        style={{ width: `${hpPct}%` }}
+                      />
+                    </div>
+
+                    <div className="text-xs font-bold text-white/50 w-20 text-right tabular-nums">
+                      {combatant.hp}/{combatant.maxHp} HP
+                    </div>
+
+                    <div className="flex items-center gap-1 ml-2">
                       <button
                         onClick={() => applyPanelHpDelta(-1)}
                         className="w-6 h-6 flex items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
@@ -2092,7 +2094,7 @@ export const MapView: React.FC<MapViewProps> = ({
                             ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
                             : undefined;
                           const saveBadge = spell.saveAbility
-                            ? `${spell.saveAbility.toUpperCase()} Save`
+                            ? `${spell.saveAbility.toUpperCase()} SAVE`
                             : undefined;
                           return (
                             <SpellAccordion key={i} name={spell.name} desc={spell.desc}
@@ -2118,7 +2120,7 @@ export const MapView: React.FC<MapViewProps> = ({
                                   ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
                                   : undefined;
                                 const saveBadge = spell.saveAbility
-                                  ? `${spell.saveAbility.toUpperCase()} Save`
+                                  ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}`
                                   : undefined;
                                 return (
                                   <SpellAccordion key={i} name={spell.name} desc={spell.desc}
