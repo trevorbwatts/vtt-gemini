@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Combatant, cn, ClassDefinition } from '../types';
-import { Minus, Plus, Trash2, Heart, Shield, Zap, Swords, ChevronRight, Wind, Skull } from '../icons';
+import { Minus, Plus, Trash2, Heart, Shield, Zap, Swords, ChevronRight, Wind, Footprints, Skull } from '../icons';
 import { motion, Reorder } from 'motion/react';
+import { SpeedText } from './SpeedText';
 
 const getCharacterLevel = (classes?: ClassDefinition[]) => {
   return classes?.reduce((sum, c) => sum + c.level, 0) || 0;
@@ -18,6 +19,7 @@ interface CombatViewProps {
   players: Combatant[];
   npcs: Combatant[];
   persistentEnemies: Combatant[];
+  onCombatantClick?: (combatantId: string, tokenId: string) => void;
   onClose?: () => void;
 }
 
@@ -27,6 +29,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
   players,
   npcs,
   persistentEnemies,
+  onCombatantClick,
   onClose
 }) => {
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
@@ -146,15 +149,30 @@ export const CombatView: React.FC<CombatViewProps> = ({
               return (
                 <div
                   key={c.id}
+                  onClick={() => onCombatantClick?.(c.id, c.id)}
                   className={cn(
-                    "relative overflow-hidden rounded-lg border transition-all p-3",
+                    "relative overflow-hidden rounded-lg border transition-all p-3 cursor-pointer",
                     isActive
                       ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]"
                       : "bg-[#181512] border-[#2e261d]"
                   )}
                 >
-                  {/* Top row: avatar, name/stats, initiative + delete */}
+                  {/* Top row: initiative, avatar, name/stats, delete */}
                   <div className="flex items-center gap-3">
+                    {/* Initiative input */}
+                    <div className="flex items-center shrink-0">
+                      <input
+                        type="number"
+                        value={c.initiative}
+                        onChange={(e) => updateInitiative(c.id, parseInt(e.target.value) || 0)}
+                        disabled={combatStarted}
+                        className={cn(
+                          "w-8 h-7 rounded text-[13px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                          combatStarted ? "opacity-80 cursor-default" : "hover:border-white/30"
+                        )}
+                      />
+                    </div>
+
                     {/* Avatar */}
                     {c.avatar ? (
                       <div className={cn(
@@ -194,23 +212,13 @@ export const CombatView: React.FC<CombatViewProps> = ({
                           <Shield size={10} /> {c.ac}
                         </span>
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/5 px-2 py-0.5 rounded-full text-white/60">
-                          <Wind size={10} /> {!isPlayer && c.speedText ? c.speedText : `${c.speed || 30}ft`}
+                          <Footprints size={10} /> {!isPlayer && c.speedText ? <SpeedText text={c.speedText} /> : `${c.speed || 30}ft`}
                         </span>
                       </div>
                     </div>
 
-                    {/* Initiative input + delete */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <input
-                        type="number"
-                        value={c.initiative}
-                        onChange={(e) => updateInitiative(c.id, parseInt(e.target.value) || 0)}
-                        disabled={combatStarted}
-                        className={cn(
-                          "w-8 h-7 rounded text-[13px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                          combatStarted ? "opacity-80 cursor-default" : "hover:border-white/30"
-                        )}
-                      />
+                    {/* Delete */}
+                    <div className="flex items-center shrink-0">
                       <button onClick={() => removeCombatant(c.id)} className="p-1 hover:bg-white/10 rounded opacity-30 hover:opacity-100 transition-opacity text-white">
                         <Trash2 size={14} />
                       </button>

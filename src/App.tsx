@@ -26,6 +26,7 @@ export function DMScreen() {
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
   const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
 
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -678,6 +679,8 @@ export function DMScreen() {
                 onUpdateCombatantHp={updateCombatantHp}
                 onAddEnemy={addEnemyToMap}
                 onStartCombat={startCombat}
+                selectedTokenId={selectedTokenId}
+                onSelectedTokenIdChange={setSelectedTokenId}
                 leftSidebarOpen={leftSidebarOpen}
                 setLeftSidebarOpen={setLeftSidebarOpen}
                 onNoteClick={(id) => setHighlightedNoteId(id)}
@@ -727,9 +730,9 @@ export function DMScreen() {
           {/* Right Sidebar: Combat View (overlay) */}
           <motion.aside
             initial={false}
-            animate={{ x: rightSidebarOpen ? 0 : 350 }}
+            animate={{ x: rightSidebarOpen ? 0 : 400 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-y-0 right-0 w-[350px] bg-[var(--surface)] border-l border-[var(--line)] z-20 overflow-hidden"
+            className="absolute inset-y-0 right-0 w-[400px] bg-[var(--surface)] border-l border-[var(--line)] z-20 overflow-hidden"
           >
             <div className="w-full h-full relative">
               <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
@@ -737,6 +740,10 @@ export function DMScreen() {
                 <CombatView
                   activeCombatants={currentScenario.activeCombatants || []}
                   onActiveCombatantsChange={updateActiveCombatants}
+                  onCombatantClick={(cid) => {
+                    const tid = cid.startsWith('combat-') ? cid.replace('combat-', '') : cid;
+                    setSelectedTokenId(tid);
+                  }}
                   players={campaign.players || []}
                   npcs={campaign.npcs || []}
                   persistentEnemies={campaign.persistentEnemies || []}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Campaign, Combatant, cn, ClassDefinition } from '../types';
-import { X, Plus, Trash2, User, Shield, Heart, Sword, Zap, Wind, Eye, RefreshCw, Settings } from '../icons';
+import { X, Plus, Trash2, User, Shield, Heart, Sword, Zap, Wind, Footprints, Eye, RefreshCw, Settings } from '../icons';
 import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 
 interface CampaignSettingsProps {
@@ -262,7 +262,7 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, on
                         </div>
                         <div className="space-y-1">
                           <label className="text-[9px] uppercase tracking-widest opacity-50 flex items-center gap-1">
-                            <Wind size={10} /> Speed
+                            <Footprints size={10} /> Speed
                           </label>
                           {c.dndBeyondId ? (
                             <div className="px-2 py-1 font-mono text-sm opacity-60">{c.speed || 0} ft</div>

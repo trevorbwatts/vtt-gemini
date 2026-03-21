@@ -124,6 +124,7 @@ export interface Combatant {
   color?: string;
   speedText?: string;
   cr?: string;
+  actions?: MonsterAction[];
   specialAbilities?: MonsterAction[];
   /** When this combatant is an activeCombatant copy, stores the id of the original source combatant */
   sourceCombatantId?: string;

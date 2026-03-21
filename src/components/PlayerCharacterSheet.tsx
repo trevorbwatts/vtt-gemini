@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, Sparkles, RefreshCw, ChevronDown } from '../icons';
+import { X, Shield, Heart, Zap, Footprints, Eye, MoreVertical, Trash2, Sparkles, RefreshCw, ChevronDown } from '../icons';
 import { Combatant, cn } from '../types';
 
 interface PlayerCharacterSheetProps {
@@ -109,7 +109,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
               {player.speed != null && <>
                 <div className="w-px h-8 bg-white/10" />
                 <div className="text-center">
-                  <div className="flex items-center gap-1 text-[10px] opacity-40 uppercase tracking-wider justify-center"><Zap size={11} style={{ color: '#f59e0b' }} />Spd</div>
+                  <div className="flex items-center gap-1 text-[10px] opacity-40 uppercase tracking-wider justify-center"><Footprints size={11} style={{ color: '#f59e0b' }} />Spd</div>
                   <div className="text-sm font-bold font-serif">{player.speed} ft</div>
                 </div>
               </>}

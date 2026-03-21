@@ -2,13 +2,14 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown } from '../icons';
+import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown, Footprints } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
+import { SpeedText } from './SpeedText';
 
 /** Expandable spell card used in the token detail panel */
 const SpellAccordion: React.FC<{
@@ -92,6 +93,8 @@ interface MapViewProps {
   onDragStatusChange?: (isDragging: boolean) => void;
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
+  selectedTokenId?: string | null;
+  onSelectedTokenIdChange?: (id: string | null) => void;
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
 }
@@ -173,6 +176,8 @@ export const MapView: React.FC<MapViewProps> = ({
   onDragStatusChange,
   onViewportCenter,
   viewportCenter,
+  selectedTokenId: externalSelectedId,
+  onSelectedTokenIdChange,
   darknessLevel,
   onDarknessLevelChange,
 }) => {
@@ -209,6 +214,17 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showFog, setShowFog] = useState(true);
   const [darknessOpen, setDarknessOpen] = useState(false);
   const [panelHpInput, setPanelHpInput] = useState('');
+  
+  // Sync external selection from Initiative Tracker
+  useEffect(() => {
+    if (externalSelectedId) {
+      setSelectedTokenIds([externalSelectedId]);
+      setSelectedTokenId(externalSelectedId);
+    } else {
+      setSelectedTokenIds([]);
+      setSelectedTokenId(null);
+    }
+  }, [externalSelectedId]);
 
   // ── AoE Casting State ──
   const [castingSpell, setCastingSpell] = useState<{
@@ -1190,6 +1206,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   } else {
                     setSelectedTokenIds([token.id]);
                     setSelectedTokenId(token.id);
+                    onSelectedTokenIdChange?.(token.id);
                   }
                 }}
               >
@@ -1756,7 +1773,7 @@ export const MapView: React.FC<MapViewProps> = ({
                           {/* Speed / Senses / Languages */}
                           {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (
                             <div className="text-[10px] space-y-0.5 opacity-60">
-                              {selectedMonster.speed && <div><span className="font-bold">Speed:</span> {selectedMonster.speed}</div>}
+                              {selectedMonster.speed && <div><span className="font-bold">Speed:</span> <SpeedText text={selectedMonster.speed} /></div>}
                               {selectedMonster.senses && <div><span className="font-bold">Senses:</span> {selectedMonster.senses}</div>}
                               {selectedMonster.languages && <div><span className="font-bold">Languages:</span> {selectedMonster.languages}</div>}
                             </div>
@@ -1966,9 +1983,15 @@ export const MapView: React.FC<MapViewProps> = ({
                   </div>
                   {/* Stats & controls */}
                   <div className="flex items-center gap-4 shrink-0 px-2 justify-end">
-                    <div className="text-xs font-bold text-white/50 uppercase tracking-widest">
+                    <div className="text-xs font-bold text-white/50 uppercase tracking-widest flex items-center gap-1">
                       AC {combatant.ac}
                     </div>
+                    {(combatant.speedText || combatant.speed != null) && (
+                      <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest flex items-center gap-1">
+                        <Footprints size={12} className="opacity-70" />
+                        <SpeedText text={combatant.speedText ? combatant.speedText : `${combatant.speed} ft.`} />
+                      </div>
+                    )}
 
                     <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden ml-2 shadow-inner">
                       <div
@@ -2041,7 +2064,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {combatant.species && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{combatant.species}</span>}
-                    {combatant.speed && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{combatant.speed}ft Speed</span>}
+                    {(combatant.speedText || combatant.speed != null) && <span className="px-2 py-1 bg-white/5 rounded flex-wrap flex gap-1 items-center text-[10px]"><SpeedText text={combatant.speedText ? combatant.speedText : `${combatant.speed} ft`} /> Speed</span>}
                     {combatant.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{combatant.darkvision}ft Darkvision</span>}
                   </div>
                 </div>
