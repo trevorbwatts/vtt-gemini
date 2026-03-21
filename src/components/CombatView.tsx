@@ -20,6 +20,8 @@ interface CombatViewProps {
   npcs: Combatant[];
   persistentEnemies: Combatant[];
   onCombatantClick?: (combatantId: string, tokenId: string) => void;
+  onStartCombat?: () => void;
+  selectedTokenCount?: number;
   onClose?: () => void;
 }
 
@@ -30,6 +32,8 @@ export const CombatView: React.FC<CombatViewProps> = ({
   npcs,
   persistentEnemies,
   onCombatantClick,
+  onStartCombat,
+  selectedTokenCount = 0,
   onClose
 }) => {
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
@@ -116,18 +120,31 @@ export const CombatView: React.FC<CombatViewProps> = ({
 
       {/* Action Buttons */}
       <div className="px-5 py-4 flex gap-3 shrink-0">
-        <button
-          onClick={clearCombat}
-          className="btn-ghost flex-1 py-2.5 rounded"
-        >
-          Clear
-        </button>
-        <button
-          onClick={nextTurn}
-          className="btn-filled flex-[2] py-2.5 rounded flex items-center justify-center"
-        >
-          {combatStarted ? 'Next' : 'Start'}
-        </button>
+        {!combatStarted && activeCombatants.length === 0 ? (
+          <button
+            onClick={onStartCombat}
+            disabled={selectedTokenCount === 0}
+            className="btn-filled w-full py-2.5 rounded flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Swords size={14} />
+            Roll Initiative {selectedTokenCount > 0 ? `(${selectedTokenCount})` : ''}
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={clearCombat}
+              className="btn-ghost flex-1 py-2.5 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            >
+              Clear
+            </button>
+            <button
+              onClick={nextTurn}
+              className="btn-filled flex-[2] py-2.5 rounded flex items-center justify-center"
+            >
+              {combatStarted ? 'Next Turn' : 'Start Combat'}
+            </button>
+          </>
+        )}
       </div>
 
       {/* List */}

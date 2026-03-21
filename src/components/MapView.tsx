@@ -95,6 +95,8 @@ interface MapViewProps {
   viewportCenter?: { x: number; y: number } | null;
   selectedTokenId?: string | null;
   onSelectedTokenIdChange?: (id: string | null) => void;
+  selectedTokenIds?: string[];
+  onSelectedTokenIdsChange?: (ids: string[]) => void;
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
 }
@@ -178,6 +180,8 @@ export const MapView: React.FC<MapViewProps> = ({
   viewportCenter,
   selectedTokenId: externalSelectedId,
   onSelectedTokenIdChange,
+  selectedTokenIds: externalSelectedTokenIds,
+  onSelectedTokenIdsChange,
   darknessLevel,
   onDarknessLevelChange,
 }) => {
@@ -203,26 +207,29 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showSource2024, setShowSource2024] = useState(true);
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [monsterQuantity, setMonsterQuantity] = useState(1);
-  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
-  const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
+  const [internalSelectedTokenId, setInternalSelectedTokenId] = useState<string | null>(null);
+  const selectedTokenId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedTokenId;
+  const setSelectedTokenId = externalSelectedId !== undefined && onSelectedTokenIdChange ? onSelectedTokenIdChange : setInternalSelectedTokenId;
+  
+  const [internalSelectedTokenIds, setInternalSelectedTokenIds] = useState<string[]>([]);
+  const selectedTokenIds = externalSelectedTokenIds !== undefined ? externalSelectedTokenIds : internalSelectedTokenIds;
+  const setSelectedTokenIds = externalSelectedTokenIds !== undefined && onSelectedTokenIdsChange ? onSelectedTokenIdsChange : setInternalSelectedTokenIds;
+  
   const [showWalls, setShowWalls] = useState(true);
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectionRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const didMarqueeRef = useRef(false);
 
-  const [showFog, setShowFog] = useState(true);
+  const [showFog, setShowFog] = useState(false);
   const [darknessOpen, setDarknessOpen] = useState(false);
   const [panelHpInput, setPanelHpInput] = useState('');
   
   // Sync external selection from Initiative Tracker
   useEffect(() => {
-    if (externalSelectedId) {
-      setSelectedTokenIds([externalSelectedId]);
+    // We already sync selectedTokenIds in App.tsx now
+    if (externalSelectedId !== undefined) {
       setSelectedTokenId(externalSelectedId);
-    } else {
-      setSelectedTokenIds([]);
-      setSelectedTokenId(null);
     }
   }, [externalSelectedId]);
 
@@ -656,7 +663,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const deleteToken = (tokenId: string) => {
     onTokensChange(tokens.filter(t => t.id !== tokenId));
-    setSelectedTokenIds(prev => prev.filter(id => id !== tokenId));
+    setSelectedTokenIds(selectedTokenIds.filter(id => id !== tokenId));
     if (selectedTokenId === tokenId) {
       setSelectedTokenId(null);
     }
@@ -998,7 +1005,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setDarknessOpen(o => !o)}
-                  className="btn-ghost py-1 gap-2 w-[110px] justify-between"
+                  className="btn-ghost py-1 gap-2 w-[130px] justify-between"
                 >
                   <span className="flex items-center gap-1.5">
                     {(darknessLevel ?? 'dark') === 'daylight'
@@ -1200,8 +1207,8 @@ export const MapView: React.FC<MapViewProps> = ({
                 onClick={(e) => {
                   e.cancelBubble = true;
                   if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey) {
-                    setSelectedTokenIds(prev =>
-                      prev.includes(token.id) ? prev.filter(id => id !== token.id) : [...prev, token.id]
+                    setSelectedTokenIds(
+                      selectedTokenIds.includes(token.id) ? selectedTokenIds.filter(id => id !== token.id) : [...selectedTokenIds, token.id]
                     );
                   } else {
                     setSelectedTokenIds([token.id]);

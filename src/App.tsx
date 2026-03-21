@@ -27,6 +27,7 @@ export function DMScreen() {
   const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
 
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -681,6 +682,8 @@ export function DMScreen() {
                 onStartCombat={startCombat}
                 selectedTokenId={selectedTokenId}
                 onSelectedTokenIdChange={setSelectedTokenId}
+                selectedTokenIds={selectedTokenIds}
+                onSelectedTokenIdsChange={setSelectedTokenIds}
                 leftSidebarOpen={leftSidebarOpen}
                 setLeftSidebarOpen={setLeftSidebarOpen}
                 onNoteClick={(id) => setHighlightedNoteId(id)}
@@ -743,7 +746,15 @@ export function DMScreen() {
                   onCombatantClick={(cid) => {
                     const tid = cid.startsWith('combat-') ? cid.replace('combat-', '') : cid;
                     setSelectedTokenId(tid);
+                    setSelectedTokenIds([tid]);
                   }}
+                  onStartCombat={() => {
+                    if (selectedTokenIds.length > 0) {
+                      startCombat(selectedTokenIds);
+                      setSelectedTokenIds([]);
+                    }
+                  }}
+                  selectedTokenCount={selectedTokenIds.length}
                   players={campaign.players || []}
                   npcs={campaign.npcs || []}
                   persistentEnemies={campaign.persistentEnemies || []}
