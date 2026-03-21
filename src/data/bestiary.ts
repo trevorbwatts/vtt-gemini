@@ -12,7 +12,7 @@ function tokenSlug(name: string): string {
 function withAvatar(monsters: Monster[]): Monster[] {
   return monsters.map(m => ({
     ...m,
-    avatar: `/tokens/${tokenSlug(m.name)}.png`,
+    avatar: `/tokens/${tokenSlug(m.name)}.jpg`,
   }));
 }
 

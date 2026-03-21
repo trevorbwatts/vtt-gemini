@@ -44,6 +44,17 @@ interface MapViewProps {
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
 }
 
+function getTokenSizeMultiplier(size?: Token['size']): number {
+  switch (size) {
+    case 'Tiny':        return 0.5;
+    case 'Small':       return 1;
+    case 'Large':       return 2;
+    case 'Huge':        return 3;
+    case 'Gargantuan':  return 4;
+    default:            return 1; // Medium / unset
+  }
+}
+
 const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
 
@@ -1039,7 +1050,9 @@ export const MapView: React.FC<MapViewProps> = ({
               />
             )}
 
-            {tokens.map(token => (
+            {tokens.map(token => {
+              const r = tokenRadius * getTokenSizeMultiplier(token.size);
+              return (
               <Group
                 key={token.id}
                 x={livePlayerPos[token.id]?.x ?? token.x}
@@ -1063,7 +1076,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 }}
               >
                 <Circle
-                  radius={tokenRadius}
+                  radius={r}
                   fill={token.avatar ? "transparent" : token.color}
                   stroke={token.color}
                   strokeWidth={2 * tokenScale}
@@ -1074,7 +1087,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 {selectedTokenIds.includes(token.id) && !isPlayerView && (
                   /* Inner rim — above drop shadow */
                   <Circle
-                    radius={tokenRadius * 1.05}
+                    radius={r * 1.05}
                     fill=""
                     stroke="white"
                     strokeWidth={tokenScale}
@@ -1085,7 +1098,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   <Group opacity={token.hidden ? 0.4 : 1}>
                     <TokenAvatar
                       url={token.avatar}
-                      radius={tokenRadius - tokenScale}
+                      radius={r - tokenScale}
                     />
                   </Group>
                 )}
@@ -1105,7 +1118,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   text={token.name}
                   fontSize={Math.max(10, tokenRadius * 0.55)}
                   fill="white"
-                  y={tokenRadius + 5}
+                  y={r + 5}
                   align="center"
                   width={tokenRadius * 5}
                   x={-tokenRadius * 2.5}
@@ -1114,7 +1127,8 @@ export const MapView: React.FC<MapViewProps> = ({
                   opacity={token.hidden ? 0.6 : 1}
                 />
               </Group>
-            ))}
+              );
+            })}
           </Layer>
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
@@ -1604,9 +1618,12 @@ export const MapView: React.FC<MapViewProps> = ({
                           </div>
                           <button
                             onClick={() => {
+                              const offsetPx = 10 * getTokenSizeMultiplier(
+                                (selectedMonster.size?.split('/')[0]?.trim() as Token['size']) || 'Medium'
+                              );
                               for (let i = 0; i < monsterQuantity; i++) {
                                 // Add a small offset for each subsequent token so they aren't perfectly stacked
-                                onAddEnemy(selectedMonster, contextMenu.x + (i * 10), contextMenu.y + (i * 10));
+                                onAddEnemy(selectedMonster, contextMenu.x + (i * offsetPx), contextMenu.y + (i * offsetPx));
                               }
                               setContextMenu(null);
                             }}

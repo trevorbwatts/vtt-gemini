@@ -40,6 +40,7 @@ export interface Token {
   hidden?: boolean;
   combatantId?: string;
   avatar?: string;
+  size?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
 }
 
 export interface ClassDefinition {

@@ -6,7 +6,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
-import { cn, Campaign, Scenario, Combatant, WallSegment, Portal, GridResolution, MapNote } from './types';
+import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote } from './types';
 import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -285,7 +285,8 @@ export function DMScreen() {
           x,
           y,
           color: '#ef4444',
-          avatar: newEnemy.avatar
+          avatar: newEnemy.avatar,
+          size: (monster.size?.split('/')[0]?.trim() as Token['size']) || 'Medium',
         }],
         combatants: [...(s.combatants || []), newEnemy]
       } : s),
