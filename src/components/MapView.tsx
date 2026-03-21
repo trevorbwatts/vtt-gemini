@@ -215,8 +215,9 @@ export const MapView: React.FC<MapViewProps> = ({
     name: string;
     aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
     aoeSize: number; // feet
-    originX: number; // caster token world coords
+    originX: number; // caster token center world coords
     originY: number;
+    casterRadiusPx: number; // token radius in world pixels — for edge-origin offset
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<{
@@ -227,6 +228,7 @@ export const MapView: React.FC<MapViewProps> = ({
     originX: number;
     originY: number;
     angle: number;
+    casterRadiusPx: number;
   } | null>(null);
 
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
@@ -792,6 +794,7 @@ export const MapView: React.FC<MapViewProps> = ({
           originX: castingSpell.originX,
           originY: castingSpell.originY,
           angle,
+          casterRadiusPx: castingSpell.casterRadiusPx,
         });
         setCastingSpell(null);
         setCastingMousePos(null);
@@ -1260,6 +1263,7 @@ export const MapView: React.FC<MapViewProps> = ({
               originX: castingSpell.originX,
               originY: castingSpell.originY,
               angle: Math.atan2(castingMousePos.y - castingSpell.originY, castingMousePos.x - castingSpell.originX) * (180 / Math.PI),
+              casterRadiusPx: castingSpell.casterRadiusPx,
               opacity: 0.25,
             } : placedAoe ? {
               ...placedAoe,
@@ -1302,12 +1306,15 @@ export const MapView: React.FC<MapViewProps> = ({
                   />
                 )}
 
-                {/* Cone — wedge from caster toward target */}
+                {/* Cone — wedge from token edge toward target */}
                 {aoe.aoeType === 'cone' && (() => {
                   const angleRad = aoe.angle * (Math.PI / 180);
                   const halfAngle = (53 / 2) * (Math.PI / 180); // D&D cone is ~53 degrees
+                  // Start from the token's edge, not center
+                  const edgeX = aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx;
+                  const edgeY = aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx;
                   const points = [
-                    0, 0, // origin (relative)
+                    0, 0,
                     Math.cos(angleRad - halfAngle) * sizePx,
                     Math.sin(angleRad - halfAngle) * sizePx,
                     Math.cos(angleRad - halfAngle / 2) * sizePx,
@@ -1321,8 +1328,8 @@ export const MapView: React.FC<MapViewProps> = ({
                   ];
                   return (
                     <Line
-                      x={aoe.originX}
-                      y={aoe.originY}
+                      x={edgeX}
+                      y={edgeY}
                       points={points}
                       closed
                       fill={fillColor}
@@ -1333,9 +1340,12 @@ export const MapView: React.FC<MapViewProps> = ({
                   );
                 })()}
 
-                {/* Line — rectangle from caster toward target */}
+                {/* Line — rectangle from token edge toward target */}
                 {aoe.aoeType === 'line' && (() => {
                   const angleRad = aoe.angle * (Math.PI / 180);
+                  // Start from the token's edge, not center
+                  const edgeX = aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx;
+                  const edgeY = aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx;
                   const halfWidth = feetToPx(5) / 2; // 5ft wide
                   const perpX = Math.cos(angleRad + Math.PI / 2) * halfWidth;
                   const perpY = Math.sin(angleRad + Math.PI / 2) * halfWidth;
@@ -1349,8 +1359,8 @@ export const MapView: React.FC<MapViewProps> = ({
                   ];
                   return (
                     <Line
-                      x={aoe.originX}
-                      y={aoe.originY}
+                      x={edgeX}
+                      y={edgeY}
                       points={points}
                       closed
                       fill={fillColor}
@@ -2063,12 +2073,14 @@ export const MapView: React.FC<MapViewProps> = ({
 
                       const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number }) => {
                         if (!spell.aoeType || !spell.aoeSize) return;
+                        const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token?.size);
                         setCastingSpell({
                           name: spell.name,
                           aoeType: spell.aoeType as any,
                           aoeSize: spell.aoeSize,
                           originX: tokenX,
                           originY: tokenY,
+                          casterRadiusPx,
                         });
                         setPlacedAoe(null);
                       };

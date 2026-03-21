@@ -18,7 +18,7 @@ export function DMScreen() {
   const [highlightedNoteId, setHighlightedNoteId] = useState<string | null>(null);
   const [panToNote, setPanToNote] = useState<MapNote | null>(null);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
-  const [navSidebarOpen, setNavSidebarOpen] = useState(true);
+  const [navSidebarOpen, setNavSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
