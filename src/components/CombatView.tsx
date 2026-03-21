@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Combatant, cn, ClassDefinition } from '../types';
-import { Plus, Trash2, ChevronUp, ChevronDown, Heart, Shield, Zap, Swords, ChevronRight } from '../icons';
+import { Minus, Plus, Trash2, Heart, Shield, Zap, Swords, ChevronRight, Wind, Skull } from '../icons';
 import { motion, Reorder } from 'motion/react';
 
 const getCharacterLevel = (classes?: ClassDefinition[]) => {
@@ -21,15 +21,16 @@ interface CombatViewProps {
   onClose?: () => void;
 }
 
-export const CombatView: React.FC<CombatViewProps> = ({ 
+export const CombatView: React.FC<CombatViewProps> = ({
   activeCombatants,
   onActiveCombatantsChange,
-  players, 
-  npcs, 
+  players,
+  npcs,
   persistentEnemies,
   onClose
 }) => {
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
+  const [hpInputs, setHpInputs] = useState<Record<string, string>>({});
 
   const sortedCombatants = useMemo(() => {
     return [...activeCombatants].sort((a, b) => {
@@ -45,13 +46,20 @@ export const CombatView: React.FC<CombatViewProps> = ({
   };
 
   const updateHp = (id: string, delta: number) => {
-    onActiveCombatantsChange(activeCombatants.map(c => 
+    onActiveCombatantsChange(activeCombatants.map(c =>
       c.id === id ? { ...c, hp: Math.max(0, Math.min(c.maxHp, c.hp + delta)) } : c
     ));
   };
 
+  const applyHpDelta = (id: string, sign: 1 | -1) => {
+    const val = parseInt(hpInputs[id] || '0', 10);
+    if (!val) return;
+    updateHp(id, val * sign);
+    setHpInputs(prev => ({ ...prev, [id]: '' }));
+  };
+
   const updateInitiative = (id: string, value: number) => {
-    onActiveCombatantsChange(activeCombatants.map(c => 
+    onActiveCombatantsChange(activeCombatants.map(c =>
       c.id === id ? { ...c, initiative: value } : c
     ));
   };
@@ -85,11 +93,13 @@ export const CombatView: React.FC<CombatViewProps> = ({
     setActiveCombatantId(null);
   };
 
+  const combatStarted = activeCombatantId !== null;
+
   return (
     <div className="h-full flex flex-col bg-transparent relative z-10 font-sans">
       {/* Title Row */}
       <div className="h-10 px-5 border-b border-[var(--line)] flex justify-between items-center shrink-0">
-        <button 
+        <button
           onClick={onClose}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity group"
         >
@@ -103,17 +113,17 @@ export const CombatView: React.FC<CombatViewProps> = ({
 
       {/* Action Buttons */}
       <div className="px-5 py-4 flex gap-3 shrink-0">
-        <button 
+        <button
           onClick={clearCombat}
           className="btn-ghost flex-1 py-2.5 rounded"
         >
           Clear
         </button>
-        <button 
+        <button
           onClick={nextTurn}
-          className="btn-filled flex-[2] py-2.5 rounded flex items-center justify-center gap-2"
+          className="btn-filled flex-[2] py-2.5 rounded flex items-center justify-center"
         >
-          Next &rarr;
+          {combatStarted ? 'Next' : 'Start'}
         </button>
       </div>
 
@@ -127,74 +137,127 @@ export const CombatView: React.FC<CombatViewProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            {sortedCombatants.map((c) => (
-              <div 
-                key={c.id} 
-                className={cn(
-                  "relative overflow-hidden rounded-lg border transition-all flex items-stretch h-[76px]",
-                  activeCombatantId === c.id 
-                    ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]" 
-                    : "bg-[#181512] border-[#2e261d]"
-                )}
-              >
-                {/* Colored Left Bar */}
-                <div className={cn(
-                  "w-1.5 shrink-0",
-                  c.type === 'enemy' ? "bg-red-500" : 
-                  c.type === 'player' ? "bg-blue-500" : "bg-emerald-600"
-                )} />
+            {sortedCombatants.map((c) => {
+              const isActive = activeCombatantId === c.id;
+              const hpPct = c.maxHp > 0 ? (c.hp / c.maxHp) * 100 : 0;
+              const isEnemy = c.type === 'enemy';
+              const isPlayer = c.type === 'player';
 
-                <div className="flex-1 py-3 pr-3 flex items-center gap-4">
-                  {/* Initiative Box */}
-                  <div className="ml-3 w-8 h-8 bg-black rounded flex items-center justify-center text-[15px] font-bold text-white shrink-0 border border-white/5">
-                    {c.initiative}
-                  </div>
+              return (
+                <div
+                  key={c.id}
+                  className={cn(
+                    "relative overflow-hidden rounded-lg border transition-all p-3",
+                    isActive
+                      ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]"
+                      : "bg-[#181512] border-[#2e261d]"
+                  )}
+                >
+                  {/* Top row: avatar, name/stats, initiative + delete */}
+                  <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    {c.avatar ? (
+                      <div className={cn(
+                        "w-11 h-11 rounded-full overflow-hidden border-2 shrink-0",
+                        isEnemy ? "border-red-500" :
+                        isPlayer ? "border-blue-500" : "border-emerald-500"
+                      )}>
+                        <img src={c.avatar} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className={cn(
+                        "w-11 h-11 rounded-full flex items-center justify-center border-2 shrink-0",
+                        isEnemy ? "border-red-500 bg-red-500/10" :
+                        isPlayer ? "border-blue-500 bg-blue-500/10" : "border-emerald-500 bg-emerald-500/10"
+                      )}>
+                        <Skull size={18} className="text-white/40" />
+                      </div>
+                    )}
 
-                  {/* Info Column */}
-                  <div className="flex-1 flex flex-col justify-center min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="font-bold text-[16px] truncate font-serif text-white tracking-wide">{c.name}</div>
-                      {c.type === 'player' && (
-                        <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/30">
-                          LVL {getCharacterLevel(c.classes)}
+                    {/* Center: name + stat pills */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="font-bold text-[15px] truncate font-serif text-white tracking-wide">{c.name}</div>
+                        {isPlayer && (
+                          <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-blue-500/30">
+                            LVL {getCharacterLevel(c.classes)}
+                          </span>
+                        )}
+                        {!isPlayer && c.cr && (
+                          <span className="text-[8px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border border-red-500/30">
+                            CR {c.cr}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/5 px-2 py-0.5 rounded-full text-white/60">
+                          <Shield size={10} /> {c.ac}
                         </span>
-                      )}
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/5 px-2 py-0.5 rounded-full text-white/60">
+                          <Wind size={10} /> {!isPlayer && c.speedText ? c.speedText : `${c.speed || 30}ft`}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Status Row */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 text-[11px] opacity-60 font-bold shrink-0 text-white">
-                        <Shield size={12} className="opacity-70" /> {c.ac}
+                    {/* Initiative input + delete */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        value={c.initiative}
+                        onChange={(e) => updateInitiative(c.id, parseInt(e.target.value) || 0)}
+                        disabled={combatStarted}
+                        className={cn(
+                          "w-8 h-7 rounded text-[13px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                          combatStarted ? "opacity-80 cursor-default" : "hover:border-white/30"
+                        )}
+                      />
+                      <button onClick={() => removeCombatant(c.id)} className="p-1 hover:bg-white/10 rounded opacity-30 hover:opacity-100 transition-opacity text-white">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Enemy-only: HP bar + HP numbers + damage/heal controls */}
+                  {!isPlayer && (
+                    <>
+                      <div className="mt-2.5 h-1 bg-black/50 rounded-full overflow-hidden">
+                        <div className="h-full bg-[var(--accent)] transition-all shadow-[0_0_8px_rgba(205,127,50,0.3)]" style={{ width: `${hpPct}%` }} />
                       </div>
-                      <div className="flex-1 flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-[var(--accent)] transition-all shadow-[0_0_8px_rgba(205,127,50,0.3)]"
-                            style={{ width: `${(c.hp / c.maxHp) * 100}%` }}
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-white/50">
+                          <Heart size={10} className="inline -mt-0.5 mr-1" />{c.hp}/{c.maxHp}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => applyHpDelta(c.id, -1)}
+                            className="w-6 h-6 flex items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
+                          >
+                            <Minus size={12} strokeWidth={3} />
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={hpInputs[c.id] || ''}
+                            onChange={(e) => setHpInputs(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') applyHpDelta(c.id, -1);
+                            }}
+                            placeholder="0"
+                            className="w-10 h-6 text-center text-[12px] font-bold bg-black/50 border border-white/10 rounded text-white placeholder:text-white/20 focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
+                          <button
+                            onClick={() => applyHpDelta(c.id, 1)}
+                            className="w-6 h-6 flex items-center justify-center rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 transition-colors"
+                          >
+                            <Plus size={12} strokeWidth={3} />
+                          </button>
                         </div>
-                        <span className="text-[11px] font-sans font-bold opacity-80 shrink-0 w-6 text-white">{c.hp}/</span>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                    <div className="flex flex-col items-center gap-1.5 mr-1 pt-0.5">
-                      <button onClick={() => updateHp(c.id, -1)} className="hover:text-yellow-400 text-yellow-600/50 transition-colors">
-                        <ChevronDown size={14} strokeWidth={3} />
-                      </button>
-                      <button onClick={() => updateHp(c.id, 1)} className="hover:text-emerald-400 text-emerald-600/50 transition-colors">
-                        <ChevronUp size={14} strokeWidth={3} />
-                      </button>
-                    </div>
-                    <button onClick={() => removeCombatant(c.id)} className="p-1 hover:bg-white/10 rounded opacity-30 hover:opacity-100 transition-opacity ml-1 text-white">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

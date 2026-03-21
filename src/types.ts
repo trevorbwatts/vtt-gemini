@@ -122,6 +122,11 @@ export interface Combatant {
   }[];
   avatar?: string;
   color?: string;
+  speedText?: string;
+  cr?: string;
+  specialAbilities?: MonsterAction[];
+  /** When this combatant is an activeCombatant copy, stores the id of the original source combatant */
+  sourceCombatantId?: string;
 }
 
 export interface WallPoint {

@@ -1,0 +1,1618 @@
+[
+  {
+    "name": "Alter Self",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "You assume a different form, gaining aquatic adaptation, natural weapons, or a changed appearance for the duration.",
+    "range": 0
+  },
+  {
+    "name": "Animal Friendship",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "You convince a beast that you mean it no harm. A beast must succeed on a Wisdom save or be charmed for the duration.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Animal Messenger",
+    "level": 2,
+    "school": "Enchantment",
+    "desc": "You use a Tiny beast to deliver a message. The beast travels to a described location and delivers your message to a creature you describe.",
+    "range": 30
+  },
+  {
+    "name": "Animal Shapes",
+    "level": 8,
+    "school": "Transmutation",
+    "desc": "You transform willing creatures you can see within range into beast forms. Each target assumes a beast form of your choice with CR 4 or lower.",
+    "range": 30
+  },
+  {
+    "name": "Animate Dead",
+    "level": 3,
+    "school": "Necromancy",
+    "desc": "You create an undead servant from a pile of bones or a corpse, raising it as a skeleton or zombie under your control.",
+    "range": 10
+  },
+  {
+    "name": "Arcane Eye",
+    "level": 4,
+    "school": "Divination",
+    "desc": "You create an invisible, magical eye within range that hovers in the air and can be moved up to 30 feet per action to scout.",
+    "range": 30
+  },
+  {
+    "name": "Augury",
+    "level": 2,
+    "school": "Divination",
+    "desc": "You receive an omen about the results of a specific course of action you plan to take within the next 30 minutes.",
+    "range": 0
+  },
+  {
+    "name": "Awaken",
+    "level": 5,
+    "school": "Transmutation",
+    "desc": "You touch a Huge or smaller beast or plant and give it an Intelligence of 10, the ability to speak, and sentience for 30 days.",
+    "range": -1
+  },
+  {
+    "name": "Bane",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "Up to three creatures must make Charisma saves or subtract 1d4 from attack rolls and saving throws for the duration.",
+    "range": 30,
+    "saveAbility": "cha"
+  },
+  {
+    "name": "Banishment",
+    "level": 4,
+    "school": "Abjuration",
+    "desc": "You attempt to send one creature to another plane of existence. The target must succeed on a Charisma save or be banished.",
+    "range": 60,
+    "saveAbility": "cha"
+  },
+  {
+    "name": "Barkskin",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "You touch a willing creature and its skin takes on a rough, bark-like appearance, granting an AC that can't be less than 16.",
+    "range": -1
+  },
+  {
+    "name": "Befuddlement",
+    "level": 8,
+    "school": "Enchantment",
+    "desc": "You blast the mind of a creature, attempting to shatter its intellect and personality. The target takes psychic damage and must make an Intelligence save.",
+    "range": 150,
+    "saveAbility": "int"
+  },
+  {
+    "name": "Bestow Curse",
+    "level": 3,
+    "school": "Necromancy",
+    "desc": "You touch a creature, which must succeed on a Wisdom save or become cursed with a debilitating effect of your choice.",
+    "range": -1,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Blade Barrier",
+    "level": 6,
+    "school": "Evocation",
+    "desc": "You create a wall of whirling blades up to 100 feet long. Creatures in the area or passing through take 6d10 slashing damage on a failed Dexterity save.",
+    "range": 90,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Blade Ward",
+    "level": 0,
+    "school": "Abjuration",
+    "desc": "You gain resistance to bludgeoning, piercing, and slashing damage from weapon attacks until the end of your next turn.",
+    "range": 0
+  },
+  {
+    "name": "Bless",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "You bless up to three creatures, allowing each to add 1d4 to attack rolls and saving throws for the duration.",
+    "range": 30
+  },
+  {
+    "name": "Blight",
+    "level": 4,
+    "school": "Necromancy",
+    "desc": "Necromantic energy washes over a creature, draining moisture and vitality. The target must make a Constitution save or take 8d8 necrotic damage.",
+    "range": 30,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Blindness/Deafness",
+    "level": 2,
+    "school": "Necromancy",
+    "desc": "You can blind or deafen a foe. The target must make a Constitution save or be blinded or deafened for the duration.",
+    "range": 30,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Blur",
+    "level": 2,
+    "school": "Illusion",
+    "desc": "Your body becomes blurred, appearing to shift and waver. Creatures have disadvantage on attack rolls against you for the duration.",
+    "range": 0
+  },
+  {
+    "name": "Calm Emotions",
+    "level": 2,
+    "school": "Enchantment",
+    "desc": "You attempt to suppress strong emotions in a group of people, either calming hostility or removing charm and fright effects.",
+    "range": 60,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "cha"
+  },
+  {
+    "name": "Chain Lightning",
+    "level": 6,
+    "school": "Evocation",
+    "desc": "You create a bolt of lightning that arcs toward a target, then jumps to up to three additional targets. Each must make a Dexterity save or take 10d8 lightning damage.",
+    "range": 150,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Charm Monster",
+    "level": 4,
+    "school": "Enchantment",
+    "desc": "You attempt to charm a creature you can see. It must make a Wisdom save or be charmed by you for the duration.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Charm Person",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "You attempt to charm a humanoid you can see. It must make a Wisdom save or be charmed by you for the duration.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Clairvoyance",
+    "level": 3,
+    "school": "Divination",
+    "desc": "You create an invisible sensor within range in a location familiar to you, allowing you to see or hear through it.",
+    "range": 5280
+  },
+  {
+    "name": "Cloudkill",
+    "level": 5,
+    "school": "Conjuration",
+    "desc": "You create a sphere of poisonous fog that deals 5d8 poison damage to creatures within it on a failed Constitution save. The cloud moves away from you each turn.",
+    "range": 120,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Color Spray",
+    "level": 1,
+    "school": "Illusion",
+    "desc": "A dazzling array of flashing colors springs from your hand. Roll 6d10 to determine the total HP of creatures affected, blinding them.",
+    "range": 0,
+    "aoeType": "cone",
+    "aoeSize": 15
+  },
+  {
+    "name": "Command",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "You speak a one-word command to a creature you can see. The target must succeed on a Wisdom save or follow the command on its next turn.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Commune",
+    "level": 5,
+    "school": "Divination",
+    "desc": "You contact your deity or a divine proxy and ask up to three yes-or-no questions, receiving correct answers.",
+    "range": 0
+  },
+  {
+    "name": "Compelled Duel",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "You attempt to compel a creature into a duel. The target must make a Wisdom save or be drawn to you, with disadvantage on attacks against others.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Comprehend Languages",
+    "level": 1,
+    "school": "Divination",
+    "desc": "For the duration, you understand the literal meaning of any spoken language that you hear and any written language that you see.",
+    "range": 0
+  },
+  {
+    "name": "Cone of Cold",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "A blast of cold air erupts from your hands. Each creature in the area must make a Constitution save or take 8d8 cold damage.",
+    "range": 0,
+    "aoeType": "cone",
+    "aoeSize": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Confusion",
+    "level": 4,
+    "school": "Enchantment",
+    "desc": "Each creature in the area must make a Wisdom save or be unable to act normally, randomly determining actions each turn.",
+    "range": 90,
+    "aoeType": "sphere",
+    "aoeSize": 10,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Conjure Animals",
+    "level": 3,
+    "school": "Conjuration",
+    "desc": "You summon fey spirits that take the form of beasts to fight for you. The beasts are friendly and obey your commands.",
+    "range": 60
+  },
+  {
+    "name": "Conjure Elemental",
+    "level": 5,
+    "school": "Conjuration",
+    "desc": "You summon an elemental of CR 5 or lower that appears in an unoccupied space you can see. It obeys your verbal commands.",
+    "range": 90
+  },
+  {
+    "name": "Contact Other Plane",
+    "level": 5,
+    "school": "Divination",
+    "desc": "You mentally contact a demigod or other extraplanar entity to ask up to five questions. You risk psychic damage from the strain.",
+    "range": 0
+  },
+  {
+    "name": "Contagion",
+    "level": 5,
+    "school": "Necromancy",
+    "desc": "Your touch inflicts disease. Make a melee spell attack to afflict the target with a natural disease of your choice.",
+    "range": -1
+  },
+  {
+    "name": "Control Water",
+    "level": 4,
+    "school": "Transmutation",
+    "desc": "You control freestanding water in an area, choosing to flood, part, redirect, or create a whirlpool effect.",
+    "range": 300
+  },
+  {
+    "name": "Control Weather",
+    "level": 8,
+    "school": "Transmutation",
+    "desc": "You take control of the weather within 5 miles of you for the duration, changing precipitation, temperature, and wind.",
+    "range": 0
+  },
+  {
+    "name": "Counterspell",
+    "level": 3,
+    "school": "Abjuration",
+    "desc": "You attempt to interrupt a creature casting a spell. If the spell is 3rd level or lower, it fails automatically; higher levels require an ability check.",
+    "range": 60
+  },
+  {
+    "name": "Create Food and Water",
+    "level": 3,
+    "school": "Conjuration",
+    "desc": "You create 45 pounds of food and 30 gallons of water, enough to sustain up to fifteen humanoids or five steeds for 24 hours.",
+    "range": 30
+  },
+  {
+    "name": "Create or Destroy Water",
+    "level": 1,
+    "school": "Transmutation",
+    "desc": "You either create up to 10 gallons of clean water or destroy up to 10 gallons of water in an open container or area.",
+    "range": 30
+  },
+  {
+    "name": "Create Undead",
+    "level": 6,
+    "school": "Necromancy",
+    "desc": "You create up to three ghouls from Medium or Small humanoid corpses under your control. Higher slots create more powerful undead.",
+    "range": 10
+  },
+  {
+    "name": "Creation",
+    "level": 5,
+    "school": "Illusion",
+    "desc": "You pull wisps of shadow material to create a nonliving object of vegetable matter or mineral within range that lasts for a duration.",
+    "range": 30
+  },
+  {
+    "name": "Cure Wounds",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "A creature you touch regains hit points equal to 1d8 plus your spellcasting ability modifier.",
+    "range": -1
+  },
+  {
+    "name": "Dancing Lights",
+    "level": 0,
+    "school": "Evocation",
+    "desc": "You create up to four torch-sized lights within range that hover in the air, shedding dim light in a 10-foot radius each.",
+    "range": 120
+  },
+  {
+    "name": "Darkness",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "Magical darkness spreads from a point you choose, filling a sphere. Darkvision cannot see through it, and nonmagical light cannot illuminate it.",
+    "range": 60,
+    "aoeType": "sphere",
+    "aoeSize": 15
+  },
+  {
+    "name": "Daylight",
+    "level": 3,
+    "school": "Evocation",
+    "desc": "A 60-foot-radius sphere of bright light spreads from a point you choose. It dispels any darkness created by spells of 3rd level or lower.",
+    "range": 60,
+    "aoeType": "sphere",
+    "aoeSize": 60
+  },
+  {
+    "name": "Destructive Wave",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "You strike the ground, creating a burst of divine energy. Each creature in the area must make a Constitution save or take 5d6 thunder plus 5d6 radiant/necrotic damage and be knocked prone.",
+    "range": 0,
+    "aoeType": "cylinder",
+    "aoeSize": 30,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Detect Evil and Good",
+    "level": 1,
+    "school": "Divination",
+    "desc": "You sense the presence of aberrations, celestials, elementals, fey, fiends, or undead within 30 feet, and know their type and location.",
+    "range": 0
+  },
+  {
+    "name": "Detect Magic",
+    "level": 1,
+    "school": "Divination",
+    "desc": "You sense the presence of magic within 30 feet of you. You can use your action to see a faint aura around any visible magical creature or object.",
+    "range": 0
+  },
+  {
+    "name": "Detect Poison and Disease",
+    "level": 1,
+    "school": "Divination",
+    "desc": "You sense the presence and location of poisons, poisonous creatures, and diseases within 30 feet of you.",
+    "range": 0
+  },
+  {
+    "name": "Detect Thoughts",
+    "level": 2,
+    "school": "Divination",
+    "desc": "You can read the surface thoughts of creatures within 30 feet. A target can make a Wisdom save to resist deeper probing.",
+    "range": 0,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Dimension Door",
+    "level": 4,
+    "school": "Conjuration",
+    "desc": "You teleport yourself and optionally one willing creature to a destination you can see, visualize, or describe within 500 feet.",
+    "range": 500
+  },
+  {
+    "name": "Disguise Self",
+    "level": 1,
+    "school": "Illusion",
+    "desc": "You make yourself look different until the spell ends, changing your appearance including clothing, armor, weapons, and physical features.",
+    "range": 0
+  },
+  {
+    "name": "Disintegrate",
+    "level": 6,
+    "school": "Transmutation",
+    "desc": "A thin green ray springs from your finger. The target must make a Dexterity save or take 10d6+40 force damage; if reduced to 0 HP, it is disintegrated.",
+    "range": 60,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Dispel Evil and Good",
+    "level": 5,
+    "school": "Abjuration",
+    "desc": "Shimmering energy surrounds you, protecting against aberrations, celestials, elementals, fey, fiends, and undead with various effects.",
+    "range": 0
+  },
+  {
+    "name": "Dispel Magic",
+    "level": 3,
+    "school": "Abjuration",
+    "desc": "You end one spell of 3rd level or lower on a target. For higher-level spells, you must succeed on a spellcasting ability check.",
+    "range": 120
+  },
+  {
+    "name": "Divination",
+    "level": 4,
+    "school": "Divination",
+    "desc": "Your magic and an offering put you in contact with a god or servant, granting you a truthful reply about a specific goal or event.",
+    "range": 0
+  },
+  {
+    "name": "Dominate Monster",
+    "level": 8,
+    "school": "Enchantment",
+    "desc": "You attempt to beguile a creature you can see. It must succeed on a Wisdom save or be charmed and follow your telepathic commands.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Dominate Person",
+    "level": 5,
+    "school": "Enchantment",
+    "desc": "You attempt to beguile a humanoid you can see. It must succeed on a Wisdom save or be charmed and follow your telepathic commands.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Dream",
+    "level": 5,
+    "school": "Illusion",
+    "desc": "You shape a creature's dreams, allowing a messenger to enter the target's dreamscape to converse or deliver nightmares dealing 3d6 psychic damage.",
+    "range": -1,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Druidcraft",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You create a tiny, harmless sensory effect that predicts weather, make a flower bloom, or create other minor nature-themed effects.",
+    "range": 30
+  },
+  {
+    "name": "Earthquake",
+    "level": 8,
+    "school": "Evocation",
+    "desc": "You create a seismic disturbance that shakes the ground, potentially creating fissures and damaging structures in the area.",
+    "range": 500,
+    "aoeType": "sphere",
+    "aoeSize": 100
+  },
+  {
+    "name": "Elemental Weapon",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "A nonmagical weapon you touch becomes a magic weapon with a +1 bonus to attack rolls and deals an extra 1d4 elemental damage.",
+    "range": -1
+  },
+  {
+    "name": "Elementalism",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You exert control over elemental forces, creating a minor elemental effect such as a gust, spark, splash, or tremor.",
+    "range": 30
+  },
+  {
+    "name": "Enlarge/Reduce",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "You cause a creature or object to grow larger or smaller for the duration. An unwilling target can make a Constitution save to resist.",
+    "range": 30,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Entangle",
+    "level": 1,
+    "school": "Conjuration",
+    "desc": "Grasping weeds and vines sprout from the ground in the area. Creatures must succeed on a Strength save or be restrained.",
+    "range": 90,
+    "aoeType": "cube",
+    "aoeSize": 20,
+    "saveAbility": "str"
+  },
+  {
+    "name": "Etherealness",
+    "level": 7,
+    "school": "Transmutation",
+    "desc": "You step into the border regions of the Ethereal Plane, able to move in any direction and pass through solid objects on the Material Plane.",
+    "range": 0
+  },
+  {
+    "name": "Evard's Black Tentacles",
+    "level": 4,
+    "school": "Conjuration",
+    "desc": "Squirming black tentacles fill a 20-foot square area. Creatures entering or starting their turn there must make a Dexterity save or take 3d6 bludgeoning damage and be restrained.",
+    "range": 90,
+    "aoeType": "cube",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Faerie Fire",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "Objects and creatures in the area are outlined in blue, green, or violet light. Affected creatures shed dim light and attack rolls against them have advantage.",
+    "range": 60,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Fear",
+    "level": 3,
+    "school": "Illusion",
+    "desc": "You project a phantasmal image of a creature's worst fears. Each creature in the cone must succeed on a Wisdom save or drop what it's holding and become frightened.",
+    "range": 0,
+    "aoeType": "cone",
+    "aoeSize": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Feather Fall",
+    "level": 1,
+    "school": "Transmutation",
+    "desc": "You slow the rate of falling for up to five creatures, reducing their falling speed to 60 feet per round and preventing fall damage.",
+    "range": 60
+  },
+  {
+    "name": "Finger of Death",
+    "level": 7,
+    "school": "Necromancy",
+    "desc": "You send negative energy coursing through a creature. The target must make a Constitution save or take 7d8+30 necrotic damage. A humanoid killed rises as a zombie.",
+    "range": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Fire Bolt",
+    "level": 0,
+    "school": "Evocation",
+    "desc": "You hurl a mote of fire at a creature or object within range. Make a ranged spell attack dealing 1d10 fire damage on a hit.",
+    "range": 120
+  },
+  {
+    "name": "Fire Shield",
+    "level": 4,
+    "school": "Evocation",
+    "desc": "Thin flames wreathe your body, shedding light and granting resistance to cold or fire damage. Creatures that hit you in melee take 2d8 damage.",
+    "range": 0
+  },
+  {
+    "name": "Fire Storm",
+    "level": 7,
+    "school": "Evocation",
+    "desc": "A storm of fire rains down. You can designate areas of ten 10-foot cubes to fill with fire. Creatures must make a Dexterity save or take 7d10 fire damage.",
+    "range": 150,
+    "aoeType": "cylinder",
+    "aoeSize": 10,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Fireball",
+    "level": 3,
+    "school": "Evocation",
+    "desc": "A bright streak flashes from your finger to a point within range and then blossoms into an explosion of flame. Each creature in the area must make a Dexterity save or take 8d6 fire damage.",
+    "range": 150,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Flame Strike",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "A vertical column of divine fire roars down. Each creature in the area must make a Dexterity save or take 4d6 fire plus 4d6 radiant damage.",
+    "range": 60,
+    "aoeType": "cylinder",
+    "aoeSize": 10,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Flaming Sphere",
+    "level": 2,
+    "school": "Conjuration",
+    "desc": "A 5-foot-diameter sphere of fire appears in an unoccupied space. Creatures ending their turn within 5 feet must make a Dexterity save or take 2d6 fire damage.",
+    "range": 60,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Fly",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You touch a willing creature and grant it a flying speed of 60 feet for the duration.",
+    "range": -1
+  },
+  {
+    "name": "Fog Cloud",
+    "level": 1,
+    "school": "Conjuration",
+    "desc": "You create a sphere of fog centered on a point within range. The area is heavily obscured for the duration.",
+    "range": 120,
+    "aoeType": "sphere",
+    "aoeSize": 20
+  },
+  {
+    "name": "Freedom of Movement",
+    "level": 4,
+    "school": "Abjuration",
+    "desc": "You touch a willing creature. Its movement is unaffected by difficult terrain, and spells and effects can't reduce its speed or cause paralysis or restraint.",
+    "range": -1
+  },
+  {
+    "name": "Gaseous Form",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You transform a willing creature and everything it's wearing into a misty cloud, granting fly speed 10 and resistance to nonmagical damage.",
+    "range": -1
+  },
+  {
+    "name": "Geas",
+    "level": 5,
+    "school": "Enchantment",
+    "desc": "You place a magical command on a creature, which must succeed on a Wisdom save or be compelled to carry out or avoid an activity you describe for 30 days.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Globe of Invulnerability",
+    "level": 6,
+    "school": "Abjuration",
+    "desc": "An immobile, faintly shimmering barrier springs into existence in a 10-foot radius around you, excluding all spells of 5th level or lower cast from outside.",
+    "range": 0,
+    "aoeType": "sphere",
+    "aoeSize": 10
+  },
+  {
+    "name": "Goodberry",
+    "level": 1,
+    "school": "Transmutation",
+    "desc": "Up to ten berries appear in your hand, infused with magic. Eating a berry restores 1 hit point and provides nourishment for one day.",
+    "range": -1
+  },
+  {
+    "name": "Grease",
+    "level": 1,
+    "school": "Conjuration",
+    "desc": "Slick grease covers the ground in the area, turning it into difficult terrain. Creatures in the area must succeed on a Dexterity save or fall prone.",
+    "range": 60,
+    "aoeType": "cube",
+    "aoeSize": 10,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Greater Invisibility",
+    "level": 4,
+    "school": "Illusion",
+    "desc": "You or a creature you touch becomes invisible for the duration. The invisibility doesn't end when the target attacks or casts a spell.",
+    "range": -1
+  },
+  {
+    "name": "Greater Restoration",
+    "level": 5,
+    "school": "Abjuration",
+    "desc": "You imbue a creature you touch with positive energy to undo a debilitating effect such as a charm, petrification, curse, or ability score reduction.",
+    "range": -1
+  },
+  {
+    "name": "Guardian of Faith",
+    "level": 4,
+    "school": "Conjuration",
+    "desc": "A Large spectral guardian appears in an unoccupied space you choose. Any hostile creature that moves within 10 feet of it must make a Dexterity save or take 20 radiant damage.",
+    "range": 30,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Guidance",
+    "level": 0,
+    "school": "Divination",
+    "desc": "You touch one willing creature. Once before the spell ends, the target can roll a d4 and add the number to one ability check of its choice.",
+    "range": -1
+  },
+  {
+    "name": "Guiding Bolt",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "A flash of light streaks toward a creature. Make a ranged spell attack dealing 4d6 radiant damage, and the next attack roll against the target has advantage.",
+    "range": 120
+  },
+  {
+    "name": "Gust of Wind",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "A line of strong wind blasts from you in a direction you choose. Creatures in the line must succeed on a Strength save or be pushed 15 feet away.",
+    "range": 0,
+    "aoeType": "line",
+    "aoeSize": 60,
+    "saveAbility": "str"
+  },
+  {
+    "name": "Hallucinatory Terrain",
+    "level": 4,
+    "school": "Illusion",
+    "desc": "You make natural terrain in a 150-foot cube look, sound, and smell like some other sort of terrain. Structures and creatures are not disguised.",
+    "range": 300
+  },
+  {
+    "name": "Harm",
+    "level": 6,
+    "school": "Necromancy",
+    "desc": "You unleash a virulent disease on a creature. The target must make a Constitution save or take 14d6 necrotic damage, which can't reduce HP below 1.",
+    "range": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Heat Metal",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "You cause a manufactured metal object to glow red hot. A creature in contact with it takes 2d8 fire damage and must succeed on a Constitution save or drop it.",
+    "range": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Heroes' Feast",
+    "level": 6,
+    "school": "Conjuration",
+    "desc": "You bring forth a great feast that takes 1 hour to consume. Up to twelve creatures gain several benefits including immunity to poison and fear, and extra hit points.",
+    "range": 30
+  },
+  {
+    "name": "Hold Monster",
+    "level": 5,
+    "school": "Enchantment",
+    "desc": "The target must succeed on a Wisdom save or be paralyzed for the duration. It can repeat the save at the end of each of its turns.",
+    "range": 90,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Hold Person",
+    "level": 2,
+    "school": "Enchantment",
+    "desc": "The target humanoid must succeed on a Wisdom save or be paralyzed for the duration. It can repeat the save at the end of each of its turns.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Hypnotic Pattern",
+    "level": 3,
+    "school": "Illusion",
+    "desc": "You create a twisting pattern of colors in the air. Creatures in the area must make a Wisdom save or become charmed, incapacitated, and have speed 0.",
+    "range": 120,
+    "aoeType": "cube",
+    "aoeSize": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Ice Knife",
+    "level": 1,
+    "school": "Conjuration",
+    "desc": "You create a shard of ice and fling it at a target. On hit it deals 1d10 piercing, then explodes for 2d6 cold damage to nearby creatures on a failed Dexterity save.",
+    "range": 60,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Ice Storm",
+    "level": 4,
+    "school": "Evocation",
+    "desc": "A hail of rock-hard ice pounds down in a cylindrical area. Creatures must make a Dexterity save or take 2d8 bludgeoning plus 4d6 cold damage. The area becomes difficult terrain.",
+    "range": 300,
+    "aoeType": "cylinder",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Identify",
+    "level": 1,
+    "school": "Divination",
+    "desc": "You choose one object that you must touch throughout the casting. You learn its properties, how to use them, and any spells affecting it.",
+    "range": -1
+  },
+  {
+    "name": "Inflict Wounds",
+    "level": 1,
+    "school": "Necromancy",
+    "desc": "Make a melee spell attack against a creature you can reach. On a hit, the target takes 3d10 necrotic damage.",
+    "range": -1
+  },
+  {
+    "name": "Insect Plague",
+    "level": 5,
+    "school": "Conjuration",
+    "desc": "Swarming locusts fill a sphere. Creatures in the area must make a Constitution save or take 4d10 piercing damage. The area is difficult terrain.",
+    "range": 300,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Invisibility",
+    "level": 2,
+    "school": "Illusion",
+    "desc": "A creature you touch becomes invisible until the spell ends. The spell ends if the target attacks or casts a spell.",
+    "range": -1
+  },
+  {
+    "name": "Jallarzi's Storm of Radiance",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "You unleash a storm of brilliant radiant energy in an area. Creatures caught in the storm must make a Constitution save or take radiant damage.",
+    "range": 120,
+    "aoeType": "sphere",
+    "aoeSize": 30,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Jump",
+    "level": 1,
+    "school": "Transmutation",
+    "desc": "You touch a creature and its jump distance is tripled until the spell ends.",
+    "range": -1
+  },
+  {
+    "name": "Legend Lore",
+    "level": 5,
+    "school": "Divination",
+    "desc": "You learn significant lore about a person, place, or object. The more information you already have, the more precise the knowledge gained.",
+    "range": 0
+  },
+  {
+    "name": "Lesser Restoration",
+    "level": 2,
+    "school": "Abjuration",
+    "desc": "You touch a creature and can end one disease or one condition afflicting it: blinded, deafened, paralyzed, or poisoned.",
+    "range": -1
+  },
+  {
+    "name": "Levitate",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "One creature or loose object of your choice rises vertically up to 20 feet and remains suspended there. An unwilling target must make a Constitution save.",
+    "range": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Light",
+    "level": 0,
+    "school": "Evocation",
+    "desc": "You touch one object that is no larger than 10 feet in any dimension. It sheds bright light in a 20-foot radius and dim light for an additional 20 feet.",
+    "range": -1
+  },
+  {
+    "name": "Lightning Bolt",
+    "level": 3,
+    "school": "Evocation",
+    "desc": "A stroke of lightning forming a line blasts out from you. Each creature in the line must make a Dexterity save or take 8d6 lightning damage.",
+    "range": 0,
+    "aoeType": "line",
+    "aoeSize": 100,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Locate Object",
+    "level": 2,
+    "school": "Divination",
+    "desc": "You sense the direction to the location of a familiar object you describe or name, as long as it is within 1,000 feet of you.",
+    "range": 0
+  },
+  {
+    "name": "Longstrider",
+    "level": 1,
+    "school": "Transmutation",
+    "desc": "You touch a creature and its speed increases by 10 feet until the spell ends.",
+    "range": -1
+  },
+  {
+    "name": "Mage Armor",
+    "level": 1,
+    "school": "Abjuration",
+    "desc": "You touch a willing creature who isn't wearing armor, and a magical force surrounds it. Its base AC becomes 13 plus its Dexterity modifier.",
+    "range": -1
+  },
+  {
+    "name": "Mage Hand",
+    "level": 0,
+    "school": "Conjuration",
+    "desc": "A spectral, floating hand appears at a point you choose. You can use the hand to manipulate objects, open doors, or stow items.",
+    "range": 30
+  },
+  {
+    "name": "Magic Missile",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "You create three glowing darts of magical force. Each dart automatically hits a creature you can see, dealing 1d4+1 force damage.",
+    "range": 120
+  },
+  {
+    "name": "Magic Weapon",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "You touch a nonmagical weapon and it becomes a magic weapon with a +1 bonus to attack rolls and damage rolls for the duration.",
+    "range": -1
+  },
+  {
+    "name": "Major Image",
+    "level": 3,
+    "school": "Illusion",
+    "desc": "You create an image no larger than a 20-foot cube that appears completely real, including sounds, smells, and temperature.",
+    "range": 120
+  },
+  {
+    "name": "Mass Cure Wounds",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "A wave of healing energy washes out from a point. Up to six creatures of your choice in the area regain hit points equal to 3d8 plus your spellcasting modifier.",
+    "range": 60
+  },
+  {
+    "name": "Mass Healing Word",
+    "level": 3,
+    "school": "Evocation",
+    "desc": "As you call out words of restoration, up to six creatures of your choice that you can see within range regain hit points equal to 1d4 plus your spellcasting modifier.",
+    "range": 60
+  },
+  {
+    "name": "Mass Suggestion",
+    "level": 6,
+    "school": "Enchantment",
+    "desc": "You suggest a course of activity to up to twelve creatures that can hear you. Those that fail a Wisdom save pursue the activity for the duration.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Meld into Stone",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You step into a stone object or surface large enough to fully contain your body, merging yourself and your equipment with the stone for the duration.",
+    "range": -1
+  },
+  {
+    "name": "Melf's Acid Arrow",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "A shimmering green arrow streaks toward a target. Make a ranged spell attack dealing 4d4 acid damage on hit, and 2d4 at the end of its next turn.",
+    "range": 90
+  },
+  {
+    "name": "Mending",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You repair a single break or tear in an object you touch, such as a broken chain link, a cracked key, or a torn cloak.",
+    "range": -1
+  },
+  {
+    "name": "Message",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You point your finger toward a creature within range and whisper a message. The target hears it and can reply in a whisper only you can hear.",
+    "range": 120
+  },
+  {
+    "name": "Mind Blank",
+    "level": 8,
+    "school": "Abjuration",
+    "desc": "You touch a willing creature, making it immune to psychic damage, telepathy, divination spells, and the charmed condition for 24 hours.",
+    "range": -1
+  },
+  {
+    "name": "Mind Spike",
+    "level": 2,
+    "school": "Divination",
+    "desc": "You reach into the mind of one creature, dealing 3d8 psychic damage on a failed Wisdom save. You also know the target's location until the spell ends.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Minor Illusion",
+    "level": 0,
+    "school": "Illusion",
+    "desc": "You create a sound or an image of an object within range that lasts for the duration. The illusion can be no larger than a 5-foot cube.",
+    "range": 30
+  },
+  {
+    "name": "Mirror Image",
+    "level": 2,
+    "school": "Illusion",
+    "desc": "Three illusory duplicates of yourself appear in your space. Each duplicate deflects an attack that would hit you, then disappears.",
+    "range": 0
+  },
+  {
+    "name": "Misty Step",
+    "level": 2,
+    "school": "Conjuration",
+    "desc": "Briefly surrounded by silvery mist, you teleport up to 30 feet to an unoccupied space that you can see.",
+    "range": 0
+  },
+  {
+    "name": "Modify Memory",
+    "level": 5,
+    "school": "Enchantment",
+    "desc": "You attempt to reshape a creature's memories. The target must make a Wisdom save or have one memory of an event from the last 24 hours altered.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Moonbeam",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "A silvery beam of pale light shines down in a cylinder. Creatures entering or starting their turn in it must make a Constitution save or take 2d10 radiant damage.",
+    "range": 120,
+    "aoeType": "cylinder",
+    "aoeSize": 5,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Move Earth",
+    "level": 6,
+    "school": "Transmutation",
+    "desc": "You reshape dirt, sand, or clay in a 40-foot cube area. You can change the terrain's elevation, create or fill trenches, and raise or lower land.",
+    "range": 120
+  },
+  {
+    "name": "Nondetection",
+    "level": 3,
+    "school": "Abjuration",
+    "desc": "You hide a target creature or object from divination magic for 8 hours. The target can't be targeted by divination or perceived through magical scrying.",
+    "range": -1
+  },
+  {
+    "name": "Pass without Trace",
+    "level": 2,
+    "school": "Abjuration",
+    "desc": "A veil of shadows and silence radiates from you. Each creature you choose within 30 feet gains +10 to Stealth checks and can't be tracked except magically.",
+    "range": 0
+  },
+  {
+    "name": "Passwall",
+    "level": 5,
+    "school": "Transmutation",
+    "desc": "A passage appears in a wooden, plaster, or stone surface you touch, creating a tunnel up to 20 feet deep that lasts for the duration.",
+    "range": 30
+  },
+  {
+    "name": "Phantasmal Force",
+    "level": 2,
+    "school": "Illusion",
+    "desc": "You craft an illusion that takes root in the mind of a creature you can see. The target must make an Intelligence save or perceive the illusion as real.",
+    "range": 60,
+    "saveAbility": "int"
+  },
+  {
+    "name": "Phantasmal Killer",
+    "level": 4,
+    "school": "Illusion",
+    "desc": "You tap into a creature's nightmares, creating an illusory manifestation of its deepest fears. The target must make a Wisdom save or take 4d10 psychic damage and be frightened.",
+    "range": 120,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Phantom Steed",
+    "level": 3,
+    "school": "Illusion",
+    "desc": "A quasi-real, horselike creature appears on the ground. It has a speed of 100 feet and can carry its rider without tiring for 1 hour.",
+    "range": 30
+  },
+  {
+    "name": "Plane Shift",
+    "level": 7,
+    "school": "Conjuration",
+    "desc": "You and up to eight willing creatures who link hands are transported to a different plane of existence. An unwilling creature must make a Charisma save to resist.",
+    "range": -1,
+    "saveAbility": "cha"
+  },
+  {
+    "name": "Plant Growth",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You channel vitality into plants in the area. All normal plants in a 100-foot radius become thick and overgrown, making movement extremely difficult.",
+    "range": 150,
+    "aoeType": "sphere",
+    "aoeSize": 100
+  },
+  {
+    "name": "Poison Spray",
+    "level": 0,
+    "school": "Conjuration",
+    "desc": "You extend your hand toward a creature you can see and project a puff of noxious gas. The creature must make a Constitution save or take 1d12 poison damage.",
+    "range": 10,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Polymorph",
+    "level": 4,
+    "school": "Transmutation",
+    "desc": "You transform a creature into a new beast form. An unwilling creature must make a Wisdom save. The target's statistics are replaced by those of the chosen beast.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Power Word Kill",
+    "level": 9,
+    "school": "Enchantment",
+    "desc": "You utter a word of power that can compel one creature you can see to die instantly if it has 100 hit points or fewer.",
+    "range": 60
+  },
+  {
+    "name": "Power Word Stun",
+    "level": 8,
+    "school": "Enchantment",
+    "desc": "You speak a word of power that can overwhelm the mind of one creature, stunning it if it has 150 hit points or fewer.",
+    "range": 60
+  },
+  {
+    "name": "Prestidigitation",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You create one of several minor magical effects: a sensory effect, light or snuff a small flame, clean or soil an object, or other small tricks.",
+    "range": 10
+  },
+  {
+    "name": "Produce Flame",
+    "level": 0,
+    "school": "Conjuration",
+    "desc": "A flickering flame appears in your hand, shedding bright light. You can hurl the flame at a creature, making a ranged spell attack for 1d8 fire damage.",
+    "range": 0
+  },
+  {
+    "name": "Project Image",
+    "level": 7,
+    "school": "Illusion",
+    "desc": "You create an illusory copy of yourself that appears within range and lasts for the duration. You can use your senses through the copy and cast spells as if you were in its space.",
+    "range": 500
+  },
+  {
+    "name": "Protection from Poison",
+    "level": 2,
+    "school": "Abjuration",
+    "desc": "You touch a creature, neutralizing one poison affecting it and granting advantage on saves against being poisoned and resistance to poison damage.",
+    "range": -1
+  },
+  {
+    "name": "Purify Food and Drink",
+    "level": 1,
+    "school": "Transmutation",
+    "desc": "All nonmagical food and drink within a 5-foot-radius sphere centered on a point of your choice is rendered free of poison and disease.",
+    "range": 10
+  },
+  {
+    "name": "Raise Dead",
+    "level": 5,
+    "school": "Necromancy",
+    "desc": "You return a dead creature that has been dead no more than 10 days to life with 1 hit point. The spell neutralizes any poisons and cures nonmagical diseases.",
+    "range": -1
+  },
+  {
+    "name": "Ray of Enfeeblement",
+    "level": 2,
+    "school": "Necromancy",
+    "desc": "A black beam of enervating energy springs from your finger. Make a ranged spell attack; on hit, the target deals only half damage with Strength-based weapon attacks.",
+    "range": 60
+  },
+  {
+    "name": "Ray of Frost",
+    "level": 0,
+    "school": "Evocation",
+    "desc": "A frigid beam of blue-white light streaks toward a creature. Make a ranged spell attack dealing 1d8 cold damage and reducing the target's speed by 10 feet.",
+    "range": 60
+  },
+  {
+    "name": "Ray of Sickness",
+    "level": 1,
+    "school": "Necromancy",
+    "desc": "A ray of sickening greenish energy lashes out toward a creature. Make a ranged spell attack dealing 2d8 poison damage. On hit, the target must also make a Constitution save or be poisoned.",
+    "range": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Remove Curse",
+    "level": 3,
+    "school": "Abjuration",
+    "desc": "At your touch, all curses affecting one creature or object end. If the object is a cursed magic item, its curse remains but the owner can unattune and discard it.",
+    "range": -1
+  },
+  {
+    "name": "Resistance",
+    "level": 0,
+    "school": "Abjuration",
+    "desc": "You touch one willing creature. Once before the spell ends, the target can roll a d4 and add the number to one saving throw of its choice.",
+    "range": -1
+  },
+  {
+    "name": "Resurrection",
+    "level": 7,
+    "school": "Necromancy",
+    "desc": "You touch a dead creature that has been dead no more than a century. It returns to life with all its hit points, and all diseases, poisons, and curses are removed.",
+    "range": -1
+  },
+  {
+    "name": "Sacred Flame",
+    "level": 0,
+    "school": "Evocation",
+    "desc": "Flame-like radiance descends on a creature you can see. The target must succeed on a Dexterity save or take 1d8 radiant damage. No benefit from cover.",
+    "range": 60,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Sanctuary",
+    "level": 1,
+    "school": "Abjuration",
+    "desc": "You ward a creature. Until the spell ends, any creature targeting the warded creature with an attack must make a Wisdom save or choose a new target.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Scorching Ray",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "You create three rays of fire and hurl them at targets within range. Make a ranged spell attack for each ray, dealing 2d6 fire damage on a hit.",
+    "range": 120
+  },
+  {
+    "name": "Scrying",
+    "level": 5,
+    "school": "Divination",
+    "desc": "You can see and hear a particular creature you choose that is on the same plane. The target must make a Wisdom save, modified by your familiarity.",
+    "range": 0,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Searing Smite",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "Your weapon flares with white-hot intensity. On your next hit, the attack deals an extra 1d6 fire damage and sets the target on fire.",
+    "range": 0
+  },
+  {
+    "name": "See Invisibility",
+    "level": 2,
+    "school": "Divination",
+    "desc": "For the duration, you see invisible creatures and objects as translucent shapes, and you can also see into the Ethereal Plane.",
+    "range": 0
+  },
+  {
+    "name": "Sending",
+    "level": 3,
+    "school": "Evocation",
+    "desc": "You send a short message of twenty-five words or fewer to a creature you are familiar with. The creature can reply in like manner.",
+    "range": 0
+  },
+  {
+    "name": "Shapechange",
+    "level": 9,
+    "school": "Transmutation",
+    "desc": "You assume the form of a different creature for the duration. You can transform into any creature with a CR equal to or less than your level.",
+    "range": 0
+  },
+  {
+    "name": "Shatter",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "A loud ringing noise erupts from a point of your choice. Each creature in the area must make a Constitution save or take 3d8 thunder damage.",
+    "range": 60,
+    "aoeType": "sphere",
+    "aoeSize": 10,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Shield",
+    "level": 1,
+    "school": "Abjuration",
+    "desc": "An invisible barrier of magical force appears and protects you, granting +5 to AC until the start of your next turn, including against the triggering attack.",
+    "range": 0
+  },
+  {
+    "name": "Shield of Faith",
+    "level": 1,
+    "school": "Abjuration",
+    "desc": "A shimmering field appears around a creature of your choice, granting it a +2 bonus to AC for the duration.",
+    "range": 60
+  },
+  {
+    "name": "Shillelagh",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "The wood of a club or quarterstaff you are holding is imbued with nature's power. It uses your spellcasting modifier for attacks and deals 1d8 damage.",
+    "range": -1
+  },
+  {
+    "name": "Shocking Grasp",
+    "level": 0,
+    "school": "Evocation",
+    "desc": "Lightning springs from your hand to deliver a shock. Make a melee spell attack dealing 1d8 lightning damage, and the target can't take reactions until its next turn.",
+    "range": -1
+  },
+  {
+    "name": "Silence",
+    "level": 2,
+    "school": "Illusion",
+    "desc": "For the duration, no sound can be created within or pass through a 20-foot-radius sphere. Creatures are immune to thunder damage and can't cast spells with verbal components.",
+    "range": 120,
+    "aoeType": "sphere",
+    "aoeSize": 20
+  },
+  {
+    "name": "Sleep",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "You send creatures into a magical slumber. Roll 5d8 to determine the total HP of creatures affected, starting with the creature with the lowest current HP.",
+    "range": 90,
+    "aoeType": "sphere",
+    "aoeSize": 20
+  },
+  {
+    "name": "Spare the Dying",
+    "level": 0,
+    "school": "Necromancy",
+    "desc": "You touch a living creature that has 0 hit points. The creature becomes stable without needing to make death saving throws.",
+    "range": -1
+  },
+  {
+    "name": "Speak with Animals",
+    "level": 1,
+    "school": "Divination",
+    "desc": "You gain the ability to comprehend and verbally communicate with beasts for the duration. Their intelligence limits the information they can convey.",
+    "range": 0
+  },
+  {
+    "name": "Speak with Dead",
+    "level": 3,
+    "school": "Necromancy",
+    "desc": "You grant the semblance of life to a corpse, allowing it to answer up to five questions. It knows only what it knew in life and can't learn new information.",
+    "range": 10
+  },
+  {
+    "name": "Speak with Plants",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You can communicate with plants, which can carry out simple tasks for you like moving branches or vines. They can describe events from the last day.",
+    "range": 0
+  },
+  {
+    "name": "Spike Growth",
+    "level": 2,
+    "school": "Transmutation",
+    "desc": "The ground in the area becomes covered with hard spikes and thorns. The area becomes difficult terrain, and creatures take 2d4 piercing damage per 5 feet of movement through it.",
+    "range": 150,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Spirit Guardians",
+    "level": 3,
+    "school": "Conjuration",
+    "desc": "You call forth spirits to protect you. Creatures of your choice that enter or start their turn within the area must make a Wisdom save or take 3d8 radiant/necrotic damage.",
+    "range": 0,
+    "aoeType": "sphere",
+    "aoeSize": 15,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Spiritual Weapon",
+    "level": 2,
+    "school": "Evocation",
+    "desc": "You create a floating, spectral weapon within range that you can attack with as a bonus action, dealing 1d8 plus your spellcasting modifier in force damage.",
+    "range": 60
+  },
+  {
+    "name": "Staggering Smite",
+    "level": 4,
+    "school": "Evocation",
+    "desc": "The next time you hit a creature with a melee weapon attack, it takes an extra 4d6 psychic damage and must make a Wisdom save or be stunned until the end of your next turn.",
+    "range": 0,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Stone Shape",
+    "level": 4,
+    "school": "Transmutation",
+    "desc": "You touch a stone object no larger than 5 feet in any dimension and form it into any shape that suits your purpose.",
+    "range": -1
+  },
+  {
+    "name": "Stoneskin",
+    "level": 4,
+    "school": "Abjuration",
+    "desc": "You touch a willing creature and its flesh takes on a stony hardness, granting resistance to nonmagical bludgeoning, piercing, and slashing damage.",
+    "range": -1
+  },
+  {
+    "name": "Suggestion",
+    "level": 2,
+    "school": "Enchantment",
+    "desc": "You suggest a course of activity to a creature that can hear you. The target must make a Wisdom save or pursue the suggested activity for the duration.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Sunburst",
+    "level": 8,
+    "school": "Evocation",
+    "desc": "Brilliant sunlight flashes in a 60-foot-radius sphere. Creatures must make a Constitution save or take 12d6 radiant damage and be blinded for 1 minute.",
+    "range": 150,
+    "aoeType": "sphere",
+    "aoeSize": 60,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Synaptic Static",
+    "level": 5,
+    "school": "Enchantment",
+    "desc": "You cause psychic energy to erupt at a point. Each creature in the area must make an Intelligence save or take 8d6 psychic damage and subtract 1d6 from attack rolls, ability checks, and Constitution saves.",
+    "range": 120,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "int"
+  },
+  {
+    "name": "Tasha's Hideous Laughter",
+    "level": 1,
+    "school": "Enchantment",
+    "desc": "A creature you can see must succeed on a Wisdom save or fall prone, becoming incapacitated and unable to stand up from laughing for the duration.",
+    "range": 30,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Telekinesis",
+    "level": 5,
+    "school": "Transmutation",
+    "desc": "You gain the ability to move or manipulate creatures or objects with your mind. You can exert fine control on objects or attempt to move a creature that fails a Strength contest.",
+    "range": 60
+  },
+  {
+    "name": "Teleport",
+    "level": 7,
+    "school": "Conjuration",
+    "desc": "You and up to eight willing creatures are transported to a destination you select. Your familiarity with the destination determines the accuracy of arrival.",
+    "range": 10
+  },
+  {
+    "name": "Tenser's Floating Disk",
+    "level": 1,
+    "school": "Conjuration",
+    "desc": "You create a slightly concave, circular plane of force 3 feet in diameter that hovers 3 feet off the ground and can hold up to 500 pounds.",
+    "range": 30
+  },
+  {
+    "name": "Thaumaturgy",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You manifest a minor wonder, a sign of supernatural power: your voice booms, flames flicker, the ground trembles, or doors fly open.",
+    "range": 30
+  },
+  {
+    "name": "Thorn Whip",
+    "level": 0,
+    "school": "Transmutation",
+    "desc": "You create a long, vine-like whip covered in thorns. Make a melee spell attack dealing 1d6 piercing damage and pulling the target up to 10 feet closer.",
+    "range": 30
+  },
+  {
+    "name": "Thunderwave",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "A wave of thunderous force sweeps out from you. Each creature in the area must make a Constitution save or take 2d8 thunder damage and be pushed 10 feet away.",
+    "range": 0,
+    "aoeType": "cube",
+    "aoeSize": 15,
+    "saveAbility": "con"
+  },
+  {
+    "name": "Time Stop",
+    "level": 9,
+    "school": "Transmutation",
+    "desc": "You briefly stop the flow of time for everyone but yourself. You take 1d4+1 extra turns during which other creatures are frozen and can't be affected.",
+    "range": 0
+  },
+  {
+    "name": "Tongues",
+    "level": 3,
+    "school": "Divination",
+    "desc": "You touch a creature and grant it the ability to understand any spoken language it hears and to speak so that any creature can understand it.",
+    "range": -1
+  },
+  {
+    "name": "True Seeing",
+    "level": 6,
+    "school": "Divination",
+    "desc": "You touch a willing creature and grant it the ability to see things as they truly are. It gains truesight out to 120 feet for the duration.",
+    "range": -1
+  },
+  {
+    "name": "Vicious Mockery",
+    "level": 0,
+    "school": "Enchantment",
+    "desc": "You unleash a string of insults laced with subtle enchantments. The target must make a Wisdom save or take 1d4 psychic damage and have disadvantage on its next attack roll.",
+    "range": 60,
+    "saveAbility": "wis"
+  },
+  {
+    "name": "Vitriolic Sphere",
+    "level": 4,
+    "school": "Evocation",
+    "desc": "You point at a location and a glowing green ball of acid streaks there and explodes. Creatures must make a Dexterity save or take 10d4 acid damage plus 5d4 at end of next turn.",
+    "range": 150,
+    "aoeType": "sphere",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Wall of Fire",
+    "level": 4,
+    "school": "Evocation",
+    "desc": "You create a wall of fire on a solid surface up to 60 feet long. One side deals 5d8 fire damage to creatures within 10 feet or passing through, Dexterity save for half.",
+    "range": 120,
+    "aoeType": "line",
+    "aoeSize": 60,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Wall of Force",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "An invisible wall of force springs into existence. It can be a hemisphere or up to ten 10-foot panels. Nothing can physically pass through it.",
+    "range": 120
+  },
+  {
+    "name": "Wall of Stone",
+    "level": 5,
+    "school": "Evocation",
+    "desc": "A nonmagical wall of solid stone springs into existence. It can be up to ten 10-foot panels, each 6 inches thick, and can be shaped to form a structure.",
+    "range": 120
+  },
+  {
+    "name": "Water Breathing",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You grant up to ten willing creatures the ability to breathe underwater for 24 hours. They also retain their normal mode of respiration.",
+    "range": 30
+  },
+  {
+    "name": "Water Walk",
+    "level": 3,
+    "school": "Transmutation",
+    "desc": "You grant up to ten willing creatures the ability to traverse any liquid surface as if it were solid ground for the duration.",
+    "range": 30
+  },
+  {
+    "name": "Web",
+    "level": 2,
+    "school": "Conjuration",
+    "desc": "You conjure a mass of thick, sticky webbing in the area. Creatures entering or starting their turn there must make a Dexterity save or be restrained.",
+    "range": 60,
+    "aoeType": "cube",
+    "aoeSize": 20,
+    "saveAbility": "dex"
+  },
+  {
+    "name": "Wind Walk",
+    "level": 6,
+    "school": "Transmutation",
+    "desc": "You and up to ten willing creatures assume gaseous forms and gain a flying speed of 300 feet for the duration.",
+    "range": 30
+  },
+  {
+    "name": "Witch Bolt",
+    "level": 1,
+    "school": "Evocation",
+    "desc": "A beam of crackling blue energy lances toward a creature. Make a ranged spell attack dealing 1d12 lightning damage, with automatic damage on subsequent turns.",
+    "range": 30
+  },
+  {
+    "name": "Word of Recall",
+    "level": 6,
+    "school": "Conjuration",
+    "desc": "You and up to five willing creatures within 5 feet are instantly transported to a previously designated sanctuary on your current plane.",
+    "range": 5
+  },
+  {
+    "name": "Zone of Truth",
+    "level": 2,
+    "school": "Enchantment",
+    "desc": "You create a magical zone where creatures can't deliberately tell lies. Each creature must make a Charisma save or be unable to speak deliberate lies.",
+    "range": 60,
+    "aoeType": "sphere",
+    "aoeSize": 15,
+    "saveAbility": "cha"
+  }
+]

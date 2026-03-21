@@ -204,8 +204,40 @@ export function DMScreen() {
   const updateActiveCombatants = (activeCombatants: Combatant[]) => {
     setCampaign(prev => prev ? ({
       ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, activeCombatants } : s)
+      scenarios: prev.scenarios.map(s => {
+        if (s.id !== selectedScenarioId) return s;
+        // Sync HP back to scenarioCombatants so the bottom panel stays current
+        const updatedCombatants = (s.combatants || []).map(sc => {
+          const active = activeCombatants.find(ac => ac.sourceCombatantId === sc.id);
+          return active ? { ...sc, hp: active.hp } : sc;
+        });
+        return { ...s, activeCombatants, combatants: updatedCombatants };
+      })
     }) : prev);
+  };
+
+  /** Update a combatant's HP by delta, keeping both scenarioCombatants and activeCombatants in sync */
+  const updateCombatantHp = (sourceCombatantId: string, delta: number) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioId) return s;
+          const updatedCombatants = (s.combatants || []).map(sc =>
+            sc.id === sourceCombatantId
+              ? { ...sc, hp: Math.max(0, Math.min(sc.maxHp, sc.hp + delta)) }
+              : sc
+          );
+          const updatedActive = (s.activeCombatants || []).map(ac =>
+            ac.sourceCombatantId === sourceCombatantId
+              ? { ...ac, hp: Math.max(0, Math.min(ac.maxHp, ac.hp + delta)) }
+              : ac
+          );
+          return { ...s, combatants: updatedCombatants, activeCombatants: updatedActive };
+        })
+      };
+    });
   };
 
   const updateScenarioMap = (mapImage: string) => {
@@ -271,6 +303,9 @@ export function DMScreen() {
       stats: monster.stats,
       actions: monster.actions,
       avatar: monster.avatar,
+      speedText: monster.speed,
+      cr: monster.cr,
+      specialAbilities: monster.specialAbilities,
     };
 
     setCampaign(prev => prev ? ({
@@ -328,7 +363,8 @@ export function DMScreen() {
         newCombatants.push({
           ...baseCombatant,
           id: combatantTrackerId,
-          initiative: roll
+          initiative: roll,
+          sourceCombatantId: baseCombatant.id,
         });
       } else {
         // Fallback for tokens without a full combatant record
@@ -638,6 +674,8 @@ export function DMScreen() {
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
                 scenarioCombatants={currentScenario.combatants || []}
+                activeCombatants={currentScenario.activeCombatants || []}
+                onUpdateCombatantHp={updateCombatantHp}
                 onAddEnemy={addEnemyToMap}
                 onStartCombat={startCombat}
                 leftSidebarOpen={leftSidebarOpen}

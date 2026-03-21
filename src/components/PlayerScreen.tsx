@@ -162,6 +162,8 @@ export function PlayerScreen() {
         npcs={campaign.npcs || []}
         persistentEnemies={campaign.persistentEnemies || []}
         scenarioCombatants={currentScenario.combatants || []}
+        activeCombatants={currentScenario.activeCombatants || []}
+        onUpdateCombatantHp={() => {}}
         onAddEnemy={() => {}}
         onStartCombat={() => {}}
         leftSidebarOpen={false}

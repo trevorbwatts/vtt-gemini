@@ -31,7 +31,10 @@
       "Bash(node -e \":*)",
       "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini -type f -name *character* -o -name *dnd*)",
       "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini -type f \\\\\\(-name *.json -o -name *test* -o -name *example* -o -name *sample* \\\\\\))",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(grep -r \"aoeType\\\\|aoeSize\\\\|drawAoe\\\\|renderSpell\\\\|spellEffect\" /c/Users/trevo/OneDrive/Desktop/vtt-gemini/src --include=*.tsx --include=*.ts)",
+      "Bash(node -e \"const s = require\\(''./src/data/spells.json''\\); console.log\\(''Total spells:'', s.length\\); console.log\\(''Sorted:'', s.every\\(\\(v,i,a\\) => i===0 || v.name.localeCompare\\(a[i-1].name\\) >= 0\\)\\); const aoe = s.filter\\(x=>x.aoeType\\); console.log\\(''AoE spells:'', aoe.length\\); const critical = [''Fireball'',''Lightning Bolt'',''Cone of Cold'',''Thunderwave'',''Fear'',''Spirit Guardians'',''Cloudkill'',''Fog Cloud'',''Darkness'',''Silence'',''Faerie Fire'',''Web'',''Entangle'',''Hypnotic Pattern'',''Shatter'']; critical.forEach\\(n => { const sp = s.find\\(x=>x.name===n\\); if\\(sp\\) console.log\\(n+'':'', sp.aoeType, sp.aoeSize, sp.range, sp.saveAbility||''none''\\); else console.log\\(n+'': MISSING''\\); }\\);\")",
+      "Bash(node -e \"const d = require\\(''./src/data/spells.json''\\); console.log\\(''Total spells:'', d.length\\); const aoe = d.filter\\(s => s.aoeType\\); console.log\\(''With AoE:'', aoe.length\\); aoe.slice\\(0,10\\).forEach\\(s => console.log\\(''  '', s.name, s.aoeType, s.aoeSize+''ft'', s.saveAbility || ''''\\)\\); console.log\\(''First 5:'', d.slice\\(0,5\\).map\\(s => s.name\\)\\)\")"
     ]
   }
 }

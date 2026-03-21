@@ -8,6 +8,56 @@ import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
+import { parseSpellcastingTrait } from '../data/spellDatabase';
+
+/** Expandable spell card used in the token detail panel */
+const SpellAccordion: React.FC<{
+  name: string; desc?: string; badge?: string; aoeBadge?: string; saveBadge?: string;
+  onCast?: () => void;
+}> = ({ name, desc, badge, aoeBadge, saveBadge, onCast }) => {
+  const [open, setOpen] = useState(false);
+  const hasDesc = !!desc;
+  return (
+    <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg text-sm overflow-hidden">
+      <button onClick={() => hasDesc && setOpen(o => !o)}
+        className={cn('w-full flex items-center gap-2 px-3 py-2 text-left',
+          hasDesc ? 'cursor-pointer hover:bg-white/5 transition-colors' : 'cursor-default')}>
+        <span className="font-bold flex-1 min-w-0 truncate text-purple-400 text-xs">{name}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {saveBadge && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
+              {saveBadge}
+            </span>
+          )}
+          {aoeBadge && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300">
+              {aoeBadge}
+            </span>
+          )}
+          {badge && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
+              {badge}
+            </span>
+          )}
+        </div>
+        {hasDesc && <ChevronDown size={13} className={cn('shrink-0 opacity-40 transition-transform duration-200', open && 'rotate-180')} />}
+      </button>
+      {hasDesc && open && (
+        <div className="px-3 pb-2.5 text-[11px] opacity-60 leading-relaxed border-t border-white/5 pt-2">
+          {desc}
+          {onCast && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCast(); }}
+              className="mt-2 w-full py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors"
+            >
+              Cast on Map
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface MapViewProps {
   tokens: Token[];
@@ -21,6 +71,8 @@ interface MapViewProps {
   npcs: Combatant[];
   persistentEnemies: Combatant[];
   scenarioCombatants: Combatant[];
+  activeCombatants: Combatant[];
+  onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
   onAddEnemy: (monster: Monster, x: number, y: number) => void;
   onStartCombat: (tokenIds: string[]) => void;
   leftSidebarOpen: boolean;
@@ -100,6 +152,8 @@ export const MapView: React.FC<MapViewProps> = ({
   npcs,
   persistentEnemies,
   scenarioCombatants,
+  activeCombatants,
+  onUpdateCombatantHp,
   onAddEnemy,
   onStartCombat,
   leftSidebarOpen,
@@ -154,6 +208,27 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const [showFog, setShowFog] = useState(true);
   const [darknessOpen, setDarknessOpen] = useState(false);
+  const [panelHpInput, setPanelHpInput] = useState('');
+
+  // ── AoE Casting State ──
+  const [castingSpell, setCastingSpell] = useState<{
+    name: string;
+    aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+    aoeSize: number; // feet
+    originX: number; // caster token world coords
+    originY: number;
+  } | null>(null);
+  const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [placedAoe, setPlacedAoe] = useState<{
+    aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+    aoeSize: number;
+    x: number;
+    y: number;
+    originX: number;
+    originY: number;
+    angle: number;
+  } | null>(null);
+
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
   // Konva moves the node natively during drag; we just need the position for IPC broadcasts.
   const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -632,6 +707,11 @@ export const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     if (isPlayerView) return;
     const onKeyDown = (e: KeyboardEvent) => {
+      // Escape cancels AoE casting or dismisses placed AoE
+      if (e.code === 'Escape') {
+        if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); return; }
+        if (placedAoe) { setPlacedAoe(null); return; }
+      }
       if (e.code !== 'Space') return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable) return;
@@ -653,7 +733,7 @@ export const MapView: React.FC<MapViewProps> = ({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [isPlayerView]);
+  }, [isPlayerView, castingSpell, placedAoe]);
 
   // Two-finger pan for player view
   const twoFingerPanRef = useRef<{ midX: number; midY: number } | null>(null);
@@ -697,10 +777,37 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseDown = (e: any) => {
+    // AoE casting: click to place, then click again (or Escape) to dismiss
+    if (castingSpell && e.evt.button === 0) {
+      if (castingMousePos) {
+        const angle = Math.atan2(
+          castingMousePos.y - castingSpell.originY,
+          castingMousePos.x - castingSpell.originX
+        ) * (180 / Math.PI);
+        setPlacedAoe({
+          aoeType: castingSpell.aoeType,
+          aoeSize: castingSpell.aoeSize,
+          x: castingMousePos.x,
+          y: castingMousePos.y,
+          originX: castingSpell.originX,
+          originY: castingSpell.originY,
+          angle,
+        });
+        setCastingSpell(null);
+        setCastingMousePos(null);
+      }
+      return;
+    }
+
     if (e.evt.button === 2 || e.evt.button === 1 || (e.evt.button === 0 && spaceHeldRef.current)) {
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
     } else if (e.evt.button === 0) {
+      // Clicking on the stage clears placed AoE
+      if (placedAoe) {
+        setPlacedAoe(null);
+        return;
+      }
       const canvas = getCanvasPos(e.target.getStage());
       selectionStartRef.current = canvas;
       selectionRectRef.current = { x: canvas.x, y: canvas.y, w: 0, h: 0 };
@@ -709,6 +816,14 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseMove = (e: any) => {
+    // AoE casting: track mouse in world coords
+    if (castingSpell) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      setCastingMousePos(pos);
+      return; // Don't do anything else while casting
+    }
+
     if (isPanning) {
       const dx = e.evt.clientX - lastPos.x;
       const dy = e.evt.clientY - lastPos.y;
@@ -795,7 +910,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col relative" ref={containerRef}>
+    <div className={cn("h-full flex flex-col relative", castingSpell && "cursor-crosshair")} ref={containerRef}>
       {/* Toolbar - Only visible to DM */}
       {!isPlayerView && (
         <div className="h-10 border-b border-[var(--line)] bg-[var(--surface)] flex justify-between items-center shrink-0">
@@ -1130,6 +1245,125 @@ export const MapView: React.FC<MapViewProps> = ({
               );
             })}
           </Layer>
+
+          {/* ── AoE Casting Layer ── */}
+          {(castingSpell || placedAoe) && (() => {
+            const ppg = gridResolution?.pixelsPerGrid || 40;
+            const feetToPx = (ft: number) => (ft / 5) * ppg;
+
+            // Active casting (following mouse) or placed AoE
+            const aoe = castingSpell && castingMousePos ? {
+              aoeType: castingSpell.aoeType,
+              aoeSize: castingSpell.aoeSize,
+              x: castingMousePos.x,
+              y: castingMousePos.y,
+              originX: castingSpell.originX,
+              originY: castingSpell.originY,
+              angle: Math.atan2(castingMousePos.y - castingSpell.originY, castingMousePos.x - castingSpell.originX) * (180 / Math.PI),
+              opacity: 0.25,
+            } : placedAoe ? {
+              ...placedAoe,
+              opacity: 0.35,
+            } : null;
+
+            if (!aoe) return null;
+
+            const sizePx = feetToPx(aoe.aoeSize);
+            const strokeW = 2 / stageScale; // constant screen-space stroke
+            const fillColor = 'rgba(255, 120, 30, 0.25)';
+            const strokeColor = 'rgba(255, 120, 30, 0.8)';
+
+            return (
+              <Layer listening={false}>
+                {/* Sphere / Cylinder — circle at target position */}
+                {(aoe.aoeType === 'sphere' || aoe.aoeType === 'cylinder') && (
+                  <Circle
+                    x={aoe.x}
+                    y={aoe.y}
+                    radius={sizePx}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={strokeW}
+                    dash={[6 / stageScale, 4 / stageScale]}
+                  />
+                )}
+
+                {/* Cube — square at target position */}
+                {aoe.aoeType === 'cube' && (
+                  <Rect
+                    x={aoe.x - sizePx}
+                    y={aoe.y - sizePx}
+                    width={sizePx * 2}
+                    height={sizePx * 2}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={strokeW}
+                    dash={[6 / stageScale, 4 / stageScale]}
+                  />
+                )}
+
+                {/* Cone — wedge from caster toward target */}
+                {aoe.aoeType === 'cone' && (() => {
+                  const angleRad = aoe.angle * (Math.PI / 180);
+                  const halfAngle = (53 / 2) * (Math.PI / 180); // D&D cone is ~53 degrees
+                  const points = [
+                    0, 0, // origin (relative)
+                    Math.cos(angleRad - halfAngle) * sizePx,
+                    Math.sin(angleRad - halfAngle) * sizePx,
+                    Math.cos(angleRad - halfAngle / 2) * sizePx,
+                    Math.sin(angleRad - halfAngle / 2) * sizePx,
+                    Math.cos(angleRad) * sizePx,
+                    Math.sin(angleRad) * sizePx,
+                    Math.cos(angleRad + halfAngle / 2) * sizePx,
+                    Math.sin(angleRad + halfAngle / 2) * sizePx,
+                    Math.cos(angleRad + halfAngle) * sizePx,
+                    Math.sin(angleRad + halfAngle) * sizePx,
+                  ];
+                  return (
+                    <Line
+                      x={aoe.originX}
+                      y={aoe.originY}
+                      points={points}
+                      closed
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={strokeW}
+                      dash={[6 / stageScale, 4 / stageScale]}
+                    />
+                  );
+                })()}
+
+                {/* Line — rectangle from caster toward target */}
+                {aoe.aoeType === 'line' && (() => {
+                  const angleRad = aoe.angle * (Math.PI / 180);
+                  const halfWidth = feetToPx(5) / 2; // 5ft wide
+                  const perpX = Math.cos(angleRad + Math.PI / 2) * halfWidth;
+                  const perpY = Math.sin(angleRad + Math.PI / 2) * halfWidth;
+                  const endX = Math.cos(angleRad) * sizePx;
+                  const endY = Math.sin(angleRad) * sizePx;
+                  const points = [
+                    -perpX, -perpY,
+                    endX - perpX, endY - perpY,
+                    endX + perpX, endY + perpY,
+                    perpX, perpY,
+                  ];
+                  return (
+                    <Line
+                      x={aoe.originX}
+                      y={aoe.originY}
+                      points={points}
+                      closed
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={strokeW}
+                      dash={[6 / stageScale, 4 / stageScale]}
+                    />
+                  );
+                })()}
+              </Layer>
+            );
+          })()}
+
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
@@ -1206,6 +1440,15 @@ export const MapView: React.FC<MapViewProps> = ({
             </Layer>
           )}
         </Stage>
+
+        {/* Casting Mode Banner */}
+        {castingSpell && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
+            <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+            <span className="text-sm font-bold text-orange-400">Casting {castingSpell.name}</span>
+            <span className="text-xs text-white/40">Click to place · Escape to cancel</span>
+          </div>
+        )}
 
         {/* Context Menu / Note Creator */}
         {contextMenu && (
@@ -1684,33 +1927,80 @@ export const MapView: React.FC<MapViewProps> = ({
           // Players get the dedicated Character Sheet modal via the main menu
           if (token?.type === 'player') return null;
 
-          const combatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
-          const combatant = combatants.find(c => c.id === token?.combatantId);
+          const sourceCombatantId = token?.combatantId;
+          const sourceCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+          const sourceCombatant = sourceCombatants.find(c => c.id === sourceCombatantId);
+          // If this combatant is currently in the initiative tracker, use that HP (it's the live value)
+          const activeCombatant = activeCombatants.find(ac => ac.sourceCombatantId === sourceCombatantId);
+          const combatant = activeCombatant
+            ? { ...sourceCombatant, ...activeCombatant }
+            : sourceCombatant;
 
           if (!combatant) return null;
+
+          const hpPct = combatant.maxHp > 0 ? (combatant.hp / combatant.maxHp) * 100 : 0;
+          const applyPanelHpDelta = (sign: 1 | -1) => {
+            const val = parseInt(panelHpInput || '0', 10);
+            if (!val || !sourceCombatantId) return;
+            onUpdateCombatantHp(sourceCombatantId, val * sign);
+            setPanelHpInput('');
+          };
 
           return (
             <div className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--line)] shadow-2xl animate-in slide-in-from-bottom duration-300 z-40 max-h-[40%] overflow-hidden flex flex-col">
               <div className="flex items-center justify-between p-3 border-b border-[var(--line)] bg-black/20 shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: token?.color }} />
-                    <h4 className="font-bold text-sm tracking-tight">{combatant.name}</h4>
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: token?.color }} />
+                    <h4 className="font-bold text-sm tracking-tight truncate">{combatant.name}</h4>
                   </div>
-                  <div className="flex gap-3 text-[10px] font-sans opacity-50">
-                    <span>HP: {combatant.hp}/{combatant.maxHp}</span>
-                    <span>AC: {combatant.ac}</span>
-                    {combatant.type === 'player' && combatant.classes && (
-                      <span>{combatant.classes.map(c => `${c.name} ${c.level}`).join(' / ')}</span>
-                    )}
+                  {/* HP bar + controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/50">
+                        <span>{combatant.hp}/{combatant.maxHp} HP</span>
+                        <span className="opacity-40">·</span>
+                        <span>AC {combatant.ac}</span>
+                      </div>
+                      <div className="w-32 h-1.5 bg-black/50 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[var(--accent)] transition-all shadow-[0_0_6px_rgba(205,127,50,0.4)]"
+                          style={{ width: `${hpPct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => applyPanelHpDelta(-1)}
+                        className="w-6 h-6 flex items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
+                      >
+                        <span className="text-[14px] font-bold leading-none">−</span>
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={panelHpInput}
+                        onChange={(e) => setPanelHpInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') applyPanelHpDelta(-1); }}
+                        placeholder="0"
+                        className="w-10 h-6 text-center text-[12px] font-bold bg-black/50 border border-white/10 rounded text-white placeholder:text-white/20 focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        onClick={() => applyPanelHpDelta(1)}
+                        className="w-6 h-6 flex items-center justify-center rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 transition-colors"
+                      >
+                        <span className="text-[14px] font-bold leading-none">+</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <button
                   onClick={() => {
                     setSelectedTokenId(null);
                     setSelectedTokenIds([]);
+                    setPanelHpInput('');
                   }}
-                  className="p-1 hover:bg-white/10 rounded transition-colors opacity-50 hover:opacity-100"
+                  className="p-1 hover:bg-white/10 rounded transition-colors opacity-50 hover:opacity-100 shrink-0"
                 >
                   <X size={16} />
                 </button>
@@ -1726,10 +2016,10 @@ export const MapView: React.FC<MapViewProps> = ({
                         {Object.entries(combatant.stats).map(([stat, val]) => (
                           <div key={stat} className="bg-black/20 rounded p-2 text-center">
                             <div className="text-[8px] uppercase opacity-50">{stat}</div>
-                            <div className="text-sm font-bold">{val}</div>
-                            <div className="text-[9px] opacity-30">
+                            <div className="text-sm font-bold">
                               {Math.floor((val - 10) / 2) >= 0 ? '+' : ''}{Math.floor((val - 10) / 2)}
                             </div>
+                            <div className="text-[9px] opacity-30">{val}</div>
                           </div>
                         ))}
                       </div>
@@ -1744,15 +2034,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   </div>
                 </div>
 
-                {/* Column 2: Description */}
-                <div className="min-w-[250px] max-w-[400px]">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Description</h5>
-                  <div className="text-xs leading-relaxed opacity-70 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                    {combatant.description || "No description provided for this character."}
-                  </div>
-                </div>
-
-                {/* Column 3: Actions */}
+                {/* Column 2: Actions */}
                 <div className="min-w-[250px] flex-1">
                   <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Actions</h5>
                   <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
@@ -1771,20 +2053,74 @@ export const MapView: React.FC<MapViewProps> = ({
                 {/* Column 4: Spells */}
                 <div className="min-w-[250px] flex-1">
                   <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Spells</h5>
-                  <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                    {combatant.spells && combatant.spells.length > 0 ? (
-                      combatant.spells.map((spell, i) => (
-                        <div key={i} className="text-xs bg-blue-500/5 p-2 rounded border border-blue-500/10">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold italic text-blue-400">{spell.name}</span>
-                            <span className="text-[9px] opacity-50 uppercase">Level {spell.level}</span>
-                          </div>
-                          <p className="opacity-70 text-[11px]">{spell.desc}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs opacity-40 italic">No spells listed</p>
-                    )}
+                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                    {(() => {
+                      const AOE_LABELS: Record<string, string> = {
+                        sphere: 'Sphere', cone: 'Cone', line: 'Line', cube: 'Cube', cylinder: 'Cylinder',
+                      };
+                      const tokenX = token?.x ?? 0;
+                      const tokenY = token?.y ?? 0;
+
+                      const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number }) => {
+                        if (!spell.aoeType || !spell.aoeSize) return;
+                        setCastingSpell({
+                          name: spell.name,
+                          aoeType: spell.aoeType as any,
+                          aoeSize: spell.aoeSize,
+                          originX: tokenX,
+                          originY: tokenY,
+                        });
+                        setPlacedAoe(null);
+                      };
+
+                      // Structured player spells
+                      if (combatant.spells && combatant.spells.length > 0) {
+                        return combatant.spells.map((spell, i) => {
+                          const aoeBadge = spell.aoeType
+                            ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
+                            : undefined;
+                          const saveBadge = spell.saveAbility
+                            ? `${spell.saveAbility.toUpperCase()} Save`
+                            : undefined;
+                          return (
+                            <SpellAccordion key={i} name={spell.name} desc={spell.desc}
+                              badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
+                              aoeBadge={aoeBadge} saveBadge={saveBadge}
+                              onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
+                          );
+                        });
+                      }
+
+                      // Monster spellcasting — parse from specialAbilities Spellcasting trait
+                      const spellcastingTrait = combatant.specialAbilities?.find(a =>
+                        a.name.toLowerCase().includes('spellcasting')
+                      );
+                      if (spellcastingTrait) {
+                        const parsed = parseSpellcastingTrait(spellcastingTrait.desc);
+                        if (parsed.spells.length > 0) {
+                          return (
+                            <>
+                              <p className="text-[10px] opacity-40 italic leading-relaxed mb-2">{parsed.preamble}</p>
+                              {parsed.spells.map((spell, i) => {
+                                const aoeBadge = spell.aoeType
+                                  ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
+                                  : undefined;
+                                const saveBadge = spell.saveAbility
+                                  ? `${spell.saveAbility.toUpperCase()} Save`
+                                  : undefined;
+                                return (
+                                  <SpellAccordion key={i} name={spell.name} desc={spell.desc}
+                                    badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
+                                    aoeBadge={aoeBadge} saveBadge={saveBadge}
+                                    onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
+                                );
+                              })}
+                            </>
+                          );
+                        }
+                      }
+                      return <p className="text-xs opacity-40 italic">No spells listed</p>;
+                    })()}
                   </div>
                 </div>
               </div>
