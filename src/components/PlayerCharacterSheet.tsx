@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, Sword, Sparkles, BookOpen, Award, Backpack, RefreshCw, ChevronDown, Brain } from '../icons';
+import { X, Shield, Heart, Zap, Eye, MoreVertical, Trash2, Sparkles, RefreshCw, ChevronDown } from '../icons';
 import { Combatant, cn } from '../types';
 
 interface PlayerCharacterSheetProps {
@@ -29,16 +29,9 @@ const getLevel = (p: Combatant) => p.classes?.reduce((s, c) => s + c.level, 0) |
 const getClassSummary = (p: Combatant) =>
   p.classes?.map(c => `${c.name} ${c.level}`).join(' / ') || '';
 
-type SheetTab = 'actions' | 'spells' | 'features' | 'feats' | 'inventory' | 'skills';
-
-const TABS: { id: SheetTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'skills',   label: 'Skills',            icon: <Brain size={15} /> },
-  { id: 'actions',  label: 'Actions',           icon: <Sword size={15} /> },
-  { id: 'spells',   label: 'Spells',            icon: <Sparkles size={15} /> },
-  { id: 'features', label: 'Features & Traits', icon: <BookOpen size={15} /> },
-  { id: 'feats',    label: 'Feats',             icon: <Award size={15} /> },
-  { id: 'inventory',label: 'Inventory',         icon: <Backpack size={15} /> },
-];
+const AOE_LABELS: Record<string, string> = {
+  sphere: 'Sphere', cone: 'Cone', line: 'Line', cube: 'Cube', cylinder: 'Cylinder',
+};
 
 export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
   player, onClose, onDelete, onColorChange, onRefresh,
@@ -47,7 +40,6 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
   const [colorsOpen, setColorsOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<SheetTab>('skills');
   const menuRef = useRef<HTMLDivElement>(null);
   const colorsRef = useRef<HTMLDivElement>(null);
 
@@ -66,85 +58,6 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
   const level = getLevel(player);
   const classSummary = getClassSummary(player);
   const ringColor = player.color || '#3b82f6';
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'actions':
-        return player.actions && player.actions.length > 0 ? (
-          <div className="space-y-1.5">
-            {player.actions.map((a, i) => (
-              <AccordionCard key={i} name={a.name} desc={a.desc}
-                nameClass="text-blue-400" bg="bg-blue-500/5" border="border-blue-500/10" />
-            ))}
-          </div>
-        ) : <EmptyTab label="No actions listed." />;
-
-      case 'spells':
-        return player.spells && player.spells.length > 0 ? (
-          <div className="space-y-1.5">
-            {player.spells.map((s, i) => (
-              <AccordionCard key={i} name={s.name} desc={s.desc}
-                badge={s.level === 0 ? 'Cantrip' : `Level ${s.level}`}
-                nameClass="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/10" />
-            ))}
-          </div>
-        ) : <EmptyTab label="No spells listed." />;
-
-      case 'features':
-        return player.features && player.features.length > 0 ? (
-          <div className="space-y-1.5">
-            {player.features.map((f, i) => (
-              <AccordionCard key={i} name={f.name} desc={f.desc} badge={f.source}
-                nameClass="text-emerald-400" bg="bg-emerald-500/5" border="border-emerald-500/10" />
-            ))}
-          </div>
-        ) : <EmptyTab label="No features or traits listed." />;
-
-      case 'feats':
-        return player.feats && player.feats.length > 0 ? (
-          <div className="space-y-1.5">
-            {player.feats.map((f, i) => (
-              <AccordionCard key={i} name={f.name} desc={f.desc}
-                nameClass="text-amber-400" bg="bg-amber-500/5" border="border-amber-500/10" />
-            ))}
-          </div>
-        ) : <EmptyTab label="No feats listed." />;
-
-      case 'skills':
-        return player.skills && player.skills.length > 0 ? (
-          <div className="grid grid-cols-2 gap-1.5">
-            {player.skills.map((skill, i) => {
-              const modStr = (skill.modifier >= 0 ? '+' : '') + skill.modifier;
-              return (
-                <div key={i} className="flex items-center gap-2 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-sm">
-                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{
-                    background: skill.expertise ? 'rgba(168,85,247,0.2)' : skill.proficient ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    color: skill.expertise ? '#a855f7' : skill.proficient ? 'white' : 'rgba(255,255,255,0.3)',
-                    border: skill.expertise ? '1px solid rgba(168,85,247,0.5)' : skill.proficient ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.08)',
-                  }}>{modStr}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className={skill.proficient || skill.expertise ? 'text-white font-medium' : 'opacity-50'}>{skill.name}</div>
-                  </div>
-                  <span className="text-[11px] uppercase tracking-wider opacity-30 shrink-0">{skill.ability.toUpperCase()}</span>
-                </div>
-              );
-            })}
-          </div>
-        ) : <EmptyTab label="No skill data. Refresh from D&D Beyond." />;
-
-      case 'inventory':
-        return player.inventory && player.inventory.length > 0 ? (
-          <div className="space-y-1.5">
-            {player.inventory.map((item, i) => (
-              <AccordionCard key={i} name={item.name} desc={item.desc}
-                badge={item.equipped ? 'Equipped' : undefined} badgeAccent={item.equipped}
-                suffix={item.quantity != null && item.quantity !== 1 ? `×${item.quantity}` : undefined}
-                nameClass="text-white" bg="bg-black/20" border="border-white/5" />
-            ))}
-          </div>
-        ) : <EmptyTab label="No inventory items listed." />;
-    }
-  };
 
   return (
     <AnimatePresence>
@@ -211,7 +124,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
                 <div className="w-px h-8 bg-white/10" />
                 <div className="text-center">
                   <div className="text-[10px] opacity-40 uppercase tracking-wider">Init</div>
-                  <div className="text-sm font-bold font-serif" style={{ color: player.initiative >= 0 ? '#4ade80' : '#f87171' }}>
+                  <div className="text-sm font-bold font-serif">
                     {player.initiative >= 0 ? '+' : ''}{player.initiative}
                   </div>
                 </div>
@@ -301,46 +214,42 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
           {/* Ability score strip */}
           {player.stats && (
             <div className="flex border-b border-[var(--line)] shrink-0 bg-black/20">
-              {Object.entries(player.stats).map(([stat, val]) => {
-                const save = player.savingThrows?.[stat];
-                const saveStr = save ? (save.modifier >= 0 ? '+' : '') + save.modifier : null;
-                return (
-                  <div key={stat} className="flex-1 text-center py-2.5 border-r border-white/5 last:border-r-0">
-                    <div className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{STAT_LABELS[stat]}</div>
-                    <div className="text-xl font-bold font-serif text-white">
-                      {statMod(val)}
-                    </div>
-                    <div className="text-[11px] opacity-40">{val}</div>
-                    {saveStr && (
-                      <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                        <span className="w-1 h-1 rounded-full"
-                          style={{ background: save?.proficient ? '#4ade80' : 'rgba(255,255,255,0.15)' }} />
-                        <span className="text-[10px] opacity-40">{saveStr}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {Object.entries(player.stats).map(([stat, val]) => (
+                <div key={stat} className="flex-1 text-center py-2.5 border-r border-white/5 last:border-r-0">
+                  <div className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{STAT_LABELS[stat]}</div>
+                  <div className="text-xl font-bold font-serif text-white">{statMod(val)}</div>
+                  <div className="text-[11px] opacity-40">{val}</div>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Tab bar */}
-          <div className="flex border-b border-white/10 shrink-0">
-            {TABS.map((tab) => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 px-1 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 -mb-px",
-                  activeTab === tab.id ? "border-[var(--accent)] text-white" : "border-transparent opacity-40 hover:opacity-70"
-                )}>
-                {tab.icon}
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Tab content */}
+          {/* Spells section */}
           <div className="flex-1 overflow-y-auto p-5 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            {renderTabContent()}
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={14} className="text-purple-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Spells</span>
+            </div>
+            {player.spells && player.spells.length > 0 ? (
+              <div className="space-y-1.5">
+                {player.spells.map((s, i) => {
+                  const levelBadge = s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
+                  const aoeBadge = s.aoeType
+                    ? `${s.aoeSize ? `${s.aoeSize}ft ` : ''}${AOE_LABELS[s.aoeType]}`
+                    : undefined;
+                  const saveBadge = s.saveAbility
+                    ? `${s.saveAbility.toUpperCase()} Save`
+                    : undefined;
+                  return (
+                    <AccordionCard key={i} name={s.name} desc={s.desc}
+                      badge={levelBadge} aoeBadge={aoeBadge} saveBadge={saveBadge}
+                      nameClass="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/10" />
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm opacity-30 italic py-4 text-center">No spells listed.</p>
+            )}
           </div>
         </motion.div>
       </div>
@@ -348,17 +257,19 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
   );
 };
 
-const EmptyTab: React.FC<{ label: string }> = ({ label }) => (
-  <p className="text-sm opacity-30 italic py-4 text-center">{label}</p>
-);
-
 interface AccordionCardProps {
-  name: string; desc?: string; badge?: string; badgeAccent?: boolean;
-  suffix?: string; nameClass?: string; bg: string; border: string;
+  name: string;
+  desc?: string;
+  badge?: string;
+  aoeBadge?: string;
+  saveBadge?: string;
+  nameClass?: string;
+  bg: string;
+  border: string;
 }
 
 const AccordionCard: React.FC<AccordionCardProps> = ({
-  name, desc, badge, badgeAccent, suffix, nameClass = 'text-white', bg, border,
+  name, desc, badge, aoeBadge, saveBadge, nameClass = 'text-white', bg, border,
 }) => {
   const [open, setOpen] = useState(false);
   const hasDesc = !!desc;
@@ -368,13 +279,23 @@ const AccordionCard: React.FC<AccordionCardProps> = ({
         className={cn('w-full flex items-center gap-2 px-3 py-2.5 text-left',
           hasDesc ? 'cursor-pointer hover:bg-white/5 transition-colors' : 'cursor-default')}>
         <span className={`font-bold flex-1 min-w-0 truncate ${nameClass}`}>{name}</span>
-        {suffix && <span className="shrink-0 font-mono opacity-40">{suffix}</span>}
-        {badge && (
-          <span className={cn('shrink-0 text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded',
-            badgeAccent ? 'text-[var(--accent)] bg-[var(--accent)]/10' : 'opacity-40')}>
-            {badge}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {saveBadge && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+              {saveBadge}
+            </span>
+          )}
+          {aoeBadge && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">
+              {aoeBadge}
+            </span>
+          )}
+          {badge && (
+            <span className="text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded opacity-40">
+              {badge}
+            </span>
+          )}
+        </div>
         {hasDesc && <ChevronDown size={15} className={cn('shrink-0 opacity-40 transition-transform duration-200', open && 'rotate-180')} />}
       </button>
       {hasDesc && open && (

@@ -1,14 +1,16 @@
 /**
  * D&D Beyond Character Parser
- * 
+ *
  * Parses the JSON response from the D&D Beyond character-service API
  * into our local Combatant type.
- * 
- * Reference: based on the DDB JSON structure documented by ddb2alchemy
- * (https://github.com/alchemyrpg/ddb2alchemy)
+ *
+ * Only imports what the VTT actually needs:
+ *   - Core combat stats (HP, AC, Speed, Darkvision, Initiative, Prof)
+ *   - Ability scores
+ *   - Spells with AoE geometry (for the future Player Drawer casting system)
  */
 
-import { Combatant, ClassDefinition, MonsterAction } from '../types';
+import { Combatant, ClassDefinition } from '../types';
 
 // Stat IDs used by D&D Beyond
 const STAT_IDS = { STR: 1, DEX: 2, CON: 3, INT: 4, WIS: 5, CHA: 6 } as const;
@@ -27,6 +29,11 @@ const PROFICIENCY_BY_LEVEL: Record<number, number> = {
 const STAT_NAMES: Record<number, string> = {
   1: 'strength', 2: 'dexterity', 3: 'constitution',
   4: 'intelligence', 5: 'wisdom', 6: 'charisma',
+};
+
+// DDB saveDcAbilityId → short ability name
+const SAVE_ABILITY_NAMES: Record<number, string> = {
+  1: 'str', 2: 'dex', 3: 'con', 4: 'int', 5: 'wis', 6: 'cha',
 };
 
 // --- Modifier Helpers ---
@@ -99,14 +106,8 @@ function getArmorClass(data: any): number {
   const bonusAc = sumModifiers(data, 'bonus', 'armor-class');
 
   let dexBonus = getStatBonus(data, STAT_IDS.DEX);
-  // Medium armor caps DEX bonus at 2
-  if (equipped.some((item: any) => item.definition?.armorTypeId === 2)) {
-    dexBonus = Math.min(dexBonus, 2);
-  }
-  // Heavy armor negates DEX bonus
-  if (equipped.some((item: any) => item.definition?.armorTypeId === 3)) {
-    dexBonus = 0;
-  }
+  if (equipped.some((item: any) => item.definition?.armorTypeId === 2)) dexBonus = Math.min(dexBonus, 2);
+  if (equipped.some((item: any) => item.definition?.armorTypeId === 3)) dexBonus = 0;
 
   return baseAc + bonusAc + dexBonus;
 }
@@ -120,15 +121,11 @@ function getSpeed(data: any): number {
 }
 
 function getDarkvision(data: any): number {
-  // Check racial traits and modifiers for darkvision
   const mods = getAllModifiers(data).filter(m => m.subType === 'darkvision');
-  if (mods.length > 0) {
-    return Math.max(...mods.map(m => m.value || m.fixedValue || 60));
-  }
-  // Check racial traits text
+  if (mods.length > 0) return Math.max(...mods.map(m => m.value || m.fixedValue || 60));
   const racialTraits = data.race?.racialTraits || [];
   const dvTrait = racialTraits.find((t: any) => t.definition?.name?.toLowerCase().includes('darkvision'));
-  if (dvTrait) return 60; // Default darkvision range
+  if (dvTrait) return 60;
   return 0;
 }
 
@@ -142,203 +139,63 @@ function getClasses(data: any): ClassDefinition[] {
   }));
 }
 
-// --- Spells ---
+// --- Spells (with AoE geometry for the Player Drawer) ---
 
-function getSpells(data: any): { name: string; level: number; desc: string }[] {
-  const spells: { name: string; level: number; desc: string }[] = [];
+// DDB aoeType can be a string ('Sphere', 'Cone', etc.) or a numeric ID
+function normalizeAoeType(raw: any): 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | undefined {
+  if (!raw) return undefined;
+  const s = String(raw).toLowerCase();
+  if (s === 'sphere'   || s === '1') return 'sphere';
+  if (s === 'cone'     || s === '2') return 'cone';
+  if (s === 'cube'     || s === '3') return 'cube';
+  if (s === 'cylinder' || s === '4') return 'cylinder';
+  if (s === 'line'     || s === '5') return 'line';
+  return undefined;
+}
+
+function getSpells(data: any): NonNullable<Combatant['spells']> {
+  const spells: NonNullable<Combatant['spells']> = [];
   const seen = new Set<string>();
 
   const addSpell = (spell: any) => {
     const def = spell.definition || spell;
     if (!def?.name || seen.has(def.name)) return;
+    if (spell.isAssigned === false) return;
+    if (def.isHomebrew === true) return;
     seen.add(def.name);
+
+    const aoeType = normalizeAoeType(def.range?.aoeType);
+    const aoeSize = def.range?.aoeValue || undefined;
+    const range   = def.range?.rangeValue ?? undefined;
+    const saveAbility = def.saveDcAbilityId
+      ? SAVE_ABILITY_NAMES[def.saveDcAbilityId as number]
+      : undefined;
+
     spells.push({
       name: def.name,
       level: def.level || 0,
       desc: sanitizeHtml(def.description || ''),
+      ...(aoeType    ? { aoeType }    : {}),
+      ...(aoeSize    ? { aoeSize }    : {}),
+      ...(range != null ? { range }   : {}),
+      ...(saveAbility ? { saveAbility } : {}),
     });
   };
 
-  // Class spells
-  (data.classSpells || []).forEach((cs: any) => {
-    (cs.spells || []).forEach(addSpell);
-  });
-
-  // Race/class direct spells
+  (data.classSpells || []).forEach((cs: any) => (cs.spells || []).forEach(addSpell));
   if (data.spells) {
-    (data.spells.race || []).forEach(addSpell);
+    (data.spells.race  || []).forEach(addSpell);
     (data.spells.class || []).forEach(addSpell);
   }
 
   return spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
 }
 
-// --- Actions (activatable combat/resource abilities from DDB top-level actions) ---
-
-function getActions(data: any): MonsterAction[] {
-  const seen = new Set<string>();
-  const result: MonsterAction[] = [];
-  const allGroups = [
-    ...(data.actions?.class || []),
-    ...(data.actions?.race || []),
-    ...(data.actions?.feat || []),
-    ...(data.actions?.background || []),
-    ...(data.actions?.item || []),
-  ];
-  for (const a of allGroups) {
-    const name = a.name;
-    const desc = a.snippet ? stripHtml(a.snippet) : sanitizeHtml(a.description || '');
-    if (!name || seen.has(name)) continue;
-    seen.add(name);
-    result.push({ name, desc });
-  }
-  return result;
-}
-
-// --- Features & Traits (class features, subclass features, racial traits) ---
-
-function getFeatures(data: any): { name: string; desc: string; source?: string }[] {
-  const seen = new Set<string>();
-  const result: { name: string; desc: string; source?: string }[] = [];
-
-  for (const c of data.classes || []) {
-    const className = c.definition?.name || 'Class';
-    for (const f of c.definition?.classFeatures || []) {
-      if (f.requiredLevel <= c.level && f.name && !seen.has(f.name)) {
-        seen.add(f.name);
-        result.push({ name: f.name, desc: sanitizeHtml(f.description || ''), source: className });
-      }
-    }
-    const subName = c.subclassDefinition?.name;
-    for (const f of c.subclassDefinition?.classFeatures || []) {
-      if (f.requiredLevel <= c.level && f.name && !seen.has(f.name)) {
-        seen.add(f.name);
-        result.push({ name: f.name, desc: sanitizeHtml(f.description || ''), source: subName || className });
-      }
-    }
-  }
-
-  const speciesName = data.race?.fullName || data.race?.baseRaceName || 'Species';
-  for (const t of data.race?.racialTraits || []) {
-    const name = t.definition?.name;
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      result.push({ name, desc: sanitizeHtml(t.definition?.description || ''), source: speciesName });
-    }
-  }
-
-  return result;
-}
-
-// --- Feats ---
-
-function getFeats(data: any): { name: string; desc: string }[] {
-  return (data.feats || [])
-    .filter((f: any) => f.definition?.name)
-    .map((f: any) => ({
-      name: f.definition.name,
-      desc: sanitizeHtml(f.definition.description || ''),
-    }));
-}
-
-// --- Saving Throws ---
-
-const SAVE_SUBTYPES: Record<string, string> = {
-  str: 'strength-saving-throws',
-  dex: 'dexterity-saving-throws',
-  con: 'constitution-saving-throws',
-  int: 'intelligence-saving-throws',
-  wis: 'wisdom-saving-throws',
-  cha: 'charisma-saving-throws',
-};
-
-function getSavingThrows(data: any): Record<string, { modifier: number; proficient: boolean }> {
-  const mods = getAllModifiers(data);
-  const prof = PROFICIENCY_BY_LEVEL[getLevel(data)] || 2;
-  const result: Record<string, { modifier: number; proficient: boolean }> = {};
-
-  for (const [ability, subType] of Object.entries(SAVE_SUBTYPES)) {
-    const statId = { str: 1, dex: 2, con: 3, int: 4, wis: 5, cha: 6 }[ability]!;
-    const abilityMod = getStatBonus(data, statId);
-    const proficient = mods.some(m => m.type === 'proficiency' && m.subType === subType);
-    result[ability] = { modifier: abilityMod + (proficient ? prof : 0), proficient };
-  }
-
-  return result;
-}
-
-// --- Skills ---
-
-const SKILLS: { name: string; ability: string; subType: string }[] = [
-  { name: 'Acrobatics',     ability: 'dex', subType: 'acrobatics' },
-  { name: 'Animal Handling',ability: 'wis', subType: 'animal-handling' },
-  { name: 'Arcana',         ability: 'int', subType: 'arcana' },
-  { name: 'Athletics',      ability: 'str', subType: 'athletics' },
-  { name: 'Deception',      ability: 'cha', subType: 'deception' },
-  { name: 'History',        ability: 'int', subType: 'history' },
-  { name: 'Insight',        ability: 'wis', subType: 'insight' },
-  { name: 'Intimidation',   ability: 'cha', subType: 'intimidation' },
-  { name: 'Investigation',  ability: 'int', subType: 'investigation' },
-  { name: 'Medicine',       ability: 'wis', subType: 'medicine' },
-  { name: 'Nature',         ability: 'int', subType: 'nature' },
-  { name: 'Perception',     ability: 'wis', subType: 'perception' },
-  { name: 'Performance',    ability: 'cha', subType: 'performance' },
-  { name: 'Persuasion',     ability: 'cha', subType: 'persuasion' },
-  { name: 'Religion',       ability: 'int', subType: 'religion' },
-  { name: 'Sleight of Hand',ability: 'dex', subType: 'sleight-of-hand' },
-  { name: 'Stealth',        ability: 'dex', subType: 'stealth' },
-  { name: 'Survival',       ability: 'wis', subType: 'survival' },
-];
-
-const STAT_ID_MAP: Record<string, number> = {
-  str: 1, dex: 2, con: 3, int: 4, wis: 5, cha: 6,
-};
-
-function getSkills(data: any): { name: string; ability: string; modifier: number; proficient: boolean; expertise: boolean }[] {
-  const mods = getAllModifiers(data);
-  const prof = PROFICIENCY_BY_LEVEL[getLevel(data)] || 2;
-
-  return SKILLS.map(({ name, ability, subType }) => {
-    const abilityMod = getStatBonus(data, STAT_ID_MAP[ability]);
-    const proficient = mods.some(m => m.type === 'proficiency' && m.subType === subType);
-    const expertise = mods.some(m => m.type === 'expertise' && m.subType === subType);
-    const bonus = expertise ? prof * 2 : proficient ? prof : 0;
-    return { name, ability, modifier: abilityMod + bonus, proficient, expertise };
-  });
-}
-
-// --- Inventory ---
-
-function getInventory(data: any): { name: string; quantity?: number; desc?: string; equipped?: boolean }[] {
-  return (data.inventory || [])
-    .filter((item: any) => item.definition?.name)
-    .map((item: any) => ({
-      name: item.definition.name,
-      quantity: item.quantity ?? 1,
-      desc: item.definition.description ? sanitizeHtml(item.definition.description) : undefined,
-      equipped: item.equipped ?? false,
-    }));
-}
-
 // --- Utility ---
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// Keeps safe formatting tags (<p>, <strong>, <em>, <br>, <ul>, <ol>, <li>)
-// so rich descriptions can be rendered as HTML in the UI.
 function sanitizeHtml(html: string): string {
   const allowed = ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li'];
   return html
-    // Strip attributes from tags and drop disallowed tags entirely
     .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*\/?>/gi, (match, tag: string) => {
       const t = tag.toLowerCase();
       if (!allowed.includes(t)) return '';
@@ -358,9 +215,7 @@ function sanitizeHtml(html: string): string {
 // --- Main Parser ---
 
 export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
-  // The character-service wraps in { data: { ... } }
   const data = response?.data || response;
-
   const level = getLevel(data);
 
   return {
@@ -384,12 +239,6 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
       wis: getStatValue(data, STAT_IDS.WIS),
       cha: getStatValue(data, STAT_IDS.CHA),
     },
-    actions: getActions(data),
-    features: getFeatures(data),
-    feats: getFeats(data),
-    inventory: getInventory(data),
-    skills: getSkills(data),
-    savingThrows: getSavingThrows(data),
     spells: getSpells(data),
     avatar: data.decorations?.avatarUrl || undefined,
   };

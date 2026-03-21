@@ -110,13 +110,15 @@ export interface Combatant {
     wis: number;
     cha: number;
   };
-  actions?: MonsterAction[];
-  spells?: { name: string; level: number; desc: string }[];
-  features?: { name: string; desc: string; source?: string }[];
-  feats?: { name: string; desc: string }[];
-  inventory?: { name: string; quantity?: number; desc?: string; equipped?: boolean }[];
-  skills?: { name: string; ability: string; modifier: number; proficient: boolean; expertise: boolean }[];
-  savingThrows?: Record<string, { modifier: number; proficient: boolean }>;
+  spells?: {
+    name: string;
+    level: number;       // 0 = cantrip
+    desc: string;
+    aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+    aoeSize?: number;    // feet: radius for sphere/cylinder, length for cone/line, side for cube
+    range?: number;      // cast range in feet (0 = self, -1 = touch)
+    saveAbility?: string; // 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
+  }[];
   avatar?: string;
   color?: string;
 }
