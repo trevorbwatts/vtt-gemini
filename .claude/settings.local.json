@@ -30,7 +30,8 @@
       "Bash(curl -sI \"https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/bestiary/bestiary-xmm.json\")",
       "Bash(node -e \":*)",
       "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini -type f -name *character* -o -name *dnd*)",
-      "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini -type f \\\\\\(-name *.json -o -name *test* -o -name *example* -o -name *sample* \\\\\\))"
+      "Bash(find C:UserstrevoOneDriveDesktopvtt-gemini -type f \\\\\\(-name *.json -o -name *test* -o -name *example* -o -name *sample* \\\\\\))",
+      "Bash(git checkout:*)"
     ]
   }
 }
