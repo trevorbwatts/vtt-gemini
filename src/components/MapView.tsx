@@ -1307,51 +1307,77 @@ export const MapView: React.FC<MapViewProps> = ({
             const edgeX = castingSpell.originX + Math.cos(angleRad) * castingSpell.casterRadiusPx;
             const edgeY = castingSpell.originY + Math.sin(angleRad) * castingSpell.casterRadiusPx;
 
-            // For self-origin spells, the AoE center is anchored at caster edge + size offset
+            // For self-origin spells, the AoE is anchored at caster edge
             const isSelfOrigin = !!castingSpell.selfOrigin;
-            const anchoredX = castingSpell.originX + Math.cos(angleRad) * (castingSpell.casterRadiusPx + sizePx);
-            const anchoredY = castingSpell.originY + Math.sin(angleRad) * (castingSpell.casterRadiusPx + sizePx);
-            const targetX = isSelfOrigin ? anchoredX : castingMousePos.x;
-            const targetY = isSelfOrigin ? anchoredY : castingMousePos.y;
+            const targetX = isSelfOrigin ? edgeX : castingMousePos.x;
+            const targetY = isSelfOrigin ? edgeY : castingMousePos.y;
+            // Range line goes to far edge of AoE for anchored spells
+            const isDirectionalCast = castingSpell.aoeType === 'cone' || castingSpell.aoeType === 'line';
+            const castReach = (isDirectionalCast || !isSelfOrigin)
+              ? 0 // for non-self, range line just goes to targetX/Y; for cone/line, it's from edge
+              : sizePx * 2; // self-origin sphere/cube: far edge
+            const rangeLineEndX = isSelfOrigin
+              ? castingSpell.originX + Math.cos(angleRad) * (castingSpell.casterRadiusPx + (isDirectionalCast ? sizePx : sizePx * 2))
+              : castingMousePos.x;
+            const rangeLineEndY = isSelfOrigin
+              ? castingSpell.originY + Math.sin(angleRad) * (castingSpell.casterRadiusPx + (isDirectionalCast ? sizePx : sizePx * 2))
+              : castingMousePos.y;
 
             // Range line: caster edge → target point
-            const distPx = Math.sqrt((targetX - castingSpell.originX) ** 2 + (targetY - castingSpell.originY) ** 2) - castingSpell.casterRadiusPx;
+            const distPx = Math.sqrt((rangeLineEndX - castingSpell.originX) ** 2 + (rangeLineEndY - castingSpell.originY) ** 2) - castingSpell.casterRadiusPx;
             const rangeFeet = Math.max(0, Math.round((distPx / ppg) * 5));
-            const midX = (edgeX + targetX) / 2;
-            const midY = (edgeY + targetY) / 2;
+            const midX = (edgeX + rangeLineEndX) / 2;
+            const midY = (edgeY + rangeLineEndY) / 2;
             const labelFontSize = 14 / stageScale;
 
             return (
               <Layer listening={false}>
-                {/* Range line */}
-                <Line
-                  points={[edgeX, edgeY, targetX, targetY]}
-                  stroke="rgba(255, 255, 255, 0.4)"
-                  strokeWidth={1.5 / stageScale}
-                  dash={[4 / stageScale, 4 / stageScale]}
-                />
-                {/* Distance label */}
-                <Text
-                  x={midX}
-                  y={midY - labelFontSize * 1.5}
-                  text={`${rangeFeet} ft`}
-                  fontSize={labelFontSize}
-                  fill="white"
-                  fontStyle="bold"
-                  fontFamily="Inter"
-                  align="center"
-                  offsetX={0}
-                  listening={false}
-                />
+                {/* Range line (only for spells with range, not self-origin) */}
+                {!isSelfOrigin && (
+                  <>
+                    <Line
+                      points={[edgeX, edgeY, rangeLineEndX, rangeLineEndY]}
+                      stroke="rgba(255, 255, 255, 0.4)"
+                      strokeWidth={1.5 / stageScale}
+                      dash={[4 / stageScale, 4 / stageScale]}
+                    />
+                    <Text
+                      x={midX}
+                      y={midY - labelFontSize * 1.5}
+                      text={`${rangeFeet} ft`}
+                      fontSize={labelFontSize}
+                      fill="white"
+                      fontStyle="bold"
+                      fontFamily="Inter"
+                      align="center"
+                      offsetX={0}
+                      listening={false}
+                    />
+                  </>
+                )}
 
                 {(castingSpell.aoeType === 'sphere' || castingSpell.aoeType === 'cylinder') && (
                   <Circle x={targetX} y={targetY} radius={sizePx}
                     fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />
                 )}
-                {castingSpell.aoeType === 'cube' && (
-                  <Rect x={targetX - sizePx} y={targetY - sizePx} width={sizePx * 2} height={sizePx * 2}
-                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />
-                )}
+                {castingSpell.aoeType === 'cube' && (() => {
+                  if (isSelfOrigin) {
+                    // Self-origin cube: near edge at caster token edge, rotated along angle
+                    const perpX = Math.cos(angleRad + Math.PI / 2) * sizePx;
+                    const perpY = Math.sin(angleRad + Math.PI / 2) * sizePx;
+                    const fwdX = Math.cos(angleRad) * sizePx * 2;
+                    const fwdY = Math.sin(angleRad) * sizePx * 2;
+                    const points = [
+                      -perpX, -perpY,
+                      perpX, perpY,
+                      perpX + fwdX, perpY + fwdY,
+                      -perpX + fwdX, -perpY + fwdY,
+                    ];
+                    return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                  }
+                  return <Rect x={targetX - sizePx} y={targetY - sizePx} width={sizePx * 2} height={sizePx * 2}
+                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                })()}
                 {castingSpell.aoeType === 'cone' && (() => {
                   const halfAngle = (53 / 2) * (Math.PI / 180);
                   const points = [
@@ -1465,12 +1491,16 @@ export const MapView: React.FC<MapViewProps> = ({
 
             // Spells that rotate around the caster: cone, line, or any self-origin spell
             const isAnchored = placedAoe.aoeType === 'cone' || placedAoe.aoeType === 'line' || !!placedAoe.selfOrigin;
-            // Range line target: endpoint along angle for anchored spells, free position otherwise
+            // For anchored spells, range line goes to the far edge of the AoE
+            // Cone/line: sizePx is length from edge. Sphere/cube self-origin: sizePx*2 is far edge (near edge at token, far edge at near+2*size)
+            const anchoredReach = (placedAoe.aoeType === 'cone' || placedAoe.aoeType === 'line')
+              ? sizePx
+              : sizePx * 2; // sphere radius*2 or cube side length from token edge
             const rangeTargetX = isAnchored
-              ? placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+              ? placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + anchoredReach)
               : placedAoe.x;
             const rangeTargetY = isAnchored
-              ? placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+              ? placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + anchoredReach)
               : placedAoe.y;
             const rangeEdgeAngle = Math.atan2(rangeTargetY - placedAoe.originY, rangeTargetX - placedAoe.originX);
             const rangeEdgeX = placedAoe.originX + Math.cos(rangeEdgeAngle) * placedAoe.casterRadiusPx;
@@ -1483,25 +1513,29 @@ export const MapView: React.FC<MapViewProps> = ({
 
             return (
               <Layer listening={!!isPlayerView}>
-                {/* Range line: caster edge → AoE target */}
-                <Line
-                  points={[rangeEdgeX, rangeEdgeY, rangeTargetX, rangeTargetY]}
-                  stroke="rgba(255, 255, 255, 0.4)"
-                  strokeWidth={1.5 / stageScale}
-                  dash={[4 / stageScale, 4 / stageScale]}
-                  listening={false}
-                />
-                <Text
-                  x={rangeMidX}
-                  y={rangeMidY - rangeLabelSize * 1.5}
-                  text={`${rangeFeet} ft`}
-                  fontSize={rangeLabelSize}
-                  fill="white"
-                  fontStyle="bold"
-                  fontFamily="Inter"
-                  align="center"
-                  listening={false}
-                />
+                {/* Range line: caster edge → AoE target (only for spells with range) */}
+                {!isAnchored && (
+                  <>
+                    <Line
+                      points={[rangeEdgeX, rangeEdgeY, rangeTargetX, rangeTargetY]}
+                      stroke="rgba(255, 255, 255, 0.4)"
+                      strokeWidth={1.5 / stageScale}
+                      dash={[4 / stageScale, 4 / stageScale]}
+                      listening={false}
+                    />
+                    <Text
+                      x={rangeMidX}
+                      y={rangeMidY - rangeLabelSize * 1.5}
+                      text={`${rangeFeet} ft`}
+                      fontSize={rangeLabelSize}
+                      fill="white"
+                      fontStyle="bold"
+                      fontFamily="Inter"
+                      align="center"
+                      listening={false}
+                    />
+                  </>
+                )}
 
                 {/* Sphere / Cylinder — circle at target position */}
                 {(placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (() => {
@@ -1530,17 +1564,41 @@ export const MapView: React.FC<MapViewProps> = ({
 
                 {/* Cube — square at target position */}
                 {placedAoe.aoeType === 'cube' && (() => {
-                  // Self-origin: position at edge along angle; otherwise free position
-                  const cubeCenter = placedAoe.selfOrigin
-                    ? {
-                        x: placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + sizePx),
-                        y: placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx),
-                      }
-                    : { x: placedAoe.x, y: placedAoe.y };
+                  if (placedAoe.selfOrigin) {
+                    // Self-origin cube: near edge touches caster token edge, rotated along angle
+                    // perpendicular direction for the cube's width
+                    const perpX = Math.cos(angleRad + Math.PI / 2) * sizePx;
+                    const perpY = Math.sin(angleRad + Math.PI / 2) * sizePx;
+                    // forward direction for the cube's depth (2 * sizePx = full cube side)
+                    const fwdX = Math.cos(angleRad) * sizePx * 2;
+                    const fwdY = Math.sin(angleRad) * sizePx * 2;
+                    const points = [
+                      -perpX, -perpY,             // near-left corner
+                      perpX, perpY,               // near-right corner
+                      perpX + fwdX, perpY + fwdY, // far-right corner
+                      -perpX + fwdX, -perpY + fwdY, // far-left corner
+                    ];
+                    return (
+                      <Line
+                        x={edgeX}
+                        y={edgeY}
+                        points={points}
+                        closed
+                        fill={fillColor}
+                        stroke={strokeColor}
+                        strokeWidth={strokeW}
+                        dash={[6 / stageScale, 4 / stageScale]}
+                        draggable={!!isPlayerView}
+                        onDragMove={handleDirectionalDragMove}
+                        onDragEnd={handleDirectionalDragEnd}
+                      />
+                    );
+                  }
+                  // Free-positioned cube (non-self spells)
                   return (
                     <Rect
-                      x={cubeCenter.x - sizePx}
-                      y={cubeCenter.y - sizePx}
+                      x={placedAoe.x - sizePx}
+                      y={placedAoe.y - sizePx}
                       width={sizePx * 2}
                       height={sizePx * 2}
                       fill={fillColor}
@@ -1548,8 +1606,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       strokeWidth={strokeW}
                       dash={[6 / stageScale, 4 / stageScale]}
                       draggable={!!isPlayerView}
-                      onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleCubeDragMove}
-                      onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleCubeDragEnd}
+                      onDragMove={handleCubeDragMove}
+                      onDragEnd={handleCubeDragEnd}
                     />
                   );
                 })()}
