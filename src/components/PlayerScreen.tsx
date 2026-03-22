@@ -384,7 +384,7 @@ export function PlayerScreen() {
   });
 
   // Ref for spell casting from drawers
-  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>(null);
+  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
@@ -550,7 +550,7 @@ export function PlayerScreen() {
     'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[62%] -translate-x-1/2',     drawerClass: 'left-[55%] -translate-x-1/2' },
     'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[25%] -translate-x-1/2',  drawerClass: 'left-[20%] -translate-x-1/2' },
     'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[62%] -translate-x-1/2',  drawerClass: 'left-[55%] -translate-x-1/2' },
-    'left':         { rotation: -90, edge: 'left',   setupClass: 'left-6 top-1/2 -translate-y-1/2',       drawerClass: 'top-1/2 -translate-y-1/2' },
+    'left':         { rotation: 90,  edge: 'left',   setupClass: 'left-6 top-1/2 -translate-y-1/2',       drawerClass: 'top-1/2 -translate-y-1/2' },
   };
 
   // ── SETUP MODE ──

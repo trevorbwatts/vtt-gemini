@@ -52,7 +52,7 @@ interface MapViewProps {
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
-  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>;
+  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when placed AoE is dismissed (by any means) */
@@ -202,6 +202,7 @@ export const MapView: React.FC<MapViewProps> = ({
     originX: number; // caster token center world coords
     originY: number;
     casterRadiusPx: number; // token radius in world pixels — for edge-origin offset
+    selfOrigin?: boolean; // true for range=0 "Self" spells (rotate around caster)
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<{
@@ -214,6 +215,7 @@ export const MapView: React.FC<MapViewProps> = ({
     originY: number;
     angle: number;
     casterRadiusPx: number;
+    selfOrigin?: boolean; // true for range=0 "Self" spells (rotate around caster)
   } | null>(null);
 
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
@@ -237,6 +239,7 @@ export const MapView: React.FC<MapViewProps> = ({
       if (!token) return;
       const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token.size);
       const ppg = gridResolution?.pixelsPerGrid || 40;
+      const isSelfOrigin = spell.range === 0 || spell.range === undefined;
       const offsetDist = (spell.aoeSize / 5) * ppg + casterRadiusPx;
       // Place AoE directly in front of the caster (to the right by default)
       setCastingSpell(null);
@@ -251,6 +254,7 @@ export const MapView: React.FC<MapViewProps> = ({
         originY: token.y,
         angle: 0,
         casterRadiusPx,
+        selfOrigin: isSelfOrigin,
       });
     };
   }
@@ -834,6 +838,7 @@ export const MapView: React.FC<MapViewProps> = ({
           originY: castingSpell.originY,
           angle,
           casterRadiusPx: castingSpell.casterRadiusPx,
+          selfOrigin: castingSpell.selfOrigin,
         });
         setCastingSpell(null);
         setCastingMousePos(null);
@@ -1302,14 +1307,49 @@ export const MapView: React.FC<MapViewProps> = ({
             const edgeX = castingSpell.originX + Math.cos(angleRad) * castingSpell.casterRadiusPx;
             const edgeY = castingSpell.originY + Math.sin(angleRad) * castingSpell.casterRadiusPx;
 
+            // For self-origin spells, the AoE center is anchored at caster edge + size offset
+            const isSelfOrigin = !!castingSpell.selfOrigin;
+            const anchoredX = castingSpell.originX + Math.cos(angleRad) * (castingSpell.casterRadiusPx + sizePx);
+            const anchoredY = castingSpell.originY + Math.sin(angleRad) * (castingSpell.casterRadiusPx + sizePx);
+            const targetX = isSelfOrigin ? anchoredX : castingMousePos.x;
+            const targetY = isSelfOrigin ? anchoredY : castingMousePos.y;
+
+            // Range line: caster edge → target point
+            const distPx = Math.sqrt((targetX - castingSpell.originX) ** 2 + (targetY - castingSpell.originY) ** 2) - castingSpell.casterRadiusPx;
+            const rangeFeet = Math.max(0, Math.round((distPx / ppg) * 5));
+            const midX = (edgeX + targetX) / 2;
+            const midY = (edgeY + targetY) / 2;
+            const labelFontSize = 14 / stageScale;
+
             return (
               <Layer listening={false}>
+                {/* Range line */}
+                <Line
+                  points={[edgeX, edgeY, targetX, targetY]}
+                  stroke="rgba(255, 255, 255, 0.4)"
+                  strokeWidth={1.5 / stageScale}
+                  dash={[4 / stageScale, 4 / stageScale]}
+                />
+                {/* Distance label */}
+                <Text
+                  x={midX}
+                  y={midY - labelFontSize * 1.5}
+                  text={`${rangeFeet} ft`}
+                  fontSize={labelFontSize}
+                  fill="white"
+                  fontStyle="bold"
+                  fontFamily="Inter"
+                  align="center"
+                  offsetX={0}
+                  listening={false}
+                />
+
                 {(castingSpell.aoeType === 'sphere' || castingSpell.aoeType === 'cylinder') && (
-                  <Circle x={castingMousePos.x} y={castingMousePos.y} radius={sizePx}
+                  <Circle x={targetX} y={targetY} radius={sizePx}
                     fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />
                 )}
                 {castingSpell.aoeType === 'cube' && (
-                  <Rect x={castingMousePos.x - sizePx} y={castingMousePos.y - sizePx} width={sizePx * 2} height={sizePx * 2}
+                  <Rect x={targetX - sizePx} y={targetY - sizePx} width={sizePx * 2} height={sizePx * 2}
                     fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />
                 )}
                 {castingSpell.aoeType === 'cone' && (() => {
@@ -1346,13 +1386,28 @@ export const MapView: React.FC<MapViewProps> = ({
             const fillColor = 'rgba(255, 120, 30, 0.35)';
             const strokeColor = 'rgba(255, 120, 30, 0.8)';
 
+            // Live-update position during drag so range line tracks in real-time
+            const handleSphereDragMove = (e: any) => {
+              const node = e.target;
+              setPlacedAoe(prev => {
+                if (!prev) return null;
+                return { ...prev, x: node.x(), y: node.y() };
+              });
+            };
+
             const handleAoeDragEnd = (e: any) => {
               const node = e.target;
               setPlacedAoe(prev => {
                 if (!prev) return null;
-                const dx = node.x() - prev.x;
-                const dy = node.y() - prev.y;
-                return { ...prev, x: prev.x + dx, y: prev.y + dy, originX: prev.originX + dx, originY: prev.originY + dy };
+                return { ...prev, x: node.x(), y: node.y() };
+              });
+            };
+
+            const handleCubeDragMove = (e: any) => {
+              const node = e.target;
+              setPlacedAoe(prev => {
+                if (!prev) return null;
+                return { ...prev, x: node.x() + sizePx, y: node.y() + sizePx };
               });
             };
 
@@ -1360,11 +1415,7 @@ export const MapView: React.FC<MapViewProps> = ({
               const node = e.target;
               setPlacedAoe(prev => {
                 if (!prev) return null;
-                const newCenterX = node.x() + sizePx;
-                const newCenterY = node.y() + sizePx;
-                const dx = newCenterX - prev.x;
-                const dy = newCenterY - prev.y;
-                return { ...prev, x: prev.x + dx, y: prev.y + dy, originX: prev.originX + dx, originY: prev.originY + dy };
+                return { ...prev, x: node.x() + sizePx, y: node.y() + sizePx };
               });
             };
 
@@ -1412,38 +1463,96 @@ export const MapView: React.FC<MapViewProps> = ({
             const edgeX = placedAoe.originX + Math.cos(angleRad) * placedAoe.casterRadiusPx;
             const edgeY = placedAoe.originY + Math.sin(angleRad) * placedAoe.casterRadiusPx;
 
+            // Spells that rotate around the caster: cone, line, or any self-origin spell
+            const isAnchored = placedAoe.aoeType === 'cone' || placedAoe.aoeType === 'line' || !!placedAoe.selfOrigin;
+            // Range line target: endpoint along angle for anchored spells, free position otherwise
+            const rangeTargetX = isAnchored
+              ? placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+              : placedAoe.x;
+            const rangeTargetY = isAnchored
+              ? placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+              : placedAoe.y;
+            const rangeEdgeAngle = Math.atan2(rangeTargetY - placedAoe.originY, rangeTargetX - placedAoe.originX);
+            const rangeEdgeX = placedAoe.originX + Math.cos(rangeEdgeAngle) * placedAoe.casterRadiusPx;
+            const rangeEdgeY = placedAoe.originY + Math.sin(rangeEdgeAngle) * placedAoe.casterRadiusPx;
+            const rangeDistPx = Math.sqrt((rangeTargetX - placedAoe.originX) ** 2 + (rangeTargetY - placedAoe.originY) ** 2) - placedAoe.casterRadiusPx;
+            const rangeFeet = Math.max(0, Math.round((rangeDistPx / ppg) * 5));
+            const rangeMidX = (rangeEdgeX + rangeTargetX) / 2;
+            const rangeMidY = (rangeEdgeY + rangeTargetY) / 2;
+            const rangeLabelSize = 14 / stageScale;
+
             return (
               <Layer listening={!!isPlayerView}>
+                {/* Range line: caster edge → AoE target */}
+                <Line
+                  points={[rangeEdgeX, rangeEdgeY, rangeTargetX, rangeTargetY]}
+                  stroke="rgba(255, 255, 255, 0.4)"
+                  strokeWidth={1.5 / stageScale}
+                  dash={[4 / stageScale, 4 / stageScale]}
+                  listening={false}
+                />
+                <Text
+                  x={rangeMidX}
+                  y={rangeMidY - rangeLabelSize * 1.5}
+                  text={`${rangeFeet} ft`}
+                  fontSize={rangeLabelSize}
+                  fill="white"
+                  fontStyle="bold"
+                  fontFamily="Inter"
+                  align="center"
+                  listening={false}
+                />
+
                 {/* Sphere / Cylinder — circle at target position */}
-                {(placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
-                  <Circle
-                    x={placedAoe.x}
-                    y={placedAoe.y}
-                    radius={sizePx}
-                    fill={fillColor}
-                    stroke={strokeColor}
-                    strokeWidth={strokeW}
-                    dash={[6 / stageScale, 4 / stageScale]}
-                    draggable={!!isPlayerView}
-                    onDragEnd={handleAoeDragEnd}
-                  />
-                )}
+                {(placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (() => {
+                  // Self-origin: position at edge offset along angle; otherwise free position
+                  const cx = placedAoe.selfOrigin
+                    ? placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+                    : placedAoe.x;
+                  const cy = placedAoe.selfOrigin
+                    ? placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+                    : placedAoe.y;
+                  return (
+                    <Circle
+                      x={cx}
+                      y={cy}
+                      radius={sizePx}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={strokeW}
+                      dash={[6 / stageScale, 4 / stageScale]}
+                      draggable={!!isPlayerView}
+                      onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleSphereDragMove}
+                      onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleAoeDragEnd}
+                    />
+                  );
+                })()}
 
                 {/* Cube — square at target position */}
-                {placedAoe.aoeType === 'cube' && (
-                  <Rect
-                    x={placedAoe.x - sizePx}
-                    y={placedAoe.y - sizePx}
-                    width={sizePx * 2}
-                    height={sizePx * 2}
-                    fill={fillColor}
-                    stroke={strokeColor}
-                    strokeWidth={strokeW}
-                    dash={[6 / stageScale, 4 / stageScale]}
-                    draggable={!!isPlayerView}
-                    onDragEnd={handleCubeDragEnd}
-                  />
-                )}
+                {placedAoe.aoeType === 'cube' && (() => {
+                  // Self-origin: position at edge along angle; otherwise free position
+                  const cubeCenter = placedAoe.selfOrigin
+                    ? {
+                        x: placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + sizePx),
+                        y: placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx),
+                      }
+                    : { x: placedAoe.x, y: placedAoe.y };
+                  return (
+                    <Rect
+                      x={cubeCenter.x - sizePx}
+                      y={cubeCenter.y - sizePx}
+                      width={sizePx * 2}
+                      height={sizePx * 2}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={strokeW}
+                      dash={[6 / stageScale, 4 / stageScale]}
+                      draggable={!!isPlayerView}
+                      onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleCubeDragMove}
+                      onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleCubeDragEnd}
+                    />
+                  );
+                })()}
 
                 {/* Cone — wedge from token edge toward target */}
                 {placedAoe.aoeType === 'cone' && (() => {
@@ -2203,7 +2312,7 @@ export const MapView: React.FC<MapViewProps> = ({
                       const tokenX = token?.x ?? 0;
                       const tokenY = token?.y ?? 0;
 
-                      const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number }) => {
+                      const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }) => {
                         if (!spell.aoeType || !spell.aoeSize) return;
                         const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token?.size);
                         setCastingSpell({
@@ -2213,6 +2322,7 @@ export const MapView: React.FC<MapViewProps> = ({
                           originX: tokenX,
                           originY: tokenY,
                           casterRadiusPx,
+                          selfOrigin: spell.range === 0 || spell.range === undefined,
                         });
                         setPlacedAoe(null);
                       };
