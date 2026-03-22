@@ -356,7 +356,7 @@ const InitiativeStrip: React.FC<{ combatants: Combatant[] }> = ({ combatants }) 
 export function PlayerScreen() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [currentScenarioId, setCurrentScenarioId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'setup' | 'play'>('setup');
+  const [mode, setMode] = useState<'setup' | 'play'>('play');
 
   // Refs to avoid stale closures in IPC callbacks
   const currentScenarioIdRef = useRef(currentScenarioId);
@@ -386,6 +386,7 @@ export function PlayerScreen() {
 
   // ── IPC ──
   useEffect(() => {
+    // Load from localStorage as initial fallback while awaiting DM sync
     try {
       const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
       if (savedCampaigns.length > 0) {
@@ -396,6 +397,11 @@ export function PlayerScreen() {
       }
     } catch (e) {
       console.error("Failed to load initial campaign state for Player Screen");
+    }
+
+    // Also request latest state from main process (will override localStorage data when it arrives)
+    if (window.electronAPI?.requestStateUpdate) {
+      window.electronAPI.requestStateUpdate();
     }
 
     const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string }) => {

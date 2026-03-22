@@ -3,6 +3,7 @@ import path from 'path';
 
 let dmWindow: BrowserWindow | null = null;
 let playerWindow: BrowserWindow | null = null;
+let lastKnownState: any = null;
 
 function createDmWindow() {
   dmWindow = new BrowserWindow({
@@ -101,9 +102,14 @@ app.on('window-all-closed', () => {
 
 ipcMain.on('launch-player-screen', () => {
   createPlayerWindow();
-  // Notify DM window that the player screen is now open
-  if (dmWindow) {
-    dmWindow.webContents.send('player-screen-status', true);
+  // Notify DM window only after the player window has finished loading,
+  // so that when the DM sends state back, the player's IPC listeners are ready.
+  if (playerWindow) {
+    playerWindow.webContents.once('did-finish-load', () => {
+      if (dmWindow) {
+        dmWindow.webContents.send('player-screen-status', true);
+      }
+    });
   }
 });
 
@@ -129,8 +135,16 @@ ipcMain.on('player-token-update', (_event, tokens) => {
 
   // When the DM updates the campaign state, proxy it to the Player window
 ipcMain.on('dm-state-update', (_event, state) => {
+  lastKnownState = state;
   if (playerWindow) {
     playerWindow.webContents.send('player-state-update', state);
+  }
+});
+
+// Allow Player window to request the latest state on mount
+ipcMain.on('request-state-update', () => {
+  if (lastKnownState && playerWindow) {
+    playerWindow.webContents.send('player-state-update', lastKnownState);
   }
 });
 

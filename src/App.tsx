@@ -24,7 +24,7 @@ export function DMScreen() {
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
-  const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
+  const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('play');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
@@ -34,6 +34,10 @@ export function DMScreen() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const selectedScenarioIdRef = useRef(selectedScenarioId);
   selectedScenarioIdRef.current = selectedScenarioId;
+  const campaignRef = useRef(campaign);
+  campaignRef.current = campaign;
+  const playerModeRef = useRef(playerMode);
+  playerModeRef.current = playerMode;
   const skipStateBroadcastRef = useRef(false);
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -77,7 +81,19 @@ export function DMScreen() {
     if (window.electronAPI?.onPlayerScreenStatus) {
       window.electronAPI.onPlayerScreenStatus((isOpen: boolean) => {
         setPlayerScreenOpen(isOpen);
-        if (!isOpen) setPlayerMode('setup');
+        if (isOpen) {
+          // Send current state immediately so the player screen doesn't rely on stale localStorage
+          if (campaignRef.current && selectedScenarioIdRef.current) {
+            window.electronAPI!.sendStateUpdate({
+              campaign: campaignRef.current,
+              scenarioId: selectedScenarioIdRef.current,
+              playerMode: playerModeRef.current,
+              viewportCenter: dmViewportCenterRef.current,
+            });
+          }
+        } else {
+          setPlayerMode('setup');
+        }
       });
     }
     return () => {
