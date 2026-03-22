@@ -10,55 +10,7 @@ import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { SpeedText } from './SpeedText';
-
-/** Expandable spell card used in the token detail panel */
-const SpellAccordion: React.FC<{
-  name: string; desc?: string; badge?: string; aoeBadge?: string; saveBadge?: string;
-  onCast?: () => void;
-}> = ({ name, desc, badge, aoeBadge, saveBadge, onCast }) => {
-  const [open, setOpen] = useState(false);
-  const hasDesc = !!desc;
-  return (
-    <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg text-sm overflow-hidden">
-      <button onClick={() => hasDesc && setOpen(o => !o)}
-        className={cn('w-full flex items-center gap-2 px-3 py-2 text-left',
-          hasDesc ? 'cursor-pointer hover:bg-white/5 transition-colors' : 'cursor-default')}>
-        <span className="font-bold flex-1 min-w-0 truncate text-purple-400 text-xs">{name}</span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {saveBadge && (
-            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
-              {saveBadge}
-            </span>
-          )}
-          {aoeBadge && (
-            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300">
-              {aoeBadge}
-            </span>
-          )}
-          {badge && (
-            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
-              {badge}
-            </span>
-          )}
-        </div>
-        {hasDesc && <ChevronDown size={13} className={cn('shrink-0 opacity-40 transition-transform duration-200', open && 'rotate-180')} />}
-      </button>
-      {hasDesc && open && (
-        <div className="px-3 pb-2.5 text-[11px] opacity-60 leading-relaxed border-t border-white/5 pt-2">
-          {desc}
-          {onCast && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onCast(); }}
-              className="mt-2 w-full py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors"
-            >
-              Cast on Map
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+import { SpellAccordion } from './SpellAccordion';
 
 interface MapViewProps {
   tokens: Token[];
@@ -99,6 +51,8 @@ interface MapViewProps {
   onSelectedTokenIdsChange?: (ids: string[]) => void;
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
+  /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
+  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -184,6 +138,7 @@ export const MapView: React.FC<MapViewProps> = ({
   onSelectedTokenIdsChange,
   darknessLevel,
   onDarknessLevelChange,
+  startCastingRef,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -264,6 +219,27 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
+
+  // Expose casting function to external code (player drawers) via ref
+  const tokensRef = useRef(tokens);
+  tokensRef.current = tokens;
+  if (startCastingRef) {
+    startCastingRef.current = (spell, combatantId) => {
+      if (!spell.aoeType || !spell.aoeSize) return;
+      const token = tokensRef.current.find(t => t.combatantId === combatantId);
+      if (!token) return;
+      const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token.size);
+      setCastingSpell({
+        name: spell.name,
+        aoeType: spell.aoeType as 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder',
+        aoeSize: spell.aoeSize,
+        originX: token.x,
+        originY: token.y,
+        casterRadiusPx,
+      });
+      setPlacedAoe(null);
+    };
+  }
 
   const blockingSegments = useMemo(
     () => extractBlockingSegments(walls || [], objectWalls || [], portals || []),

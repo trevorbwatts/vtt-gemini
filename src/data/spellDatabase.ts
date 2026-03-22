@@ -68,6 +68,19 @@ export function resolveSpells(spellNames: string[]): {
   return results.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
 }
 
+/** Search spells by name (case-insensitive substring match). Returns up to `limit` results sorted by level. */
+export function searchSpells(query: string, limit = 20): SpellEntry[] {
+  if (!query.trim()) return [];
+  const lower = query.toLowerCase().trim();
+  const results: SpellEntry[] = [];
+  for (const [, spell] of spellMap) {
+    if (spell.name.toLowerCase().includes(lower)) {
+      results.push(spell);
+    }
+  }
+  return results.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)).slice(0, limit);
+}
+
 /**
  * Parse a Spellcasting special ability description and return structured spells.
  *
