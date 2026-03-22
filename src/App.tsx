@@ -337,6 +337,14 @@ export function DMScreen() {
     const selectedTokens = currentScenario.tokens.filter(t => tokenIds.includes(t.id));
     const currentActive = [...(currentScenario.activeCombatants || [])];
     const newCombatants: Combatant[] = [];
+    
+    // Group non-player creatures by name so they share the same initiative roll
+    const groupInitiative = new Map<string, number>();
+    currentActive.forEach(c => {
+      if (c.type !== 'player' && c.name) {
+        groupInitiative.set(c.name, c.initiative);
+      }
+    });
 
     selectedTokens.forEach(token => {
       // Use the token's ID as the unique key in the combat tracker to allow multiple instances of same monster
@@ -359,8 +367,16 @@ export function DMScreen() {
       }
 
       if (baseCombatant) {
-        const dexMod = baseCombatant.stats ? Math.floor((baseCombatant.stats.dex - 10) / 2) : 0;
-        const roll = Math.floor(Math.random() * 20) + 1 + dexMod;
+        let roll: number;
+        if (baseCombatant.type !== 'player' && groupInitiative.has(baseCombatant.name)) {
+          roll = groupInitiative.get(baseCombatant.name)!;
+        } else {
+          const dexMod = baseCombatant.stats ? Math.floor((baseCombatant.stats.dex - 10) / 2) : 0;
+          roll = Math.floor(Math.random() * 20) + 1 + dexMod;
+          if (baseCombatant.type !== 'player') {
+            groupInitiative.set(baseCombatant.name, roll);
+          }
+        }
 
         newCombatants.push({
           ...baseCombatant,
@@ -370,7 +386,16 @@ export function DMScreen() {
         });
       } else {
         // Fallback for tokens without a full combatant record
-        const roll = Math.floor(Math.random() * 20) + 1;
+        let roll: number;
+        if (token.type !== 'player' && groupInitiative.has(token.name)) {
+          roll = groupInitiative.get(token.name)!;
+        } else {
+          roll = Math.floor(Math.random() * 20) + 1;
+          if (token.type !== 'player') {
+            groupInitiative.set(token.name, roll);
+          }
+        }
+        
         newCombatants.push({
           id: combatantTrackerId,
           name: token.name,
