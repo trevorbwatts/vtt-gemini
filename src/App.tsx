@@ -686,7 +686,7 @@ export function DMScreen() {
                 if (playerScreenOpen) {
                   window.electronAPI.closePlayerScreen();
                   setPlayerScreenOpen(false);
-                  setPlayerMode('setup');
+                  setPlayerMode('play');
                 } else {
                   window.electronAPI.launchPlayerScreen();
                   setPlayerScreenOpen(true);

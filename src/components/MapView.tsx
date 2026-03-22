@@ -821,11 +821,6 @@ export const MapView: React.FC<MapViewProps> = ({
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
     } else if (e.evt.button === 0) {
-      // Clicking on the stage clears placed AoE
-      if (placedAoe) {
-        setPlacedAoe(null);
-        return;
-      }
       const canvas = getCanvasPos(e.target.getStage());
       selectionStartRef.current = canvas;
       selectionRectRef.current = { x: canvas.x, y: canvas.y, w: 0, h: 0 };
@@ -1292,9 +1287,50 @@ export const MapView: React.FC<MapViewProps> = ({
             const strokeW = 2 / stageScale; // constant screen-space stroke
             const fillColor = 'rgba(255, 120, 30, 0.25)';
             const strokeColor = 'rgba(255, 120, 30, 0.8)';
+            const isDraggable = !!placedAoe && !castingSpell;
+
+            const handleAoeDragEnd = (e: any) => {
+              if (!placedAoe) return;
+              const node = e.target;
+              const dx = node.x() - placedAoe.x;
+              const dy = node.y() - placedAoe.y;
+              setPlacedAoe(prev => prev ? {
+                ...prev,
+                x: prev.x + dx,
+                y: prev.y + dy,
+                originX: prev.originX + dx,
+                originY: prev.originY + dy,
+              } : null);
+              // Reset node position since we update state
+              node.x(placedAoe.x + dx);
+              node.y(placedAoe.y + dy);
+            };
+
+            // For cone/line, the drag group is positioned at the edge point, not aoe.x/y
+            const isDirectional = aoe.aoeType === 'cone' || aoe.aoeType === 'line';
+            const angleRad = aoe.angle * (Math.PI / 180);
+            const edgeX = isDirectional ? aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx : 0;
+            const edgeY = isDirectional ? aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx : 0;
+
+            const handleDirectionalDragEnd = (e: any) => {
+              if (!placedAoe) return;
+              const node = e.target;
+              const aRad = placedAoe.angle * (Math.PI / 180);
+              const origEdgeX = placedAoe.originX + Math.cos(aRad) * placedAoe.casterRadiusPx;
+              const origEdgeY = placedAoe.originY + Math.sin(aRad) * placedAoe.casterRadiusPx;
+              const dx = node.x() - origEdgeX;
+              const dy = node.y() - origEdgeY;
+              setPlacedAoe(prev => prev ? {
+                ...prev,
+                x: prev.x + dx,
+                y: prev.y + dy,
+                originX: prev.originX + dx,
+                originY: prev.originY + dy,
+              } : null);
+            };
 
             return (
-              <Layer listening={false}>
+              <Layer listening={isDraggable}>
                 {/* Sphere / Cylinder — circle at target position */}
                 {(aoe.aoeType === 'sphere' || aoe.aoeType === 'cylinder') && (
                   <Circle
@@ -1305,6 +1341,8 @@ export const MapView: React.FC<MapViewProps> = ({
                     stroke={strokeColor}
                     strokeWidth={strokeW}
                     dash={[6 / stageScale, 4 / stageScale]}
+                    draggable={isDraggable}
+                    onDragEnd={handleAoeDragEnd}
                   />
                 )}
 
@@ -1319,16 +1357,28 @@ export const MapView: React.FC<MapViewProps> = ({
                     stroke={strokeColor}
                     strokeWidth={strokeW}
                     dash={[6 / stageScale, 4 / stageScale]}
+                    draggable={isDraggable}
+                    onDragEnd={(e: any) => {
+                      if (!placedAoe) return;
+                      const node = e.target;
+                      const newX = node.x() + sizePx;
+                      const newY = node.y() + sizePx;
+                      const dx = newX - placedAoe.x;
+                      const dy = newY - placedAoe.y;
+                      setPlacedAoe(prev => prev ? {
+                        ...prev,
+                        x: prev.x + dx,
+                        y: prev.y + dy,
+                        originX: prev.originX + dx,
+                        originY: prev.originY + dy,
+                      } : null);
+                    }}
                   />
                 )}
 
                 {/* Cone — wedge from token edge toward target */}
                 {aoe.aoeType === 'cone' && (() => {
-                  const angleRad = aoe.angle * (Math.PI / 180);
                   const halfAngle = (53 / 2) * (Math.PI / 180); // D&D cone is ~53 degrees
-                  // Start from the token's edge, not center
-                  const edgeX = aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx;
-                  const edgeY = aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx;
                   const points = [
                     0, 0,
                     Math.cos(angleRad - halfAngle) * sizePx,
@@ -1352,16 +1402,14 @@ export const MapView: React.FC<MapViewProps> = ({
                       stroke={strokeColor}
                       strokeWidth={strokeW}
                       dash={[6 / stageScale, 4 / stageScale]}
+                      draggable={isDraggable}
+                      onDragEnd={handleDirectionalDragEnd}
                     />
                   );
                 })()}
 
                 {/* Line — rectangle from token edge toward target */}
                 {aoe.aoeType === 'line' && (() => {
-                  const angleRad = aoe.angle * (Math.PI / 180);
-                  // Start from the token's edge, not center
-                  const edgeX = aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx;
-                  const edgeY = aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx;
                   const halfWidth = feetToPx(5) / 2; // 5ft wide
                   const perpX = Math.cos(angleRad + Math.PI / 2) * halfWidth;
                   const perpY = Math.sin(angleRad + Math.PI / 2) * halfWidth;
@@ -1383,6 +1431,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       stroke={strokeColor}
                       strokeWidth={strokeW}
                       dash={[6 / stageScale, 4 / stageScale]}
+                      draggable={isDraggable}
+                      onDragEnd={handleDirectionalDragEnd}
                     />
                   );
                 })()}
@@ -1455,11 +1505,21 @@ export const MapView: React.FC<MapViewProps> = ({
         })()}
 
         {/* Casting Mode Banner */}
-        {castingSpell && (
+        {(castingSpell || placedAoe) && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
             <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-            <span className="text-sm font-bold text-orange-400">Casting {castingSpell.name}</span>
-            <span className="text-xs text-white/40">Click to place · Escape to cancel</span>
+            <span className="text-sm font-bold text-orange-400">
+              {castingSpell ? `Casting ${castingSpell.name}` : `${placedAoe!.aoeType.charAt(0).toUpperCase() + placedAoe!.aoeType.slice(1)} AoE`}
+            </span>
+            <span className="text-xs text-white/40">
+              {castingSpell ? 'Tap to place' : 'Drag to reposition'}
+            </span>
+            <button
+              onClick={() => { setCastingSpell(null); setCastingMousePos(null); setPlacedAoe(null); }}
+              className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         )}
 

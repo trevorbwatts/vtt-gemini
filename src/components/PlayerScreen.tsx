@@ -386,24 +386,6 @@ export function PlayerScreen() {
 
   // ── IPC ──
   useEffect(() => {
-    // Load from localStorage as initial fallback while awaiting DM sync
-    try {
-      const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
-      if (savedCampaigns.length > 0) {
-        setCampaign(savedCampaigns[0]);
-        if (savedCampaigns[0].scenarios.length > 0) {
-          setCurrentScenarioId(savedCampaigns[0].scenarios[0].id);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load initial campaign state for Player Screen");
-    }
-
-    // Also request latest state from main process (will override localStorage data when it arrives)
-    if (window.electronAPI?.requestStateUpdate) {
-      window.electronAPI.requestStateUpdate();
-    }
-
     const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string }) => {
       if (isDraggingRef.current) return;
       setCampaign(newState.campaign);
@@ -437,6 +419,11 @@ export function PlayerScreen() {
           };
         });
       });
+    }
+
+    // Request state AFTER all listeners are registered so we don't miss the response
+    if (window.electronAPI?.requestStateUpdate) {
+      window.electronAPI.requestStateUpdate();
     }
 
     return () => {
