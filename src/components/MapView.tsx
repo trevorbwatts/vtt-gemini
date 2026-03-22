@@ -53,6 +53,10 @@ interface MapViewProps {
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>;
+  /** Ref that MapView populates so external code can cancel placed AoE */
+  cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
+  /** Called when placed AoE is dismissed (by any means) */
+  onCastingDismissed?: () => void;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -139,6 +143,8 @@ export const MapView: React.FC<MapViewProps> = ({
   darknessLevel,
   onDarknessLevelChange,
   startCastingRef,
+  cancelCastingRef,
+  onCastingDismissed,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -199,6 +205,7 @@ export const MapView: React.FC<MapViewProps> = ({
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<{
+    name: string;
     aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
     aoeSize: number;
     x: number;
@@ -229,15 +236,31 @@ export const MapView: React.FC<MapViewProps> = ({
       const token = tokensRef.current.find(t => t.combatantId === combatantId);
       if (!token) return;
       const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token.size);
-      setCastingSpell({
+      const ppg = gridResolution?.pixelsPerGrid || 40;
+      const offsetDist = (spell.aoeSize / 5) * ppg + casterRadiusPx;
+      // Place AoE directly in front of the caster (to the right by default)
+      setCastingSpell(null);
+      setCastingMousePos(null);
+      setPlacedAoe({
         name: spell.name,
         aoeType: spell.aoeType as 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder',
         aoeSize: spell.aoeSize,
+        x: token.x + offsetDist,
+        y: token.y,
         originX: token.x,
         originY: token.y,
+        angle: 0,
         casterRadiusPx,
       });
+    };
+  }
+
+  if (cancelCastingRef) {
+    cancelCastingRef.current = () => {
       setPlacedAoe(null);
+      setCastingSpell(null);
+      setCastingMousePos(null);
+      onCastingDismissed?.();
     };
   }
 
@@ -710,8 +733,8 @@ export const MapView: React.FC<MapViewProps> = ({
     const onKeyDown = (e: KeyboardEvent) => {
       // Escape cancels AoE casting or dismisses placed AoE
       if (e.code === 'Escape') {
-        if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); return; }
-        if (placedAoe) { setPlacedAoe(null); return; }
+        if (placedAoe) { setPlacedAoe(null); onCastingDismissed?.(); return; }
+        if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); onCastingDismissed?.(); return; }
       }
       
       const tag = (e.target as HTMLElement).tagName;
@@ -794,7 +817,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseDown = (e: any) => {
-    // AoE casting: click to place, then click again (or Escape) to dismiss
+    // DM AoE casting: click to place (mouse-follow mode)
     if (castingSpell && e.evt.button === 0) {
       if (castingMousePos) {
         const angle = Math.atan2(
@@ -802,6 +825,7 @@ export const MapView: React.FC<MapViewProps> = ({
           castingMousePos.x - castingSpell.originX
         ) * (180 / Math.PI);
         setPlacedAoe({
+          name: castingSpell.name,
           aoeType: castingSpell.aoeType,
           aoeSize: castingSpell.aoeSize,
           x: castingMousePos.x,
@@ -821,6 +845,12 @@ export const MapView: React.FC<MapViewProps> = ({
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
     } else if (e.evt.button === 0) {
+      // DM click-to-dismiss placed AoE
+      if (placedAoe && !isPlayerView) {
+        setPlacedAoe(null);
+        onCastingDismissed?.();
+        return;
+      }
       const canvas = getCanvasPos(e.target.getStage());
       selectionStartRef.current = canvas;
       selectionRectRef.current = { x: canvas.x, y: canvas.y, w: 0, h: 0 };
@@ -829,12 +859,12 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseMove = (e: any) => {
-    // AoE casting: track mouse in world coords
+    // DM AoE casting: track mouse in world coords
     if (castingSpell) {
       const stage = e.target.getStage();
       const pos = getCanvasPos(stage);
       setCastingMousePos(pos);
-      return; // Don't do anything else while casting
+      return;
     }
 
     if (isPanning) {
@@ -1260,125 +1290,164 @@ export const MapView: React.FC<MapViewProps> = ({
             })}
           </Layer>
 
-          {/* ── AoE Casting Layer ── */}
-          {(castingSpell || placedAoe) && (() => {
+          {/* ── AoE Casting Preview (DM mouse-follow) ── */}
+          {castingSpell && castingMousePos && (() => {
             const ppg = gridResolution?.pixelsPerGrid || 40;
             const feetToPx = (ft: number) => (ft / 5) * ppg;
-
-            // Active casting (following mouse) or placed AoE
-            const aoe = castingSpell && castingMousePos ? {
-              aoeType: castingSpell.aoeType,
-              aoeSize: castingSpell.aoeSize,
-              x: castingMousePos.x,
-              y: castingMousePos.y,
-              originX: castingSpell.originX,
-              originY: castingSpell.originY,
-              angle: Math.atan2(castingMousePos.y - castingSpell.originY, castingMousePos.x - castingSpell.originX) * (180 / Math.PI),
-              casterRadiusPx: castingSpell.casterRadiusPx,
-              opacity: 0.25,
-            } : placedAoe ? {
-              ...placedAoe,
-              opacity: 0.35,
-            } : null;
-
-            if (!aoe) return null;
-
-            const sizePx = feetToPx(aoe.aoeSize);
-            const strokeW = 2 / stageScale; // constant screen-space stroke
+            const sizePx = feetToPx(castingSpell.aoeSize);
+            const strokeW = 2 / stageScale;
             const fillColor = 'rgba(255, 120, 30, 0.25)';
             const strokeColor = 'rgba(255, 120, 30, 0.8)';
-            const isDraggable = !!placedAoe && !castingSpell;
-
-            const handleAoeDragEnd = (e: any) => {
-              if (!placedAoe) return;
-              const node = e.target;
-              const dx = node.x() - placedAoe.x;
-              const dy = node.y() - placedAoe.y;
-              setPlacedAoe(prev => prev ? {
-                ...prev,
-                x: prev.x + dx,
-                y: prev.y + dy,
-                originX: prev.originX + dx,
-                originY: prev.originY + dy,
-              } : null);
-              // Reset node position since we update state
-              node.x(placedAoe.x + dx);
-              node.y(placedAoe.y + dy);
-            };
-
-            // For cone/line, the drag group is positioned at the edge point, not aoe.x/y
-            const isDirectional = aoe.aoeType === 'cone' || aoe.aoeType === 'line';
-            const angleRad = aoe.angle * (Math.PI / 180);
-            const edgeX = isDirectional ? aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx : 0;
-            const edgeY = isDirectional ? aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx : 0;
-
-            const handleDirectionalDragEnd = (e: any) => {
-              if (!placedAoe) return;
-              const node = e.target;
-              const aRad = placedAoe.angle * (Math.PI / 180);
-              const origEdgeX = placedAoe.originX + Math.cos(aRad) * placedAoe.casterRadiusPx;
-              const origEdgeY = placedAoe.originY + Math.sin(aRad) * placedAoe.casterRadiusPx;
-              const dx = node.x() - origEdgeX;
-              const dy = node.y() - origEdgeY;
-              setPlacedAoe(prev => prev ? {
-                ...prev,
-                x: prev.x + dx,
-                y: prev.y + dy,
-                originX: prev.originX + dx,
-                originY: prev.originY + dy,
-              } : null);
-            };
+            const angleRad = Math.atan2(castingMousePos.y - castingSpell.originY, castingMousePos.x - castingSpell.originX);
+            const edgeX = castingSpell.originX + Math.cos(angleRad) * castingSpell.casterRadiusPx;
+            const edgeY = castingSpell.originY + Math.sin(angleRad) * castingSpell.casterRadiusPx;
 
             return (
-              <Layer listening={isDraggable}>
+              <Layer listening={false}>
+                {(castingSpell.aoeType === 'sphere' || castingSpell.aoeType === 'cylinder') && (
+                  <Circle x={castingMousePos.x} y={castingMousePos.y} radius={sizePx}
+                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />
+                )}
+                {castingSpell.aoeType === 'cube' && (
+                  <Rect x={castingMousePos.x - sizePx} y={castingMousePos.y - sizePx} width={sizePx * 2} height={sizePx * 2}
+                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />
+                )}
+                {castingSpell.aoeType === 'cone' && (() => {
+                  const halfAngle = (53 / 2) * (Math.PI / 180);
+                  const points = [
+                    0, 0,
+                    Math.cos(angleRad - halfAngle) * sizePx, Math.sin(angleRad - halfAngle) * sizePx,
+                    Math.cos(angleRad - halfAngle / 2) * sizePx, Math.sin(angleRad - halfAngle / 2) * sizePx,
+                    Math.cos(angleRad) * sizePx, Math.sin(angleRad) * sizePx,
+                    Math.cos(angleRad + halfAngle / 2) * sizePx, Math.sin(angleRad + halfAngle / 2) * sizePx,
+                    Math.cos(angleRad + halfAngle) * sizePx, Math.sin(angleRad + halfAngle) * sizePx,
+                  ];
+                  return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                })()}
+                {castingSpell.aoeType === 'line' && (() => {
+                  const halfWidth = feetToPx(5) / 2;
+                  const perpX = Math.cos(angleRad + Math.PI / 2) * halfWidth;
+                  const perpY = Math.sin(angleRad + Math.PI / 2) * halfWidth;
+                  const endX = Math.cos(angleRad) * sizePx;
+                  const endY = Math.sin(angleRad) * sizePx;
+                  const points = [-perpX, -perpY, endX - perpX, endY - perpY, endX + perpX, endY + perpY, perpX, perpY];
+                  return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                })()}
+              </Layer>
+            );
+          })()}
+
+          {/* ── AoE Placed Layer (draggable spell token) ── */}
+          {placedAoe && (() => {
+            const ppg = gridResolution?.pixelsPerGrid || 40;
+            const feetToPx = (ft: number) => (ft / 5) * ppg;
+            const sizePx = feetToPx(placedAoe.aoeSize);
+            const strokeW = 2 / stageScale;
+            const fillColor = 'rgba(255, 120, 30, 0.35)';
+            const strokeColor = 'rgba(255, 120, 30, 0.8)';
+
+            const handleAoeDragEnd = (e: any) => {
+              const node = e.target;
+              setPlacedAoe(prev => {
+                if (!prev) return null;
+                const dx = node.x() - prev.x;
+                const dy = node.y() - prev.y;
+                return { ...prev, x: prev.x + dx, y: prev.y + dy, originX: prev.originX + dx, originY: prev.originY + dy };
+              });
+            };
+
+            const handleCubeDragEnd = (e: any) => {
+              const node = e.target;
+              setPlacedAoe(prev => {
+                if (!prev) return null;
+                const newCenterX = node.x() + sizePx;
+                const newCenterY = node.y() + sizePx;
+                const dx = newCenterX - prev.x;
+                const dy = newCenterY - prev.y;
+                return { ...prev, x: prev.x + dx, y: prev.y + dy, originX: prev.originX + dx, originY: prev.originY + dy };
+              });
+            };
+
+            // For player view: dragging a cone/line rotates it around the caster
+            const handleDirectionalDragMove = (e: any) => {
+              if (!isPlayerView) return;
+              const node = e.target;
+              const dragX = node.x();
+              const dragY = node.y();
+              // Calculate new angle from caster origin to drag position
+              const newAngle = Math.atan2(dragY - placedAoe.originY, dragX - placedAoe.originX);
+              // Snap node back to the caster edge at the new angle
+              const newEdgeX = placedAoe.originX + Math.cos(newAngle) * placedAoe.casterRadiusPx;
+              const newEdgeY = placedAoe.originY + Math.sin(newAngle) * placedAoe.casterRadiusPx;
+              node.x(newEdgeX);
+              node.y(newEdgeY);
+              // Live-update the angle so the shape redraws pointing the right way
+              setPlacedAoe(prev => prev ? { ...prev, angle: newAngle * (180 / Math.PI) } : null);
+            };
+
+            const handleDirectionalDragEnd = (e: any) => {
+              if (isPlayerView) {
+                // Angle already updated via onDragMove — just ensure node is at edge
+                const node = e.target;
+                const aRad = (placedAoe.angle) * (Math.PI / 180);
+                const newEdgeX = placedAoe.originX + Math.cos(aRad) * placedAoe.casterRadiusPx;
+                const newEdgeY = placedAoe.originY + Math.sin(aRad) * placedAoe.casterRadiusPx;
+                node.x(newEdgeX);
+                node.y(newEdgeY);
+                return;
+              }
+              const node = e.target;
+              setPlacedAoe(prev => {
+                if (!prev) return null;
+                const aRad = prev.angle * (Math.PI / 180);
+                const origEdgeX = prev.originX + Math.cos(aRad) * prev.casterRadiusPx;
+                const origEdgeY = prev.originY + Math.sin(aRad) * prev.casterRadiusPx;
+                const dx = node.x() - origEdgeX;
+                const dy = node.y() - origEdgeY;
+                return { ...prev, x: prev.x + dx, y: prev.y + dy, originX: prev.originX + dx, originY: prev.originY + dy };
+              });
+            };
+
+            const angleRad = placedAoe.angle * (Math.PI / 180);
+            const edgeX = placedAoe.originX + Math.cos(angleRad) * placedAoe.casterRadiusPx;
+            const edgeY = placedAoe.originY + Math.sin(angleRad) * placedAoe.casterRadiusPx;
+
+            return (
+              <Layer listening={!!isPlayerView}>
                 {/* Sphere / Cylinder — circle at target position */}
-                {(aoe.aoeType === 'sphere' || aoe.aoeType === 'cylinder') && (
+                {(placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
                   <Circle
-                    x={aoe.x}
-                    y={aoe.y}
+                    x={placedAoe.x}
+                    y={placedAoe.y}
                     radius={sizePx}
                     fill={fillColor}
                     stroke={strokeColor}
                     strokeWidth={strokeW}
                     dash={[6 / stageScale, 4 / stageScale]}
-                    draggable={isDraggable}
+                    draggable={!!isPlayerView}
                     onDragEnd={handleAoeDragEnd}
                   />
                 )}
 
                 {/* Cube — square at target position */}
-                {aoe.aoeType === 'cube' && (
+                {placedAoe.aoeType === 'cube' && (
                   <Rect
-                    x={aoe.x - sizePx}
-                    y={aoe.y - sizePx}
+                    x={placedAoe.x - sizePx}
+                    y={placedAoe.y - sizePx}
                     width={sizePx * 2}
                     height={sizePx * 2}
                     fill={fillColor}
                     stroke={strokeColor}
                     strokeWidth={strokeW}
                     dash={[6 / stageScale, 4 / stageScale]}
-                    draggable={isDraggable}
-                    onDragEnd={(e: any) => {
-                      if (!placedAoe) return;
-                      const node = e.target;
-                      const newX = node.x() + sizePx;
-                      const newY = node.y() + sizePx;
-                      const dx = newX - placedAoe.x;
-                      const dy = newY - placedAoe.y;
-                      setPlacedAoe(prev => prev ? {
-                        ...prev,
-                        x: prev.x + dx,
-                        y: prev.y + dy,
-                        originX: prev.originX + dx,
-                        originY: prev.originY + dy,
-                      } : null);
-                    }}
+                    draggable={!!isPlayerView}
+                    onDragEnd={handleCubeDragEnd}
                   />
                 )}
 
                 {/* Cone — wedge from token edge toward target */}
-                {aoe.aoeType === 'cone' && (() => {
-                  const halfAngle = (53 / 2) * (Math.PI / 180); // D&D cone is ~53 degrees
+                {placedAoe.aoeType === 'cone' && (() => {
+                  const halfAngle = (53 / 2) * (Math.PI / 180);
                   const points = [
                     0, 0,
                     Math.cos(angleRad - halfAngle) * sizePx,
@@ -1402,15 +1471,16 @@ export const MapView: React.FC<MapViewProps> = ({
                       stroke={strokeColor}
                       strokeWidth={strokeW}
                       dash={[6 / stageScale, 4 / stageScale]}
-                      draggable={isDraggable}
+                      draggable={!!isPlayerView}
+                      onDragMove={handleDirectionalDragMove}
                       onDragEnd={handleDirectionalDragEnd}
                     />
                   );
                 })()}
 
                 {/* Line — rectangle from token edge toward target */}
-                {aoe.aoeType === 'line' && (() => {
-                  const halfWidth = feetToPx(5) / 2; // 5ft wide
+                {placedAoe.aoeType === 'line' && (() => {
+                  const halfWidth = feetToPx(5) / 2;
                   const perpX = Math.cos(angleRad + Math.PI / 2) * halfWidth;
                   const perpY = Math.sin(angleRad + Math.PI / 2) * halfWidth;
                   const endX = Math.cos(angleRad) * sizePx;
@@ -1431,7 +1501,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       stroke={strokeColor}
                       strokeWidth={strokeW}
                       dash={[6 / stageScale, 4 / stageScale]}
-                      draggable={isDraggable}
+                      draggable={!!isPlayerView}
+                      onDragMove={handleDirectionalDragMove}
                       onDragEnd={handleDirectionalDragEnd}
                     />
                   );
@@ -1504,22 +1575,12 @@ export const MapView: React.FC<MapViewProps> = ({
           );
         })()}
 
-        {/* Casting Mode Banner */}
-        {(castingSpell || placedAoe) && (
+        {/* DM Casting Mode Banner (mouse-follow phase only) */}
+        {castingSpell && !isPlayerView && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
             <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-            <span className="text-sm font-bold text-orange-400">
-              {castingSpell ? `Casting ${castingSpell.name}` : `${placedAoe!.aoeType.charAt(0).toUpperCase() + placedAoe!.aoeType.slice(1)} AoE`}
-            </span>
-            <span className="text-xs text-white/40">
-              {castingSpell ? 'Tap to place' : 'Drag to reposition'}
-            </span>
-            <button
-              onClick={() => { setCastingSpell(null); setCastingMousePos(null); setPlacedAoe(null); }}
-              className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-            >
-              Cancel
-            </button>
+            <span className="text-sm font-bold text-orange-400">Casting {castingSpell.name}</span>
+            <span className="text-xs text-white/40">Click to place · Escape to cancel</span>
           </div>
         )}
 

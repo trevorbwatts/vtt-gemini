@@ -65,6 +65,8 @@ const SignInSpot: React.FC<{
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#1a1715] border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-[220px] z-50"
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  onTouchEnd={(e: React.TouchEvent) => e.stopPropagation()}
                 >
                   <div className="px-3 py-2 border-b border-white/5 text-[10px] uppercase tracking-widest text-white/30 font-bold">
                     Choose your character
@@ -341,7 +343,7 @@ const InitiativeStrip: React.FC<{ combatants: Combatant[] }> = ({ combatants }) 
           >
             <span
               className="text-[11px] font-bold tracking-wider whitespace-nowrap"
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', color: colors.text }}
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: colors.text }}
             >
               {c.name}
             </span>
@@ -383,6 +385,10 @@ export function PlayerScreen() {
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>(null);
+  const cancelCastingRef = useRef<(() => void) | null>(null);
+
+  // Track active player casting (for banner positioning)
+  const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string } | null>(null);
 
   // ── IPC ──
   useEffect(() => {
@@ -499,6 +505,7 @@ export function PlayerScreen() {
   const handleCastSpell = useCallback((spotId: SpotId, spell: any, combatantId: string) => {
     setOpenDrawers(prev => { const next = new Set(prev); next.delete(spotId); return next; });
     startCastingRef.current?.(spell, combatantId);
+    setActiveCasting({ spotId, spellName: spell.name });
   }, []);
 
   // ── Helper: get player combatant for a spot ──
@@ -508,12 +515,24 @@ export function PlayerScreen() {
     return campaign.players.find(p => p.id === playerId) || null;
   };
 
-  // Close picker when clicking outside
+  // Close picker when clicking/tapping outside
   useEffect(() => {
     if (!activePickerSpot) return;
-    const handleClick = () => setActivePickerSpot(null);
-    const timer = setTimeout(() => document.addEventListener('click', handleClick), 0);
-    return () => { clearTimeout(timer); document.removeEventListener('click', handleClick); };
+    const openedAt = Date.now();
+    const handleClick = () => {
+      // Ignore clicks that fire within 300ms of opening (touch event double-fire)
+      if (Date.now() - openedAt < 300) return;
+      setActivePickerSpot(null);
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+      document.addEventListener('touchend', handleClick);
+    }, 50);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('touchend', handleClick);
+    };
   }, [activePickerSpot]);
 
   // ── No campaign yet ──
@@ -611,8 +630,37 @@ export function PlayerScreen() {
           viewportCenter={viewportCenter}
           darknessLevel={currentScenario.darknessLevel}
           startCastingRef={startCastingRef}
+          cancelCastingRef={cancelCastingRef}
+          onCastingDismissed={() => setActiveCasting(null)}
         />
       </div>
+
+      {/* Casting Banner — positioned near the casting player's drawer */}
+      {activeCasting && (() => {
+        const config = spotConfigs[activeCasting.spotId];
+        const edge = config.edge;
+        // Position the banner inset from the edge, near the drawer
+        const posClass = edge === 'top'
+          ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
+          : edge === 'left'
+          ? 'left-4 top-1/2 -translate-y-1/2 -rotate-90'
+          : 'bottom-4 left-1/2 -translate-x-1/2';
+        return (
+          <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
+            <div className="bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10">
+              <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+              <span className="text-sm font-bold text-orange-400">Casting {activeCasting.spellName}</span>
+              <span className="text-xs text-white/40">Drag to place</span>
+              <button
+                onClick={() => { cancelCastingRef.current?.(); setActiveCasting(null); }}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Player Drawers */}
       {SPOT_IDS.map(spotId => {
