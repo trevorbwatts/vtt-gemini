@@ -162,6 +162,19 @@ ipcMain.on('dm-token-update', (_event, tokens) => {
   }
 });
 
+// AoE spell sync between DM and Player
+ipcMain.on('dm-aoe-update', (_event, aoe) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dm-aoe-update', aoe);
+  }
+});
+
+ipcMain.on('player-aoe-update', (_event, aoe) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-aoe-update', aoe);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

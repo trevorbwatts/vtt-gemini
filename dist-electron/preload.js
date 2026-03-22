@@ -5,6 +5,7 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     launchPlayerScreen: () => electron_1.ipcRenderer.send('launch-player-screen'),
     closePlayerScreen: () => electron_1.ipcRenderer.send('close-player-screen'),
     sendStateUpdate: (state) => electron_1.ipcRenderer.send('dm-state-update', state),
+    requestStateUpdate: () => electron_1.ipcRenderer.send('request-state-update'),
     sendPlayerTokenUpdate: (tokens) => electron_1.ipcRenderer.send('player-token-update', tokens),
     onPlayerTokenUpdate: (callback) => {
         electron_1.ipcRenderer.on('player-token-update', (_event, tokens) => callback(tokens));
@@ -40,4 +41,12 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         electron_1.ipcRenderer.removeAllListeners('player-screen-status');
     },
     importDndBeyondCharacter: (url) => electron_1.ipcRenderer.invoke('fetch-dndb-character', url),
+    sendDMAoeUpdate: (aoe) => electron_1.ipcRenderer.send('dm-aoe-update', aoe),
+    onDMAoeUpdate: (callback) => {
+        electron_1.ipcRenderer.on('dm-aoe-update', (_event, aoe) => callback(aoe));
+    },
+    sendPlayerAoeUpdate: (aoe) => electron_1.ipcRenderer.send('player-aoe-update', aoe),
+    onPlayerAoeUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-aoe-update', (_event, aoe) => callback(aoe));
+    },
 });

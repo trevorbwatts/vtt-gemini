@@ -40,4 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('player-screen-status');
   },
   importDndBeyondCharacter: (url: string) => ipcRenderer.invoke('fetch-dndb-character', url),
+  sendDMAoeUpdate: (aoe: any) => ipcRenderer.send('dm-aoe-update', aoe),
+  onDMAoeUpdate: (callback: (aoe: any) => void) => {
+    ipcRenderer.on('dm-aoe-update', (_event, aoe) => callback(aoe));
+  },
+  sendPlayerAoeUpdate: (aoe: any) => ipcRenderer.send('player-aoe-update', aoe),
+  onPlayerAoeUpdate: (callback: (aoe: any) => void) => {
+    ipcRenderer.on('player-aoe-update', (_event, aoe) => callback(aoe));
+  },
 });

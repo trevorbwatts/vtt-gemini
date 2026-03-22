@@ -218,6 +218,35 @@ export const MapView: React.FC<MapViewProps> = ({
     selfOrigin?: boolean; // true for range=0 "Self" spells (rotate around caster)
   } | null>(null);
 
+  // Remote AoE: placed by the other screen (DM sees player's AoE, player sees DM's AoE)
+  const [remoteAoe, setRemoteAoe] = useState<typeof placedAoe>(null);
+
+  // Broadcast local AoE changes to the other screen
+  useEffect(() => {
+    try {
+      if (isPlayerView) {
+        window.electronAPI?.sendPlayerAoeUpdate?.(placedAoe);
+      } else {
+        window.electronAPI?.sendDMAoeUpdate?.(placedAoe);
+      }
+    } catch (e) {
+      // IPC not available (dev mode or stale preload)
+    }
+  }, [placedAoe, isPlayerView]);
+
+  // Listen for AoE from the other screen
+  useEffect(() => {
+    try {
+      if (isPlayerView) {
+        window.electronAPI?.onDMAoeUpdate?.((aoe: any) => setRemoteAoe(aoe));
+      } else {
+        window.electronAPI?.onPlayerAoeUpdate?.((aoe: any) => setRemoteAoe(aoe));
+      }
+    } catch (e) {
+      // IPC not available
+    }
+  }, [isPlayerView]);
+
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
   // Konva moves the node natively during drag; we just need the position for IPC broadcasts.
   const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -1673,6 +1702,65 @@ export const MapView: React.FC<MapViewProps> = ({
                       onDragEnd={handleDirectionalDragEnd}
                     />
                   );
+                })()}
+              </Layer>
+            );
+          })()}
+
+          {/* ── Remote AoE (from the other screen) ── */}
+          {remoteAoe && (() => {
+            const ppg = gridResolution?.pixelsPerGrid || 40;
+            const feetToPx = (ft: number) => (ft / 5) * ppg;
+            const sizePx = feetToPx(remoteAoe.aoeSize);
+            const strokeW = 2 / stageScale;
+            const fillColor = 'rgba(255, 120, 30, 0.25)';
+            const strokeColor = 'rgba(255, 120, 30, 0.6)';
+            const aRad = remoteAoe.angle * (Math.PI / 180);
+            const edgeX = remoteAoe.originX + Math.cos(aRad) * remoteAoe.casterRadiusPx;
+            const edgeY = remoteAoe.originY + Math.sin(aRad) * remoteAoe.casterRadiusPx;
+            const isAnchored = remoteAoe.aoeType === 'cone' || remoteAoe.aoeType === 'line' || !!remoteAoe.selfOrigin;
+
+            return (
+              <Layer listening={false}>
+                {(remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (
+                  <Circle
+                    x={isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x}
+                    y={isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y}
+                    radius={sizePx}
+                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW}
+                    dash={[6 / stageScale, 4 / stageScale]}
+                  />
+                )}
+                {remoteAoe.aoeType === 'cube' && (() => {
+                  if (remoteAoe.selfOrigin) {
+                    const perpX = Math.cos(aRad + Math.PI / 2) * sizePx;
+                    const perpY = Math.sin(aRad + Math.PI / 2) * sizePx;
+                    const fwdX = Math.cos(aRad) * sizePx * 2;
+                    const fwdY = Math.sin(aRad) * sizePx * 2;
+                    const points = [-perpX, -perpY, perpX, perpY, perpX + fwdX, perpY + fwdY, -perpX + fwdX, -perpY + fwdY];
+                    return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                  }
+                  return <Rect x={remoteAoe.x - sizePx} y={remoteAoe.y - sizePx} width={sizePx * 2} height={sizePx * 2}
+                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                })()}
+                {remoteAoe.aoeType === 'cone' && (() => {
+                  const halfAngle = (53 / 2) * (Math.PI / 180);
+                  const points = [0, 0,
+                    Math.cos(aRad - halfAngle) * sizePx, Math.sin(aRad - halfAngle) * sizePx,
+                    Math.cos(aRad - halfAngle / 2) * sizePx, Math.sin(aRad - halfAngle / 2) * sizePx,
+                    Math.cos(aRad) * sizePx, Math.sin(aRad) * sizePx,
+                    Math.cos(aRad + halfAngle / 2) * sizePx, Math.sin(aRad + halfAngle / 2) * sizePx,
+                    Math.cos(aRad + halfAngle) * sizePx, Math.sin(aRad + halfAngle) * sizePx];
+                  return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
+                })()}
+                {remoteAoe.aoeType === 'line' && (() => {
+                  const halfWidth = feetToPx(5) / 2;
+                  const perpX = Math.cos(aRad + Math.PI / 2) * halfWidth;
+                  const perpY = Math.sin(aRad + Math.PI / 2) * halfWidth;
+                  const endX = Math.cos(aRad) * sizePx;
+                  const endY = Math.sin(aRad) * sizePx;
+                  const points = [-perpX, -perpY, endX - perpX, endY - perpY, endX + perpX, endY + perpY, perpX, perpY];
+                  return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                 })()}
               </Layer>
             );

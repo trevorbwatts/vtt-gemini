@@ -23,6 +23,10 @@ declare global {
       removeDMTokenUpdateListener: () => void;
       importDndBeyondCharacter: (url: string) => Promise<any>;
       requestStateUpdate: () => void;
+      sendDMAoeUpdate: (aoe: any) => void;
+      onDMAoeUpdate: (callback: (aoe: any) => void) => void;
+      sendPlayerAoeUpdate: (aoe: any) => void;
+      onPlayerAoeUpdate: (callback: (aoe: any) => void) => void;
     }
   }
 }

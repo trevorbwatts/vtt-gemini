@@ -7,6 +7,7 @@ const electron_1 = require("electron");
 const path_1 = __importDefault(require("path"));
 let dmWindow = null;
 let playerWindow = null;
+let lastKnownState = null;
 function createDmWindow() {
     dmWindow = new electron_1.BrowserWindow({
         width: 1400,
@@ -94,9 +95,14 @@ electron_1.app.on('window-all-closed', () => {
 // --- IPC Communication between Windows ---
 electron_1.ipcMain.on('launch-player-screen', () => {
     createPlayerWindow();
-    // Notify DM window that the player screen is now open
-    if (dmWindow) {
-        dmWindow.webContents.send('player-screen-status', true);
+    // Notify DM window only after the player window has finished loading,
+    // so that when the DM sends state back, the player's IPC listeners are ready.
+    if (playerWindow) {
+        playerWindow.webContents.once('did-finish-load', () => {
+            if (dmWindow) {
+                dmWindow.webContents.send('player-screen-status', true);
+            }
+        });
     }
 });
 electron_1.ipcMain.on('close-player-screen', () => {
@@ -118,8 +124,15 @@ electron_1.ipcMain.on('player-token-update', (_event, tokens) => {
 });
 // When the DM updates the campaign state, proxy it to the Player window
 electron_1.ipcMain.on('dm-state-update', (_event, state) => {
+    lastKnownState = state;
     if (playerWindow) {
         playerWindow.webContents.send('player-state-update', state);
+    }
+});
+// Allow Player window to request the latest state on mount
+electron_1.ipcMain.on('request-state-update', () => {
+    if (lastKnownState && playerWindow) {
+        playerWindow.webContents.send('player-state-update', lastKnownState);
     }
 });
 // When the Player moves tokens, proxy it back to the DM window
@@ -132,6 +145,17 @@ electron_1.ipcMain.on('player-token-update', (_event, tokens) => {
 electron_1.ipcMain.on('dm-token-update', (_event, tokens) => {
     if (playerWindow) {
         playerWindow.webContents.send('dm-token-update', tokens);
+    }
+});
+// AoE spell sync between DM and Player
+electron_1.ipcMain.on('dm-aoe-update', (_event, aoe) => {
+    if (playerWindow) {
+        playerWindow.webContents.send('dm-aoe-update', aoe);
+    }
+});
+electron_1.ipcMain.on('player-aoe-update', (_event, aoe) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-aoe-update', aoe);
     }
 });
 // D&D Beyond character import
