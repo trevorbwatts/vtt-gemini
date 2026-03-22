@@ -713,9 +713,25 @@ export const MapView: React.FC<MapViewProps> = ({
         if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); return; }
         if (placedAoe) { setPlacedAoe(null); return; }
       }
-      if (e.code !== 'Space') return;
+      
       const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable) return;
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable;
+      
+      if ((e.code === 'Backspace' || e.code === 'Delete') && !isInput) {
+        if (selectedTokenIds.length > 0) {
+          e.preventDefault();
+          onTokensChange(tokens.filter(t => !selectedTokenIds.includes(t.id)));
+          setSelectedTokenIds([]);
+          if (selectedTokenId && selectedTokenIds.includes(selectedTokenId)) {
+            setSelectedTokenId(null);
+          }
+          setTokenContextMenu(null);
+          return;
+        }
+      }
+
+      if (e.code !== 'Space') return;
+      if (isInput) return;
       e.preventDefault();
       if (!spaceHeldRef.current) {
         spaceHeldRef.current = true;
@@ -734,7 +750,7 @@ export const MapView: React.FC<MapViewProps> = ({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [isPlayerView, castingSpell, placedAoe]);
+  }, [isPlayerView, castingSpell, placedAoe, tokens, selectedTokenIds, onTokensChange, setSelectedTokenIds, selectedTokenId, setSelectedTokenId]);
 
   // Two-finger pan for player view
   const twoFingerPanRef = useRef<{ midX: number; midY: number } | null>(null);
@@ -1408,48 +1424,35 @@ export const MapView: React.FC<MapViewProps> = ({
                     shadowColor="black"
                   />
                   <NoteMapIcon type={note.type} />
-
-                  {/* Tooltip — scale-independent: cancel zoom so it's always the same screen size */}
-                  {hoveredNoteId === note.id && (() => {
-                    const s = 1 / stageScale;
-                    const fontSize = 16;
-                    const padding = 10;
-                    const tooltipW = 280;
-                    const tooltipH = fontSize + padding * 2;
-                    return (
-                      <Group scaleX={s} scaleY={s} y={-(tokenRadius * 0.6) - (tooltipH + 8) / stageScale} x={0}>
-                        <Rect
-                          fill="rgba(0,0,0,0.9)"
-                          stroke="rgba(255,255,255,0.1)"
-                          strokeWidth={1}
-                          cornerRadius={4}
-                          width={tooltipW}
-                          height={tooltipH}
-                          x={-tooltipW / 2}
-                          y={0}
-                          shadowBlur={10}
-                        />
-                        <Text
-                          text={note.content.split('\n')[0]}
-                          fill="white"
-                          fontSize={16}
-                          padding={padding}
-                          wrap="none"
-                          ellipsis={true}
-                          width={tooltipW}
-                          x={-tooltipW / 2}
-                          y={0}
-                          align="center"
-                          fontFamily="Inter"
-                        />
-                      </Group>
-                    );
-                  })()}
                 </Group>
               ))}
             </Layer>
           )}
         </Stage>
+
+        {/* Note Tooltips Overlay */}
+        {!isPlayerView && hoveredNoteId && mapNotes.find(n => n.id === hoveredNoteId) && (() => {
+          const note = mapNotes.find(n => n.id === hoveredNoteId)!;
+          const screenX = note.x * stageScale + stagePos.x;
+          // Position relative to note radius (scaled to screen size)
+          const screenY = note.y * stageScale + stagePos.y - (tokenRadius * 0.6 * stageScale) - 8;
+          
+          return (
+            <div
+              className="absolute pointer-events-none z-[100] bg-black shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded px-3 py-2 border border-white/10"
+              style={{
+                left: screenX,
+                top: screenY,
+                transform: 'translate(-50%, -100%)',
+                maxWidth: 320,
+              }}
+            >
+              <div className="text-white text-[15px] font-sans whitespace-pre-wrap leading-snug">
+                {note.content.split('\n')[0]}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Casting Mode Banner */}
         {castingSpell && (
