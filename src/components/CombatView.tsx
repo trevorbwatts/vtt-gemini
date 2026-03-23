@@ -23,6 +23,8 @@ interface CombatViewProps {
   onStartCombat?: () => void;
   selectedTokenCount?: number;
   onClose?: () => void;
+  onClearMovementPaths?: () => void;
+  onActiveCombatantIdChange?: (id: string | null) => void;
 }
 
 export const CombatView: React.FC<CombatViewProps> = ({
@@ -34,9 +36,15 @@ export const CombatView: React.FC<CombatViewProps> = ({
   onCombatantClick,
   onStartCombat,
   selectedTokenCount = 0,
-  onClose
+  onClose,
+  onClearMovementPaths,
+  onActiveCombatantIdChange,
 }) => {
-  const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
+  const [activeCombatantId, _setActiveCombatantId] = useState<string | null>(null);
+  const setActiveCombatantId = (id: string | null) => {
+    _setActiveCombatantId(id);
+    onActiveCombatantIdChange?.(id);
+  };
   const [hpInputs, setHpInputs] = useState<Record<string, string>>({});
 
   const sortedCombatants = useMemo(() => {
@@ -86,6 +94,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
 
   const nextTurn = () => {
     if (sortedCombatants.length === 0) return;
+    onClearMovementPaths?.();
     const currentIndex = sortedCombatants.findIndex(c => c.id === activeCombatantId);
     if (currentIndex === -1) {
       setActiveCombatantId(sortedCombatants[0].id);

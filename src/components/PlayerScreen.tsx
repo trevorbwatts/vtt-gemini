@@ -3,7 +3,7 @@ import { MapView } from './MapView';
 import { SpellAccordion } from './SpellAccordion';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut } from '../icons';
+import { User, Search, X, LogOut, Undo2, Sparkles } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Sign-in spot types ───
@@ -115,7 +115,10 @@ const PlayerDrawer: React.FC<{
   onCast: (spell: any) => void;
   edge: 'top' | 'bottom' | 'left';
   className: string;
-}> = ({ player, isOpen, onToggle, spellSearch, onSpellSearchChange, onCast, edge, className }) => {
+  isActiveTurn?: boolean;
+  onUndoMovement?: () => void;
+  hasMovementPath?: boolean;
+}> = ({ player, isOpen, onToggle, spellSearch, onSpellSearchChange, onCast, edge, className, isActiveTurn, onUndoMovement, hasMovementPath }) => {
   const spells = player.spells || [];
   const searchResults = spellSearch.trim().length >= 2 ? searchSpells(spellSearch) : [];
 
@@ -210,9 +213,66 @@ const PlayerDrawer: React.FC<{
     </div>
   );
 
-  // Tab content
-  const tabLabel = (
-    <span className="text-white/50 text-xs font-bold tracking-wider truncate max-w-[140px]">{player.name}</span>
+  // Shared bar content: [color dot] [name] [Spells button] [Undo button (conditional)]
+  const barButtons = (vertical?: boolean) => (
+    <>
+      {vertical ? (
+        // Vertical layout for left edge
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: player.color || '#cd7f32' }} />
+          <span
+            className="text-white/50 text-[10px] font-bold tracking-wider whitespace-nowrap"
+            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
+          >
+            {player.name}
+          </span>
+          <span
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            className={cn(
+              'p-1 rounded transition-colors cursor-pointer',
+              isOpen ? 'bg-purple-500/30' : 'hover:bg-white/15'
+            )}
+            title="Spells"
+          >
+            <Sparkles size={12} className={isOpen ? 'text-purple-300' : 'text-white/40'} />
+          </span>
+          {hasMovementPath && onUndoMovement && (
+            <span
+              onClick={(e) => { e.stopPropagation(); onUndoMovement(); }}
+              className="p-1 hover:bg-white/15 rounded transition-colors cursor-pointer"
+              title="Undo Movement"
+            >
+              <Undo2 size={12} className="text-amber-400" />
+            </span>
+          )}
+        </div>
+      ) : (
+        // Horizontal layout for top/bottom edges
+        <>
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: player.color || '#cd7f32' }} />
+          <span className="text-white/50 text-xs font-bold tracking-wider truncate max-w-[80px]">{player.name}</span>
+          <span
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            className={cn(
+              'p-1 rounded transition-colors cursor-pointer',
+              isOpen ? 'bg-purple-500/30' : 'hover:bg-white/15'
+            )}
+            title="Spells"
+          >
+            <Sparkles size={12} className={isOpen ? 'text-purple-300' : 'text-white/40'} />
+          </span>
+          {hasMovementPath && onUndoMovement && (
+            <span
+              onClick={(e) => { e.stopPropagation(); onUndoMovement(); }}
+              className="p-1 hover:bg-white/15 rounded transition-colors cursor-pointer"
+              title="Undo Movement"
+            >
+              <Undo2 size={12} className="text-amber-400" />
+            </span>
+          )}
+        </>
+      )}
+    </>
   );
 
   // ── Bottom edge ──
@@ -232,16 +292,15 @@ const PlayerDrawer: React.FC<{
             </motion.div>
           )}
         </AnimatePresence>
-        <button
-          onClick={onToggle}
+        <div
           className={cn(
-            'w-[180px] h-[34px] rounded-t-lg flex items-center justify-center gap-2 transition-colors border border-b-0',
-            isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10 hover:bg-white/10'
+            'h-[34px] rounded-t-lg flex items-center justify-center gap-2 px-3 border border-b-0',
+            isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10',
+            isActiveTurn && 'ring-2 ring-amber-400/80 bg-amber-400/15 animate-pulse'
           )}
         >
-          <div className="w-2 h-2 rounded-full" style={{ background: player.color || '#cd7f32' }} />
-          {tabLabel}
-        </button>
+          {barButtons()}
+        </div>
       </div>
     );
   }
@@ -250,17 +309,16 @@ const PlayerDrawer: React.FC<{
   if (edge === 'top') {
     return (
       <div className={cn('absolute top-0 z-30', className)}>
-        <button
-          onClick={onToggle}
+        <div
           className={cn(
-            'w-[180px] h-[34px] rounded-b-lg flex items-center justify-center gap-2 transition-colors border border-t-0',
-            isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10 hover:bg-white/10'
+            'h-[34px] rounded-b-lg flex items-center justify-center gap-2 px-3 border border-t-0',
+            isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10',
+            isActiveTurn && 'ring-2 ring-amber-400/80 bg-amber-400/15 animate-pulse'
           )}
           style={{ transform: 'rotate(180deg)' }}
         >
-          <div className="w-2 h-2 rounded-full" style={{ background: player.color || '#cd7f32' }} />
-          {tabLabel}
-        </button>
+          {barButtons()}
+        </div>
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -281,23 +339,15 @@ const PlayerDrawer: React.FC<{
   // ── Left edge ──
   return (
     <div className={cn('absolute left-0 z-30 flex items-center', className)}>
-      <button
-        onClick={onToggle}
+      <div
         className={cn(
-          'w-[34px] h-[180px] rounded-r-lg flex items-center justify-center transition-colors border border-l-0 shrink-0',
-          isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10 hover:bg-white/10'
+          'w-[34px] rounded-r-lg flex items-center justify-center py-2 border border-l-0 shrink-0',
+          isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10',
+          isActiveTurn && 'ring-2 ring-amber-400/80 bg-amber-400/15 animate-pulse'
         )}
       >
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ background: player.color || '#cd7f32' }} />
-          <span
-            className="text-white/50 text-xs font-bold tracking-wider whitespace-nowrap"
-            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
-          >
-            {player.name}
-          </span>
-        </div>
-      </button>
+        {barButtons(true)}
+      </div>
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -316,7 +366,7 @@ const PlayerDrawer: React.FC<{
 };
 
 // ─── Initiative Strip ───
-const InitiativeStrip: React.FC<{ combatants: Combatant[] }> = ({ combatants }) => {
+const InitiativeStrip: React.FC<{ combatants: Combatant[]; activeCombatantId?: string | null }> = ({ combatants, activeCombatantId }) => {
   const sorted = useMemo(() =>
     [...combatants].sort((a, b) => {
       if (b.initiative !== a.initiative) return b.initiative - a.initiative;
@@ -335,15 +385,22 @@ const InitiativeStrip: React.FC<{ combatants: Combatant[] }> = ({ combatants }) 
     <div className="absolute top-0 right-0 bottom-0 w-12 bg-black/80 border-l border-white/10 flex flex-col z-20 backdrop-blur-sm">
       {sorted.map((c) => {
         const colors = typeColor(c.type);
+        const isActive = c.id === activeCombatantId;
         return (
           <div
             key={c.id}
-            className="flex-1 flex items-center justify-center border-b border-white/5 last:border-0 min-h-[40px]"
-            style={{ backgroundColor: colors.bg, borderLeft: `2px solid ${colors.border}` }}
+            className={cn(
+              'flex-1 flex items-center justify-center border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
+              isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15'
+            )}
+            style={{ backgroundColor: isActive ? undefined : colors.bg, borderLeft: `2px solid ${isActive ? '#fbbf24' : colors.border}` }}
           >
             <span
-              className="text-[11px] font-bold tracking-wider whitespace-nowrap"
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: colors.text }}
+              className={cn(
+                'text-[11px] font-bold tracking-wider whitespace-nowrap',
+                isActive && 'text-amber-300'
+              )}
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: isActive ? undefined : colors.text }}
             >
               {c.name}
             </span>
@@ -387,18 +444,28 @@ export function PlayerScreen() {
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
 
+  // Movement path undo from drawers
+  const undoMovementRef = useRef<((tokenId: string) => void) | null>(null);
+  const [movementPathTokenIds, setMovementPathTokenIds] = useState<Set<string>>(new Set());
+
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string } | null>(null);
 
+  // Active combatant turn (received from DM via IPC)
+  const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
+  // Flash highlight when turn changes — true for 3 seconds after activeCombatantId changes
+  const [turnFlash, setTurnFlash] = useState(false);
+
   // ── IPC ──
   useEffect(() => {
-    const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string }) => {
+    const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string; activeCombatantId?: string | null }) => {
       if (isDraggingRef.current) return;
       setCampaign(newState.campaign);
       setCurrentScenarioId(newState.scenarioId);
       if (newState.playerMode) {
         setMode(newState.playerMode as 'setup' | 'play');
       }
+      setActiveCombatantId(newState.activeCombatantId ?? null);
     };
 
     if (window.electronAPI) {
@@ -442,6 +509,14 @@ export function PlayerScreen() {
       }
     };
   }, []);
+
+  // Flash highlight for 3 seconds when active turn changes
+  useEffect(() => {
+    if (!activeCombatantId) { setTurnFlash(false); return; }
+    setTurnFlash(true);
+    const timer = setTimeout(() => setTurnFlash(false), 3000);
+    return () => clearTimeout(timer);
+  }, [activeCombatantId]);
 
   // ── Callbacks ──
   const handleTokensChange = useCallback((newTokens: Token[]) => {
@@ -632,6 +707,9 @@ export function PlayerScreen() {
           startCastingRef={startCastingRef}
           cancelCastingRef={cancelCastingRef}
           onCastingDismissed={() => setActiveCasting(null)}
+          undoMovementRef={undoMovementRef}
+          onMovementPathTokensChange={setMovementPathTokenIds}
+          activeCombatantId={activeCombatantId}
         />
       </div>
 
@@ -667,6 +745,15 @@ export function PlayerScreen() {
         const player = getPlayerForSpot(spotId);
         if (!player) return null;
         const config = spotConfigs[spotId];
+
+        // Check if this player is the active combatant
+        const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
+        const isThisPlayersTurn = turnFlash && activeEntry?.sourceCombatantId === player.id;
+
+        // Find the token for this player to check movement paths
+        const playerToken = (currentScenario?.tokens || []).find(t => t.combatantId === player.id);
+        const hasPath = playerToken ? movementPathTokenIds.has(playerToken.id) : false;
+
         return (
           <PlayerDrawer
             key={spotId}
@@ -678,12 +765,15 @@ export function PlayerScreen() {
             onCast={(spell) => handleCastSpell(spotId, spell, player.id)}
             edge={config.edge}
             className={config.drawerClass}
+            isActiveTurn={isThisPlayersTurn}
+            hasMovementPath={hasPath}
+            onUndoMovement={playerToken ? () => undoMovementRef.current?.(playerToken.id) : undefined}
           />
         );
       })}
 
       {/* Initiative Strip */}
-      {hasInitiative && <InitiativeStrip combatants={activeCombatants} />}
+      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} />}
     </div>
   );
 }

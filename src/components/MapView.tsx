@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint } from '../types';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown, Footprints } from '../icons';
+import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown, Footprints, Undo2 } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -57,6 +57,14 @@ interface MapViewProps {
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when placed AoE is dismissed (by any means) */
   onCastingDismissed?: () => void;
+  /** Ref that MapView populates so external code (e.g. CombatView "Next Turn") can clear movement paths */
+  clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref that MapView populates so external code can undo a specific token's movement */
+  undoMovementRef?: React.MutableRefObject<((tokenId: string) => void) | null>;
+  /** Called when the set of tokens with completed movement paths changes */
+  onMovementPathTokensChange?: (tokenIds: Set<string>) => void;
+  /** ID of the currently active combatant (for turn indicator) */
+  activeCombatantId?: string | null;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -103,6 +111,78 @@ const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius })
   );
 };
 
+/**
+ * Animated 4-chevron turn indicator that zooms in and fades out over 3 seconds.
+ * Each chevron points inward from one of the 4 cardinal directions.
+ */
+const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = ({ radius, tokenScale }) => {
+  const [progress, setProgress] = useState(0); // 0..1 over 3 seconds
+  const startTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+    setProgress(0);
+    let raf: number;
+    const animate = () => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const p = Math.min(elapsed / 3000, 1);
+      setProgress(p);
+      if (p < 1) raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  if (progress >= 1) return null;
+
+  // Chevrons start far away and zoom in, then fade out
+  const easeOut = 1 - Math.pow(1 - progress, 3); // cubic ease-out for zoom
+  const startDist = radius + 30 * tokenScale;
+  const endDist = radius + 4 * tokenScale;
+  const dist = startDist + (endDist - startDist) * Math.min(easeOut * 2, 1); // zoom-in happens in first half
+  const opacity = progress < 0.5 ? 0.9 : 0.9 * (1 - (progress - 0.5) * 2); // fade in second half
+  const chevSize = 6 * tokenScale;
+
+  // 4 chevrons: top, right, bottom, left — each pointing inward
+  const chevrons = [
+    { angle: -Math.PI / 2, label: 'top' },    // points down
+    { angle: 0, label: 'right' },               // points left
+    { angle: Math.PI / 2, label: 'bottom' },    // points up
+    { angle: Math.PI, label: 'left' },           // points right
+  ];
+
+  return (
+    <>
+      {chevrons.map(({ angle, label }) => {
+        const cx = Math.cos(angle) * dist;
+        const cy = Math.sin(angle) * dist;
+        // Chevron points inward: two lines forming a V
+        const inwardAngle = angle + Math.PI; // reverse direction
+        const arm1Angle = inwardAngle - 0.5;
+        const arm2Angle = inwardAngle + 0.5;
+        return (
+          <Line
+            key={label}
+            points={[
+              cx + Math.cos(arm1Angle) * chevSize,
+              cy + Math.sin(arm1Angle) * chevSize,
+              cx,
+              cy,
+              cx + Math.cos(arm2Angle) * chevSize,
+              cy + Math.sin(arm2Angle) * chevSize,
+            ]}
+            stroke="#fbbf24"
+            strokeWidth={2.5 * tokenScale}
+            lineCap="round"
+            lineJoin="round"
+            opacity={opacity}
+          />
+        );
+      })}
+    </>
+  );
+};
+
 export const MapView: React.FC<MapViewProps> = ({
   tokens,
   onTokensChange,
@@ -145,6 +225,10 @@ export const MapView: React.FC<MapViewProps> = ({
   startCastingRef,
   cancelCastingRef,
   onCastingDismissed,
+  clearMovementPathsRef,
+  undoMovementRef,
+  onMovementPathTokensChange,
+  activeCombatantId: propActiveCombatantId,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -255,6 +339,25 @@ export const MapView: React.FC<MapViewProps> = ({
   // Live drag position overrides for player view — drives real-time fog recomputation
   const [livePlayerPos, setLivePlayerPos] = useState<Record<string, { x: number; y: number }>>({});
 
+  // Movement path tracking — only active during initiative/combat
+  const inCombat = activeCombatants.length > 0;
+  const [movementPaths, setMovementPaths] = useState<Record<string, MovementPath>>({});
+  const activePathRef = useRef<Record<string, {
+    points: number[];
+    totalDistancePx: number;
+    lastSampleX: number;
+    lastSampleY: number;
+  }>>({});
+
+  // Turn indicator animation — shows chevrons for 3 seconds when active combatant changes
+  const [turnFlashCombatantId, setTurnFlashCombatantId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!propActiveCombatantId) { setTurnFlashCombatantId(null); return; }
+    setTurnFlashCombatantId(propActiveCombatantId);
+    const timer = setTimeout(() => setTurnFlashCombatantId(null), 3100); // slightly over 3s to let animation finish
+    return () => clearTimeout(timer);
+  }, [propActiveCombatantId]);
+
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
 
@@ -296,6 +399,47 @@ export const MapView: React.FC<MapViewProps> = ({
       onCastingDismissed?.();
     };
   }
+
+  // Expose clear movement paths to external code (e.g. CombatView "Next Turn")
+  if (clearMovementPathsRef) {
+    clearMovementPathsRef.current = () => {
+      setMovementPaths({});
+      activePathRef.current = {};
+    };
+  }
+
+  // Notify external code when tokens with movement paths changes
+  useEffect(() => {
+    onMovementPathTokensChange?.(new Set(
+      Object.values(movementPaths)
+        .filter(p => !p.isDragging && p.points.length >= 4)
+        .map(p => p.tokenId)
+    ));
+  }, [movementPaths]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear movement paths when combat ends
+  useEffect(() => {
+    if (!inCombat) {
+      setMovementPaths({});
+      activePathRef.current = {};
+    }
+  }, [inCombat]);
+
+  // Ctrl+Z to undo movement (DM view only)
+  useEffect(() => {
+    if (!inCombat || isPlayerView) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        const targetId = selectedTokenIds.length === 1 ? selectedTokenIds[0] : null;
+        if (targetId && movementPaths[targetId] && !movementPaths[targetId].isDragging) {
+          e.preventDefault();
+          undoMovement(targetId);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [inCombat, isPlayerView, selectedTokenIds, movementPaths, tokens]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const blockingSegments = useMemo(
     () => extractBlockingSegments(walls || [], objectWalls || [], portals || []),
@@ -550,6 +694,58 @@ export const MapView: React.FC<MapViewProps> = ({
     } else {
       multiDragStartRef.current = null;
     }
+
+    // Initialize movement path tracking in combat
+    if (inCombat) {
+      const initPath = (tid: string, startX: number, startY: number) => {
+        const existing = movementPaths[tid];
+        if (existing) {
+          // Accumulate: continue from existing path
+          activePathRef.current[tid] = {
+            points: [...existing.points],
+            totalDistancePx: existing.totalDistancePx,
+            lastSampleX: startX,
+            lastSampleY: startY,
+          };
+          setMovementPaths(prev => ({
+            ...prev,
+            [tid]: {
+              ...prev[tid],
+              isDragging: true,
+              segments: [...(prev[tid]?.segments || []), { startIndex: existing.points.length, startPos: { x: startX, y: startY } }],
+            },
+          }));
+        } else {
+          // Fresh path
+          activePathRef.current[tid] = {
+            points: [startX, startY],
+            totalDistancePx: 0,
+            lastSampleX: startX,
+            lastSampleY: startY,
+          };
+          setMovementPaths(prev => ({
+            ...prev,
+            [tid]: {
+              tokenId: tid,
+              startPos: { x: startX, y: startY },
+              points: [startX, startY],
+              totalDistancePx: 0,
+              isDragging: true,
+              segments: [{ startIndex: 0, startPos: { x: startX, y: startY } }],
+            },
+          }));
+        }
+      };
+
+      const token = tokens.find(t => t.id === id);
+      if (token) initPath(id, token.x, token.y);
+
+      if (multiDragStartRef.current) {
+        Object.entries(multiDragStartRef.current.othersStart).forEach(([tid, start]) => {
+          initPath(tid, start.x, start.y);
+        });
+      }
+    }
   };
 
   const handleDragMove = (id: string, e: any) => {
@@ -564,6 +760,32 @@ export const MapView: React.FC<MapViewProps> = ({
       Object.entries(multi.othersStart).forEach(([tid, start]) => {
         draggingPositionsRef.current[tid] = { x: start.x + dx, y: start.y + dy };
       });
+    }
+
+    // Sample movement path points (ref-only, no React render)
+    if (inCombat) {
+      const SAMPLE_THRESHOLD_PX = 8;
+      const samplePoint = (tid: string, px: number, py: number) => {
+        const ap = activePathRef.current[tid];
+        if (!ap) return;
+        const dx = px - ap.lastSampleX;
+        const dy = py - ap.lastSampleY;
+        const segDist = Math.sqrt(dx * dx + dy * dy);
+        if (segDist >= SAMPLE_THRESHOLD_PX) {
+          ap.points.push(px, py);
+          ap.totalDistancePx += segDist;
+          ap.lastSampleX = px;
+          ap.lastSampleY = py;
+        }
+      };
+      samplePoint(id, pos.x, pos.y);
+      if (multi && multi.draggedId === id) {
+        const dx = pos.x - multi.draggedStart.x;
+        const dy = pos.y - multi.draggedStart.y;
+        Object.entries(multi.othersStart).forEach(([tid, start]) => {
+          samplePoint(tid, start.x + dx, start.y + dy);
+        });
+      }
     }
 
     const now = Date.now();
@@ -581,6 +803,19 @@ export const MapView: React.FC<MapViewProps> = ({
       });
     }
     setLivePlayerPos(prev => ({ ...prev, ...liveUpdates }));
+
+    // Sync movement path ref -> state (throttled at ~20fps)
+    if (inCombat) {
+      setMovementPaths(prev => {
+        const next = { ...prev };
+        Object.entries(activePathRef.current).forEach(([tid, ap]) => {
+          if (next[tid]) {
+            next[tid] = { ...next[tid], points: [...ap.points], totalDistancePx: ap.totalDistancePx };
+          }
+        });
+        return next;
+      });
+    }
 
     if (!isPlayerView) {
       const updatedTokens = tokens.map(t => liveUpdates[t.id] ? { ...t, ...liveUpdates[t.id] } : t);
@@ -617,6 +852,47 @@ export const MapView: React.FC<MapViewProps> = ({
       updatedTokens = tokens.map(t => t.id === id ? { ...t, ...finalPos } : t);
     }
 
+    // Finalize movement paths
+    if (inCombat) {
+      const finalizeToken = (tid: string, fx: number, fy: number) => {
+        const ap = activePathRef.current[tid];
+        if (!ap) return;
+        const dx = fx - ap.lastSampleX;
+        const dy = fy - ap.lastSampleY;
+        const segDist = Math.sqrt(dx * dx + dy * dy);
+        if (segDist > 0) {
+          ap.points.push(fx, fy);
+          ap.totalDistancePx += segDist;
+        }
+      };
+      finalizeToken(id, finalPos.x, finalPos.y);
+      if (multi) {
+        const dx = finalPos.x - multi.draggedStart.x;
+        const dy = finalPos.y - multi.draggedStart.y;
+        Object.entries(multi.othersStart).forEach(([tid, start]) => {
+          finalizeToken(tid, start.x + dx, start.y + dy);
+        });
+      }
+
+      // Commit final path state
+      setMovementPaths(prev => {
+        const next = { ...prev };
+        Object.keys(activePathRef.current).forEach(tid => {
+          const ap = activePathRef.current[tid];
+          if (next[tid] && ap) {
+            next[tid] = {
+              ...next[tid],
+              points: [...ap.points],
+              totalDistancePx: ap.totalDistancePx,
+              isDragging: false,
+            };
+          }
+        });
+        return next;
+      });
+      activePathRef.current = {};
+    }
+
     onDragStatusChange?.(false);
 
     if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
@@ -627,6 +903,65 @@ export const MapView: React.FC<MapViewProps> = ({
 
     onTokensChange(updatedTokens);
   };
+
+  // Undo a token's last movement segment (or all movement if only one segment)
+  const undoMovement = (tokenId: string) => {
+    const path = movementPaths[tokenId];
+    if (!path || path.isDragging) return;
+
+    if (path.segments.length > 1) {
+      // Pop last segment, revert to that segment's start position
+      const lastSeg = path.segments[path.segments.length - 1];
+      const truncatedPoints = path.points.slice(0, lastSeg.startIndex);
+      // Recalculate distance from remaining points
+      let dist = 0;
+      for (let i = 2; i < truncatedPoints.length; i += 2) {
+        const dx = truncatedPoints[i] - truncatedPoints[i - 2];
+        const dy = truncatedPoints[i + 1] - truncatedPoints[i - 1];
+        dist += Math.sqrt(dx * dx + dy * dy);
+      }
+      setMovementPaths(prev => ({
+        ...prev,
+        [tokenId]: {
+          ...prev[tokenId],
+          points: truncatedPoints,
+          totalDistancePx: dist,
+          segments: prev[tokenId].segments.slice(0, -1),
+        },
+      }));
+      // Move token back
+      const updatedTokens = tokens.map(t =>
+        t.id === tokenId ? { ...t, x: lastSeg.startPos.x, y: lastSeg.startPos.y } : t
+      );
+      onTokensChange(updatedTokens);
+      if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+        window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
+      } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+        window.electronAPI.sendDMTokenUpdate(updatedTokens);
+      }
+    } else {
+      // Only one segment — revert to original start and remove path entirely
+      const updatedTokens = tokens.map(t =>
+        t.id === tokenId ? { ...t, x: path.startPos.x, y: path.startPos.y } : t
+      );
+      onTokensChange(updatedTokens);
+      if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+        window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
+      } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+        window.electronAPI.sendDMTokenUpdate(updatedTokens);
+      }
+      setMovementPaths(prev => {
+        const next = { ...prev };
+        delete next[tokenId];
+        return next;
+      });
+    }
+  };
+
+  // Expose undo movement to external code (e.g. PlayerDrawer)
+  if (undoMovementRef) {
+    undoMovementRef.current = undoMovement;
+  }
 
   const handleNoteDragEnd = (id: string, e: any) => {
     onMapNotesChange(mapNotes.map(n =>
@@ -700,6 +1035,12 @@ export const MapView: React.FC<MapViewProps> = ({
       setSelectedTokenId(null);
     }
     setTokenContextMenu(null);
+    // Clean up movement path if any
+    setMovementPaths(prev => {
+      const next = { ...prev };
+      delete next[tokenId];
+      return next;
+    });
   };
 
   const handleCombatantSelect = (combatant: Combatant, type: Token['type']) => {
@@ -1287,6 +1628,14 @@ export const MapView: React.FC<MapViewProps> = ({
                     opacity={token.hidden ? 0.4 : 1}
                   />
                 )}
+                {/* Active turn indicator — 4 chevrons zoom in and fade */}
+                {turnFlashCombatantId && (() => {
+                  const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
+                  if (!activeComb) return null;
+                  const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                  if (!isActiveToken) return null;
+                  return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
+                })()}
                 {token.avatar && (
                   <Group opacity={token.hidden ? 0.4 : 1}>
                     <TokenAvatar
@@ -1323,6 +1672,64 @@ export const MapView: React.FC<MapViewProps> = ({
               );
             })}
           </Layer>
+
+          {/* ── Movement Path Overlay (combat only) ── */}
+          {inCombat && Object.keys(movementPaths).length > 0 && (
+            <Layer listening={false}>
+              {Object.values(movementPaths).map(path => {
+                if (path.points.length < 4) return null; // need at least 2 points
+                const ppg = gridResolution?.pixelsPerGrid || 40;
+                const distFeet = Math.round((path.totalDistancePx / ppg) * 5);
+                const lastX = path.points[path.points.length - 2];
+                const lastY = path.points[path.points.length - 1];
+                const labelFontSize = 14 / stageScale;
+
+                const token = tokens.find(t => t.id === path.tokenId);
+                const pathColor = token?.color || '#CD7F32';
+
+                // Look up combatant speed for over-speed warning
+                const combatant = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants]
+                  .find(c => c.id === token?.combatantId || c.sourceCombatantId === token?.combatantId);
+                const speedFt = combatant?.speed ?? null;
+                const isOverSpeed = speedFt !== null && distFeet > speedFt;
+
+                return (
+                  <React.Fragment key={path.tokenId}>
+                    {/* Path polyline */}
+                    <Line
+                      points={path.points}
+                      stroke={pathColor}
+                      strokeWidth={3 / stageScale}
+                      opacity={path.isDragging ? 0.8 : 0.5}
+                      lineCap="round"
+                      lineJoin="round"
+                      dash={[8 / stageScale, 4 / stageScale]}
+                    />
+
+                    {/* Start position marker */}
+                    <Circle
+                      x={path.startPos.x}
+                      y={path.startPos.y}
+                      radius={6 / stageScale}
+                      fill={pathColor}
+                      opacity={0.6}
+                    />
+
+                    {/* Distance label near the token */}
+                    <Text
+                      x={lastX + 15 / stageScale}
+                      y={lastY - 20 / stageScale}
+                      text={speedFt !== null ? `${distFeet} / ${speedFt} ft` : `${distFeet} ft`}
+                      fontSize={labelFontSize}
+                      fill={isOverSpeed ? '#ef4444' : 'white'}
+                      fontStyle="bold"
+                      fontFamily="Inter"
+                    />
+                  </React.Fragment>
+                );
+              })}
+            </Layer>
+          )}
 
           {/* ── AoE Casting Preview (DM mouse-follow) ── */}
           {castingSpell && castingMousePos && (() => {
@@ -2279,6 +2686,39 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
         )}
 
+        {/* Clear Movement Paths floating button */}
+        {inCombat && Object.keys(movementPaths).length > 0 && !Object.values(movementPaths).some(p => p.isDragging) && (
+          <button
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs opacity-60 hover:opacity-100 transition-opacity flex items-center gap-2"
+            onClick={() => { setMovementPaths({}); activePathRef.current = {}; }}
+          >
+            <Footprints size={12} /> Clear Movement Paths
+          </button>
+        )}
+
+        {/* On-map undo buttons for movement paths */}
+        {inCombat && Object.values(movementPaths).map(path => {
+          if (path.isDragging || path.points.length < 4) return null;
+          // Position the undo button at the start position marker
+          const screenX = path.startPos.x * stageScale + stagePos.x;
+          const screenY = path.startPos.y * stageScale + stagePos.y;
+          return (
+            <button
+              key={`undo-${path.tokenId}`}
+              className="absolute z-40 w-7 h-7 flex items-center justify-center rounded-full bg-black/80 border border-white/30 text-white/80 hover:text-white hover:bg-black hover:border-white/60 transition-all shadow-lg"
+              style={{
+                left: screenX,
+                top: screenY,
+                transform: 'translate(-50%, -50%)',
+              }}
+              onClick={() => undoMovement(path.tokenId)}
+              title="Undo movement"
+            >
+              <Undo2 size={14} />
+            </button>
+          );
+        })}
+
         {/* Token Context Menu */}
         {tokenContextMenu && (
           <div
@@ -2289,6 +2729,14 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="p-2 border-b border-[var(--line)] bg-black/10">
               <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 px-2">Token Options</p>
             </div>
+            {inCombat && movementPaths[tokenContextMenu.tokenId] && !movementPaths[tokenContextMenu.tokenId].isDragging && (
+              <button
+                onClick={() => { undoMovement(tokenContextMenu.tokenId); setTokenContextMenu(null); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
+              >
+                <Undo2 size={14} /> Undo Movement
+              </button>
+            )}
             <button
               onClick={() => toggleTokenVisibility(tokenContextMenu.tokenId)}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"

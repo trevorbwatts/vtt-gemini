@@ -13,12 +13,26 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AddCombatantModal } from './components/AddCombatantModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 
+// Load persisted panel states from localStorage
+function loadPanelStates(): { left: boolean; right: boolean; nav: boolean } {
+  try {
+    const raw = localStorage.getItem('dm_panel_states');
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { left: false, right: false, nav: false };
+}
+
+function savePanelStates(left: boolean, right: boolean, nav: boolean) {
+  localStorage.setItem('dm_panel_states', JSON.stringify({ left, right, nav }));
+}
+
 export function DMScreen() {
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false);
+  const savedPanels = useRef(loadPanelStates());
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(savedPanels.current.left);
   const [highlightedNoteId, setHighlightedNoteId] = useState<string | null>(null);
   const [panToNote, setPanToNote] = useState<MapNote | null>(null);
-  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
-  const [navSidebarOpen, setNavSidebarOpen] = useState(false);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(savedPanels.current.right);
+  const [navSidebarOpen, setNavSidebarOpen] = useState(savedPanels.current.nav);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
@@ -40,6 +54,15 @@ export function DMScreen() {
   playerModeRef.current = playerMode;
   const skipStateBroadcastRef = useRef(false);
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const clearMovementPathsRef = useRef<(() => void) | null>(null);
+  const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
+  const activeCombatantIdRef = useRef(activeCombatantId);
+  activeCombatantIdRef.current = activeCombatantId;
+
+  // Persist panel open/closed states
+  useEffect(() => {
+    savePanelStates(leftSidebarOpen, rightSidebarOpen, navSidebarOpen);
+  }, [leftSidebarOpen, rightSidebarOpen, navSidebarOpen]);
 
   // Persistence
   useEffect(() => {
@@ -72,9 +95,10 @@ export function DMScreen() {
         scenarioId: selectedScenarioId,
         playerMode,
         viewportCenter: dmViewportCenterRef.current,
+        activeCombatantId,
       });
     }
-  }, [campaign, selectedScenarioId, playerMode]);
+  }, [campaign, selectedScenarioId, playerMode, activeCombatantId]);
 
   // Listen for player screen open/close events from Electron
   useEffect(() => {
@@ -741,6 +765,7 @@ export function DMScreen() {
                 onViewportCenter={(center) => { dmViewportCenterRef.current = center; }}
                 darknessLevel={currentScenario.darknessLevel}
                 onDarknessLevelChange={updateDarknessLevel}
+                clearMovementPathsRef={clearMovementPathsRef}
               />
             )}
           </main>
@@ -800,6 +825,8 @@ export function DMScreen() {
                   npcs={campaign.npcs || []}
                   persistentEnemies={campaign.persistentEnemies || []}
                   onClose={() => setRightSidebarOpen(false)}
+                  onClearMovementPaths={() => clearMovementPathsRef.current?.()}
+                  onActiveCombatantIdChange={setActiveCombatantId}
                 />
               )}
             </div>

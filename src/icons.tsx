@@ -64,6 +64,7 @@ export {
   // Actions
   Trash2,
   Link,
+  Undo2,
 
   // Monitor
   MonitorUp,

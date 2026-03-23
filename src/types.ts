@@ -48,6 +48,20 @@ export interface Token {
   size?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
 }
 
+export interface MovementPathSegment {
+  startIndex: number;           // index into points[] where this segment begins
+  startPos: { x: number; y: number };  // token position at start of this segment
+}
+
+export interface MovementPath {
+  tokenId: string;
+  startPos: { x: number; y: number };  // original position before any movement
+  points: number[];             // flat [x1,y1,x2,y2,...] for Konva <Line>
+  totalDistancePx: number;
+  isDragging: boolean;
+  segments: MovementPathSegment[];
+}
+
 export interface ClassDefinition {
   name: string;
   level: number;
