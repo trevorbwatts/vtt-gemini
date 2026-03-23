@@ -65,6 +65,7 @@ export {
   Trash2,
   Link,
   Undo2,
+  GripHorizontal,
 
   // Monitor
   MonitorUp,

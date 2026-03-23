@@ -3,7 +3,7 @@ import { MapView } from './MapView';
 import { SpellAccordion } from './SpellAccordion';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Undo2 } from '../icons';
+import { User, Search, X, LogOut, Undo2, GripHorizontal, ArrowLeft, ArrowRight } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Sign-in spot types ───
@@ -24,14 +24,38 @@ const SignInSpot: React.FC<{
   onSignOut: () => void;
   rotation: number;
   className: string;
-}> = ({ player, availablePlayers, showPicker, onTogglePicker, onSignIn, onSignOut, rotation, className }) => {
+  style?: React.CSSProperties;
+  onDrag?: (deltaXPercent: number) => void;
+  edge: 'top' | 'bottom' | 'left';
+}> = ({ player, availablePlayers, showPicker, onTogglePicker, onSignIn, onSignOut, rotation, className, style, onDrag, edge }) => {
+  const dragRef = useRef<{ startX: number; startY: number; pointerId: number } | null>(null);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!onDrag) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, pointerId: e.pointerId };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [onDrag]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId || !onDrag) return;
+    const dx = e.clientX - dragRef.current.startX;
+    // Convert pixel delta to viewport percentage
+    const pct = (dx / window.innerWidth) * 100;
+    onDrag(pct);
+    dragRef.current.startX = e.clientX;
+  }, [onDrag]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+  }, []);
+
   return (
-    <div className={cn('absolute z-20', className)}>
+    <div className={cn('absolute z-20', className)} style={style}>
       <div style={{ transform: `rotate(${rotation}deg)` }}>
         {player ? (
-          <button
-            onClick={onSignOut}
-            className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3 hover:bg-white/10 transition-all group backdrop-blur-sm"
+          <div
+            className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3 backdrop-blur-sm"
           >
             <div
               className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden"
@@ -42,13 +66,14 @@ const SignInSpot: React.FC<{
                 : player.name[0]?.toUpperCase()
               }
             </div>
-            <div className="text-left">
-              <div className="text-white font-bold text-sm tracking-wide">{player.name}</div>
-              <div className="text-white/20 text-[10px] uppercase tracking-wider group-hover:text-red-400/60 transition-colors flex items-center gap-1">
-                <LogOut size={10} /> Sign Out
-              </div>
-            </div>
-          </button>
+            <span className="text-white font-bold text-sm tracking-wide">{player.name}</span>
+            <button
+              onClick={onSignOut}
+              className="btn-ghost ml-1 px-2 py-1"
+            >
+              <LogOut size={10} /> Sign Out
+            </button>
+          </div>
         ) : (
           <div className="relative">
             <button
@@ -101,6 +126,20 @@ const SignInSpot: React.FC<{
           </div>
         )}
       </div>
+      {/* Drag handle — outside rotation so it stays oriented correctly */}
+      {edge !== 'left' && (
+        <div
+          className="flex items-center justify-center gap-1 mt-1 cursor-grab active:cursor-grabbing touch-none select-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <ArrowLeft size={10} className="text-white/15 hover:text-white/30 transition-colors" />
+          <GripHorizontal size={16} className="text-white/15 hover:text-white/30 transition-colors" />
+          <ArrowRight size={10} className="text-white/15 hover:text-white/30 transition-colors" />
+        </div>
+      )}
     </div>
   );
 };
@@ -115,10 +154,9 @@ const PlayerDrawer: React.FC<{
   onCast: (spell: any) => void;
   edge: 'top' | 'bottom' | 'left';
   className: string;
+  style?: React.CSSProperties;
   isActiveTurn?: boolean;
-  onUndoMovement?: () => void;
-  hasMovementPath?: boolean;
-}> = ({ player, isOpen, onToggle, spellSearch, onSpellSearchChange, onCast, edge, className, isActiveTurn, onUndoMovement, hasMovementPath }) => {
+}> = ({ player, isOpen, onToggle, spellSearch, onSpellSearchChange, onCast, edge, className, style, isActiveTurn }) => {
   const spells = player.spells || [];
   const searchResults = spellSearch.trim().length >= 2 ? searchSpells(spellSearch) : [];
 
@@ -236,15 +274,6 @@ const PlayerDrawer: React.FC<{
           >
             Spells
           </span>
-          {hasMovementPath && onUndoMovement && (
-            <span
-              onClick={(e) => { e.stopPropagation(); onUndoMovement(); }}
-              className="px-1 py-1.5 rounded text-[9px] font-bold tracking-wide cursor-pointer bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 transition-colors"
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
-            >
-              Undo
-            </span>
-          )}
         </div>
       ) : (
         // Horizontal layout for top/bottom edges
@@ -260,14 +289,6 @@ const PlayerDrawer: React.FC<{
           >
             Spells
           </span>
-          {hasMovementPath && onUndoMovement && (
-            <span
-              onClick={(e) => { e.stopPropagation(); onUndoMovement(); }}
-              className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide cursor-pointer bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 transition-colors"
-            >
-              Undo
-            </span>
-          )}
         </>
       )}
     </>
@@ -276,7 +297,7 @@ const PlayerDrawer: React.FC<{
   // ── Bottom edge ──
   if (edge === 'bottom') {
     return (
-      <div className={cn('absolute bottom-0 z-30', className)}>
+      <div className={cn('absolute bottom-0 z-30', className)} style={style}>
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -306,7 +327,7 @@ const PlayerDrawer: React.FC<{
   // ── Top edge ──
   if (edge === 'top') {
     return (
-      <div className={cn('absolute top-0 z-30', className)}>
+      <div className={cn('absolute top-0 z-30', className)} style={style}>
         <div
           className={cn(
             'h-[34px] rounded-b-lg flex items-center justify-center gap-2 px-3 border border-t-0',
@@ -430,6 +451,20 @@ export function PlayerScreen() {
   });
   const [activePickerSpot, setActivePickerSpot] = useState<SpotId | null>(null);
 
+  // Draggable spot positions (horizontal % from left edge)
+  const [spotPositions, setSpotPositions] = useState<Record<SpotId, number>>({
+    'top-left': 25, 'top-right': 62,
+    'bottom-left': 25, 'bottom-right': 62,
+    'left': 50,
+  });
+
+  const handleSpotDrag = useCallback((spotId: SpotId, deltaPercent: number) => {
+    setSpotPositions(prev => {
+      const clamped = Math.max(5, Math.min(95, prev[spotId] + deltaPercent));
+      return { ...prev, [spotId]: clamped };
+    });
+  }, []);
+
   // Drawer state (play mode)
   const [openDrawers, setOpenDrawers] = useState<Set<SpotId>>(new Set());
   const [spellSearches, setSpellSearches] = useState<Record<SpotId, string>>({
@@ -441,10 +476,6 @@ export function PlayerScreen() {
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
-
-  // Movement path undo from drawers
-  const undoMovementRef = useRef<((tokenId: string) => void) | null>(null);
-  const [movementPathTokenIds, setMovementPathTokenIds] = useState<Set<string>>(new Set());
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string } | null>(null);
@@ -619,10 +650,10 @@ export function PlayerScreen() {
 
   // ── Spot position configs ──
   const spotConfigs: Record<SpotId, { rotation: number; edge: 'top' | 'bottom' | 'left'; setupClass: string; drawerClass: string }> = {
-    'top-left':     { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[25%] -translate-x-1/2',     drawerClass: 'left-[20%] -translate-x-1/2' },
-    'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[62%] -translate-x-1/2',     drawerClass: 'left-[55%] -translate-x-1/2' },
-    'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[25%] -translate-x-1/2',  drawerClass: 'left-[20%] -translate-x-1/2' },
-    'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[62%] -translate-x-1/2',  drawerClass: 'left-[55%] -translate-x-1/2' },
+    'top-left':     { rotation: 180, edge: 'top',    setupClass: 'top-6 -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
+    'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
+    'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
+    'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
     'left':         { rotation: 90,  edge: 'left',   setupClass: 'left-6 top-1/2 -translate-y-1/2',       drawerClass: 'top-1/2 -translate-y-1/2' },
   };
 
@@ -653,6 +684,9 @@ export function PlayerScreen() {
               onSignOut={() => handleSignOut(spotId)}
               rotation={config.rotation}
               className={config.setupClass}
+              edge={config.edge}
+              style={config.edge !== 'left' ? { left: `${spotPositions[spotId]}%` } : undefined}
+              onDrag={(delta) => handleSpotDrag(spotId, delta)}
             />
           );
         })}
@@ -705,8 +739,6 @@ export function PlayerScreen() {
           startCastingRef={startCastingRef}
           cancelCastingRef={cancelCastingRef}
           onCastingDismissed={() => setActiveCasting(null)}
-          undoMovementRef={undoMovementRef}
-          onMovementPathTokensChange={setMovementPathTokenIds}
           activeCombatantId={activeCombatantId}
         />
       </div>
@@ -748,10 +780,6 @@ export function PlayerScreen() {
         const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
         const isThisPlayersTurn = turnFlash && activeEntry?.sourceCombatantId === player.id;
 
-        // Find the token for this player to check movement paths
-        const playerToken = (currentScenario?.tokens || []).find(t => t.combatantId === player.id);
-        const hasPath = playerToken ? movementPathTokenIds.has(playerToken.id) : false;
-
         return (
           <PlayerDrawer
             key={spotId}
@@ -763,9 +791,8 @@ export function PlayerScreen() {
             onCast={(spell) => handleCastSpell(spotId, spell, player.id)}
             edge={config.edge}
             className={config.drawerClass}
+            style={config.edge !== 'left' ? { left: `${spotPositions[spotId]}%` } : undefined}
             isActiveTurn={isThisPlayersTurn}
-            hasMovementPath={hasPath}
-            onUndoMovement={playerToken ? () => undoMovementRef.current?.(playerToken.id) : undefined}
           />
         );
       })}
