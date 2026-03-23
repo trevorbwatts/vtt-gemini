@@ -351,6 +351,43 @@ export const MapView: React.FC<MapViewProps> = ({
     lastSampleY: number;
   }>>({});
 
+  // Movement path fade-out: after 5s idle the line wipes away origin→endpoint
+  const pathFadeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [pathFadeProgress, setPathFadeProgress] = useState<Record<string, number>>({}); // 0 = visible, 1 = gone
+  const pathFadeStartRef = useRef<Record<string, number>>({}); // timestamp when fade started
+  const pathFadeRafRef = useRef<number | null>(null);
+  const PATH_FADE_DELAY = 5000; // ms before fade begins
+  const PATH_FADE_DURATION = 1500; // ms for the wipe animation
+
+  // Animation loop for path fading — runs whenever any fade is in progress
+  useEffect(() => {
+    const hasActiveFades = Object.values(pathFadeProgress).some(p => p >= 0 && p < 1);
+    if (!hasActiveFades && Object.keys(pathFadeStartRef.current).length === 0) {
+      return;
+    }
+    let raf: number;
+    const tick = () => {
+      const now = performance.now();
+      const next: Record<string, number> = {};
+      let anyActive = false;
+      for (const tid of Object.keys(pathFadeStartRef.current)) {
+        const elapsed = now - pathFadeStartRef.current[tid];
+        const progress = Math.min(1, elapsed / PATH_FADE_DURATION);
+        next[tid] = progress;
+        if (progress < 1) anyActive = true;
+        else delete pathFadeStartRef.current[tid];
+      }
+      if (Object.keys(next).length > 0) {
+        setPathFadeProgress(prev => ({ ...prev, ...next }));
+      }
+      if (anyActive) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [pathFadeProgress]);
+
   // Turn indicator animation — shows chevrons for 3 seconds when active combatant changes
   const [turnFlashCombatantId, setTurnFlashCombatantId] = useState<string | null>(null);
   useEffect(() => {
@@ -700,6 +737,12 @@ export const MapView: React.FC<MapViewProps> = ({
     // Initialize movement path tracking in combat
     if (inCombat) {
       const initPath = (tid: string, startX: number, startY: number) => {
+        // Reset any active fade for this token
+        if (pathFadeTimers.current[tid]) clearTimeout(pathFadeTimers.current[tid]);
+        delete pathFadeTimers.current[tid];
+        delete pathFadeStartRef.current[tid];
+        setPathFadeProgress(prev => { const n = { ...prev }; delete n[tid]; return n; });
+
         const existing = movementPaths[tid];
         if (existing) {
           // Accumulate: continue from existing path
@@ -896,6 +939,21 @@ export const MapView: React.FC<MapViewProps> = ({
         return next;
       });
       activePathRef.current = {};
+
+      // Schedule fade-out for each finalized path (reset timer if they drag again)
+      const tokenIds = Object.keys(capturedPaths);
+      tokenIds.forEach(tid => {
+        // Clear any existing fade / timer for this token
+        if (pathFadeTimers.current[tid]) clearTimeout(pathFadeTimers.current[tid]);
+        delete pathFadeStartRef.current[tid];
+        setPathFadeProgress(prev => { const n = { ...prev }; delete n[tid]; return n; });
+        // Start 5s countdown
+        pathFadeTimers.current[tid] = setTimeout(() => {
+          pathFadeStartRef.current[tid] = performance.now();
+          // Trigger the animation loop by forcing a state update
+          setPathFadeProgress(prev => ({ ...prev, [tid]: 0 }));
+        }, PATH_FADE_DELAY);
+      });
     }
 
     onDragStatusChange?.(false);
@@ -913,6 +971,12 @@ export const MapView: React.FC<MapViewProps> = ({
   const undoMovement = (tokenId: string) => {
     const path = movementPaths[tokenId];
     if (!path || path.isDragging) return;
+
+    // Clear fade state for this token
+    if (pathFadeTimers.current[tokenId]) clearTimeout(pathFadeTimers.current[tokenId]);
+    delete pathFadeTimers.current[tokenId];
+    delete pathFadeStartRef.current[tokenId];
+    setPathFadeProgress(prev => { const n = { ...prev }; delete n[tokenId]; return n; });
 
     if (path.segments.length > 1) {
       // Pop last segment, revert to that segment's start position
@@ -1588,6 +1652,88 @@ export const MapView: React.FC<MapViewProps> = ({
               />
             )}
 
+            {/* Movement path lines — rendered UNDER tokens */}
+            {inCombat && Object.values(movementPaths).map(path => {
+              if (path.points.length < 4) return null;
+              const fade = pathFadeProgress[path.tokenId] ?? 0;
+              const isFullyFaded = fade >= 1;
+              if (isFullyFaded) return null;
+              const pathToken = tokens.find(t => t.id === path.tokenId);
+              const pathColor = pathToken?.color || '#CD7F32';
+              const totalPairs = path.points.length / 2;
+              const FEATHER_SEGMENTS = 16;
+              const segmentSize = Math.max(2, Math.ceil(totalPairs / FEATHER_SEGMENTS));
+
+              if (fade === 0 || path.isDragging) {
+                return (
+                  <React.Fragment key={`pathline-${path.tokenId}`}>
+                    <Line
+                      points={path.points}
+                      stroke={pathColor}
+                      strokeWidth={3 / stageScale}
+                      opacity={0.8}
+                      lineCap="round"
+                      lineJoin="round"
+                      dash={[8 / stageScale, 4 / stageScale]}
+                    />
+                    <Circle
+                      x={path.startPos.x}
+                      y={path.startPos.y}
+                      radius={6 / stageScale}
+                      fill={pathColor}
+                      opacity={0.8}
+                    />
+                  </React.Fragment>
+                );
+              }
+              // Fading — segmented line with feathered opacity
+              const fadeFront = fade * totalPairs;
+              const featherWidth = totalPairs * 0.15;
+              const segments: React.ReactNode[] = [];
+              for (let i = 0; i < totalPairs - 1; i += segmentSize) {
+                const endI = Math.min(i + segmentSize, totalPairs - 1);
+                const chunkPoints = path.points.slice(i * 2, (endI + 1) * 2);
+                if (chunkPoints.length < 4) continue;
+                const mid = (i + endI) / 2;
+                let segOpacity: number;
+                if (mid < fadeFront - featherWidth) {
+                  segOpacity = 0;
+                } else if (mid > fadeFront + featherWidth) {
+                  segOpacity = 0.8;
+                } else {
+                  segOpacity = 0.8 * ((mid - (fadeFront - featherWidth)) / (featherWidth * 2));
+                }
+                if (segOpacity <= 0.01) continue;
+                segments.push(
+                  <Line
+                    key={`seg-${path.tokenId}-${i}`}
+                    points={chunkPoints}
+                    stroke={pathColor}
+                    strokeWidth={3 / stageScale}
+                    opacity={segOpacity}
+                    lineCap="round"
+                    lineJoin="round"
+                    dash={[8 / stageScale, 4 / stageScale]}
+                  />
+                );
+              }
+              const markerOpacity = Math.max(0, 0.8 * (1 - fade * 2.5));
+              return (
+                <React.Fragment key={`pathline-${path.tokenId}`}>
+                  {segments}
+                  {markerOpacity > 0 && (
+                    <Circle
+                      x={path.startPos.x}
+                      y={path.startPos.y}
+                      radius={6 / stageScale}
+                      fill={pathColor}
+                      opacity={markerOpacity}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+
             {tokens.map(token => {
               const r = tokenRadius * getTokenSizeMultiplier(token.size);
               return (
@@ -1678,59 +1824,47 @@ export const MapView: React.FC<MapViewProps> = ({
             })}
           </Layer>
 
-          {/* ── Movement Path Overlay (combat only) ── */}
+          {/* ── Movement distance labels (combat only) — rendered ABOVE tokens ── */}
           {inCombat && Object.keys(movementPaths).length > 0 && (
             <Layer listening={false}>
               {Object.values(movementPaths).map(path => {
-                if (path.points.length < 4) return null; // need at least 2 points
+                if (path.points.length < 4) return null;
                 const ppg = gridResolution?.pixelsPerGrid || 40;
                 const distFeet = Math.round((path.totalDistancePx / ppg) * 5);
                 const lastX = path.points[path.points.length - 2];
                 const lastY = path.points[path.points.length - 1];
-                const labelFontSize = 14 / stageScale;
-
-                const token = tokens.find(t => t.id === path.tokenId);
-                const pathColor = token?.color || '#CD7F32';
-
-                // Look up combatant speed for over-speed warning
+                const pathToken = tokens.find(t => t.id === path.tokenId);
+                const r = tokenRadius * (pathToken ? getTokenSizeMultiplier(pathToken.size) : 1);
                 const combatant = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants]
-                  .find(c => c.id === token?.combatantId || c.sourceCombatantId === token?.combatantId);
+                  .find(c => c.id === pathToken?.combatantId || c.sourceCombatantId === pathToken?.combatantId);
                 const speedFt = combatant?.speed ?? null;
                 const isOverSpeed = speedFt !== null && distFeet > speedFt;
-
+                const fade = pathFadeProgress[path.tokenId] ?? 0;
+                const isFullyFaded = fade >= 1;
+                const nameFontSize = Math.max(10, tokenRadius * 0.55);
+                const distLabelFontSize = Math.max(9, tokenRadius * 0.45);
+                // Estimate wrapped name height: ~0.6 * fontSize per char width, Konva line-height ≈ 1.2×
+                const nameWidth = tokenRadius * 5;
+                const avgCharWidth = nameFontSize * 0.55; // bold Inter is slightly wider
+                const charsPerLine = Math.max(1, Math.floor(nameWidth / avgCharWidth));
+                const nameText = pathToken?.name || '';
+                const nameLines = Math.max(1, Math.ceil(nameText.length / charsPerLine));
+                const nameHeight = nameLines * nameFontSize * 1.2;
+                const distY = lastY + r + 5 + nameHeight + 2;
                 return (
-                  <React.Fragment key={path.tokenId}>
-                    {/* Path polyline */}
-                    <Line
-                      points={path.points}
-                      stroke={pathColor}
-                      strokeWidth={3 / stageScale}
-                      opacity={path.isDragging ? 0.8 : 0.5}
-                      lineCap="round"
-                      lineJoin="round"
-                      dash={[8 / stageScale, 4 / stageScale]}
-                    />
-
-                    {/* Start position marker */}
-                    <Circle
-                      x={path.startPos.x}
-                      y={path.startPos.y}
-                      radius={6 / stageScale}
-                      fill={pathColor}
-                      opacity={0.6}
-                    />
-
-                    {/* Distance label near the token */}
-                    <Text
-                      x={lastX + 15 / stageScale}
-                      y={lastY - 20 / stageScale}
-                      text={speedFt !== null ? `${distFeet} / ${speedFt} ft` : `${distFeet} ft`}
-                      fontSize={labelFontSize}
-                      fill={isOverSpeed ? '#ef4444' : 'white'}
-                      fontStyle="bold"
-                      fontFamily="Inter"
-                    />
-                  </React.Fragment>
+                  <Text
+                    key={`dist-${path.tokenId}`}
+                    x={lastX - tokenRadius * 2.5}
+                    y={distY}
+                    text={speedFt !== null ? `${distFeet} / ${speedFt} ft` : `${distFeet} ft`}
+                    fontSize={distLabelFontSize}
+                    fill={isOverSpeed ? '#ef4444' : 'rgba(255,255,255,0.7)'}
+                    fontStyle="bold"
+                    fontFamily="Inter"
+                    align="center"
+                    width={tokenRadius * 5}
+                    opacity={isFullyFaded ? 0.6 : 1}
+                  />
                 );
               })}
             </Layer>
@@ -2695,7 +2829,14 @@ export const MapView: React.FC<MapViewProps> = ({
         {inCombat && Object.keys(movementPaths).length > 0 && !Object.values(movementPaths).some(p => p.isDragging) && (
           <button
             className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs opacity-60 hover:opacity-100 transition-opacity flex items-center gap-2"
-            onClick={() => { setMovementPaths({}); activePathRef.current = {}; }}
+            onClick={() => {
+              setMovementPaths({}); activePathRef.current = {};
+              // Clear all fade timers/state
+              Object.values(pathFadeTimers.current).forEach(t => clearTimeout(t));
+              pathFadeTimers.current = {};
+              pathFadeStartRef.current = {};
+              setPathFadeProgress({});
+            }}
           >
             <Footprints size={12} /> Clear Movement Paths
           </button>

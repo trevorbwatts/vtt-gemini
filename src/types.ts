@@ -130,6 +130,7 @@ export interface Combatant {
     wis: number;
     cha: number;
   };
+  spellSaveDc?: number;
   spells?: {
     name: string;
     level: number;       // 0 = cantrip

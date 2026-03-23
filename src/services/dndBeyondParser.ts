@@ -153,6 +153,22 @@ function normalizeAoeType(raw: any): 'sphere' | 'cone' | 'line' | 'cube' | 'cyli
   return undefined;
 }
 
+function getSpellSaveDc(data: any): number | undefined {
+  const level = getLevel(data);
+  const prof = PROFICIENCY_BY_LEVEL[level] || 2;
+  // Find the highest spellcasting ability modifier across all classes
+  let bestMod = -Infinity;
+  for (const cs of (data.classSpells || [])) {
+    const abilityId = cs.spellCastingAbilityId;
+    if (abilityId) {
+      const mod = getStatBonus(data, abilityId);
+      if (mod > bestMod) bestMod = mod;
+    }
+  }
+  if (bestMod === -Infinity) return undefined;
+  return 8 + prof + bestMod;
+}
+
 function getSpells(data: any): NonNullable<Combatant['spells']> {
   const spells: NonNullable<Combatant['spells']> = [];
   const seen = new Set<string>();
@@ -239,6 +255,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
       wis: getStatValue(data, STAT_IDS.WIS),
       cha: getStatValue(data, STAT_IDS.CHA),
     },
+    spellSaveDc: getSpellSaveDc(data),
     spells: getSpells(data),
     avatar: data.decorations?.avatarUrl || undefined,
   };

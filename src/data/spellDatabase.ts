@@ -1,4 +1,5 @@
-import spellData from './spells.json';
+import spells2014 from './spells-2014.json';
+import spells2024 from './spells-2024.json';
 
 export interface SpellEntry {
   name: string;
@@ -9,12 +10,25 @@ export interface SpellEntry {
   aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
   aoeSize?: number;
   saveAbility?: string;
+  source?: '2014' | '2024';
 }
 
-// Build a lookup map (lowercase name → spell entry) for fast matching
+const allSpells: SpellEntry[] = [
+  ...(spells2014 as SpellEntry[]),
+  ...(spells2024 as SpellEntry[]),
+];
+
+// Simple name → first match (prefers 2014 since it's first in the array)
 const spellMap = new Map<string, SpellEntry>();
-(spellData as SpellEntry[]).forEach(spell => {
-  spellMap.set(spell.name.toLowerCase(), spell);
+allSpells.forEach(spell => {
+  const key = spell.name.toLowerCase();
+  if (!spellMap.has(key)) spellMap.set(key, spell);
+});
+
+// Composite key for edition-specific lookups
+const spellMapByEdition = new Map<string, SpellEntry>();
+allSpells.forEach(spell => {
+  spellMapByEdition.set(`${spell.name.toLowerCase()}|${spell.source}`, spell);
 });
 
 /** Look up a spell by name (case-insensitive). Returns undefined if not found. */
@@ -69,14 +83,27 @@ export function resolveSpells(spellNames: string[]): {
 }
 
 /** Search spells by name (case-insensitive substring match). Returns up to `limit` results sorted by level. */
-export function searchSpells(query: string, limit = 20): SpellEntry[] {
+export function searchSpells(
+  query: string,
+  limit = 20,
+  filter?: { sources?: Set<'2014' | '2024'>; aoeOnly?: boolean },
+): SpellEntry[] {
   if (!query.trim()) return [];
   const lower = query.toLowerCase().trim();
   const results: SpellEntry[] = [];
-  for (const [, spell] of spellMap) {
-    if (spell.name.toLowerCase().includes(lower)) {
-      results.push(spell);
-    }
+  const seen = new Set<string>();
+
+  for (const spell of allSpells) {
+    if (!spell.name.toLowerCase().includes(lower)) continue;
+    if (filter?.sources && spell.source && !filter.sources.has(spell.source)) continue;
+    if (filter?.aoeOnly && !(spell.aoeType && spell.aoeSize)) continue;
+
+    // Deduplicate by name when both editions match
+    const dedupeKey = spell.name.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    results.push(spell);
   }
   return results.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)).slice(0, limit);
 }

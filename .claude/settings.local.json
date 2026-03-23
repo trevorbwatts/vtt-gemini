@@ -37,7 +37,15 @@
       "Bash(node -e \"const d = require\\(''./src/data/spells.json''\\); console.log\\(''Total spells:'', d.length\\); const aoe = d.filter\\(s => s.aoeType\\); console.log\\(''With AoE:'', aoe.length\\); aoe.slice\\(0,10\\).forEach\\(s => console.log\\(''  '', s.name, s.aoeType, s.aoeSize+''ft'', s.saveAbility || ''''\\)\\); console.log\\(''First 5:'', d.slice\\(0,5\\).map\\(s => s.name\\)\\)\")",
       "Read(//c/Users/trevo/.claude/projects/c--Users-trevo-OneDrive-Desktop-vtt-gemini/memory/**)",
       "Bash(find /c/Users/trevo/OneDrive/Desktop/vtt-gemini -name electron* -o -name preload* -o -name ipc*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(curl -s -o raw-data/spells-phb.json \"https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data/spells/spells-phb.json\")",
+      "Bash(curl -s -o raw-data/spells-xge.json \"https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data/spells/spells-xge.json\")",
+      "Bash(curl -s -o raw-data/spells-tce.json \"https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data/spells/spells-tce.json\")",
+      "Bash(curl -s -o raw-data/spells-xphb.json \"https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/master/data/spells/spells-xphb.json\")",
+      "Bash(wc -c raw-data/spells-*.json)",
+      "Bash(node scripts/build-spells.mjs)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"let d='''''''';process.stdin.on\\(''''data'''',c=>d+=c\\);process.stdin.on\\(''''end'''',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.scripts,null,2\\)\\)}\\)\")"
     ]
   }
 }

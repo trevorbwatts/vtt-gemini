@@ -37,6 +37,13 @@ export {
   Zap,
   Sparkles,
 
+  // AoE shapes
+  Circle,
+  Cone,
+  Cylinder,
+  Box,
+  Slash,
+
   // People / Characters
   Users,
   User,
