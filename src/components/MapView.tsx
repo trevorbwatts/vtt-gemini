@@ -876,11 +876,14 @@ export const MapView: React.FC<MapViewProps> = ({
         });
       }
 
+      // Capture the current paths synchronously before the updater enqueues
+      const capturedPaths = { ...activePathRef.current };
+      
       // Commit final path state
       setMovementPaths(prev => {
         const next = { ...prev };
-        Object.keys(activePathRef.current).forEach(tid => {
-          const ap = activePathRef.current[tid];
+        Object.keys(capturedPaths).forEach(tid => {
+          const ap = capturedPaths[tid];
           if (next[tid] && ap) {
             next[tid] = {
               ...next[tid],
