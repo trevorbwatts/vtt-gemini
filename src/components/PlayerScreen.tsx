@@ -3,7 +3,7 @@ import { MapView } from './MapView';
 import { SpellAccordion } from './SpellAccordion';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Undo2, Sparkles } from '../icons';
+import { User, Search, X, LogOut, Undo2 } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Sign-in spot types ───
@@ -229,20 +229,20 @@ const PlayerDrawer: React.FC<{
           <span
             onClick={(e) => { e.stopPropagation(); onToggle(); }}
             className={cn(
-              'p-1 rounded transition-colors cursor-pointer',
-              isOpen ? 'bg-purple-500/30' : 'hover:bg-white/15'
+              'px-1 py-1.5 rounded text-[9px] font-bold tracking-wide cursor-pointer transition-colors',
+              isOpen ? 'bg-purple-500/30 text-purple-300' : 'bg-white/5 text-white/40 hover:bg-white/15 hover:text-white/60'
             )}
-            title="Spells"
+            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
           >
-            <Sparkles size={12} className={isOpen ? 'text-purple-300' : 'text-white/40'} />
+            Spells
           </span>
           {hasMovementPath && onUndoMovement && (
             <span
               onClick={(e) => { e.stopPropagation(); onUndoMovement(); }}
-              className="p-1 hover:bg-white/15 rounded transition-colors cursor-pointer"
-              title="Undo Movement"
+              className="px-1 py-1.5 rounded text-[9px] font-bold tracking-wide cursor-pointer bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 transition-colors"
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
             >
-              <Undo2 size={12} className="text-amber-400" />
+              Undo
             </span>
           )}
         </div>
@@ -254,20 +254,18 @@ const PlayerDrawer: React.FC<{
           <span
             onClick={(e) => { e.stopPropagation(); onToggle(); }}
             className={cn(
-              'p-1 rounded transition-colors cursor-pointer',
-              isOpen ? 'bg-purple-500/30' : 'hover:bg-white/15'
+              'px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide cursor-pointer transition-colors',
+              isOpen ? 'bg-purple-500/30 text-purple-300' : 'bg-white/5 text-white/40 hover:bg-white/15 hover:text-white/60'
             )}
-            title="Spells"
           >
-            <Sparkles size={12} className={isOpen ? 'text-purple-300' : 'text-white/40'} />
+            Spells
           </span>
           {hasMovementPath && onUndoMovement && (
             <span
               onClick={(e) => { e.stopPropagation(); onUndoMovement(); }}
-              className="p-1 hover:bg-white/15 rounded transition-colors cursor-pointer"
-              title="Undo Movement"
+              className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide cursor-pointer bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 transition-colors"
             >
-              <Undo2 size={12} className="text-amber-400" />
+              Undo
             </span>
           )}
         </>

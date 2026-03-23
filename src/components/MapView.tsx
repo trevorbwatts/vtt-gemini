@@ -156,10 +156,12 @@ const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = 
       {chevrons.map(({ angle, label }) => {
         const cx = Math.cos(angle) * dist;
         const cy = Math.sin(angle) * dist;
-        // Chevron points inward: two lines forming a V
-        const inwardAngle = angle + Math.PI; // reverse direction
-        const arm1Angle = inwardAngle - 0.5;
-        const arm2Angle = inwardAngle + 0.5;
+        // Chevron points inward: two lines forming a V.
+        // We want the vertex at `(cx, cy)` (closest to token) and the arms extending outward.
+        // So they extend away from the token along the same `angle`.
+        const armAngle = angle;
+        const arm1Angle = armAngle - 0.5;
+        const arm2Angle = armAngle + 0.5;
         return (
           <Line
             key={label}
