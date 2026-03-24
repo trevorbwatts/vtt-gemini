@@ -49,4 +49,25 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     onPlayerAoeUpdate: (callback) => {
         electron_1.ipcRenderer.on('player-aoe-update', (_event, aoe) => callback(aoe));
     },
+    sendDismissPlayerAoe: () => electron_1.ipcRenderer.send('dismiss-player-aoe'),
+    onDismissPlayerAoe: (callback) => {
+        electron_1.ipcRenderer.on('dismiss-player-aoe', () => callback());
+    },
+    removeDismissPlayerAoeListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('dismiss-player-aoe');
+    },
+    sendPlayerConditionUpdate: (tokenId, conditions) => electron_1.ipcRenderer.send('player-condition-update', { tokenId, conditions }),
+    onPlayerConditionUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-condition-update', (_event, data) => callback(data));
+    },
+    removePlayerConditionUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-condition-update');
+    },
+    sendPlayerEndTurn: () => electron_1.ipcRenderer.send('player-end-turn'),
+    onPlayerEndTurn: (callback) => {
+        electron_1.ipcRenderer.on('player-end-turn', () => callback());
+    },
+    removePlayerEndTurnListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-end-turn');
+    },
 });

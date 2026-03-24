@@ -315,7 +315,8 @@
     "range": 10,
     "source": "2024",
     "aoeType": "sphere",
-    "saveAbility": "str"
+    "saveAbility": "str",
+    "halfDamageOnSave": true
   },
   {
     "name": "Bane",
@@ -343,7 +344,8 @@
     "source": "2024",
     "aoeType": "cone",
     "aoeSize": 15,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Charm Person",
@@ -461,7 +463,8 @@
     "desc": "One creature of your choice that you can see within range hears a discordant melody in its mind. The target makes a Wisdom saving throw. On a failed save, it takes 3d6 Psychic damage and must immediately use its Reaction, if available, to move as far away from you as it can, using the safest route. On a successful save, the target takes half as much damage only.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Divine Favor",
@@ -585,7 +588,8 @@
     "range": 0,
     "source": "2024",
     "aoeType": "sphere",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Healing Word",
@@ -602,7 +606,8 @@
     "desc": "The creature that damaged you is momentarily surrounded by green flames. It makes a Dexterity saving throw, taking 2d10 Fire damage on a failed save or half as much damage on a successful one.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Heroism",
@@ -660,7 +665,8 @@
     "desc": "A creature you touch makes a Constitution saving throw, taking 2d10 Necrotic damage on a failed save or half as much damage on a successful one.",
     "range": 0,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Jump",
@@ -816,7 +822,8 @@
     "source": "2024",
     "aoeType": "cube",
     "aoeSize": 15,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Unseen Servant",
@@ -1008,7 +1015,8 @@
     "source": "2024",
     "aoeType": "cone",
     "aoeSize": 15,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Enhance Ability",
@@ -1069,7 +1077,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Gentle Repose",
@@ -1188,7 +1197,8 @@
     "desc": "You drive a spike of psionic energy into the mind of one creature you can see within range. The target makes a Wisdom saving throw, taking 3d8 Psychic damage on a failed save or half as much damage on a successful one. On a failed save, you also always know the target's location until the spell ends, but only while the two of you are on the same plane of existence. While you have this knowledge, the target can't become hidden from you, and if it has the Invisible condition, it gains no benefit from that condition against you.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Mirror Image",
@@ -1215,7 +1225,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 5,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Nystul's Magic Aura",
@@ -1300,7 +1311,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 10,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Shining Smite",
@@ -1452,7 +1464,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 60,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Clairvoyance",
@@ -1481,7 +1494,8 @@
     "source": "2024",
     "aoeType": "cone",
     "aoeSize": 60,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Counterspell",
@@ -1563,7 +1577,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Fly",
@@ -1590,7 +1605,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Haste",
@@ -1638,7 +1654,8 @@
     "range": 0,
     "source": "2024",
     "aoeType": "sphere",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Lightning Bolt",
@@ -1649,7 +1666,8 @@
     "source": "2024",
     "aoeType": "line",
     "aoeSize": 100,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Magic Circle",
@@ -1787,7 +1805,8 @@
     "range": 15,
     "source": "2024",
     "aoeType": "sphere",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Stinking Cloud",
@@ -1855,7 +1874,8 @@
     "desc": "A wall of strong wind rises from the ground at a point you choose within range. You can make the wall up to 50 feet long, 15 feet high, and 1 foot thick. You can shape the wall in any way you choose so long as it makes one continuous path along the ground. The wall lasts for the duration. When the wall appears, each creature in its area makes a Strength saving throw, taking 4d8 Bludgeoning damage on a failed save or half as much damage on a successful one. The strong wind keeps fog, smoke, and other gases at bay. Small or smaller flying creatures or objects can't pass through the wall. Loose, lightweight materials brought into the wall fly upward. Arrows, bolts, and other ordinary projectiles launched at targets behind the wall are deflected upward and miss automatically. Boulders hurled by Giants or siege engines, and similar projectiles, are unaffected. Creatures in gaseous form can't pass through it.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "str"
+    "saveAbility": "str",
+    "halfDamageOnSave": true
   },
   {
     "name": "Arcane Eye",
@@ -1899,7 +1919,8 @@
     "desc": "A creature that you can see within range makes a Constitution saving throw, taking 8d8 Necrotic damage on a failed save or half as much damage on a successful one. A Plant creature automatically fails the save. Alternatively, target a nonmagical plant that isn't a creature, such as a tree or shrub. It doesn't make a save; it simply withers and dies.",
     "range": 30,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Charm Monster",
@@ -1946,7 +1967,8 @@
     "desc": "You conjure nature spirits that flit around you in a 10-foot Emanation for the duration. Whenever the Emanation enters the space of a creature you can see and whenever a creature you can see enters the Emanation or ends its turn there, you can force that creature to make a Wisdom saving throw. The creature takes 5d8 Force damage on a failed save or half as much damage on a successful one. A creature makes this save only once per turn. In addition, you can take the Disengage action as a Bonus for the spell's duration.",
     "range": 10,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Control Water",
@@ -1956,7 +1978,8 @@
     "range": 300,
     "source": "2024",
     "aoeType": "cone",
-    "saveAbility": "str"
+    "saveAbility": "str",
+    "halfDamageOnSave": true
   },
   {
     "name": "Death Ward",
@@ -2065,7 +2088,8 @@
     "desc": "A Large spectral guardian appears and hovers for the duration in an unoccupied space that you can see within range. The guardian occupies that space and is invulnerable, and it appears in a form appropriate for your deity or pantheon. Any enemy that moves to a space within 10 feet of the guardian for the first time on a turn or starts its turn there makes a Dexterity saving throw, taking 20 Radiant damage on a failed save or half as much damage on a successful one. The guardian vanishes when it has dealt a total of 60 damage.",
     "range": 30,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Hallucinatory Terrain",
@@ -2085,7 +2109,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Leomund's Secret Chest",
@@ -2137,7 +2162,8 @@
     "desc": "You tap into the nightmares of a creature you can see within range and create an illusion of its deepest fears, visible only to that creature. The target makes a Wisdom saving throw. On a failed save, the target takes 4d10 Psychic damage and has Disadvantage on ability checks and attack rolls for the duration. On a successful save, the target takes half as much damage, and the spell ends. For the duration, the target makes a Wisdom saving throw at the end of each of its turns. On a failed save, it takes the Psychic damage again. On a successful save, the spell ends.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Polymorph",
@@ -2215,7 +2241,8 @@
     "desc": "You create a wall of fire on a solid surface within range. You can make the wall up to 60 feet long, 20 feet high, and 1 foot thick, or a ringed wall up to 20 feet in diameter, 20 feet high, and 1 foot thick. The wall is opaque and lasts for the duration. When the wall appears, each creature in its area makes a Dexterity saving throw, taking 5d8 Fire damage on a failed save or half as much damage on a successful one. One side of the wall, selected by you when you cast this spell, deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side or inside the wall. A creature takes the same damage when it enters the wall for the first time on a turn or ends its turn there. The other side of the wall deals no damage.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Animate Objects",
@@ -2266,7 +2293,8 @@
     "desc": "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Advantage on saving throws against spells and other magical effects. When an affected creature makes a saving throw against a spell or magical effect that allows a save to take only half damage, it takes no damage if it succeeds on the save.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "sphere",
+    "halfDamageOnSave": true
   },
   {
     "name": "Cloudkill",
@@ -2277,7 +2305,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Commune",
@@ -2304,7 +2333,8 @@
     "source": "2024",
     "aoeType": "cone",
     "aoeSize": 60,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Conjure Elemental",
@@ -2324,7 +2354,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 40,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Contact Other Plane",
@@ -2361,7 +2392,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 30,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Dispel Evil and Good",
@@ -2399,7 +2431,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 10,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Geas",
@@ -2444,7 +2477,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Jallarzi's Storm of Radiance",
@@ -2455,7 +2489,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 10,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Legend Lore",
@@ -2592,7 +2627,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "int"
+    "saveAbility": "int",
+    "halfDamageOnSave": true
   },
   {
     "name": "Telekinesis",
@@ -2644,7 +2680,8 @@
     "range": 10,
     "source": "2024",
     "aoeType": "sphere",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Arcane Gate",
@@ -2661,7 +2698,8 @@
     "desc": "You create a wall of whirling blades made of magical energy. The wall appears within range and lasts for the duration. You make a straight wall up to 100 feet long, 20 feet high, and 5 feet thick, or a ringed wall up to 60 feet in diameter, 20 feet high, and 5 feet thick. The wall provides Three-Quarters Cover, and its space is Difficult. Any creature in the wall's space makes a Dexterity saving throw, taking 6d10 Force damage on a failed save or half as much damage on a successful one. A creature also makes that save if it enters the wall's space or ends it turn there. A creature makes that save only once per turn.",
     "range": 90,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Chain Lightning",
@@ -2670,7 +2708,8 @@
     "desc": "You launch a lightning bolt toward a target you can see within range. Three bolts then leap from that target to as many as three other targets of your choice, each of which must be within 30 feet of the first target. A target can be a creature or an object and can be targeted by only one of the bolts. Each target makes a Dexterity saving throw, taking 10d8 Lightning damage on a failed save or half as much damage on a successful one.",
     "range": 150,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Circle of Death",
@@ -2681,7 +2720,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 60,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Conjure Fey",
@@ -2783,7 +2823,8 @@
     "desc": "You unleash virulent magic on a creature you can see within range. The target makes a Constitution saving throw. On a failed save, it takes 14d6 Necrotic damage, and its Hit maximum is reduced by an amount equal to the Necrotic damage it took. On a successful save, it takes half as much damage only. This spell can't reduce a target's Hit maximum below 1.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Heal",
@@ -2839,7 +2880,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 60,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Otto's Irresistible Dance",
@@ -2883,7 +2925,8 @@
     "source": "2024",
     "aoeType": "line",
     "aoeSize": 60,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Tasha's Bubbling Cauldron",
@@ -2916,7 +2959,8 @@
     "desc": "You create a wall of ice on a solid surface within range. You can form it into a hemispherical dome or a globe with a radius of up to 10 feet, or you can shape a flat surface made up of ten 10-foot-square panels. Each panel must be contiguous with another panel. In any form, the wall is 1 foot thick and lasts for the duration. If the wall cuts through a creature's space when it appears, the creature is pushed to one side of the wall (you choose which side) and makes a Dexterity saving throw, taking 10d6 Cold damage on a failed save or half as much damage on a successful one. The wall is an object that can be damaged and thus breached. It has AC 12 and 30 Hit per 10-foot section, and it has Immunity to Cold, Poison, and Psychic damage and Vulnerability to Fire damage. Reducing a 10-foot section of wall to 0 Hit destroys it and leaves behind a sheet of frigid air in the space the wall occupied. A creature moving through the sheet of frigid air for the first time on a turn makes a Constitution saving throw, taking 5d6 Cold damage on a failed save or half as much damage on a successful one.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Wall of Thorns",
@@ -2925,7 +2969,8 @@
     "desc": "You create a wall of tangled brush bristling with needle-sharp thorns. The wall appears within range on a solid surface and lasts for the duration. You choose to make the wall up to 60 feet long, 10 feet high, and 5 feet thick or a circle that has a 20-foot diameter and is up to 20 feet high and 5 feet thick. The wall blocks line of sight. When the wall appears, each creature in its area makes a Dexterity saving throw, taking 7d8 Piercing damage on a failed save or half as much damage on a successful one. A creature can move through the wall, albeit slowly and painfully. For every 1 foot a creature moves through the wall, it must spend 4 feet of movement. Furthermore, the first time a creature enters a space in the wall on a turn or ends its turn there, the creature makes a Dexterity saving throw, taking 7d8 Slashing damage on a failed save or half as much damage on a successful one. A creature makes this save only once per turn.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Wind Walk",
@@ -2952,7 +2997,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 10,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Delayed Blast Fireball",
@@ -2963,7 +3009,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Divine Word",
@@ -2989,7 +3036,8 @@
     "desc": "You unleash negative energy toward a creature you can see within range. The target makes a Constitution saving throw, taking 7d8 + 30 Necrotic damage on a failed save or half as much damage on a successful one. A Humanoid killed by this spell rises at the start of your next turn as a Zombie that follows your verbal orders.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Fire Storm",
@@ -2999,7 +3047,8 @@
     "range": 150,
     "source": "2024",
     "aoeType": "cone",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Forcecage",
@@ -3122,7 +3171,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 60,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Teleport",
@@ -3165,7 +3215,8 @@
     "desc": "You blast the mind of a creature that you can see within range. The target makes an Intelligence saving throw. On a failed save, the target takes 10d12 Psychic damage and can't cast spells or take the Magic action. At the end of every 30 days, the target repeats the save, ending the effect on a success. The effect can also be ended by the Greater Restoration, Heal, or Wish spell. On a successful save, the target takes half as much damage only.",
     "range": 150,
     "source": "2024",
-    "saveAbility": "int"
+    "saveAbility": "int",
+    "halfDamageOnSave": true
   },
   {
     "name": "Clone",
@@ -3209,7 +3260,8 @@
     "desc": "Choose a point on the ground that you can see within range. For the duration, an intense tremor rips through the ground in a 100-foot-radius circle centered on that point. The ground there is Difficult. When you cast this spell and at the end of each of your turns for the duration, each creature on the ground in the area makes a Dexterity saving throw. On a failed save, a creature has the Prone condition, and its Concentration is broken. You can also cause the effects below. A total of 1d6 fissures open in the spell's area at the end of the turn you cast it. You choose the fissures' locations, which can't be under structures. Each fissure is 1d10 × 10 feet deep and 10 feet wide, and it extends from one edge of the spell's area to another edge. A creature in the same space as a fissure must succeed on a Dexterity saving throw or fall in. A creature that successfully saves moves with the fissure's edge as it opens. The tremor deals 50 Bludgeoning damage to any structure in contact with the ground in the area when you cast the spell and at the end of each of your turns until the spell ends. If a structure drops to 0 Hit, it collapses. A creature within a distance from a collapsing structure equal to half the structure's height makes a Dexterity saving throw. On a failed save, the creature takes 12d6 Bludgeoning damage, has the Prone condition, and is buried in the rubble, requiring a 20 Strength (Athletics) check as an action to escape. On a successful save, the creature takes half as much damage only.",
     "range": 500,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Glibness",
@@ -3238,7 +3290,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Maze",
@@ -3274,7 +3327,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 60,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Telepathy",
@@ -3291,7 +3345,8 @@
     "desc": "A wall of water springs into existence at a point you choose within range. You can make the wall up to 300 feet long, 300 feet high, and 50 feet thick. The wall lasts for the duration. When the wall appears, each creature in its area makes a Strength saving throw, taking 6d10 Bludgeoning damage on a failed save or half as much damage on a successful one. At the start of each of your turns after the wall appears, the wall, along with any creatures in it, moves 50 feet away from you. Any Huge or smaller creature inside the wall or whose space the wall enters when it moves must succeed on a Strength saving throw or take 5d10 Bludgeoning damage. A creature can take this damage only once per round. At the end of the turn, the wall's height is reduced by 50 feet, and the damage the wall deals on later rounds is reduced by 1d10. When the wall reaches 0 feet in height, the spell ends. A creature caught in the wall can move by swimming. Because of the wave's force, though, the creature must succeed on a Strength (Athletics) check against your spell save DC to move at all. If it fails the check, it can't move. A creature that moves out of the wall falls to the ground.",
     "range": 1,
     "source": "2024",
-    "saveAbility": "str"
+    "saveAbility": "str",
+    "halfDamageOnSave": true
   },
   {
     "name": "Astral Projection",
@@ -3343,7 +3398,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 40,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "halfDamageOnSave": true
   },
   {
     "name": "Power Word Heal",
@@ -3386,7 +3442,8 @@
     "range": 1,
     "source": "2024",
     "aoeType": "cylinder",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "name": "Time Stop",
@@ -3422,7 +3479,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 30,
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "halfDamageOnSave": true
   },
   {
     "name": "Wish",

@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapView } from './MapView';
-import { SpellAccordion } from './SpellAccordion';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Undo2, GripHorizontal, ArrowLeft, ArrowRight, Circle, Cone, Cylinder, Box, Slash } from '../icons';
+import { User, Search, X, LogOut, GripHorizontal, ArrowLeft, ArrowRight, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Sign-in spot types ───
@@ -145,26 +144,126 @@ const SignInSpot: React.FC<{
   );
 };
 
-// ─── Player Drawer (Play Mode) ───
-const PlayerDrawer: React.FC<{
-  player: Combatant;
-  isOpen: boolean;
-  onToggle: () => void;
-  spellSearch: string;
-  onSpellSearchChange: (val: string) => void;
-  onCast: (spell: any) => void;
+// ─── D&D 5e Conditions ───
+const D5E_CONDITIONS = [
+  'Blinded', 'Charmed', 'Deafened', 'Exhausted', 'Frightened', 'Grappled',
+  'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned',
+  'Prone', 'Restrained', 'Stunned', 'Unconscious',
+];
+
+// ─── Ring item pixel offsets per edge (fan toward the player's seat) ───
+const RING_OFFSETS: Record<'bottom' | 'top' | 'left', { dx: number; dy: number }[]> = {
+  bottom: [{ dx: -78, dy: 64 }, { dx: 0,   dy: 95 }, { dx: 78,  dy: 64 }],
+  top:    [{ dx: -78, dy: -64 }, { dx: 0,   dy: -95 }, { dx: 78,  dy: -64 }],
+  left:   [{ dx: -64, dy: -78 }, { dx: -95, dy: 0  }, { dx: -64, dy: 78  }],
+};
+
+// ─── Action Ring ───
+const ActionRing: React.FC<{
+  anchorX: number;
+  anchorY: number;
   edge: 'top' | 'bottom' | 'left';
-  className: string;
-  style?: React.CSSProperties;
-  isActiveTurn?: boolean;
-}> = ({ player, isOpen, onToggle, spellSearch, onSpellSearchChange, onCast, edge, className, style, isActiveTurn }) => {
+  onSpells: () => void;
+  onConditions: () => void;
+  onEndTurn: () => void;
+  onClose: () => void;
+}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onClose }) => {
+  const offsets = RING_OFFSETS[edge];
+  const textRotate = edge === 'top' ? 180 : edge === 'left' ? -90 : 0;
+  const items = [
+    { label: 'Spells',     icon: BookOpen,      color: 'bg-purple-500/20 border-purple-500/40 text-purple-300', onClick: onSpells },
+    { label: 'Conditions', icon: Zap,           color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300', onClick: onConditions },
+    { label: 'End Turn',   icon: ChevronRight,  color: 'bg-green-500/20  border-green-500/40  text-green-300',  onClick: onEndTurn },
+  ];
+  const BUTTON_SIZE = 62;
+  return (
+    <>
+      {/* Backdrop — dismisses ring */}
+      <div className="fixed inset-0 z-40" onPointerDown={onClose} />
+      {/* Ring buttons */}
+      {items.map((item, i) => (
+        <motion.button
+          key={item.label}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: i * 0.05, type: 'spring', stiffness: 420, damping: 26 }}
+          className={cn(
+            'fixed z-50 rounded-full border flex flex-col items-center justify-center gap-0.5 shadow-xl backdrop-blur-sm',
+            item.color
+          )}
+          style={{
+            left: anchorX + offsets[i].dx - BUTTON_SIZE / 2,
+            top:  anchorY + offsets[i].dy - BUTTON_SIZE / 2,
+            width: BUTTON_SIZE,
+            height: BUTTON_SIZE,
+          }}
+          onPointerDown={(e) => { e.stopPropagation(); item.onClick(); }}
+        >
+          <item.icon size={18} />
+          <span className="text-[8px] font-bold tracking-wide" style={{ transform: `rotate(${textRotate}deg)` }}>
+            {item.label}
+          </span>
+        </motion.button>
+      ))}
+    </>
+  );
+};
+
+// ─── Spell Row (reusable inside SpellsPanel) ───
+const SpellRow: React.FC<{
+  spell: any;
+  spellSaveDc?: number;
+  onPress: () => void;
+}> = ({ spell, spellSaveDc, onPress }) => {
+  const hasAoe = !!(spell.aoeType && spell.aoeSize);
+  return (
+    <button
+      onClick={hasAoe ? onPress : undefined}
+      className={cn(
+        'w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border transition-colors',
+        hasAoe
+          ? 'bg-purple-500/5 border-purple-500/10 hover:bg-purple-500/15 active:bg-purple-500/25 cursor-pointer'
+          : 'bg-white/[0.02] border-white/5 cursor-default'
+      )}
+    >
+      <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {spell.saveAbility && (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
+            {spell.saveAbility.toUpperCase()}{spellSaveDc ? ` ${spellSaveDc}` : ''}
+          </span>
+        )}
+        {spell.aoeType && (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 flex items-center gap-0.5">
+            {spell.aoeSize ? `${spell.aoeSize}ft` : ''}{AOE_ICONS[spell.aoeType] ? React.createElement(AOE_ICONS[spell.aoeType], { size: 10 }) : ''}
+          </span>
+        )}
+        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
+          {spell.range == null ? '' : spell.range === 0 ? 'Self' : spell.range === -1 ? 'Touch' : `${spell.range}ft`}
+        </span>
+        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
+          {spell.level === 0 ? 'C' : spell.level}
+        </span>
+      </div>
+    </button>
+  );
+};
+
+// ─── Spells Panel ───
+const SpellsPanel: React.FC<{
+  player: Combatant;
+  anchorX: number;
+  anchorY: number;
+  edge: 'top' | 'bottom' | 'left';
+  onCast: (spell: any) => void;
+  onClose: () => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onClose }) => {
   const spells = player.spells || [];
 
-  // Compute spell save DC from class + stats + proficiency
   const spellSaveDc = useMemo(() => {
     if (player.spellSaveDc) return player.spellSaveDc;
     if (!player.stats || !player.proficiencyBonus || !player.classes?.length) return undefined;
-    const CASTING_ABILITY: Record<string, keyof typeof player.stats> = {
+    const CASTING_ABILITY: Record<string, keyof NonNullable<typeof player.stats>> = {
       wizard: 'int', artificer: 'int',
       cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis',
       bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha',
@@ -172,19 +271,20 @@ const PlayerDrawer: React.FC<{
     let bestMod = -Infinity;
     for (const cls of player.classes) {
       const ability = CASTING_ABILITY[cls.name.toLowerCase()];
-      if (ability) {
+      if (ability && player.stats) {
         const mod = Math.floor((player.stats[ability] - 10) / 2);
         if (mod > bestMod) bestMod = mod;
       }
     }
     if (bestMod === -Infinity) return undefined;
     return 8 + player.proficiencyBonus + bestMod;
-  }, [player.spellSaveDc, player.stats, player.proficiencyBonus, player.classes]);
+  }, [player]);
 
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'lookup'>('my');
   const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2014', '2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
+  const [spellSearch, setSpellSearch] = useState('');
 
   const searchResults = spellSearch.trim().length >= 2
     ? searchSpells(spellSearch, 20, { sources: enabledSources, aoeOnly: true })
@@ -200,365 +300,223 @@ const PlayerDrawer: React.FC<{
   };
 
   const handleSpellTap = (spell: any) => {
-    onCast({ ...spell, saveDc: spellSaveDc });
-    setRecentSpells(prev => {
-      const filtered = prev.filter(s => s.name !== spell.name);
-      return [spell, ...filtered].slice(0, 5);
-    });
-    onSpellSearchChange('');
+    const halfDamageOnSave = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
+    onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave });
+    setRecentSpells(prev => [spell, ...prev.filter(s => s.name !== spell.name)].slice(0, 5));
+    setSpellSearch('');
     setShowKeyboard(false);
   };
 
-  const drawerContent = (
-    <div className="bg-black/95 border border-white/10 rounded-lg p-3 w-[380px]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 overflow-hidden"
-            style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32') }}
-          >
-            {player.avatar ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" /> : player.name[0]?.toUpperCase()}
+  const PANEL_W = 380;
+  const OFFSET = 160;
+  const panelStyle: React.CSSProperties = (() => {
+    if (edge === 'top') {
+      return {
+        left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
+        top: Math.max(4, anchorY - OFFSET - 20),
+        transform: 'rotate(180deg)',
+        transformOrigin: 'center top',
+      };
+    }
+    if (edge === 'left') {
+      return {
+        left: Math.max(4, anchorX - OFFSET - PANEL_W),
+        top: Math.max(4, anchorY - 200),
+      };
+    }
+    return {
+      left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
+      top: Math.min(window.innerHeight - 20, anchorY + OFFSET),
+    };
+  })();
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50" onPointerDown={onClose} />
+      <div
+        className="fixed bg-black/95 border border-white/10 rounded-lg p-3"
+        style={{ ...panelStyle, width: PANEL_W, zIndex: 60 }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 overflow-hidden"
+              style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32') }}
+            >
+              {player.avatar ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" /> : player.name[0]?.toUpperCase()}
+            </div>
+            <span className="text-white font-bold text-xs tracking-wide">{player.name}</span>
           </div>
-          <span className="text-white font-bold text-xs tracking-wide">{player.name}</span>
+          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
+            <X size={14} className="text-white/40" />
+          </button>
         </div>
-        <button onClick={onToggle} className="p-1 hover:bg-white/10 rounded transition-colors">
-          <X size={14} className="text-white/40" />
-        </button>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-white/10 mb-3">
-        <button
-          onClick={() => { setActiveTab('my'); setShowKeyboard(false); }}
-          className={cn(
-            'flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
-            activeTab === 'my'
-              ? 'text-purple-400 border-purple-500'
-              : 'text-white/25 border-transparent hover:text-white/40'
-          )}
-        >
-          My Spells
-        </button>
-        <button
-          onClick={() => { setActiveTab('lookup'); setShowKeyboard(true); }}
-          className={cn(
-            'flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
-            activeTab === 'lookup'
-              ? 'text-purple-400 border-purple-500'
-              : 'text-white/25 border-transparent hover:text-white/40'
-          )}
-        >
-          Spell Lookup
-        </button>
-      </div>
-
-      {/* ── My Spells tab ── */}
-      {activeTab === 'my' && (
-        <div className="max-h-[300px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="space-y-1">
-            {spells.length === 0 ? (
-              <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
-            ) : (
-              spells.map((spell, i) => {
-                const hasAoe = !!(spell.aoeType && spell.aoeSize);
-                return (
-                  <button
-                    key={i}
-                    onClick={() => hasAoe && onCast({ ...spell, saveDc: spellSaveDc })}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border transition-colors',
-                      hasAoe
-                        ? 'bg-purple-500/5 border-purple-500/10 hover:bg-purple-500/15 active:bg-purple-500/25 cursor-pointer'
-                        : 'bg-white/[0.02] border-white/5 cursor-default'
-                    )}
-                  >
-                    <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {spell.saveAbility && (
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
-                          {spell.saveAbility.toUpperCase()}{spellSaveDc ? ` ${spellSaveDc}` : ''}
-                        </span>
-                      )}
-                      {spell.aoeType && (
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 flex items-center gap-0.5">
-                          {spell.aoeSize ? `${spell.aoeSize}ft` : ''}{AOE_ICONS[spell.aoeType] ? React.createElement(AOE_ICONS[spell.aoeType], { size: 10 }) : ''}
-                        </span>
-                      )}
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
-                        {spell.range == null ? '' : spell.range === 0 ? 'Self' : spell.range === -1 ? 'Touch' : `${spell.range}ft`}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
-                        {spell.level === 0 ? 'C' : spell.level}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-
+        {/* Tabs */}
+        <div className="flex border-b border-white/10 mb-3">
+          {(['my', 'lookup'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); if (tab === 'lookup') setShowKeyboard(true); else setShowKeyboard(false); }}
+              className={cn(
+                'flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
+                activeTab === tab ? 'text-purple-400 border-purple-500' : 'text-white/25 border-transparent hover:text-white/40'
+              )}
+            >
+              {tab === 'my' ? 'My Spells' : 'Spell Lookup'}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* ── Spell Lookup tab ── */}
-      {activeTab === 'lookup' && (
-        <div>
-          {/* Edition filters */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex gap-1">
-              <button
-                onClick={() => toggleSource('2014')}
-                className={cn(
-                  'px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
-                  enabledSources.has('2014') ? 'bg-purple-500/25 text-purple-300' : 'bg-white/5 text-white/20'
-                )}
-              >
-                2014
-              </button>
-              <button
-                onClick={() => toggleSource('2024')}
-                className={cn(
-                  'px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
-                  enabledSources.has('2024') ? 'bg-purple-500/25 text-purple-300' : 'bg-white/5 text-white/20'
-                )}
-              >
-                2024
-              </button>
+        {/* My Spells */}
+        {activeTab === 'my' && (
+          <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="space-y-1">
+              {spells.length === 0 ? (
+                <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
+              ) : spells.map((spell, i) => (
+                <SpellRow
+                  key={i}
+                  spell={spell}
+                  spellSaveDc={spellSaveDc}
+                  onPress={() => {
+                    if (!(spell.aoeType && spell.aoeSize)) return;
+                    const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
+                    onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
+                  }}
+                />
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Recent lookups — shown when not searching */}
-          {searchResults.length === 0 && recentSpells.length > 0 && (
-            <div className="mb-2">
-              <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
-              <div className="space-y-1">
-                {recentSpells.map((spell: any, i: number) => (
-                  <button
-                    key={`recent-${i}`}
-                    onClick={() => handleSpellTap(spell)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left bg-purple-500/5 border border-purple-500/10 rounded-lg hover:bg-purple-500/15 active:bg-purple-500/25 transition-colors"
-                  >
-                    <span className="font-bold flex-1 min-w-0 truncate text-purple-400 text-xs">{spell.name}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {spell.saveAbility && (
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
-                          {spell.saveAbility.toUpperCase()}{spellSaveDc ? ` ${spellSaveDc}` : ''}
-                        </span>
-                      )}
-                      {spell.aoeType && (
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 flex items-center gap-0.5">
-                          {spell.aoeSize ? `${spell.aoeSize}ft` : ''}{AOE_ICONS[spell.aoeType] ? React.createElement(AOE_ICONS[spell.aoeType], { size: 10 }) : ''}
-                        </span>
-                      )}
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
-                        {spell.range == null ? '' : spell.range === 0 ? 'Self' : spell.range === -1 ? 'Touch' : `${spell.range}ft`}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
-                        {spell.level === 0 ? 'C' : spell.level}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Search results — above search bar so keyboard stays put */}
-          {searchResults.length > 0 && (
-            <div className="space-y-1 max-h-[160px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
-              {searchResults.map((spell, i) => (
+        {/* Spell Lookup */}
+        {activeTab === 'lookup' && (
+          <div>
+            <div className="flex items-center gap-1 mb-2">
+              {(['2014', '2024'] as const).map(src => (
                 <button
-                  key={`search-${i}`}
-                  onClick={() => handleSpellTap(spell)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left bg-purple-500/5 border border-purple-500/10 rounded-lg hover:bg-purple-500/15 active:bg-purple-500/25 transition-colors"
+                  key={src}
+                  onClick={() => toggleSource(src)}
+                  className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
+                    enabledSources.has(src) ? 'bg-purple-500/25 text-purple-300' : 'bg-white/5 text-white/20')}
                 >
-                  <span className="font-bold flex-1 min-w-0 truncate text-purple-400 text-xs">{spell.name}</span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {spell.saveAbility && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
-                        {spell.saveAbility.toUpperCase()}
-                      </span>
-                    )}
-                    {spell.aoeType && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 flex items-center gap-0.5">
-                        {spell.aoeSize ? `${spell.aoeSize}ft` : ''}{AOE_ICONS[spell.aoeType] ? React.createElement(AOE_ICONS[spell.aoeType], { size: 10 }) : ''}
-                      </span>
-                    )}
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
-                      {spell.range == null ? '' : spell.range === 0 ? 'Self' : spell.range === -1 ? 'Touch' : `${spell.range}ft`}
-                    </span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
-                      {spell.level === 0 ? 'C' : spell.level}
-                    </span>
-                  </div>
+                  {src}
                 </button>
               ))}
             </div>
-          )}
-
-          {/* Search display / keyboard toggle */}
-          <div
-            className={cn(
-              'relative mb-2 cursor-pointer',
-              showKeyboard && 'ring-1 ring-purple-500/30 rounded-lg'
+            {searchResults.length === 0 && recentSpells.length > 0 && (
+              <div className="mb-2">
+                <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
+                <div className="space-y-1">
+                  {recentSpells.map((spell, i) => (
+                    <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} onPress={() => handleSpellTap(spell)} />
+                  ))}
+                </div>
+              </div>
             )}
-            onClick={() => setShowKeyboard(true)}
-          >
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25" />
-            <div className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-8 py-1.5 text-xs text-white min-h-[30px] flex items-center">
-              {spellSearch || <span className="text-white/25">Tap to search AoE spells...</span>}
+            {searchResults.length > 0 && (
+              <div className="space-y-1 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
+                {searchResults.map((spell, i) => (
+                  <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} onPress={() => handleSpellTap(spell)} />
+                ))}
+              </div>
+            )}
+            <div
+              className={cn('relative mb-2 cursor-pointer', showKeyboard && 'ring-1 ring-purple-500/30 rounded-lg')}
+              onClick={() => setShowKeyboard(true)}
+            >
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25" />
+              <div className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-8 py-1.5 text-xs text-white min-h-[30px] flex items-center">
+                {spellSearch || <span className="text-white/25">Tap to search AoE spells...</span>}
+              </div>
+              {spellSearch && (
+                <button onClick={(e) => { e.stopPropagation(); setSpellSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <X size={12} className="text-white/30" />
+                </button>
+              )}
             </div>
-            {spellSearch && (
-              <button onClick={(e) => { e.stopPropagation(); onSpellSearchChange(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
-                <X size={12} className="text-white/30" />
-              </button>
+            {showKeyboard && (
+              <OnScreenKeyboard
+                onKeyPress={(ch) => setSpellSearch(prev => prev + ch)}
+                onBackspace={() => setSpellSearch(prev => prev.slice(0, -1))}
+                onClear={() => setSpellSearch('')}
+              />
             )}
           </div>
-
-          {/* On-screen keyboard */}
-          {showKeyboard && (
-            <OnScreenKeyboard
-              onKeyPress={(ch) => onSpellSearchChange(spellSearch + ch)}
-              onBackspace={() => onSpellSearchChange(spellSearch.slice(0, -1))}
-              onClear={() => onSpellSearchChange('')}
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  // Shared bar content: [color dot] [name] [Spells button] [Undo button (conditional)]
-  const barButtons = (vertical?: boolean) => (
-    <>
-      {vertical ? (
-        // Vertical layout for left edge
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: player.color || '#cd7f32' }} />
-          <span
-            className="text-white/50 text-[10px] font-bold tracking-wider whitespace-nowrap"
-            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
-          >
-            {player.name}
-          </span>
-          <span
-            onClick={(e) => { e.stopPropagation(); onToggle(); }}
-            className={cn(
-              'px-1 py-1.5 rounded text-[9px] font-bold tracking-wide cursor-pointer transition-colors',
-              isOpen ? 'bg-purple-500/30 text-purple-300' : 'bg-white/5 text-white/40 hover:bg-white/15 hover:text-white/60'
-            )}
-            style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
-          >
-            Spells
-          </span>
-        </div>
-      ) : (
-        // Horizontal layout for top/bottom edges
-        <>
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: player.color || '#cd7f32' }} />
-          <span className="text-white/50 text-xs font-bold tracking-wider truncate max-w-[80px]">{player.name}</span>
-          <span
-            onClick={(e) => { e.stopPropagation(); onToggle(); }}
-            className={cn(
-              'px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide cursor-pointer transition-colors',
-              isOpen ? 'bg-purple-500/30 text-purple-300' : 'bg-white/5 text-white/40 hover:bg-white/15 hover:text-white/60'
-            )}
-          >
-            Spells
-          </span>
-        </>
-      )}
+        )}
+      </div>
     </>
   );
+};
 
-  // ── Bottom edge ──
-  if (edge === 'bottom') {
-    return (
-      <div className={cn('absolute bottom-0 z-30', className)} style={style}>
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="pb-1">{drawerContent}</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <div
-          className={cn(
-            'w-[380px] h-[34px] rounded-t-lg flex items-center justify-center gap-2 px-3 border border-b-0',
-            isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10',
-            isActiveTurn && 'ring-2 ring-amber-400/80 bg-amber-400/15 animate-pulse'
-          )}
-        >
-          {barButtons()}
-        </div>
-      </div>
-    );
-  }
+// ─── Conditions Panel ───
+const ConditionsPanel: React.FC<{
+  player: Combatant;
+  anchorX: number;
+  anchorY: number;
+  edge: 'top' | 'bottom' | 'left';
+  onToggle: (condition: string) => void;
+  onClose: () => void;
+}> = ({ player, anchorX, anchorY, edge, onToggle, onClose }) => {
+  const activeConditions = new Set(player.conditions || []);
+  const PANEL_W = 320;
+  const OFFSET = 160;
+  const panelStyle: React.CSSProperties = (() => {
+    if (edge === 'top') {
+      return {
+        left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
+        top: Math.max(4, anchorY - OFFSET - 20),
+        transform: 'rotate(180deg)',
+        transformOrigin: 'center top',
+      };
+    }
+    if (edge === 'left') {
+      return {
+        left: Math.max(4, anchorX - OFFSET - PANEL_W),
+        top: Math.max(4, anchorY - 150),
+      };
+    }
+    return {
+      left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
+      top: Math.min(window.innerHeight - 20, anchorY + OFFSET),
+    };
+  })();
 
-  // ── Top edge ──
-  if (edge === 'top') {
-    return (
-      <div className={cn('absolute top-0 z-30', className)} style={style}>
-        <div
-          className={cn(
-            'w-[380px] h-[34px] rounded-b-lg flex items-center justify-center gap-2 px-3 border border-t-0',
-            isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10',
-            isActiveTurn && 'ring-2 ring-amber-400/80 bg-amber-400/15 animate-pulse'
-          )}
-          style={{ transform: 'rotate(180deg)' }}
-        >
-          {barButtons()}
-        </div>
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="pt-1" style={{ transform: 'rotate(180deg)' }}>{drawerContent}</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  }
-
-  // ── Left edge ──
   return (
-    <div className={cn('absolute left-0 z-30 flex items-center', className)}>
+    <>
+      <div className="fixed inset-0 z-50" onPointerDown={onClose} />
       <div
-        className={cn(
-          'h-[280px] w-[34px] rounded-r-lg flex items-center justify-center py-2 border border-l-0 shrink-0',
-          isOpen ? 'bg-white/10 border-white/15' : 'bg-white/5 border-white/10',
-          isActiveTurn && 'ring-2 ring-amber-400/80 bg-amber-400/15 animate-pulse'
-        )}
+        className="fixed bg-black/95 border border-white/10 rounded-lg p-3"
+        style={{ ...panelStyle, width: PANEL_W, zIndex: 60 }}
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        {barButtons(true)}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-white/60 text-[10px] uppercase tracking-widest font-bold">Conditions — {player.name}</span>
+          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
+            <X size={14} className="text-white/40" />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {D5E_CONDITIONS.map(cond => (
+            <button
+              key={cond}
+              onClick={() => onToggle(cond)}
+              className={cn(
+                'px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide border transition-colors',
+                activeConditions.has(cond)
+                  ? 'bg-red-500/25 border-red-500/50 text-red-300'
+                  : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
+              )}
+            >
+              {cond}
+            </button>
+          ))}
+        </div>
       </div>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'auto', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="pl-1">{drawerContent}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    </>
   );
 };
 
@@ -652,16 +610,12 @@ export function PlayerScreen() {
     });
   }, []);
 
-  // Drawer state (play mode)
-  const [openDrawers, setOpenDrawers] = useState<Set<SpotId>>(new Set());
-  const [spellSearches, setSpellSearches] = useState<Record<SpotId, string>>({
-    'top-left': '', 'top-right': '',
-    'bottom-left': '', 'bottom-right': '',
-    'left': '',
-  });
+  // Action ring + panel state (play mode)
+  const [actionRing, setActionRing] = useState<{ tokenId: string; spotId: SpotId; x: number; y: number } | null>(null);
+  const [openPanel, setOpenPanel] = useState<'spells' | 'conditions' | null>(null);
 
   // Ref for spell casting from drawers
-  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number }, combatantId: string) => void) | null>(null);
+  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
 
@@ -669,12 +623,10 @@ export function PlayerScreen() {
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string } | null>(null);
 
   // AoE highlights received from MapView
-  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null>(null);
+  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
 
   // Active combatant turn (received from DM via IPC)
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
-  // Flash highlight when turn changes — true for 3 seconds after activeCombatantId changes
-  const [turnFlash, setTurnFlash] = useState(false);
 
   // ── IPC ──
   useEffect(() => {
@@ -717,6 +669,15 @@ export function PlayerScreen() {
       });
     }
 
+    // Listen for DM dismiss (after DM applies damage from the modal)
+    if (window.electronAPI?.onDismissPlayerAoe) {
+      window.electronAPI.onDismissPlayerAoe(() => {
+        cancelCastingRef.current?.();
+        setActiveCasting(null);
+        setAoeHighlights(null);
+      });
+    }
+
     // Request state AFTER all listeners are registered so we don't miss the response
     if (window.electronAPI?.requestStateUpdate) {
       window.electronAPI.requestStateUpdate();
@@ -726,20 +687,13 @@ export function PlayerScreen() {
       if (window.electronAPI) {
         window.electronAPI.removeStateUpdateListener();
         window.electronAPI.removeDMTokenUpdateListener?.();
+        window.electronAPI.removeDismissPlayerAoeListener?.();
       }
       if (window.electronAPI?.removePlayerModeListener) {
         window.electronAPI.removePlayerModeListener();
       }
     };
   }, []);
-
-  // Flash highlight for 3 seconds when active turn changes
-  useEffect(() => {
-    if (!activeCombatantId) { setTurnFlash(false); return; }
-    setTurnFlash(true);
-    const timer = setTimeout(() => setTurnFlash(false), 3000);
-    return () => clearTimeout(timer);
-  }, [activeCombatantId]);
 
   // ── Callbacks ──
   const handleTokensChange = useCallback((newTokens: Token[]) => {
@@ -783,23 +737,47 @@ export function PlayerScreen() {
 
   const handleSignOut = useCallback((spotId: SpotId) => {
     setSignedInSpots(prev => ({ ...prev, [spotId]: null }));
-    setOpenDrawers(prev => { const next = new Set(prev); next.delete(spotId); return next; });
+    setActionRing(prev => prev?.spotId === spotId ? null : prev);
+    setOpenPanel(null);
   }, []);
 
-  const toggleDrawer = useCallback((spotId: SpotId) => {
-    setOpenDrawers(prev => {
-      const next = new Set(prev);
-      if (next.has(spotId)) next.delete(spotId);
-      else next.add(spotId);
-      return next;
-    });
-  }, []);
-
-  const handleCastSpell = useCallback((spotId: SpotId, spell: any, combatantId: string) => {
-    setOpenDrawers(prev => { const next = new Set(prev); next.delete(spotId); return next; });
-    startCastingRef.current?.(spell, combatantId);
+  const handleCastSpell = useCallback((spell: any) => {
+    if (!actionRing) return;
+    const { spotId } = actionRing;
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+    const player = campaign.players.find(p => p.id === playerId);
+    if (!player) return;
+    setActionRing(null);
+    setOpenPanel(null);
+    startCastingRef.current?.(spell, player.id);
     setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility });
-  }, []);
+  }, [actionRing, signedInSpots, campaign]);
+
+  const handleConditionToggle = useCallback((spotId: SpotId, condition: string) => {
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+    const player = campaign.players.find(p => p.id === playerId);
+    if (!player) return;
+    const current = new Set(player.conditions || []);
+    if (current.has(condition)) current.delete(condition);
+    else current.add(condition);
+    const newConditions = Array.from(current);
+    window.electronAPI?.sendPlayerConditionUpdate?.(player.id, newConditions);
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return { ...prev, players: prev.players.map(p => p.id === player.id ? { ...p, conditions: newConditions } : p) };
+    });
+  }, [signedInSpots, campaign]);
+
+  const handlePlayerTokenDoubleTap = useCallback((tokenId: string, screenX: number, screenY: number) => {
+    // Match token to a signed-in player: token.id should equal the player combatant id
+    const spotEntry = Object.entries(signedInSpots).find(([, playerId]) => playerId === tokenId);
+    if (!spotEntry) return;
+    const spotId = spotEntry[0] as SpotId;
+    setActionRing({ tokenId, spotId, x: screenX, y: screenY });
+    setOpenPanel(null);
+  }, [signedInSpots]);
 
   // ── Helper: get player combatant for a spot ──
   const getPlayerForSpot = (spotId: SpotId): Combatant | null => {
@@ -931,6 +909,7 @@ export function PlayerScreen() {
           onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}
           onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
+          onPlayerTokenDoubleTap={handlePlayerTokenDoubleTap}
         />
       </div>
 
@@ -960,46 +939,71 @@ export function PlayerScreen() {
                 </button>
               )}
               {aoeHighlights?.saveResults && (
-                <span className="text-xs font-semibold text-green-400">Saves Rolled</span>
+                <span className="text-xs text-white/40">DM applying damage...</span>
               )}
-              <button
-                onClick={() => { cancelCastingRef.current?.(); setActiveCasting(null); setAoeHighlights(null); }}
-                onPointerDown={(e) => e.preventDefault()}
-                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-              >
-                {aoeHighlights?.saveResults ? 'Done' : 'Cancel'}
-              </button>
+              {!aoeHighlights?.saveResults && (
+                <button
+                  onClick={() => { cancelCastingRef.current?.(); setActiveCasting(null); setAoeHighlights(null); }}
+                  onPointerDown={(e) => e.preventDefault()}
+                  className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           </div>
         );
       })()}
 
-      {/* Player Drawers */}
-      {SPOT_IDS.map(spotId => {
-        const player = getPlayerForSpot(spotId);
-        if (!player) return null;
-        const config = spotConfigs[spotId];
-
-        // Check if this player is the active combatant
-        const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
-        const isThisPlayersTurn = turnFlash && activeEntry?.sourceCombatantId === player.id;
-
+      {/* Action Ring */}
+      {actionRing && openPanel === null && (() => {
+        const config = spotConfigs[actionRing.spotId];
         return (
-          <PlayerDrawer
-            key={spotId}
-            player={player}
-            isOpen={openDrawers.has(spotId)}
-            onToggle={() => toggleDrawer(spotId)}
-            spellSearch={spellSearches[spotId] || ''}
-            onSpellSearchChange={(val) => setSpellSearches(prev => ({ ...prev, [spotId]: val }))}
-            onCast={(spell) => handleCastSpell(spotId, spell, player.id)}
+          <ActionRing
+            anchorX={actionRing.x}
+            anchorY={actionRing.y}
             edge={config.edge}
-            className={config.drawerClass}
-            style={config.edge !== 'left' ? { left: `${spotPositions[spotId]}%` } : undefined}
-            isActiveTurn={isThisPlayersTurn}
+            onSpells={() => setOpenPanel('spells')}
+            onConditions={() => setOpenPanel('conditions')}
+            onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); }}
+            onClose={() => setActionRing(null)}
           />
         );
-      })}
+      })()}
+
+      {/* Spells Panel */}
+      {actionRing && openPanel === 'spells' && (() => {
+        const player = getPlayerForSpot(actionRing.spotId);
+        if (!player) return null;
+        const config = spotConfigs[actionRing.spotId];
+        return (
+          <SpellsPanel
+            player={player}
+            anchorX={actionRing.x}
+            anchorY={actionRing.y}
+            edge={config.edge}
+            onCast={handleCastSpell}
+            onClose={() => { setOpenPanel(null); setActionRing(null); }}
+          />
+        );
+      })()}
+
+      {/* Conditions Panel */}
+      {actionRing && openPanel === 'conditions' && (() => {
+        const player = getPlayerForSpot(actionRing.spotId);
+        if (!player) return null;
+        const config = spotConfigs[actionRing.spotId];
+        return (
+          <ConditionsPanel
+            player={player}
+            anchorX={actionRing.x}
+            anchorY={actionRing.y}
+            edge={config.edge}
+            onToggle={(cond) => handleConditionToggle(actionRing.spotId, cond)}
+            onClose={() => { setOpenPanel(null); setActionRing(null); }}
+          />
+        );
+      })()}
 
       {/* Initiative Strip */}
       {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} aoeHighlights={aoeHighlights} />}

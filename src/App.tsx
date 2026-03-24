@@ -11,6 +11,7 @@ import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileTex
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
+import { SpellDamageModal } from './components/SpellDamageModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 
 // Load persisted panel states from localStorage
@@ -55,12 +56,53 @@ export function DMScreen() {
   const skipStateBroadcastRef = useRef(false);
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
   const clearMovementPathsRef = useRef<(() => void) | null>(null);
+  const clearRemoteAoeRef = useRef<(() => void) | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
 
   // AoE highlights from MapView (for CombatView display)
-  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null>(null);
+  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
+  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any> } | null>(null);
+  const prevSaveResultsRef = useRef<Record<string, any> | null>(null);
+
+  // Auto-open spell damage modal when save results arrive from player
+  useEffect(() => {
+    const prev = prevSaveResultsRef.current;
+    const curr = aoeHighlights?.saveResults;
+    prevSaveResultsRef.current = curr || null;
+
+    // Only trigger when transitioning from no results to results
+    if (prev || !curr) return;
+    if (!aoeHighlights?.spellName || !aoeHighlights?.saveAbility || !aoeHighlights?.saveDc) return;
+
+    // Check if spell does damage (has damage dice in description)
+    const hasDamage = /\d+d\d+/.test(aoeHighlights.spellDesc || '');
+    if (!hasDamage) {
+      // Condition-only spell — auto-dismiss AoE on both screens
+      window.electronAPI?.sendDismissPlayerAoe?.();
+      setAoeHighlights(null);
+      return;
+    }
+
+    // Check if there are any creatures to apply damage to
+    const failed = Object.values(curr).filter((r: any) => !r.success);
+    const passed = Object.values(curr).filter((r: any) => r.success);
+    if (failed.length === 0 && (!aoeHighlights.halfDamageOnSave || passed.length === 0)) {
+      // No damage to apply
+      window.electronAPI?.sendDismissPlayerAoe?.();
+      setAoeHighlights(null);
+      return;
+    }
+
+    setSpellDamageModal({
+      spellName: aoeHighlights.spellName,
+      saveAbility: aoeHighlights.saveAbility,
+      saveDc: aoeHighlights.saveDc,
+      halfDamageOnSave: aoeHighlights.halfDamageOnSave || false,
+      saveResults: curr,
+    });
+  }, [aoeHighlights?.saveResults]);
 
   // Persist panel open/closed states
   useEffect(() => {
@@ -167,6 +209,21 @@ export function DMScreen() {
         window.electronAPI.removePlayerTokenUpdateListener();
       }
     };
+  }, []);
+
+  // Listen for condition updates from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerConditionUpdate) return;
+    window.electronAPI.onPlayerConditionUpdate(({ tokenId, conditions }) => {
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.map(p => p.id === tokenId ? { ...p, conditions } : p),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerConditionUpdateListener?.(); };
   }, []);
 
   const handleCreateCampaign = (name: string) => {
@@ -283,6 +340,18 @@ export function DMScreen() {
         })
       };
     });
+  };
+
+  const handleApplySpellDamage = (damages: Record<string, number>) => {
+    for (const [combatantId, amount] of Object.entries(damages)) {
+      updateCombatantHp(combatantId, -amount);
+    }
+    // Immediately clear the remote AoE on the DM map (no IPC round-trip needed)
+    clearRemoteAoeRef.current?.();
+    // Dismiss the AoE on the player screen via IPC
+    window.electronAPI?.sendDismissPlayerAoe?.();
+    setAoeHighlights(null);
+    setSpellDamageModal(null);
   };
 
   const updateScenarioMap = (mapImage: string) => {
@@ -769,6 +838,7 @@ export function DMScreen() {
                 darknessLevel={currentScenario.darknessLevel}
                 onDarknessLevelChange={updateDarknessLevel}
                 clearMovementPathsRef={clearMovementPathsRef}
+                clearRemoteAoeRef={clearRemoteAoeRef}
                 onAoeHighlightsChange={setAoeHighlights}
               />
             )}
@@ -878,6 +948,24 @@ export function DMScreen() {
               ...prev,
               npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
             }) : prev);
+          }}
+        />
+
+        {/* Spell Damage Modal — auto-opens when player confirms spell cast */}
+        <SpellDamageModal
+          isOpen={!!spellDamageModal}
+          spellName={spellDamageModal?.spellName || ''}
+          saveAbility={spellDamageModal?.saveAbility || ''}
+          saveDc={spellDamageModal?.saveDc || 0}
+          halfDamageOnSave={spellDamageModal?.halfDamageOnSave || false}
+          saveResults={spellDamageModal?.saveResults || {}}
+          onApply={handleApplySpellDamage}
+          onClose={() => {
+            // DM closed without applying — still clear the AoE on both screens
+            clearRemoteAoeRef.current?.();
+            window.electronAPI?.sendDismissPlayerAoe?.();
+            setAoeHighlights(null);
+            setSpellDamageModal(null);
           }}
         />
 

@@ -175,6 +175,27 @@ ipcMain.on('player-aoe-update', (_event, aoe) => {
   }
 });
 
+// DM dismisses player AoE (after applying damage from spell modal)
+ipcMain.on('dismiss-player-aoe', () => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dismiss-player-aoe');
+  }
+});
+
+// Player condition updates: proxy to DM window
+ipcMain.on('player-condition-update', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-condition-update', data);
+  }
+});
+
+// Player requests end of their turn: proxy to DM window
+ipcMain.on('player-end-turn', () => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-end-turn');
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

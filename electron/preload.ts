@@ -48,4 +48,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPlayerAoeUpdate: (callback: (aoe: any) => void) => {
     ipcRenderer.on('player-aoe-update', (_event, aoe) => callback(aoe));
   },
+  sendDismissPlayerAoe: () => ipcRenderer.send('dismiss-player-aoe'),
+  onDismissPlayerAoe: (callback: () => void) => {
+    ipcRenderer.on('dismiss-player-aoe', () => callback());
+  },
+  removeDismissPlayerAoeListener: () => {
+    ipcRenderer.removeAllListeners('dismiss-player-aoe');
+  },
+  sendPlayerConditionUpdate: (tokenId: string, conditions: string[]) =>
+    ipcRenderer.send('player-condition-update', { tokenId, conditions }),
+  onPlayerConditionUpdate: (callback: (data: { tokenId: string; conditions: string[] }) => void) => {
+    ipcRenderer.on('player-condition-update', (_event, data) => callback(data));
+  },
+  removePlayerConditionUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-condition-update');
+  },
+  sendPlayerEndTurn: () => ipcRenderer.send('player-end-turn'),
+  onPlayerEndTurn: (callback: () => void) => {
+    ipcRenderer.on('player-end-turn', () => callback());
+  },
+  removePlayerEndTurnListener: () => {
+    ipcRenderer.removeAllListeners('player-end-turn');
+  },
 });

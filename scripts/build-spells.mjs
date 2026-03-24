@@ -166,10 +166,14 @@ function transformSpell(raw, source) {
     saveAbility = raw.savingThrow[0].substring(0, 3).toLowerCase();
   }
 
+  // Half damage on successful save?
+  const halfDamageOnSave = /half (as much )?damage|half damage/i.test(desc);
+
   const entry = { name, level, school, desc, range, source };
   if (aoeType) entry.aoeType = aoeType;
   if (aoeSize) entry.aoeSize = aoeSize;
   if (saveAbility) entry.saveAbility = saveAbility;
+  if (halfDamageOnSave) entry.halfDamageOnSave = true;
   return entry;
 }
 

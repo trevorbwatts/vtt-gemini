@@ -187,14 +187,18 @@ function getSpells(data: any): NonNullable<Combatant['spells']> {
       ? SAVE_ABILITY_NAMES[def.saveDcAbilityId as number]
       : undefined;
 
+    const desc = sanitizeHtml(def.description || '');
+    const halfDamageOnSave = /half (as much )?damage|half damage/i.test(desc);
+
     spells.push({
       name: def.name,
       level: def.level || 0,
-      desc: sanitizeHtml(def.description || ''),
+      desc,
       ...(aoeType    ? { aoeType }    : {}),
       ...(aoeSize    ? { aoeSize }    : {}),
       ...(range != null ? { range }   : {}),
       ...(saveAbility ? { saveAbility } : {}),
+      ...(halfDamageOnSave ? { halfDamageOnSave } : {}),
     });
   };
 

@@ -27,6 +27,15 @@ declare global {
       onDMAoeUpdate: (callback: (aoe: any) => void) => void;
       sendPlayerAoeUpdate: (aoe: any) => void;
       onPlayerAoeUpdate: (callback: (aoe: any) => void) => void;
+      sendDismissPlayerAoe: () => void;
+      onDismissPlayerAoe: (callback: () => void) => void;
+      removeDismissPlayerAoeListener?: () => void;
+      sendPlayerConditionUpdate?: (tokenId: string, conditions: string[]) => void;
+      onPlayerConditionUpdate?: (callback: (data: { tokenId: string; conditions: string[] }) => void) => void;
+      removePlayerConditionUpdateListener?: () => void;
+      sendPlayerEndTurn?: () => void;
+      onPlayerEndTurn?: (callback: () => void) => void;
+      removePlayerEndTurnListener?: () => void;
     }
   }
 }
@@ -139,7 +148,9 @@ export interface Combatant {
     aoeSize?: number;    // feet: radius for sphere/cylinder, length for cone/line, side for cube
     range?: number;      // cast range in feet (0 = self, -1 = touch)
     saveAbility?: string; // 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
+    halfDamageOnSave?: boolean;
   }[];
+  conditions?: string[];
   avatar?: string;
   color?: string;
   speedText?: string;

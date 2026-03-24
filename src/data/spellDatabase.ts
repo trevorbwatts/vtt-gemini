@@ -10,6 +10,7 @@ export interface SpellEntry {
   aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
   aoeSize?: number;
   saveAbility?: string;
+  halfDamageOnSave?: boolean;
   source?: '2014' | '2024';
 }
 
@@ -45,6 +46,7 @@ export function resolveSpells(spellNames: string[]): {
   aoeSize?: number;
   range?: number;
   saveAbility?: string;
+  halfDamageOnSave?: boolean;
 }[] {
   const results: ReturnType<typeof resolveSpells> = [];
   const seen = new Set<string>();
@@ -68,6 +70,7 @@ export function resolveSpells(spellNames: string[]): {
         ...(entry.aoeSize ? { aoeSize: entry.aoeSize } : {}),
         ...(entry.range != null ? { range: entry.range } : {}),
         ...(entry.saveAbility ? { saveAbility: entry.saveAbility } : {}),
+        ...(entry.halfDamageOnSave ? { halfDamageOnSave: entry.halfDamageOnSave } : {}),
       });
     } else {
       // Spell not in database — include with minimal info

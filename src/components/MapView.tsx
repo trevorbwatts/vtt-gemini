@@ -52,15 +52,17 @@ interface MapViewProps {
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
-  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number }, combatantId: string) => void) | null>;
+  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so external code can confirm cast (roll saves) */
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when placed AoE is dismissed (by any means) */
   onCastingDismissed?: () => void;
+  /** Ref that MapView populates so external code (e.g. DM apply-damage) can immediately clear the remote AoE */
+  clearRemoteAoeRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when tokens in AoE changes — passes combatant IDs of affected tokens */
-  onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null } | null) => void;
+  onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null) => void;
   /** Ref that MapView populates so external code (e.g. CombatView "Next Turn") can clear movement paths */
   clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so external code can undo a specific token's movement */
@@ -69,6 +71,8 @@ interface MapViewProps {
   onMovementPathTokensChange?: (tokenIds: Set<string>) => void;
   /** ID of the currently active combatant (for turn indicator) */
   activeCombatantId?: string | null;
+  /** Called when a player double-taps their own token; provides screen coordinates for ring positioning */
+  onPlayerTokenDoubleTap?: (tokenId: string, screenX: number, screenY: number) => void;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -103,6 +107,8 @@ type AoeState = {
   selfOrigin?: boolean;
   saveAbility?: string;
   saveDc?: number;
+  halfDamageOnSave?: boolean;
+  spellDesc?: string;
   saveResults?: Record<string, SaveResult>;
 };
 
@@ -333,13 +339,16 @@ export const MapView: React.FC<MapViewProps> = ({
   onCastingDismissed,
   onAoeHighlightsChange,
   clearMovementPathsRef,
+  clearRemoteAoeRef,
   undoMovementRef,
   onMovementPathTokensChange,
   activeCombatantId: propActiveCombatantId,
+  onPlayerTokenDoubleTap,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastTapRef = useRef<{ tokenId: string; time: number } | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   const [contextMenu, setContextMenu] = useState<{
@@ -522,6 +531,8 @@ export const MapView: React.FC<MapViewProps> = ({
         selfOrigin: isSelfOrigin,
         saveAbility: spell.saveAbility,
         saveDc: spell.saveDc,
+        halfDamageOnSave: spell.halfDamageOnSave,
+        spellDesc: spell.desc,
       });
     };
   }
@@ -532,6 +543,13 @@ export const MapView: React.FC<MapViewProps> = ({
       setCastingSpell(null);
       setCastingMousePos(null);
       onCastingDismissed?.();
+      onAoeHighlightsChange?.(null);
+    };
+  }
+
+  if (clearRemoteAoeRef) {
+    clearRemoteAoeRef.current = () => {
+      setRemoteAoe(null);
       onAoeHighlightsChange?.(null);
     };
   }
@@ -554,7 +572,15 @@ export const MapView: React.FC<MapViewProps> = ({
       const token = tokens.find(t => t.id === tid);
       if (token?.combatantId) combatantIds.push(token.combatantId);
     }
-    onAoeHighlightsChange?.({ affectedCombatantIds: combatantIds, saveResults: activeAoe?.saveResults || null });
+    onAoeHighlightsChange?.({
+      affectedCombatantIds: combatantIds,
+      saveResults: activeAoe?.saveResults || null,
+      spellName: activeAoe?.name,
+      saveAbility: activeAoe?.saveAbility,
+      saveDc: activeAoe?.saveDc,
+      halfDamageOnSave: activeAoe?.halfDamageOnSave,
+      spellDesc: activeAoe?.spellDesc,
+    });
   }, [tokensInAoe, activeAoe?.saveResults]);
 
   // Confirm Cast: roll saves for affected monsters
@@ -1895,7 +1921,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 key={token.id}
                 x={livePlayerPos[token.id]?.x ?? token.x}
                 y={livePlayerPos[token.id]?.y ?? token.y}
-                draggable
+                draggable={isPlayerView ? token.type === 'player' : true}
                 onMouseDown={(e) => { e.cancelBubble = true; }}
                 onDragStart={() => handleDragStart(token.id)}
                 onDragMove={(e) => handleDragMove(token.id, e)}
@@ -1903,6 +1929,22 @@ export const MapView: React.FC<MapViewProps> = ({
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {
                   e.cancelBubble = true;
+                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player') {
+                    const now = Date.now();
+                    const last = lastTapRef.current;
+                    if (last && last.tokenId === token.id && now - last.time < 300) {
+                      lastTapRef.current = null;
+                      const rect = containerRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        const screenX = rect.left + token.x * stageScale + stagePos.x;
+                        const screenY = rect.top + token.y * stageScale + stagePos.y;
+                        onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                      }
+                      return;
+                    }
+                    lastTapRef.current = { tokenId: token.id, time: now };
+                    return;
+                  }
                   if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey) {
                     setSelectedTokenIds(
                       selectedTokenIds.includes(token.id) ? selectedTokenIds.filter(id => id !== token.id) : [...selectedTokenIds, token.id]
@@ -2001,18 +2043,20 @@ export const MapView: React.FC<MapViewProps> = ({
                     </>
                   );
                 })()}
-                <Text
-                  text={token.name}
-                  fontSize={Math.max(10, tokenRadius * 0.55)}
-                  fill="white"
-                  y={r + 5}
-                  align="center"
-                  width={tokenRadius * 5}
-                  x={-tokenRadius * 2.5}
-                  fontStyle="bold"
-                  fontFamily="Inter"
-                  opacity={token.hidden ? 0.6 : 1}
-                />
+                {!isPlayerView && (
+                  <Text
+                    text={token.name}
+                    fontSize={Math.max(10, tokenRadius * 0.55)}
+                    fill="white"
+                    y={r + 5}
+                    align="center"
+                    width={tokenRadius * 5}
+                    x={-tokenRadius * 2.5}
+                    fontStyle="bold"
+                    fontFamily="Inter"
+                    opacity={token.hidden ? 0.6 : 1}
+                  />
+                )}
               </Group>
               );
             })}

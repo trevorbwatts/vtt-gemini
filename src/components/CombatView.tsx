@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Combatant, cn, ClassDefinition } from '../types';
 import { Minus, Plus, Trash2, Heart, Shield, Zap, Swords, ChevronRight, Wind, Footprints, Skull } from '../icons';
 import { motion, Reorder } from 'motion/react';
@@ -107,6 +107,16 @@ export const CombatView: React.FC<CombatViewProps> = ({
     const nextIndex = (currentIndex + 1) % sortedCombatants.length;
     setActiveCombatantId(sortedCombatants[nextIndex].id);
   };
+
+  // Keep a stable ref so the IPC listener always calls the latest nextTurn
+  const nextTurnRef = useRef(nextTurn);
+  nextTurnRef.current = nextTurn;
+
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerEndTurn) return;
+    window.electronAPI.onPlayerEndTurn(() => nextTurnRef.current());
+    return () => { window.electronAPI?.removePlayerEndTurnListener?.(); };
+  }, []);
 
   const clearCombat = () => {
     onActiveCombatantsChange([]);
