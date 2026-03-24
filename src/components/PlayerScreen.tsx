@@ -200,7 +200,7 @@ const PlayerDrawer: React.FC<{
   };
 
   const handleSpellTap = (spell: any) => {
-    onCast(spell);
+    onCast({ ...spell, saveDc: spellSaveDc });
     setRecentSpells(prev => {
       const filtered = prev.filter(s => s.name !== spell.name);
       return [spell, ...filtered].slice(0, 5);
@@ -265,7 +265,7 @@ const PlayerDrawer: React.FC<{
                 return (
                   <button
                     key={i}
-                    onClick={() => hasAoe && onCast(spell)}
+                    onClick={() => hasAoe && onCast({ ...spell, saveDc: spellSaveDc })}
                     className={cn(
                       'w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border transition-colors',
                       hasAoe
@@ -563,7 +563,11 @@ const PlayerDrawer: React.FC<{
 };
 
 // ─── Initiative Strip ───
-const InitiativeStrip: React.FC<{ combatants: Combatant[]; activeCombatantId?: string | null }> = ({ combatants, activeCombatantId }) => {
+const InitiativeStrip: React.FC<{
+  combatants: Combatant[];
+  activeCombatantId?: string | null;
+  aoeHighlights?: { affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null;
+}> = ({ combatants, activeCombatantId, aoeHighlights }) => {
   const sorted = useMemo(() =>
     [...combatants].sort((a, b) => {
       if (b.initiative !== a.initiative) return b.initiative - a.initiative;
@@ -571,6 +575,8 @@ const InitiativeStrip: React.FC<{ combatants: Combatant[]; activeCombatantId?: s
     }),
     [combatants]
   );
+
+  const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
 
   const typeColor = (type: string) => {
     if (type === 'player') return { bg: 'rgba(34,197,94,0.08)', text: '#22c55e', border: 'rgba(34,197,94,0.2)' };
@@ -583,21 +589,24 @@ const InitiativeStrip: React.FC<{ combatants: Combatant[]; activeCombatantId?: s
       {sorted.map((c) => {
         const colors = typeColor(c.type);
         const isActive = c.id === activeCombatantId;
+        const isAffected = affectedSet.has(c.sourceCombatantId || c.id);
+        const saveResult = aoeHighlights?.saveResults?.[c.sourceCombatantId || c.id];
         return (
           <div
             key={c.id}
             className={cn(
-              'flex-1 flex items-center justify-center border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
-              isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15'
+              'flex-1 flex flex-col items-center justify-center border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
+              isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
+              isAffected && !isActive && 'ring-2 ring-inset ring-orange-400/80 bg-orange-400/10'
             )}
-            style={{ backgroundColor: isActive ? undefined : colors.bg, borderLeft: `2px solid ${isActive ? '#fbbf24' : colors.border}` }}
+            style={{ backgroundColor: isActive ? undefined : isAffected ? 'rgba(255,120,30,0.1)' : colors.bg, borderLeft: `2px solid ${isActive ? '#fbbf24' : isAffected ? '#ff781e' : colors.border}` }}
           >
             <span
               className={cn(
                 'text-[11px] font-bold tracking-wider whitespace-nowrap',
                 isActive && 'text-amber-300'
               )}
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: isActive ? undefined : colors.text }}
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: isActive ? undefined : isAffected ? '#ff781e' : colors.text }}
             >
               {c.name}
             </span>
@@ -652,11 +661,15 @@ export function PlayerScreen() {
   });
 
   // Ref for spell casting from drawers
-  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }, combatantId: string) => void) | null>(null);
+  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
+  const confirmCastRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
-  const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string } | null>(null);
+  const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string } | null>(null);
+
+  // AoE highlights received from MapView
+  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null>(null);
 
   // Active combatant turn (received from DM via IPC)
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
@@ -785,7 +798,7 @@ export function PlayerScreen() {
   const handleCastSpell = useCallback((spotId: SpotId, spell: any, combatantId: string) => {
     setOpenDrawers(prev => { const next = new Set(prev); next.delete(spotId); return next; });
     startCastingRef.current?.(spell, combatantId);
-    setActiveCasting({ spotId, spellName: spell.name });
+    setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility });
   }, []);
 
   // ── Helper: get player combatant for a spot ──
@@ -914,7 +927,9 @@ export function PlayerScreen() {
           darknessLevel={currentScenario.darknessLevel}
           startCastingRef={startCastingRef}
           cancelCastingRef={cancelCastingRef}
-          onCastingDismissed={() => setActiveCasting(null)}
+          confirmCastRef={confirmCastRef}
+          onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}
+          onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
         />
       </div>
@@ -934,12 +949,25 @@ export function PlayerScreen() {
             <div className="bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10">
               <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
               <span className="text-sm font-bold text-orange-400">Casting {activeCasting.spellName}</span>
-              <span className="text-xs text-white/40">Drag to place</span>
+              {!aoeHighlights?.saveResults && <span className="text-xs text-white/40">Drag to place</span>}
+              {!aoeHighlights?.saveResults && activeCasting.saveAbility && (
+                <button
+                  onClick={() => confirmCastRef.current?.()}
+                  onPointerDown={(e) => e.preventDefault()}
+                  className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
+                >
+                  Confirm Cast
+                </button>
+              )}
+              {aoeHighlights?.saveResults && (
+                <span className="text-xs font-semibold text-green-400">Saves Rolled</span>
+              )}
               <button
-                onClick={() => { cancelCastingRef.current?.(); setActiveCasting(null); }}
+                onClick={() => { cancelCastingRef.current?.(); setActiveCasting(null); setAoeHighlights(null); }}
+                onPointerDown={(e) => e.preventDefault()}
                 className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
               >
-                Cancel
+                {aoeHighlights?.saveResults ? 'Done' : 'Cancel'}
               </button>
             </div>
           </div>
@@ -974,7 +1002,7 @@ export function PlayerScreen() {
       })}
 
       {/* Initiative Strip */}
-      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} />}
+      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} aoeHighlights={aoeHighlights} />}
     </div>
   );
 }

@@ -25,6 +25,7 @@ interface CombatViewProps {
   onClose?: () => void;
   onClearMovementPaths?: () => void;
   onActiveCombatantIdChange?: (id: string | null) => void;
+  aoeHighlights?: { affectedCombatantIds: string[]; saveResults: Record<string, { roll: number; modifier: number; total: number; success: boolean; name: string }> | null } | null;
 }
 
 export const CombatView: React.FC<CombatViewProps> = ({
@@ -39,6 +40,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
   onClose,
   onClearMovementPaths,
   onActiveCombatantIdChange,
+  aoeHighlights,
 }) => {
   const [activeCombatantId, _setActiveCombatantId] = useState<string | null>(null);
   const setActiveCombatantId = (id: string | null) => {
@@ -46,6 +48,8 @@ export const CombatView: React.FC<CombatViewProps> = ({
     onActiveCombatantIdChange?.(id);
   };
   const [hpInputs, setHpInputs] = useState<Record<string, string>>({});
+
+  const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
 
   const sortedCombatants = useMemo(() => {
     return [...activeCombatants].sort((a, b) => {
@@ -171,6 +175,8 @@ export const CombatView: React.FC<CombatViewProps> = ({
               const hpPct = c.maxHp > 0 ? (c.hp / c.maxHp) * 100 : 0;
               const isEnemy = c.type === 'enemy';
               const isPlayer = c.type === 'player';
+              const isAoeAffected = affectedSet.has(c.sourceCombatantId || c.id);
+              const saveResult = aoeHighlights?.saveResults?.[c.sourceCombatantId || c.id];
 
               return (
                 <div
@@ -180,6 +186,8 @@ export const CombatView: React.FC<CombatViewProps> = ({
                     "relative overflow-hidden rounded-lg border transition-all p-3 cursor-pointer",
                     isActive
                       ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]"
+                      : isAoeAffected
+                      ? "bg-[#1c1510] border-orange-500/50 shadow-[0_0_12px_rgba(255,120,30,0.15)]"
                       : "bg-[#181512] border-[#2e261d]"
                   )}
                 >
@@ -261,6 +269,16 @@ export const CombatView: React.FC<CombatViewProps> = ({
                         <span className="text-[11px] font-bold text-white/50">
                           <Heart size={10} className="inline -mt-0.5 mr-1" />{c.hp}/{c.maxHp}
                         </span>
+                        {saveResult && (
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                            saveResult.success
+                              ? "bg-green-500/15 text-green-400 border-green-500/30"
+                              : "bg-red-500/15 text-red-400 border-red-500/30"
+                          )}>
+                            {saveResult.success ? 'Save' : 'Fail'} {saveResult.total} ({saveResult.roll}{saveResult.modifier >= 0 ? '+' : ''}{saveResult.modifier})
+                          </span>
+                        )}
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => applyHpDelta(c.id, -1)}

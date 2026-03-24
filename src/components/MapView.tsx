@@ -52,11 +52,15 @@ interface MapViewProps {
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
-  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }, combatantId: string) => void) | null>;
+  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref that MapView populates so external code can confirm cast (roll saves) */
+  confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when placed AoE is dismissed (by any means) */
   onCastingDismissed?: () => void;
+  /** Called when tokens in AoE changes — passes combatant IDs of affected tokens */
+  onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null } | null) => void;
   /** Ref that MapView populates so external code (e.g. CombatView "Next Turn") can clear movement paths */
   clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so external code can undo a specific token's movement */
@@ -76,6 +80,105 @@ function getTokenSizeMultiplier(size?: Token['size']): number {
     case 'Gargantuan':  return 4;
     default:            return 1; // Medium / unset
   }
+}
+
+export interface SaveResult {
+  roll: number;
+  modifier: number;
+  total: number;
+  success: boolean;
+  name: string;
+}
+
+type AoeState = {
+  name: string;
+  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+  aoeSize: number;
+  x: number;
+  y: number;
+  originX: number;
+  originY: number;
+  angle: number;
+  casterRadiusPx: number;
+  selfOrigin?: boolean;
+  saveAbility?: string;
+  saveDc?: number;
+  saveResults?: Record<string, SaveResult>;
+};
+
+/** Determine which tokens overlap a placed AoE shape */
+function getTokensInAoe(
+  aoe: AoeState | null,
+  tokens: Token[],
+  pixelsPerGrid: number,
+  tokenRadius: number,
+): Set<string> {
+  if (!aoe) return new Set();
+  const feetToPx = (ft: number) => (ft / 5) * pixelsPerGrid;
+  const sizePx = feetToPx(aoe.aoeSize);
+  const angleRad = aoe.angle * (Math.PI / 180);
+  const edgeX = aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx;
+  const edgeY = aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx;
+
+  const result = new Set<string>();
+
+  for (const token of tokens) {
+    const tr = tokenRadius * getTokenSizeMultiplier(token.size);
+    const tx = token.x;
+    const ty = token.y;
+    let hit = false;
+
+    switch (aoe.aoeType) {
+      case 'sphere':
+      case 'cylinder': {
+        const cx = aoe.selfOrigin
+          ? aoe.originX + Math.cos(angleRad) * (aoe.casterRadiusPx + sizePx)
+          : aoe.x;
+        const cy = aoe.selfOrigin
+          ? aoe.originY + Math.sin(angleRad) * (aoe.casterRadiusPx + sizePx)
+          : aoe.y;
+        hit = Math.sqrt((tx - cx) ** 2 + (ty - cy) ** 2) < sizePx + tr;
+        break;
+      }
+      case 'cube': {
+        if (aoe.selfOrigin) {
+          const dx = tx - edgeX;
+          const dy = ty - edgeY;
+          const localFwd = dx * Math.cos(angleRad) + dy * Math.sin(angleRad);
+          const localPerp = -dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
+          hit = localFwd > -tr && localFwd < sizePx * 2 + tr && Math.abs(localPerp) < sizePx + tr;
+        } else {
+          hit = Math.abs(tx - aoe.x) < sizePx + tr && Math.abs(ty - aoe.y) < sizePx + tr;
+        }
+        break;
+      }
+      case 'cone': {
+        const dx = tx - edgeX;
+        const dy = ty - edgeY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > sizePx + tr) break;
+        if (dist < tr) { hit = true; break; }
+        const tokenAngle = Math.atan2(dy, dx);
+        let angleDiff = tokenAngle - angleRad;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        const halfAngle = (53 / 2) * (Math.PI / 180);
+        hit = Math.abs(angleDiff) < halfAngle + Math.atan2(tr, dist);
+        break;
+      }
+      case 'line': {
+        const halfWidth = feetToPx(5) / 2;
+        const dx = tx - edgeX;
+        const dy = ty - edgeY;
+        const localFwd = dx * Math.cos(angleRad) + dy * Math.sin(angleRad);
+        const localPerp = -dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
+        hit = localFwd > -tr && localFwd < sizePx + tr && Math.abs(localPerp) < halfWidth + tr;
+        break;
+      }
+    }
+    if (hit) result.add(token.id);
+  }
+  return result;
 }
 
 const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
@@ -226,7 +329,9 @@ export const MapView: React.FC<MapViewProps> = ({
   onDarknessLevelChange,
   startCastingRef,
   cancelCastingRef,
+  confirmCastRef,
   onCastingDismissed,
+  onAoeHighlightsChange,
   clearMovementPathsRef,
   undoMovementRef,
   onMovementPathTokensChange,
@@ -291,18 +396,7 @@ export const MapView: React.FC<MapViewProps> = ({
     selfOrigin?: boolean; // true for range=0 "Self" spells (rotate around caster)
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
-  const [placedAoe, setPlacedAoe] = useState<{
-    name: string;
-    aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
-    aoeSize: number;
-    x: number;
-    y: number;
-    originX: number;
-    originY: number;
-    angle: number;
-    casterRadiusPx: number;
-    selfOrigin?: boolean; // true for range=0 "Self" spells (rotate around caster)
-  } | null>(null);
+  const [placedAoe, setPlacedAoe] = useState<AoeState | null>(null);
 
   // Remote AoE: placed by the other screen (DM sees player's AoE, player sees DM's AoE)
   const [remoteAoe, setRemoteAoe] = useState<typeof placedAoe>(null);
@@ -426,6 +520,8 @@ export const MapView: React.FC<MapViewProps> = ({
         angle: 0,
         casterRadiusPx,
         selfOrigin: isSelfOrigin,
+        saveAbility: spell.saveAbility,
+        saveDc: spell.saveDc,
       });
     };
   }
@@ -436,7 +532,65 @@ export const MapView: React.FC<MapViewProps> = ({
       setCastingSpell(null);
       setCastingMousePos(null);
       onCastingDismissed?.();
+      onAoeHighlightsChange?.(null);
     };
+  }
+
+  // ── Token-in-AoE detection ──
+  const ppg = gridResolution?.pixelsPerGrid || 40;
+  const activeAoe = placedAoe || remoteAoe;
+  const tokensInAoe = useMemo(() => {
+    return getTokensInAoe(activeAoe, tokens, ppg, tokenRadius);
+  }, [activeAoe?.x, activeAoe?.y, activeAoe?.angle, activeAoe?.aoeType, activeAoe?.aoeSize, activeAoe?.originX, activeAoe?.originY, tokens, ppg, tokenRadius]);
+
+  // Notify parent of affected combatant IDs whenever tokensInAoe changes
+  useEffect(() => {
+    if (tokensInAoe.size === 0 && !activeAoe) {
+      onAoeHighlightsChange?.(null);
+      return;
+    }
+    const combatantIds: string[] = [];
+    for (const tid of tokensInAoe) {
+      const token = tokens.find(t => t.id === tid);
+      if (token?.combatantId) combatantIds.push(token.combatantId);
+    }
+    onAoeHighlightsChange?.({ affectedCombatantIds: combatantIds, saveResults: activeAoe?.saveResults || null });
+  }, [tokensInAoe, activeAoe?.saveResults]);
+
+  // Confirm Cast: roll saves for affected monsters
+  const handleConfirmCast = () => {
+    const aoe = placedAoe; // Only the caster's screen can confirm
+    if (!aoe?.saveAbility || !aoe?.saveDc) return;
+
+    const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const results: Record<string, SaveResult> = {};
+
+    for (const tokenId of tokensInAoe) {
+      const token = tokens.find(t => t.id === tokenId);
+      if (!token?.combatantId) continue;
+      const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
+      if (!combatant || combatant.type === 'player') continue; // Only roll for monsters/NPCs
+
+      const abilityKey = aoe.saveAbility as keyof NonNullable<typeof combatant.stats>;
+      const statValue = combatant.stats?.[abilityKey] || 10;
+      const modifier = Math.floor((statValue - 10) / 2);
+      const roll = Math.floor(Math.random() * 20) + 1;
+      const total = roll + modifier;
+
+      results[combatant.sourceCombatantId || combatant.id] = {
+        roll,
+        modifier,
+        total,
+        success: total >= aoe.saveDc,
+        name: combatant.name,
+      };
+    }
+
+    setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
+  };
+
+  if (confirmCastRef) {
+    confirmCastRef.current = handleConfirmCast;
   }
 
   // Expose clear movement paths to external code (e.g. CombatView "Next Turn")
@@ -1779,6 +1933,16 @@ export const MapView: React.FC<MapViewProps> = ({
                     opacity={token.hidden ? 0.4 : 1}
                   />
                 )}
+                {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
+                  <Circle
+                    radius={r + 3 * tokenScale}
+                    fill=""
+                    stroke="rgba(255, 120, 30, 0.9)"
+                    strokeWidth={2.5 * tokenScale}
+                    shadowBlur={12 * tokenScale}
+                    shadowColor="rgba(255, 120, 30, 0.7)"
+                  />
+                )}
                 {/* Active turn indicator — 4 chevrons zoom in and fade */}
                 {turnFlashCombatantId && (() => {
                   const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
@@ -1807,6 +1971,36 @@ export const MapView: React.FC<MapViewProps> = ({
                     y={-12 * (tokenRadius / 25)}
                   />
                 )}
+                {tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
+                  const combId = token.combatantId || '';
+                  const sr = activeAoe.saveResults![combId];
+                  if (!sr) return null;
+                  const color = sr.success ? 'rgba(34, 197, 94,' : 'rgba(239, 68, 68,';
+                  // Lucide icons are 24x24 viewbox; scale to ~60% of token diameter
+                  const iconScale = (r * 1.2) / 24;
+                  return (
+                    <>
+                      <Circle
+                        radius={r}
+                        fill={`${color} 0.45)`}
+                      />
+                      <Path
+                        data={sr.success
+                          ? 'M20 6L9 17l-5-5' // Lucide "Check"
+                          : 'M18 6L6 18M6 6l12 12' // Lucide "X"
+                        }
+                        stroke="white"
+                        strokeWidth={2.5}
+                        lineCap="round"
+                        lineJoin="round"
+                        fill=""
+                        scale={{ x: iconScale, y: iconScale }}
+                        x={-12 * iconScale}
+                        y={-12 * iconScale}
+                      />
+                    </>
+                  );
+                })()}
                 <Text
                   text={token.name}
                   fontSize={Math.max(10, tokenRadius * 0.55)}
@@ -1984,7 +2178,8 @@ export const MapView: React.FC<MapViewProps> = ({
             const feetToPx = (ft: number) => (ft / 5) * ppg;
             const sizePx = feetToPx(placedAoe.aoeSize);
             const strokeW = 2 / stageScale;
-            const fillColor = 'rgba(255, 120, 30, 0.35)';
+            const hasSaveResults = !!placedAoe.saveResults;
+            const fillColor = hasSaveResults ? 'transparent' : 'rgba(255, 120, 30, 0.35)';
             const strokeColor = 'rgba(255, 120, 30, 0.8)';
 
             // Live-update position during drag so range line tracks in real-time
@@ -2259,7 +2454,8 @@ export const MapView: React.FC<MapViewProps> = ({
             const feetToPx = (ft: number) => (ft / 5) * ppg;
             const sizePx = feetToPx(remoteAoe.aoeSize);
             const strokeW = 2 / stageScale;
-            const fillColor = 'rgba(255, 120, 30, 0.25)';
+            const hasRemoteSaveResults = !!remoteAoe.saveResults;
+            const fillColor = hasRemoteSaveResults ? 'transparent' : 'rgba(255, 120, 30, 0.25)';
             const strokeColor = 'rgba(255, 120, 30, 0.6)';
             const aRad = remoteAoe.angle * (Math.PI / 180);
             const edgeX = remoteAoe.originX + Math.cos(aRad) * remoteAoe.casterRadiusPx;
@@ -2369,7 +2565,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 maxWidth: 320,
               }}
             >
-              <div className="text-white text-[15px] font-sans whitespace-pre-wrap leading-snug">
+              <div className="text-white text-[15px] font-sans truncate leading-snug">
                 {note.content.split('\n')[0]}
               </div>
             </div>
@@ -2382,6 +2578,42 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
             <span className="text-sm font-bold text-orange-400">Casting {castingSpell.name}</span>
             <span className="text-xs text-white/40">Click to place · Escape to cancel</span>
+          </div>
+        )}
+
+        {/* DM Placed AoE Banner — local DM spell */}
+        {placedAoe && !castingSpell && !isPlayerView && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
+            <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+            <span className="text-sm font-bold text-orange-400">Casting {placedAoe.name}</span>
+            {!placedAoe.saveResults && placedAoe.saveAbility && (
+              <button
+                onClick={handleConfirmCast}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
+              >
+                Confirm Cast
+              </button>
+            )}
+            {placedAoe.saveResults && (
+              <span className="text-xs font-semibold text-green-400">Saves Rolled</span>
+            )}
+            <button
+              onClick={() => { setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null); }}
+              className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+            >
+              {placedAoe.saveResults ? 'Done' : 'Cancel'}
+            </button>
+          </div>
+        )}
+
+        {/* DM Remote AoE Banner — player's spell visible to DM */}
+        {remoteAoe && !isPlayerView && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-purple-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-purple-500/10 pointer-events-auto">
+            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+            <span className="text-sm font-bold text-purple-400">Player Casting {remoteAoe.name}</span>
+            {remoteAoe.saveResults && (
+              <span className="text-xs font-semibold text-green-400">Saves Rolled</span>
+            )}
           </div>
         )}
 

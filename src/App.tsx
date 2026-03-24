@@ -59,6 +59,9 @@ export function DMScreen() {
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
 
+  // AoE highlights from MapView (for CombatView display)
+  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null>(null);
+
   // Persist panel open/closed states
   useEffect(() => {
     savePanelStates(leftSidebarOpen, rightSidebarOpen, navSidebarOpen);
@@ -766,6 +769,7 @@ export function DMScreen() {
                 darknessLevel={currentScenario.darknessLevel}
                 onDarknessLevelChange={updateDarknessLevel}
                 clearMovementPathsRef={clearMovementPathsRef}
+                onAoeHighlightsChange={setAoeHighlights}
               />
             )}
           </main>
@@ -827,6 +831,7 @@ export function DMScreen() {
                   onClose={() => setRightSidebarOpen(false)}
                   onClearMovementPaths={() => clearMovementPathsRef.current?.()}
                   onActiveCombatantIdChange={setActiveCombatantId}
+                  aoeHighlights={aoeHighlights}
                 />
               )}
             </div>
