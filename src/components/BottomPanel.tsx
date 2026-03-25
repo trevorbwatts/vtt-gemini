@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Combatant, Token, cn, ClassDefinition } from '../types';
-import { Trash2, Zap, Swords, ChevronRight, Skull, X, Footprints, Droplet, Feather, Shovel } from '../icons';
+import { Trash2, Zap, Swords, ChevronRight, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder } from '../icons';
 import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
@@ -236,8 +236,18 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
   const hpPct = detailSource && detailSource.maxHp > 0 ? (detailSource.hp / detailSource.maxHp) * 100 : 0;
 
-  const AOE_LABELS: Record<string, string> = {
-    sphere: 'Sphere', cone: 'Cone', line: 'Line', cube: 'Cube', cylinder: 'Cylinder',
+  const AOE_ICONS: Record<string, React.FC<{ size?: number }>> = {
+    sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
+  };
+  const makeAoeBadge = (aoeType?: string, aoeSize?: number) => {
+    if (!aoeType) return undefined;
+    const Icon = AOE_ICONS[aoeType];
+    return (
+      <span className="flex items-center gap-0.5">
+        {aoeSize ? `${aoeSize}ft` : ''}
+        {Icon && <Icon size={10} />}
+      </span>
+    );
   };
 
   const rollButtonBottom = showPanel ? panelHeight + 24 : 24;
@@ -562,9 +572,6 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                   <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Spells</h5>
                   <div className="space-y-1.5 pr-2 custom-scrollbar">
                     {(() => {
-                      const tokenX = detailToken?.x ?? 0;
-                      const tokenY = detailToken?.y ?? 0;
-
                       const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }) => {
                         if (!spell.aoeType || !spell.aoeSize || !detailSourceId) return;
                         startCastingRef?.current?.(spell, detailSourceId);
@@ -572,20 +579,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
                       // Structured spells
                       if (detailSource.spells && detailSource.spells.length > 0) {
-                        return detailSource.spells.map((spell, i) => {
-                          const aoeBadge = spell.aoeType
-                            ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
-                            : undefined;
-                          const saveBadge = spell.saveAbility
-                            ? `${spell.saveAbility.toUpperCase()} SAVE`
-                            : undefined;
-                          return (
-                            <SpellAccordion key={i} name={spell.name} desc={spell.desc}
-                              badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
-                              aoeBadge={aoeBadge} saveBadge={saveBadge}
-                              onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
-                          );
-                        });
+                        return detailSource.spells.map((spell, i) => (
+                          <SpellAccordion key={i} name={spell.name} desc={spell.desc}
+                            badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
+                            aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
+                            saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
+                            onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
+                        ));
                       }
 
                       // Monster spellcasting — parse from specialAbilities
@@ -598,20 +598,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                           return (
                             <>
                               <p className="text-[10px] opacity-40 italic leading-relaxed mb-2">{parsed.preamble}</p>
-                              {parsed.spells.map((spell, i) => {
-                                const aoeBadge = spell.aoeType
-                                  ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
-                                  : undefined;
-                                const saveBadge = spell.saveAbility
-                                  ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}`
-                                  : undefined;
-                                return (
-                                  <SpellAccordion key={i} name={spell.name} desc={spell.desc}
-                                    badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
-                                    aoeBadge={aoeBadge} saveBadge={saveBadge}
-                                    onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
-                                );
-                              })}
+                              {parsed.spells.map((spell, i) => (
+                                <SpellAccordion key={i} name={spell.name} desc={spell.desc}
+                                  badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
+                                  aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
+                                  saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}` : undefined}
+                                  onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
+                              ))}
                             </>
                           );
                         }
