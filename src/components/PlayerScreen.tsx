@@ -900,8 +900,6 @@ export function PlayerScreen() {
           onStartCombat={() => {}}
           leftSidebarOpen={false}
           setLeftSidebarOpen={() => {}}
-          rightSidebarOpen={false}
-          setRightSidebarOpen={() => {}}
           isPlayerView={true}
           walls={currentScenario.walls}
           objectWalls={currentScenario.objectWalls}

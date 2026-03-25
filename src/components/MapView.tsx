@@ -2,15 +2,13 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, Swords, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown, Footprints, Undo2 } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown, Footprints, Undo2 } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
-import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { SpeedText } from './SpeedText';
-import { SpellAccordion } from './SpellAccordion';
 
 interface MapViewProps {
   tokens: Token[];
@@ -33,8 +31,6 @@ interface MapViewProps {
   onNoteClick?: (noteId: string) => void;
   onAddScenario?: () => void;
   panToNote?: MapNote | null;
-  rightSidebarOpen: boolean;
-  setRightSidebarOpen: (open: boolean) => void;
   isPlayerView?: boolean;
   walls?: WallSegment[];
   objectWalls?: WallSegment[];
@@ -388,8 +384,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onNoteClick,
   onAddScenario,
   panToNote,
-  rightSidebarOpen,
-  setRightSidebarOpen,
   isPlayerView = false,
   walls,
   objectWalls,
@@ -457,7 +451,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const [showFog, setShowFog] = useState(false);
   const [darknessOpen, setDarknessOpen] = useState(false);
-  const [panelHpInput, setPanelHpInput] = useState('');
   
   // Sync external selection from Initiative Tracker
   useEffect(() => {
@@ -1821,44 +1814,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center h-full">
-            {selectedTokenIds.length > 0 && (
-              <button
-                onClick={() => {
-                  onStartCombat(selectedTokenIds);
-                  setSelectedTokenIds([]);
-                }}
-                className="btn-filled px-4 py-1 rounded animate-in fade-in slide-in-from-right-4 mr-2"
-              >
-                <Swords size={12} /> Roll Initiative ({selectedTokenIds.length})
-              </button>
-            )}
-            <AnimatePresence>
-              {!rightSidebarOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{
-                    opacity: 1,
-                    transition: { delay: 0.2, duration: 0.1 }
-                  }}
-                  exit={{
-                    opacity: 0,
-                    transition: { delay: 0, duration: 0.05 }
-                  }}
-                  className="flex items-center h-full"
-                >
-                  <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-                  <button
-                    onClick={() => setRightSidebarOpen(true)}
-                    className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
-                    title="Open Initiative Tracker"
-                  >
-                    <Swords size={12} />
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
         </div>
       )}
 
@@ -3375,226 +3330,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </button>
           </div>
         )}
-
-        {/* Token Detail Panel — only for non-player tokens; players use the Character Sheet modal */}
-        {selectedTokenIds.length === 1 && (() => {
-          const tokenId = selectedTokenIds[0];
-          const token = tokens.find(t => t.id === tokenId);
-
-          // Players get the dedicated Character Sheet modal via the main menu
-          if (token?.type === 'player') return null;
-
-          const sourceCombatantId = token?.combatantId;
-          const sourceCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
-          const sourceCombatant = sourceCombatants.find(c => c.id === sourceCombatantId);
-          // If this combatant is currently in the initiative tracker, use that HP (it's the live value)
-          const activeCombatant = activeCombatants.find(ac => ac.sourceCombatantId === sourceCombatantId);
-          const combatant = activeCombatant
-            ? { ...sourceCombatant, ...activeCombatant }
-            : sourceCombatant;
-
-          if (!combatant) return null;
-
-          const hpPct = combatant.maxHp > 0 ? (combatant.hp / combatant.maxHp) * 100 : 0;
-          const applyPanelHpDelta = (sign: 1 | -1) => {
-            const val = parseInt(panelHpInput || '0', 10);
-            if (!val || !sourceCombatantId) return;
-            onUpdateCombatantHp(sourceCombatantId, val * sign);
-            setPanelHpInput('');
-          };
-
-          return (
-            <div className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--line)] shadow-2xl animate-in slide-in-from-bottom duration-300 z-40 max-h-[40%] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between p-3 border-b border-[var(--line)] bg-black/20 shrink-0">
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: token?.color }} />
-                    <h4 className="font-bold text-base tracking-tight truncate">{combatant.name}</h4>
-                  </div>
-                  {/* Stats & controls */}
-                  <div className="flex items-center gap-4 shrink-0 px-2 justify-end">
-                    <div className="text-xs font-bold text-white/50 uppercase tracking-widest flex items-center gap-1">
-                      AC {combatant.ac}
-                    </div>
-                    {(combatant.speedText || combatant.speed != null) && (
-                      <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest flex items-center gap-1">
-                        <Footprints size={12} className="opacity-70" />
-                        <SpeedText text={combatant.speedText ? combatant.speedText : `${combatant.speed} ft.`} />
-                      </div>
-                    )}
-
-                    <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden ml-2 shadow-inner">
-                      <div
-                        className="h-full bg-[var(--accent)] transition-all shadow-[0_0_6px_rgba(205,127,50,0.4)]"
-                        style={{ width: `${hpPct}%` }}
-                      />
-                    </div>
-
-                    <div className="text-xs font-bold text-white/50 w-20 text-right tabular-nums">
-                      {combatant.hp}/{combatant.maxHp} HP
-                    </div>
-
-                    <div className="flex items-center gap-1 ml-2">
-                      <button
-                        onClick={() => applyPanelHpDelta(-1)}
-                        className="w-6 h-6 flex items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
-                      >
-                        <span className="text-[14px] font-bold leading-none">−</span>
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={panelHpInput}
-                        onChange={(e) => setPanelHpInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') applyPanelHpDelta(-1); }}
-                        placeholder="0"
-                        className="w-10 h-6 text-center text-[12px] font-bold bg-black/50 border border-white/10 rounded text-white placeholder:text-white/20 focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <button
-                        onClick={() => applyPanelHpDelta(1)}
-                        className="w-6 h-6 flex items-center justify-center rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 transition-colors"
-                      >
-                        <span className="text-[14px] font-bold leading-none">+</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedTokenId(null);
-                    setSelectedTokenIds([]);
-                    setPanelHpInput('');
-                  }}
-                  className="p-1 hover:bg-white/10 rounded transition-colors opacity-50 hover:opacity-100 shrink-0"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-x-auto p-4 flex gap-8">
-                {/* Column 1: Stats & Info */}
-                <div className="min-w-[200px] flex flex-col gap-4">
-                  <div>
-                    <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Attributes</h5>
-                    {combatant.stats ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {Object.entries(combatant.stats).map(([stat, val]) => (
-                          <div key={stat} className="bg-black/20 rounded p-2 text-center">
-                            <div className="text-[8px] uppercase opacity-50">{stat}</div>
-                            <div className="text-sm font-bold">
-                              {Math.floor((val - 10) / 2) >= 0 ? '+' : ''}{Math.floor((val - 10) / 2)}
-                            </div>
-                            <div className="text-[9px] opacity-30">{val}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs opacity-40 italic">No stats available</p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {combatant.species && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{combatant.species}</span>}
-                    {(combatant.speedText || combatant.speed != null) && <span className="px-2 py-1 bg-white/5 rounded flex-wrap flex gap-1 items-center text-[10px]"><SpeedText text={combatant.speedText ? combatant.speedText : `${combatant.speed} ft`} /> Speed</span>}
-                    {combatant.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{combatant.darkvision}ft Darkvision</span>}
-                  </div>
-                </div>
-
-                {/* Column 2: Actions */}
-                <div className="min-w-[250px] flex-1">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Actions</h5>
-                  <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                    {combatant.actions && combatant.actions.length > 0 ? (
-                      combatant.actions.map((action, i) => (
-                        <div key={i} className="text-xs bg-white/5 p-2 rounded border border-white/5">
-                          <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs opacity-40 italic">No actions listed</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Column 4: Spells */}
-                <div className="min-w-[250px] flex-1">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Spells</h5>
-                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                    {(() => {
-                      const AOE_LABELS: Record<string, string> = {
-                        sphere: 'Sphere', cone: 'Cone', line: 'Line', cube: 'Cube', cylinder: 'Cylinder',
-                      };
-                      const tokenX = token?.x ?? 0;
-                      const tokenY = token?.y ?? 0;
-
-                      const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number; range?: number }) => {
-                        if (!spell.aoeType || !spell.aoeSize) return;
-                        const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token?.size);
-                        setCastingSpell({
-                          name: spell.name,
-                          aoeType: spell.aoeType as any,
-                          aoeSize: spell.aoeSize,
-                          originX: tokenX,
-                          originY: tokenY,
-                          casterRadiusPx,
-                          selfOrigin: spell.range === 0 || spell.range === undefined,
-                        });
-                        setPlacedAoe(null);
-                      };
-
-                      // Structured player spells
-                      if (combatant.spells && combatant.spells.length > 0) {
-                        return combatant.spells.map((spell, i) => {
-                          const aoeBadge = spell.aoeType
-                            ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
-                            : undefined;
-                          const saveBadge = spell.saveAbility
-                            ? `${spell.saveAbility.toUpperCase()} SAVE`
-                            : undefined;
-                          return (
-                            <SpellAccordion key={i} name={spell.name} desc={spell.desc}
-                              badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
-                              aoeBadge={aoeBadge} saveBadge={saveBadge}
-                              onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
-                          );
-                        });
-                      }
-
-                      // Monster spellcasting — parse from specialAbilities Spellcasting trait
-                      const spellcastingTrait = combatant.specialAbilities?.find(a =>
-                        a.name.toLowerCase().includes('spellcasting')
-                      );
-                      if (spellcastingTrait) {
-                        const parsed = parseSpellcastingTrait(spellcastingTrait.desc);
-                        if (parsed.spells.length > 0) {
-                          return (
-                            <>
-                              <p className="text-[10px] opacity-40 italic leading-relaxed mb-2">{parsed.preamble}</p>
-                              {parsed.spells.map((spell, i) => {
-                                const aoeBadge = spell.aoeType
-                                  ? `${spell.aoeSize ? `${spell.aoeSize}ft ` : ''}${AOE_LABELS[spell.aoeType] || ''}`
-                                  : undefined;
-                                const saveBadge = spell.saveAbility
-                                  ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}`
-                                  : undefined;
-                                return (
-                                  <SpellAccordion key={i} name={spell.name} desc={spell.desc}
-                                    badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
-                                    aoeBadge={aoeBadge} saveBadge={saveBadge}
-                                    onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
-                                );
-                              })}
-                            </>
-                          );
-                        }
-                      }
-                      return <p className="text-xs opacity-40 italic">No spells listed</p>;
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
       {/* Change Map Warning Modal */}
       <AnimatePresence>

@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { DMNotes } from './components/DMNotes';
 import { MapView } from './components/MapView';
-import { CombatView } from './components/CombatView';
+import { BottomPanel } from './components/BottomPanel';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
 import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote } from './types';
-import { Layout, Map as MapIcon, Swords, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -15,16 +15,16 @@ import { SpellDamageModal } from './components/SpellDamageModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 
 // Load persisted panel states from localStorage
-function loadPanelStates(): { left: boolean; right: boolean; nav: boolean } {
+function loadPanelStates(): { left: boolean; nav: boolean } {
   try {
     const raw = localStorage.getItem('dm_panel_states');
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
-  return { left: false, right: false, nav: false };
+  return { left: false, nav: false };
 }
 
-function savePanelStates(left: boolean, right: boolean, nav: boolean) {
-  localStorage.setItem('dm_panel_states', JSON.stringify({ left, right, nav }));
+function savePanelStates(left: boolean, nav: boolean) {
+  localStorage.setItem('dm_panel_states', JSON.stringify({ left, nav }));
 }
 
 export function DMScreen() {
@@ -32,7 +32,6 @@ export function DMScreen() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(savedPanels.current.left);
   const [highlightedNoteId, setHighlightedNoteId] = useState<string | null>(null);
   const [panToNote, setPanToNote] = useState<MapNote | null>(null);
-  const [rightSidebarOpen, setRightSidebarOpen] = useState(savedPanels.current.right);
   const [navSidebarOpen, setNavSidebarOpen] = useState(savedPanels.current.nav);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
@@ -57,11 +56,12 @@ export function DMScreen() {
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
   const clearMovementPathsRef = useRef<(() => void) | null>(null);
   const clearRemoteAoeRef = useRef<(() => void) | null>(null);
+  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
 
-  // AoE highlights from MapView (for CombatView display)
+  // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
   const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any> } | null>(null);
   const prevSaveResultsRef = useRef<Record<string, any> | null>(null);
@@ -106,8 +106,8 @@ export function DMScreen() {
 
   // Persist panel open/closed states
   useEffect(() => {
-    savePanelStates(leftSidebarOpen, rightSidebarOpen, navSidebarOpen);
-  }, [leftSidebarOpen, rightSidebarOpen, navSidebarOpen]);
+    savePanelStates(leftSidebarOpen, navSidebarOpen);
+  }, [leftSidebarOpen, navSidebarOpen]);
 
   // Persistence — store map images separately to avoid serializing multi-MB base64 strings
   // into the main campaign JSON on every state change
@@ -567,7 +567,6 @@ export function DMScreen() {
     if (newCombatants.length > 0) {
       updateActiveCombatants([...currentActive, ...newCombatants]);
     }
-    setRightSidebarOpen(true);
   };
 
   const addScenario = () => {
@@ -870,8 +869,7 @@ export function DMScreen() {
                 onNoteClick={setHighlightedNoteId}
                 onAddScenario={addScenario}
                 panToNote={panToNote}
-                rightSidebarOpen={rightSidebarOpen}
-                setRightSidebarOpen={setRightSidebarOpen}
+                startCastingRef={startCastingRef}
                 walls={currentScenario.walls}
                 objectWalls={currentScenario.objectWalls}
                 portals={currentScenario.portals}
@@ -915,42 +913,39 @@ export function DMScreen() {
             </div>
           </motion.aside>
 
-          {/* Right Sidebar: Combat View (overlay) */}
-          <motion.aside
-            initial={false}
-            animate={{ x: rightSidebarOpen ? 0 : 400 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-y-0 right-0 w-[400px] bg-[var(--surface)] border-l border-[var(--line)] z-20 overflow-hidden"
-          >
-            <div className="w-full h-full relative">
-              <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
-              {currentScenario && (
-                <CombatView
-                  activeCombatants={currentScenario.activeCombatants || []}
-                  onActiveCombatantsChange={updateActiveCombatants}
-                  onCombatantClick={(cid) => {
-                    const tid = cid.startsWith('combat-') ? cid.replace('combat-', '') : cid;
-                    setSelectedTokenId(tid);
-                    setSelectedTokenIds([tid]);
-                  }}
-                  onStartCombat={() => {
-                    if (selectedTokenIds.length > 0) {
-                      startCombat(selectedTokenIds);
-                      setSelectedTokenIds([]);
-                    }
-                  }}
-                  selectedTokenCount={selectedTokenIds.length}
-                  players={campaign.players || []}
-                  npcs={campaign.npcs || []}
-                  persistentEnemies={campaign.persistentEnemies || []}
-                  onClose={() => setRightSidebarOpen(false)}
-                  onClearMovementPaths={() => clearMovementPathsRef.current?.()}
-                  onActiveCombatantIdChange={setActiveCombatantId}
-                  aoeHighlights={aoeHighlights}
-                />
-              )}
-            </div>
-          </motion.aside>
+          {/* Bottom Panel: Initiative Tracker + Token Detail */}
+          {currentScenario && (
+            <BottomPanel
+              activeCombatants={currentScenario.activeCombatants || []}
+              onActiveCombatantsChange={updateActiveCombatants}
+              onCombatantClick={(cid) => {
+                const tid = cid.startsWith('combat-') ? cid.replace('combat-', '') : cid;
+                setSelectedTokenId(tid);
+                setSelectedTokenIds([tid]);
+              }}
+              onStartCombat={(tokenIds) => {
+                const ids = tokenIds.length > 0 ? tokenIds : selectedTokenIds;
+                if (ids.length > 0) {
+                  startCombat(ids);
+                  setSelectedTokenIds([]);
+                }
+              }}
+              selectedTokenCount={selectedTokenIds.length}
+              players={campaign.players || []}
+              npcs={campaign.npcs || []}
+              persistentEnemies={campaign.persistentEnemies || []}
+              scenarioCombatants={currentScenario.combatants || []}
+              onClearMovementPaths={() => clearMovementPathsRef.current?.()}
+              onActiveCombatantIdChange={setActiveCombatantId}
+              aoeHighlights={aoeHighlights}
+              tokens={currentScenario.tokens || []}
+              selectedTokenIds={selectedTokenIds}
+              onSelectedTokenIdChange={setSelectedTokenId}
+              onSelectedTokenIdsChange={setSelectedTokenIds}
+              onUpdateCombatantHp={updateCombatantHp}
+              startCastingRef={startCastingRef}
+            />
+          )}
         </div>
 
         {/* Campaign Settings Modal */}
