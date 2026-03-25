@@ -142,12 +142,12 @@ const ActionRing: React.FC<{
 }> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onClose, isPlayersTurn }) => {
   const textRotate = edge === 'top' ? 180 : edge === 'left' ? -90 : 0;
   const allItems = [
-    { label: 'Spells',     icon: BookOpen,      color: 'bg-purple-500/20 border-purple-500/40 text-purple-300', onClick: onSpells },
-    { label: 'Conditions', icon: Zap,           color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300', onClick: onConditions },
+    { label: 'Spells',     icon: BookOpen,      color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
+    { label: 'Conditions', icon: Zap,           color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
   ];
   if (isPlayersTurn) {
     allItems.push(
-      { label: 'End Turn', icon: ChevronRight, color: 'bg-green-500/20 border-green-500/40 text-green-300', onClick: onEndTurn },
+      { label: 'End Turn', icon: ChevronRight, color: 'bg-[#001a0a] border-green-500/40 text-green-300', onClick: onEndTurn },
     );
   }
   const items = allItems;
@@ -165,7 +165,7 @@ const ActionRing: React.FC<{
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: i * 0.05, type: 'spring', stiffness: 420, damping: 26 }}
           className={cn(
-            'fixed z-50 rounded-full border flex flex-col items-center justify-center gap-0.5 shadow-xl backdrop-blur-sm',
+            'fixed z-50 rounded-full border flex flex-col items-center justify-center gap-0.5 shadow-xl',
             item.color
           )}
           style={{
@@ -195,15 +195,7 @@ const SpellRow: React.FC<{
 }> = ({ spell, spellSaveDc, onPress, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
   return (
-    <button
-      onPointerDown={hasAoe && !disabled ? (e) => { e.stopPropagation(); onPress(); } : undefined}
-      className={cn(
-        'w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border transition-colors',
-        hasAoe && !disabled
-          ? 'bg-purple-500/5 border-purple-500/10 hover:bg-purple-500/15 active:bg-purple-500/25 cursor-pointer'
-          : 'bg-white/[0.02] border-white/5 cursor-default'
-      )}
-    >
+    <div className="flex items-center gap-2 py-2">
       <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe && !disabled ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
       <div className="flex items-center gap-1.5 shrink-0">
         {spell.saveAbility && (
@@ -222,8 +214,16 @@ const SpellRow: React.FC<{
         <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
           {spell.level === 0 ? 'C' : spell.level}
         </span>
+        {hasAoe && !disabled && (
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onPress(); }}
+            className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40 active:bg-[var(--accent)]/40 transition-colors"
+          >
+            Cast
+          </button>
+        )}
       </div>
-    </button>
+    </div>
   );
 };
 
@@ -295,7 +295,7 @@ const SpellsPanel: React.FC<{
     setShowKeyboard(false);
   };
 
-  const PANEL_W = 380;
+  const PANEL_W = 430;
   const panelStyle: React.CSSProperties = (() => {
     const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
     if (edge === 'top') {
@@ -362,7 +362,7 @@ const SpellsPanel: React.FC<{
         {/* My Spells */}
         {activeTab === 'my' && (
           <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="space-y-1">
+            <div className="divide-y divide-white/10">
               {spells.length === 0 ? (
                 <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
               ) : spells.map((spell, i) => (
@@ -400,7 +400,7 @@ const SpellsPanel: React.FC<{
             {searchResults.length === 0 && recentSpells.length > 0 && (
               <div className="mb-2">
                 <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
-                <div className="space-y-1">
+                <div className="divide-y divide-white/10">
                   {recentSpells.map((spell, i) => (
                    <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
                   ))}
@@ -408,7 +408,7 @@ const SpellsPanel: React.FC<{
               </div>
             )}
             {searchResults.length > 0 && (
-              <div className="space-y-1 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
+              <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
                 {searchResults.map((spell, i) => (
                   <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
                 ))}
@@ -519,16 +519,12 @@ interface StripEntry {
   type: 'player' | 'enemy' | 'npc';
   count: number;
   isActive: boolean;
-  isAffected: boolean;
 }
 
 const InitiativeStrip: React.FC<{
   combatants: Combatant[];
   activeCombatantId?: string | null;
-  aoeHighlights?: { affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null;
-}> = ({ combatants, activeCombatantId, aoeHighlights }) => {
-  const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
-
+}> = ({ combatants, activeCombatantId }) => {
   // Sort by initiative desc, then name asc
   const sorted = useMemo(() =>
     [...combatants].sort((a, b) => {
@@ -544,21 +540,19 @@ const InitiativeStrip: React.FC<{
     const result: StripEntry[] = [];
     for (const c of sorted) {
       const isActive = c.id === activeCombatantId;
-      const isAffected = affectedSet.has(c.sourceCombatantId || c.id);
 
       if (c.type === 'enemy') {
         const prev = result[result.length - 1];
         if (prev && prev.type === 'enemy' && prev.name === c.name) {
           prev.count += 1;
           if (isActive) prev.isActive = true;
-          if (isAffected) prev.isAffected = true;
           continue;
         }
       }
-      result.push({ key: c.id, name: c.name, type: c.type, count: 1, isActive, isAffected });
+      result.push({ key: c.id, name: c.name, type: c.type, count: 1, isActive });
     }
     return result;
-  }, [sorted, activeCombatantId, affectedSet]);
+  }, [sorted, activeCombatantId]);
 
   const typeColor = (type: string) => {
     if (type === 'player') return { bg: 'rgba(34,197,94,0.08)', text: '#22c55e', border: 'rgba(34,197,94,0.2)' };
@@ -576,16 +570,15 @@ const InitiativeStrip: React.FC<{
             className={cn(
               'flex-1 flex flex-col items-center justify-center border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
               entry.isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
-              entry.isAffected && !entry.isActive && 'ring-2 ring-inset ring-orange-400/80 bg-orange-400/10'
             )}
-            style={{ backgroundColor: entry.isActive ? undefined : entry.isAffected ? 'rgba(255,120,30,0.1)' : colors.bg, borderLeft: `2px solid ${entry.isActive ? '#fbbf24' : entry.isAffected ? '#ff781e' : colors.border}` }}
+            style={{ backgroundColor: entry.isActive ? undefined : colors.bg, borderLeft: `2px solid ${entry.isActive ? '#fbbf24' : colors.border}` }}
           >
             <span
               className={cn(
                 'text-[11px] font-bold tracking-wider whitespace-nowrap',
                 entry.isActive && 'text-amber-300'
               )}
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : entry.isAffected ? '#ff781e' : colors.text }}
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : colors.text }}
             >
               {entry.name}
             </span>
@@ -1025,7 +1018,7 @@ export function PlayerScreen() {
       })()}
 
       {/* Initiative Strip */}
-      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} aoeHighlights={aoeHighlights} />}
+      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} />}
     </div>
   );
 }

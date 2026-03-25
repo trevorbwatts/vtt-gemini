@@ -134,6 +134,12 @@ function getTokensInAoe(
     const ty = token.y;
     let hit = false;
 
+    // For self-origin spells, exclude the caster's own token (center within their radius + 2px gap)
+    if (aoe.selfOrigin) {
+      const distToOrigin = Math.sqrt((tx - aoe.originX) ** 2 + (ty - aoe.originY) ** 2);
+      if (distToOrigin < aoe.casterRadiusPx + 2) continue;
+    }
+
     switch (aoe.aoeType) {
       case 'sphere':
       case 'cylinder': {
@@ -152,7 +158,7 @@ function getTokensInAoe(
           const dy = ty - edgeY;
           const localFwd = dx * Math.cos(angleRad) + dy * Math.sin(angleRad);
           const localPerp = -dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
-          hit = localFwd > -tr && localFwd < sizePx * 2 + tr && Math.abs(localPerp) < sizePx + tr;
+          hit = localFwd > -tr && localFwd < sizePx + tr && Math.abs(localPerp) < sizePx / 2 + tr;
         } else {
           hit = Math.abs(tx - aoe.x) < sizePx + tr && Math.abs(ty - aoe.y) < sizePx + tr;
         }
@@ -528,7 +534,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [pathFadeProgress, setPathFadeProgress] = useState<Record<string, number>>({}); // 0 = visible, 1 = gone
   const pathFadeStartRef = useRef<Record<string, number>>({}); // timestamp when fade started
   const pathFadeRafRef = useRef<number | null>(null);
-  const PATH_FADE_DELAY = 5000; // ms before fade begins
+  const PATH_FADE_DELAY = 2000; // ms before fade begins
   const PATH_FADE_DURATION = 1500; // ms for the wipe animation
 
   // Animation loop for path fading — runs whenever any fade is in progress
@@ -565,6 +571,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   useEffect(() => {
     if (propActiveCombatantId && inCombat) {
+      // Clear all movement paths and their fade state when the turn advances
+      Object.values(pathFadeTimers.current).forEach(clearTimeout);
+      pathFadeTimers.current = {};
+      pathFadeStartRef.current = {};
+      setPathFadeProgress({});
+      setMovementPaths({});
+      activePathRef.current = {};
+
       setTurnFlashCombatantId(propActiveCombatantId);
       const timer = setTimeout(() => setTurnFlashCombatantId(null), 3100); // slightly over 3s to let animation finish
       return () => clearTimeout(timer);
@@ -1877,9 +1891,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           onMouseLeave={isPlayerView ? undefined : handleStageMouseUp}
           onContextMenu={isPlayerView ? undefined : handleContextMenu}
           onWheel={isPlayerView ? undefined : handleWheel}
-          onTouchStart={isPlayerView ? handleTouchStart : undefined}
-          onTouchMove={isPlayerView ? handleTouchMove : undefined}
-          onTouchEnd={isPlayerView ? handleTouchEnd : undefined}
+          onTouchStart={isPlayerView && !activeAoe ? handleTouchStart : undefined}
+          onTouchMove={isPlayerView && !activeAoe ? handleTouchMove : undefined}
+          onTouchEnd={isPlayerView && !activeAoe ? handleTouchEnd : undefined}
           onClick={(e) => {
             if (isPlayerView) return;
             if (e.evt.button === 0) {
@@ -2055,7 +2069,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 key={token.id}
                 x={livePlayerPos[token.id]?.x ?? token.x}
                 y={livePlayerPos[token.id]?.y ?? token.y}
-                draggable={isPlayerView ? token.type === 'player' : true}
+                draggable={isPlayerView ? (token.type === 'player' && !activeAoe) : true}
                 onMouseDown={(e) => { e.cancelBubble = true; }}
                 onDragStart={() => handleDragStart(token.id)}
                 onDragMove={(e) => handleDragMove(token.id, e)}
@@ -2064,7 +2078,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 onClick={(e) => {
                   e.cancelBubble = true;
                   // Double-tap detection for player view (touch uses onTap below)
-                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player') {
+                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
                     const now = Date.now();
                     const last = lastTapRef.current;
                     if (last && last.tokenId === token.id && now - last.time < 400) {
@@ -2093,7 +2107,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 onTap={(e) => {
                   e.cancelBubble = true;
                   // Double-tap detection for touch on player view
-                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player') {
+                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
                     const now = Date.now();
                     const last = lastTapRef.current;
                     if (last && last.tokenId === token.id && now - last.time < 400) {
@@ -2130,7 +2144,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     perfectDrawEnabled={false}
                   />
                 )}
-                {!isPlayerView && tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
+                {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
                   <>
                   <Circle
                     radius={r + 4 * tokenScale}
@@ -2258,15 +2272,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 const fade = pathFadeProgress[path.tokenId] ?? 0;
                 const isFullyFaded = fade >= 1;
                 const nameFontSize = Math.max(10, tokenRadius * 0.55);
-                const distLabelFontSize = Math.max(9, tokenRadius * 0.45);
-                // Estimate wrapped name height: ~0.6 * fontSize per char width, Konva line-height ≈ 1.2×
-                const nameWidth = tokenRadius * 5;
-                const avgCharWidth = nameFontSize * 0.55; // bold Inter is slightly wider
-                const charsPerLine = Math.max(1, Math.floor(nameWidth / avgCharWidth));
-                const nameText = pathToken?.name || '';
-                const nameLines = Math.max(1, Math.ceil(nameText.length / charsPerLine));
-                const nameHeight = nameLines * nameFontSize * 1.2;
-                const distY = lastY + r + 5 + nameHeight + 2;
+                const distLabelFontSize = isPlayerView
+                  ? Math.max(12, tokenRadius * 0.6)
+                  : Math.max(9, tokenRadius * 0.45);
+                // On the player view names are hidden, so sit the label tight under the avatar
+                let nameHeight = 0;
+                if (!isPlayerView) {
+                  // Estimate wrapped name height: ~0.6 * fontSize per char width, Konva line-height ≈ 1.2×
+                  const nameWidth = tokenRadius * 5;
+                  const avgCharWidth = nameFontSize * 0.55;
+                  const charsPerLine = Math.max(1, Math.floor(nameWidth / avgCharWidth));
+                  const nameText = pathToken?.name || '';
+                  const nameLines = Math.max(1, Math.ceil(nameText.length / charsPerLine));
+                  nameHeight = nameLines * nameFontSize * 1.2;
+                }
+                const distY = lastY - r - distLabelFontSize - 5;
                 return (
                   <Text
                     key={`dist-${path.tokenId}`}
@@ -2356,10 +2376,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 {castingSpell.aoeType === 'cube' && (() => {
                   if (isSelfOrigin) {
                     // Self-origin cube: near edge at caster token edge, rotated along angle
-                    const perpX = Math.cos(angleRad + Math.PI / 2) * sizePx;
-                    const perpY = Math.sin(angleRad + Math.PI / 2) * sizePx;
-                    const fwdX = Math.cos(angleRad) * sizePx * 2;
-                    const fwdY = Math.sin(angleRad) * sizePx * 2;
+                    const perpX = Math.cos(angleRad + Math.PI / 2) * sizePx / 2;
+                    const perpY = Math.sin(angleRad + Math.PI / 2) * sizePx / 2;
+                    const fwdX = Math.cos(angleRad) * sizePx;
+                    const fwdY = Math.sin(angleRad) * sizePx;
                     const points = [
                       -perpX, -perpY,
                       perpX, perpY,
@@ -2560,12 +2580,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 {placedAoe.aoeType === 'cube' && (() => {
                   if (placedAoe.selfOrigin) {
                     // Self-origin cube: near edge touches caster token edge, rotated along angle
-                    // perpendicular direction for the cube's width
-                    const perpX = Math.cos(angleRad + Math.PI / 2) * sizePx;
-                    const perpY = Math.sin(angleRad + Math.PI / 2) * sizePx;
-                    // forward direction for the cube's depth (2 * sizePx = full cube side)
-                    const fwdX = Math.cos(angleRad) * sizePx * 2;
-                    const fwdY = Math.sin(angleRad) * sizePx * 2;
+                    // perpendicular direction for the cube's width (sizePx/2 on each side = sizePx total)
+                    const perpX = Math.cos(angleRad + Math.PI / 2) * sizePx / 2;
+                    const perpY = Math.sin(angleRad + Math.PI / 2) * sizePx / 2;
+                    // forward direction for the cube's depth (sizePx = full cube side)
+                    const fwdX = Math.cos(angleRad) * sizePx;
+                    const fwdY = Math.sin(angleRad) * sizePx;
                     const points = [
                       -perpX, -perpY,             // near-left corner
                       perpX, perpY,               // near-right corner

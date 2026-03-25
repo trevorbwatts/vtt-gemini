@@ -43,6 +43,13 @@ export const CombatView: React.FC<CombatViewProps> = ({
   aoeHighlights,
 }) => {
   const [activeCombatantId, _setActiveCombatantId] = useState<string | null>(null);
+  const activeCardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeCombatantId) {
+      activeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activeCombatantId]);
   const setActiveCombatantId = (id: string | null) => {
     _setActiveCombatantId(id);
     onActiveCombatantIdChange?.(id);
@@ -156,8 +163,9 @@ export const CombatView: React.FC<CombatViewProps> = ({
           <>
             <button
               onClick={clearCombat}
-              className="btn-ghost flex-1 py-2.5 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              className="btn-ghost flex-1 py-2.5 rounded !border-red-500/60 !text-red-400 hover:!bg-red-500/10 hover:!text-red-300 hover:!border-red-500/60"
             >
+              <Trash2 size={14} />
               Clear
             </button>
             <button
@@ -191,6 +199,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
               return (
                 <div
                   key={c.id}
+                  ref={isActive ? activeCardRef : null}
                   onClick={() => onCombatantClick?.(c.id, c.id)}
                   className={cn(
                     "relative overflow-hidden rounded-lg border transition-all p-3 cursor-pointer",
@@ -204,16 +213,12 @@ export const CombatView: React.FC<CombatViewProps> = ({
                   {/* Top row: initiative, avatar, name/stats, delete */}
                   <div className="flex items-center gap-3">
                     {/* Initiative input */}
-                    <div className="flex items-center shrink-0">
+                    <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="number"
                         value={c.initiative}
                         onChange={(e) => updateInitiative(c.id, parseInt(e.target.value) || 0)}
-                        disabled={combatStarted}
-                        className={cn(
-                          "w-8 h-7 rounded text-[13px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                          combatStarted ? "opacity-80 cursor-default" : "hover:border-white/30"
-                        )}
+                        className="w-8 h-7 rounded text-[13px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] hover:border-white/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
 
@@ -289,7 +294,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
                             {saveResult.success ? 'Save' : 'Fail'} {saveResult.total} ({saveResult.roll}{saveResult.modifier >= 0 ? '+' : ''}{saveResult.modifier})
                           </span>
                         )}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => applyHpDelta(c.id, -1)}
                             className="w-6 h-6 flex items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
