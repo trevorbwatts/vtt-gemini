@@ -221,6 +221,43 @@ const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius })
 };
 
 /**
+ * Persistent pulsing ring around the active combatant's token.
+ * Glows amber with a slow pulse animation that stays visible the entire turn.
+ */
+const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; color?: string }> = ({ radius, tokenScale, color }) => {
+  const [pulse, setPulse] = useState(0);
+
+  useEffect(() => {
+    let raf: number;
+    const animate = () => {
+      setPulse(Date.now());
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Slow sine wave pulse: 0.5 → 1.0 opacity, period ~2s
+  const t = (pulse % 2000) / 2000;
+  const opacity = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
+  const ringColor = color || '#fbbf24';
+
+  return (
+    <>
+      <Circle
+        radius={radius + 4 * tokenScale}
+        fill=""
+        stroke={ringColor}
+        strokeWidth={2.5 * tokenScale}
+        opacity={opacity * 0.9}
+        shadowBlur={10 * tokenScale}
+        shadowColor={ringColor}
+      />
+    </>
+  );
+};
+
+/**
  * Animated 4-chevron turn indicator that zooms in and fades out over 3 seconds.
  * Each chevron points inward from one of the 4 cardinal directions.
  */
@@ -1929,10 +1966,11 @@ export const MapView: React.FC<MapViewProps> = ({
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {
                   e.cancelBubble = true;
+                  // Double-tap detection for player view (touch uses onTap below)
                   if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player') {
                     const now = Date.now();
                     const last = lastTapRef.current;
-                    if (last && last.tokenId === token.id && now - last.time < 300) {
+                    if (last && last.tokenId === token.id && now - last.time < 400) {
                       lastTapRef.current = null;
                       const rect = containerRef.current?.getBoundingClientRect();
                       if (rect) {
@@ -1955,6 +1993,25 @@ export const MapView: React.FC<MapViewProps> = ({
                     onSelectedTokenIdChange?.(token.id);
                   }
                 }}
+                onTap={(e) => {
+                  e.cancelBubble = true;
+                  // Double-tap detection for touch on player view
+                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player') {
+                    const now = Date.now();
+                    const last = lastTapRef.current;
+                    if (last && last.tokenId === token.id && now - last.time < 400) {
+                      lastTapRef.current = null;
+                      const rect = containerRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        const screenX = rect.left + token.x * stageScale + stagePos.x;
+                        const screenY = rect.top + token.y * stageScale + stagePos.y;
+                        onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                      }
+                      return;
+                    }
+                    lastTapRef.current = { tokenId: token.id, time: now };
+                  }
+                }}
               >
                 <Circle
                   radius={r}
@@ -1975,7 +2032,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     opacity={token.hidden ? 0.4 : 1}
                   />
                 )}
-                {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
+                {!isPlayerView && tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
                   <Circle
                     radius={r + 3 * tokenScale}
                     fill=""
@@ -1985,6 +2042,15 @@ export const MapView: React.FC<MapViewProps> = ({
                     shadowColor="rgba(255, 120, 30, 0.7)"
                   />
                 )}
+                {/* Persistent active-turn ring */}
+                {propActiveCombatantId && (() => {
+                  const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
+                  if (!activeComb) return null;
+                  const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                  if (!isActiveToken) return null;
+                  const ringColor = token.type === 'player' ? '#fbbf24' : token.type === 'enemy' ? '#ef4444' : '#60a5fa';
+                  return <ActiveTurnRing radius={r} tokenScale={tokenScale} color={ringColor} />;
+                })()}
                 {/* Active turn indicator — 4 chevrons zoom in and fade */}
                 {turnFlashCombatantId && (() => {
                   const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
@@ -2013,7 +2079,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     y={-12 * (tokenRadius / 25)}
                   />
                 )}
-                {tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
+                {!isPlayerView && tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
                   const combId = token.combatantId || '';
                   const sr = activeAoe.saveResults![combId];
                   if (!sr) return null;

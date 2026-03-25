@@ -3,7 +3,7 @@ import { MapView } from './MapView';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, GripHorizontal, ArrowLeft, ArrowRight, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Sign-in spot types ───
@@ -25,30 +25,8 @@ const SignInSpot: React.FC<{
   rotation: number;
   className: string;
   style?: React.CSSProperties;
-  onDrag?: (deltaXPercent: number) => void;
   edge: 'top' | 'bottom' | 'left';
-}> = ({ player, availablePlayers, showPicker, onTogglePicker, onSignIn, onSignOut, rotation, className, style, onDrag, edge }) => {
-  const dragRef = useRef<{ startX: number; startY: number; pointerId: number } | null>(null);
-
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (!onDrag) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, pointerId: e.pointerId };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, [onDrag]);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId || !onDrag) return;
-    const dx = e.clientX - dragRef.current.startX;
-    // Convert pixel delta to viewport percentage
-    const pct = (dx / window.innerWidth) * 100;
-    onDrag(pct);
-    dragRef.current.startX = e.clientX;
-  }, [onDrag]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
-    dragRef.current = null;
-  }, []);
+}> = ({ player, availablePlayers, showPicker, onTogglePicker, onSignIn, onSignOut, rotation, className, style, edge }) => {
 
   return (
     <div className={cn('absolute z-20', className)} style={style}>
@@ -126,20 +104,6 @@ const SignInSpot: React.FC<{
           </div>
         )}
       </div>
-      {/* Drag handle — outside rotation so it stays oriented correctly */}
-      {edge !== 'left' && (
-        <div
-          className="flex items-center justify-center gap-1 mt-1 cursor-grab active:cursor-grabbing touch-none select-none"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        >
-          <ArrowLeft size={10} className="text-white/15 hover:text-white/30 transition-colors" />
-          <GripHorizontal size={16} className="text-white/15 hover:text-white/30 transition-colors" />
-          <ArrowRight size={10} className="text-white/15 hover:text-white/30 transition-colors" />
-        </div>
-      )}
     </div>
   );
 };
@@ -158,6 +122,13 @@ const RING_OFFSETS: Record<'bottom' | 'top' | 'left', { dx: number; dy: number }
   left:   [{ dx: -64, dy: -78 }, { dx: -95, dy: 0  }, { dx: -64, dy: 78  }],
 };
 
+// ─── Ring item offsets: 2-item layout (wider spread) vs 3-item layout ───
+const RING_OFFSETS_2: Record<'bottom' | 'top' | 'left', { dx: number; dy: number }[]> = {
+  bottom: [{ dx: -70, dy: 75 }, { dx: 70,  dy: 75 }],
+  top:    [{ dx: -70, dy: -75 }, { dx: 70,  dy: -75 }],
+  left:   [{ dx: -75, dy: -70 }, { dx: -75, dy: 70  }],
+};
+
 // ─── Action Ring ───
 const ActionRing: React.FC<{
   anchorX: number;
@@ -167,14 +138,20 @@ const ActionRing: React.FC<{
   onConditions: () => void;
   onEndTurn: () => void;
   onClose: () => void;
-}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onClose }) => {
-  const offsets = RING_OFFSETS[edge];
+  isPlayersTurn: boolean;
+}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onClose, isPlayersTurn }) => {
   const textRotate = edge === 'top' ? 180 : edge === 'left' ? -90 : 0;
-  const items = [
+  const allItems = [
     { label: 'Spells',     icon: BookOpen,      color: 'bg-purple-500/20 border-purple-500/40 text-purple-300', onClick: onSpells },
     { label: 'Conditions', icon: Zap,           color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300', onClick: onConditions },
-    { label: 'End Turn',   icon: ChevronRight,  color: 'bg-green-500/20  border-green-500/40  text-green-300',  onClick: onEndTurn },
   ];
+  if (isPlayersTurn) {
+    allItems.push(
+      { label: 'End Turn', icon: ChevronRight, color: 'bg-green-500/20 border-green-500/40 text-green-300', onClick: onEndTurn },
+    );
+  }
+  const items = allItems;
+  const offsets = items.length === 3 ? RING_OFFSETS[edge] : RING_OFFSETS_2[edge];
   const BUTTON_SIZE = 62;
   return (
     <>
@@ -308,25 +285,26 @@ const SpellsPanel: React.FC<{
   };
 
   const PANEL_W = 380;
-  const OFFSET = 160;
   const panelStyle: React.CSSProperties = (() => {
+    const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
     if (edge === 'top') {
       return {
-        left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
-        top: Math.max(4, anchorY - OFFSET - 20),
+        left: hCenter,
+        top: 8,
         transform: 'rotate(180deg)',
         transformOrigin: 'center top',
       };
     }
     if (edge === 'left') {
       return {
-        left: Math.max(4, anchorX - OFFSET - PANEL_W),
-        top: Math.max(4, anchorY - 200),
+        left: 8,
+        top: 8,
       };
     }
+    // bottom — pin to bottom of viewport so it grows upward
     return {
-      left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
-      top: Math.min(window.innerHeight - 20, anchorY + OFFSET),
+      left: hCenter,
+      bottom: 8,
     };
   })();
 
@@ -334,8 +312,8 @@ const SpellsPanel: React.FC<{
     <>
       <div className="fixed inset-0 z-50" onPointerDown={onClose} />
       <div
-        className="fixed bg-black/95 border border-white/10 rounded-lg p-3"
-        style={{ ...panelStyle, width: PANEL_W, zIndex: 60 }}
+        className="fixed bg-black/95 border border-white/10 rounded-lg p-3 overflow-y-auto"
+        style={{ ...panelStyle, width: PANEL_W, maxHeight: 'calc(100vh - 16px)', zIndex: 60 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -463,25 +441,26 @@ const ConditionsPanel: React.FC<{
 }> = ({ player, anchorX, anchorY, edge, onToggle, onClose }) => {
   const activeConditions = new Set(player.conditions || []);
   const PANEL_W = 320;
-  const OFFSET = 160;
   const panelStyle: React.CSSProperties = (() => {
+    const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
     if (edge === 'top') {
       return {
-        left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
-        top: Math.max(4, anchorY - OFFSET - 20),
+        left: hCenter,
+        top: 8,
         transform: 'rotate(180deg)',
         transformOrigin: 'center top',
       };
     }
     if (edge === 'left') {
       return {
-        left: Math.max(4, anchorX - OFFSET - PANEL_W),
-        top: Math.max(4, anchorY - 150),
+        left: 8,
+        top: 8,
       };
     }
+    // bottom — pin to bottom of viewport
     return {
-      left: Math.max(4, Math.min(window.innerWidth - PANEL_W - 4, anchorX - PANEL_W / 2)),
-      top: Math.min(window.innerHeight - 20, anchorY + OFFSET),
+      left: hCenter,
+      bottom: 8,
     };
   })();
 
@@ -489,8 +468,8 @@ const ConditionsPanel: React.FC<{
     <>
       <div className="fixed inset-0 z-50" onPointerDown={onClose} />
       <div
-        className="fixed bg-black/95 border border-white/10 rounded-lg p-3"
-        style={{ ...panelStyle, width: PANEL_W, zIndex: 60 }}
+        className="fixed bg-black/95 border border-white/10 rounded-lg p-3 overflow-y-auto"
+        style={{ ...panelStyle, width: PANEL_W, maxHeight: 'calc(100vh - 16px)', zIndex: 60 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -521,11 +500,24 @@ const ConditionsPanel: React.FC<{
 };
 
 // ─── Initiative Strip ───
+// Condenses multiple enemies of the same name into a single entry.
+interface StripEntry {
+  key: string;
+  name: string;
+  type: 'player' | 'enemy' | 'npc';
+  count: number;
+  isActive: boolean;
+  isAffected: boolean;
+}
+
 const InitiativeStrip: React.FC<{
   combatants: Combatant[];
   activeCombatantId?: string | null;
   aoeHighlights?: { affectedCombatantIds: string[]; saveResults: Record<string, any> | null } | null;
 }> = ({ combatants, activeCombatantId, aoeHighlights }) => {
+  const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
+
+  // Sort by initiative desc, then name asc
   const sorted = useMemo(() =>
     [...combatants].sort((a, b) => {
       if (b.initiative !== a.initiative) return b.initiative - a.initiative;
@@ -534,7 +526,27 @@ const InitiativeStrip: React.FC<{
     [combatants]
   );
 
-  const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
+  // Condense consecutive enemies of the same name into one entry.
+  // Players and NPCs always get their own entry.
+  const entries = useMemo(() => {
+    const result: StripEntry[] = [];
+    for (const c of sorted) {
+      const isActive = c.id === activeCombatantId;
+      const isAffected = affectedSet.has(c.sourceCombatantId || c.id);
+
+      if (c.type === 'enemy') {
+        const prev = result[result.length - 1];
+        if (prev && prev.type === 'enemy' && prev.name === c.name) {
+          prev.count += 1;
+          if (isActive) prev.isActive = true;
+          if (isAffected) prev.isAffected = true;
+          continue;
+        }
+      }
+      result.push({ key: c.id, name: c.name, type: c.type, count: 1, isActive, isAffected });
+    }
+    return result;
+  }, [sorted, activeCombatantId, affectedSet]);
 
   const typeColor = (type: string) => {
     if (type === 'player') return { bg: 'rgba(34,197,94,0.08)', text: '#22c55e', border: 'rgba(34,197,94,0.2)' };
@@ -544,29 +556,26 @@ const InitiativeStrip: React.FC<{
 
   return (
     <div className="absolute top-0 right-0 bottom-0 w-12 bg-black/80 border-l border-white/10 flex flex-col z-20 backdrop-blur-sm">
-      {sorted.map((c) => {
-        const colors = typeColor(c.type);
-        const isActive = c.id === activeCombatantId;
-        const isAffected = affectedSet.has(c.sourceCombatantId || c.id);
-        const saveResult = aoeHighlights?.saveResults?.[c.sourceCombatantId || c.id];
+      {entries.map((entry) => {
+        const colors = typeColor(entry.type);
         return (
           <div
-            key={c.id}
+            key={entry.key}
             className={cn(
               'flex-1 flex flex-col items-center justify-center border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
-              isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
-              isAffected && !isActive && 'ring-2 ring-inset ring-orange-400/80 bg-orange-400/10'
+              entry.isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
+              entry.isAffected && !entry.isActive && 'ring-2 ring-inset ring-orange-400/80 bg-orange-400/10'
             )}
-            style={{ backgroundColor: isActive ? undefined : isAffected ? 'rgba(255,120,30,0.1)' : colors.bg, borderLeft: `2px solid ${isActive ? '#fbbf24' : isAffected ? '#ff781e' : colors.border}` }}
+            style={{ backgroundColor: entry.isActive ? undefined : entry.isAffected ? 'rgba(255,120,30,0.1)' : colors.bg, borderLeft: `2px solid ${entry.isActive ? '#fbbf24' : entry.isAffected ? '#ff781e' : colors.border}` }}
           >
             <span
               className={cn(
                 'text-[11px] font-bold tracking-wider whitespace-nowrap',
-                isActive && 'text-amber-300'
+                entry.isActive && 'text-amber-300'
               )}
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: isActive ? undefined : isAffected ? '#ff781e' : colors.text }}
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : entry.isAffected ? '#ff781e' : colors.text }}
             >
-              {c.name}
+              {entry.name}
             </span>
           </div>
         );
@@ -596,19 +605,6 @@ export function PlayerScreen() {
   });
   const [activePickerSpot, setActivePickerSpot] = useState<SpotId | null>(null);
 
-  // Draggable spot positions (horizontal % from left edge)
-  const [spotPositions, setSpotPositions] = useState<Record<SpotId, number>>({
-    'top-left': 25, 'top-right': 62,
-    'bottom-left': 25, 'bottom-right': 62,
-    'left': 50,
-  });
-
-  const handleSpotDrag = useCallback((spotId: SpotId, deltaPercent: number) => {
-    setSpotPositions(prev => {
-      const clamped = Math.max(5, Math.min(95, prev[spotId] + deltaPercent));
-      return { ...prev, [spotId]: clamped };
-    });
-  }, []);
 
   // Action ring + panel state (play mode)
   const [actionRing, setActionRing] = useState<{ tokenId: string; spotId: SpotId; x: number; y: number } | null>(null);
@@ -771,13 +767,21 @@ export function PlayerScreen() {
   }, [signedInSpots, campaign]);
 
   const handlePlayerTokenDoubleTap = useCallback((tokenId: string, screenX: number, screenY: number) => {
-    // Match token to a signed-in player: token.id should equal the player combatant id
-    const spotEntry = Object.entries(signedInSpots).find(([, playerId]) => playerId === tokenId);
-    if (!spotEntry) return;
+    // Look up the token's combatantId (token.id is a random string, not the player ID)
+    const token = currentScenario?.tokens.find(t => t.id === tokenId);
+    const combatantId = token?.combatantId ?? tokenId;
+    console.log('[PlayerScreen] handlePlayerTokenDoubleTap:', { tokenId, combatantId, signedInSpots, scenarioTokenCount: currentScenario?.tokens.length });
+    // Match combatantId against signed-in player IDs
+    const spotEntry = Object.entries(signedInSpots).find(([, playerId]) => playerId === combatantId);
+    if (!spotEntry) {
+      console.log('[PlayerScreen] No matching signed-in spot for combatantId:', combatantId);
+      return;
+    }
     const spotId = spotEntry[0] as SpotId;
+    console.log('[PlayerScreen] Opening action ring for spot:', spotId, 'at', screenX, screenY);
     setActionRing({ tokenId, spotId, x: screenX, y: screenY });
     setOpenPanel(null);
-  }, [signedInSpots]);
+  }, [signedInSpots, currentScenario]);
 
   // ── Helper: get player combatant for a spot ──
   const getPlayerForSpot = (spotId: SpotId): Combatant | null => {
@@ -852,8 +856,6 @@ export function PlayerScreen() {
               rotation={config.rotation}
               className={config.setupClass}
               edge={config.edge}
-              style={config.edge !== 'left' ? { left: `${spotPositions[spotId]}%` } : undefined}
-              onDrag={(delta) => handleSpotDrag(spotId, delta)}
             />
           );
         })}
@@ -939,7 +941,7 @@ export function PlayerScreen() {
                 </button>
               )}
               {aoeHighlights?.saveResults && (
-                <span className="text-xs text-white/40">DM applying damage...</span>
+                <span className="text-xs text-white/40">Roll for damage and tell the DM</span>
               )}
               {!aoeHighlights?.saveResults && (
                 <button
@@ -958,6 +960,10 @@ export function PlayerScreen() {
       {/* Action Ring */}
       {actionRing && openPanel === null && (() => {
         const config = spotConfigs[actionRing.spotId];
+        // Check if it's this player's turn
+        const playerId = signedInSpots[actionRing.spotId];
+        const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
+        const isPlayersTurn = !!(activeEntry && activeEntry.sourceCombatantId === playerId);
         return (
           <ActionRing
             anchorX={actionRing.x}
@@ -967,6 +973,7 @@ export function PlayerScreen() {
             onConditions={() => setOpenPanel('conditions')}
             onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); }}
             onClose={() => setActionRing(null)}
+            isPlayersTurn={isPlayersTurn}
           />
         );
       })()}
