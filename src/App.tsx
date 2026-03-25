@@ -840,6 +840,7 @@ export function DMScreen() {
                 clearMovementPathsRef={clearMovementPathsRef}
                 clearRemoteAoeRef={clearRemoteAoeRef}
                 onAoeHighlightsChange={setAoeHighlights}
+                activeCombatantId={activeCombatantId}
               />
             )}
           </main>

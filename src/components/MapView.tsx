@@ -221,36 +221,31 @@ const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius })
 };
 
 /**
- * Persistent pulsing ring around the active combatant's token.
- * Glows amber with a slow pulse animation that stays visible the entire turn.
+ * Static glowing ring around the active combatant's token.
+ * No animation — avoids interfering with the Konva layer's rendering.
  */
 const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; color?: string }> = ({ radius, tokenScale, color }) => {
-  const [pulse, setPulse] = useState(0);
-
-  useEffect(() => {
-    let raf: number;
-    const animate = () => {
-      setPulse(Date.now());
-      raf = requestAnimationFrame(animate);
-    };
-    raf = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // Slow sine wave pulse: 0.5 → 1.0 opacity, period ~2s
-  const t = (pulse % 2000) / 2000;
-  const opacity = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
   const ringColor = color || '#fbbf24';
-
   return (
     <>
+      {/* Outer glow */}
       <Circle
-        radius={radius + 4 * tokenScale}
+        radius={radius + 5 * tokenScale}
+        fill=""
+        stroke={ringColor}
+        strokeWidth={1.5 * tokenScale}
+        opacity={0.3}
+        shadowBlur={14 * tokenScale}
+        shadowColor={ringColor}
+      />
+      {/* Inner bright ring */}
+      <Circle
+        radius={radius + 3 * tokenScale}
         fill=""
         stroke={ringColor}
         strokeWidth={2.5 * tokenScale}
-        opacity={opacity * 0.9}
-        shadowBlur={10 * tokenScale}
+        opacity={0.85}
+        shadowBlur={8 * tokenScale}
         shadowColor={ringColor}
       />
     </>
@@ -530,12 +525,16 @@ export const MapView: React.FC<MapViewProps> = ({
 
   // Turn indicator animation — shows chevrons for 3 seconds when active combatant changes
   const [turnFlashCombatantId, setTurnFlashCombatantId] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!propActiveCombatantId) { setTurnFlashCombatantId(null); return; }
-    setTurnFlashCombatantId(propActiveCombatantId);
-    const timer = setTimeout(() => setTurnFlashCombatantId(null), 3100); // slightly over 3s to let animation finish
-    return () => clearTimeout(timer);
-  }, [propActiveCombatantId]);
+    if (propActiveCombatantId && inCombat) {
+      setTurnFlashCombatantId(propActiveCombatantId);
+      const timer = setTimeout(() => setTurnFlashCombatantId(null), 3100); // slightly over 3s to let animation finish
+      return () => clearTimeout(timer);
+    } else {
+      setTurnFlashCombatantId(null);
+    }
+  }, [propActiveCombatantId, inCombat]);
 
   const tokenRadius = gridResolution ? gridResolution.pixelsPerGrid * 0.4 : 20;
   const tokenScale = tokenRadius / 20;
@@ -2048,7 +2047,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   if (!activeComb) return null;
                   const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
                   if (!isActiveToken) return null;
-                  const ringColor = token.type === 'player' ? '#fbbf24' : token.type === 'enemy' ? '#ef4444' : '#60a5fa';
+                  const ringColor = '#fbbf24';
                   return <ActiveTurnRing radius={r} tokenScale={tokenScale} color={ringColor} />;
                 })()}
                 {/* Active turn indicator — 4 chevrons zoom in and fade */}

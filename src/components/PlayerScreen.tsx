@@ -821,10 +821,10 @@ export function PlayerScreen() {
 
   // ── Spot position configs ──
   const spotConfigs: Record<SpotId, { rotation: number; edge: 'top' | 'bottom' | 'left'; setupClass: string; drawerClass: string }> = {
-    'top-left':     { rotation: 180, edge: 'top',    setupClass: 'top-6 -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
-    'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
-    'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
-    'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
+    'top-left':     { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[25%] -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
+    'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[62%] -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
+    'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[25%] -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
+    'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[62%] -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
     'left':         { rotation: 90,  edge: 'left',   setupClass: 'left-6 top-1/2 -translate-y-1/2',       drawerClass: 'top-1/2 -translate-y-1/2' },
   };
 
