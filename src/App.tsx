@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { DMNotes } from './components/DMNotes';
 import { MapView } from './components/MapView';
 import { CombatView } from './components/CombatView';
@@ -109,15 +109,30 @@ export function DMScreen() {
     savePanelStates(leftSidebarOpen, rightSidebarOpen, navSidebarOpen);
   }, [leftSidebarOpen, rightSidebarOpen, navSidebarOpen]);
 
-  // Persistence
+  // Persistence — store map images separately to avoid serializing multi-MB base64 strings
+  // into the main campaign JSON on every state change
   useEffect(() => {
     if (campaign) {
+      // Save map images separately, keyed by scenario ID
+      for (const s of campaign.scenarios) {
+        if (s.mapImage) {
+          try { localStorage.setItem(`map_img_${s.id}`, s.mapImage); } catch { /* quota */ }
+        }
+      }
+      // Strip mapImage from all scenarios before persisting the campaign JSON
+      const lightCampaign = {
+        ...campaign,
+        scenarios: campaign.scenarios.map(s => {
+          const { mapImage, ...rest } = s;
+          return rest;
+        })
+      };
       const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
       const index = savedCampaigns.findIndex((c: Campaign) => c.id === campaign.id);
       if (index >= 0) {
-        savedCampaigns[index] = campaign;
+        savedCampaigns[index] = lightCampaign;
       } else {
-        savedCampaigns.push(campaign);
+        savedCampaigns.push(lightCampaign);
       }
       localStorage.setItem('dungeon_master_campaigns', JSON.stringify(savedCampaigns));
     }
@@ -128,15 +143,24 @@ export function DMScreen() {
     dmViewportCenterRef.current = null;
   }, [selectedScenarioId]);
 
-  // IPC Sync to Player Screen
+  // IPC Sync to Player Screen — strip mapImage from non-current scenarios to avoid
+  // serializing multi-MB base64 strings for scenarios the player isn't viewing
   useEffect(() => {
     if (campaign && selectedScenarioId && window.electronAPI) {
       if (skipStateBroadcastRef.current) {
         skipStateBroadcastRef.current = false; // Reset but don't broadcast
         return;
       }
+      const lightCampaign = {
+        ...campaign,
+        scenarios: campaign.scenarios.map(s => {
+          if (s.id === selectedScenarioId) return s; // keep current scenario's image
+          const { mapImage, ...rest } = s;
+          return rest;
+        })
+      };
       window.electronAPI.sendStateUpdate({
-        campaign,
+        campaign: lightCampaign,
         scenarioId: selectedScenarioId,
         playerMode,
         viewportCenter: dmViewportCenterRef.current,
@@ -153,9 +177,19 @@ export function DMScreen() {
         if (isOpen) {
           // Send current state immediately so the player screen doesn't rely on stale localStorage
           if (campaignRef.current && selectedScenarioIdRef.current) {
+            const c = campaignRef.current;
+            const sid = selectedScenarioIdRef.current;
+            const lightCampaign = {
+              ...c,
+              scenarios: c.scenarios.map(s => {
+                if (s.id === sid) return s;
+                const { mapImage, ...rest } = s;
+                return rest;
+              })
+            };
             window.electronAPI!.sendStateUpdate({
-              campaign: campaignRef.current,
-              scenarioId: selectedScenarioIdRef.current,
+              campaign: lightCampaign,
+              scenarioId: sid,
               playerMode: playerModeRef.current,
               viewportCenter: dmViewportCenterRef.current,
             });
@@ -250,7 +284,7 @@ export function DMScreen() {
   };
 
   const handleSelectCampaign = (selected: Campaign) => {
-    // Migrate old data if necessary
+    // Migrate old data if necessary, and rehydrate map images from separate storage
     const migrated = {
       ...selected,
       players: selected.players || [],
@@ -261,12 +295,149 @@ export function DMScreen() {
         tokens: s.tokens || [],
         combatants: s.combatants || [],
         activeCombatants: s.activeCombatants || [],
-        mapNotes: s.mapNotes || []
+        mapNotes: s.mapNotes || [],
+        // Rehydrate mapImage from separate storage if not already embedded (migration)
+        mapImage: s.mapImage || localStorage.getItem(`map_img_${s.id}`) || undefined
       }))
     };
     setCampaign(migrated);
     setSelectedScenarioId(migrated.scenarios[0]?.id || null);
   };
+
+  // --- Stable callbacks (useCallback) — must be defined before any early return ---
+
+  const updateMapNotes = useCallback((mapNotes: any[]) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, mapNotes } : s)
+    }) : prev);
+  }, []);
+
+  const updateScenarioTokens = useCallback((tokens: any[]) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, tokens } : s)
+    }) : prev);
+  }, []);
+
+  /** Update a combatant's HP by delta, keeping both scenarioCombatants and activeCombatants in sync */
+  const updateCombatantHp = useCallback((sourceCombatantId: string, delta: number) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          const updatedCombatants = (s.combatants || []).map(sc =>
+            sc.id === sourceCombatantId
+              ? { ...sc, hp: Math.max(0, Math.min(sc.maxHp, sc.hp + delta)) }
+              : sc
+          );
+          const updatedActive = (s.activeCombatants || []).map(ac =>
+            ac.sourceCombatantId === sourceCombatantId
+              ? { ...ac, hp: Math.max(0, Math.min(ac.maxHp, ac.hp + delta)) }
+              : ac
+          );
+          return { ...s, combatants: updatedCombatants, activeCombatants: updatedActive };
+        })
+      };
+    });
+  }, []);
+
+  const updateScenarioMap = useCallback((mapImage: string) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, mapImage } : s)
+    }) : prev);
+  }, []);
+
+  const updateWallData = useCallback((
+    walls: WallSegment[],
+    objectWalls: WallSegment[],
+    portals: Portal[],
+    gridResolution: GridResolution
+  ) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioIdRef.current
+          ? { ...s, walls, objectWalls, portals, gridResolution }
+          : s
+      )
+    }) : prev);
+  }, []);
+
+  const updateDarknessLevel = useCallback((level: 'daylight' | 'dark') => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioIdRef.current ? { ...s, darknessLevel: level } : s
+      )
+    }) : prev);
+  }, []);
+
+  const togglePortal = useCallback((portalId: string) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioIdRef.current
+          ? {
+            ...s,
+            portals: s.portals?.map(p =>
+              p.id === portalId ? { ...p, closed: !p.closed } : p
+            )
+          }
+          : s
+      )
+    }) : prev);
+  }, []);
+
+  const addEnemyToMap = useCallback((monster: any, x: number, y: number) => {
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const newEnemyId = `e-${uniqueId}`;
+    const newEnemy: Combatant = {
+      id: newEnemyId,
+      name: monster.name,
+      hp: monster.hp,
+      maxHp: monster.hp,
+      ac: monster.ac,
+      initiative: 0,
+      type: 'enemy',
+      description: monster.description,
+      stats: monster.stats,
+      actions: monster.actions,
+      avatar: monster.avatar,
+      speedText: monster.speed,
+      cr: monster.cr,
+      specialAbilities: monster.specialAbilities,
+    };
+
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? {
+        ...s,
+        tokens: [...s.tokens, {
+          id: `t-${uniqueId}`,
+          combatantId: newEnemyId,
+          name: newEnemy.name,
+          type: 'enemy',
+          x,
+          y,
+          color: '#ef4444',
+          avatar: newEnemy.avatar,
+          size: (monster.size?.split('/')[0]?.trim() as Token['size']) || 'Medium',
+        }],
+        combatants: [...(s.combatants || []), newEnemy]
+      } : s),
+      persistentEnemies: monster.isBoss ? [...prev.persistentEnemies, newEnemy] : prev.persistentEnemies
+    }) : prev);
+  }, []);
+
+  const handleViewportCenter = useCallback((center: { x: number; y: number }) => {
+    dmViewportCenterRef.current = center;
+  }, []);
+
+  // --- End stable callbacks ---
 
   const currentScenario = useMemo(() => {
     if (!campaign || !selectedScenarioId) return null;
@@ -289,20 +460,6 @@ export function DMScreen() {
     setCampaign(prev => prev ? ({ ...prev, name }) : prev);
   };
 
-  const updateMapNotes = (mapNotes: any[]) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, mapNotes } : s)
-    }) : prev);
-  };
-
-  const updateScenarioTokens = (tokens: any[]) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, tokens } : s)
-    }) : prev);
-  };
-
   const updateActiveCombatants = (activeCombatants: Combatant[]) => {
     setCampaign(prev => prev ? ({
       ...prev,
@@ -318,30 +475,6 @@ export function DMScreen() {
     }) : prev);
   };
 
-  /** Update a combatant's HP by delta, keeping both scenarioCombatants and activeCombatants in sync */
-  const updateCombatantHp = (sourceCombatantId: string, delta: number) => {
-    setCampaign(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        scenarios: prev.scenarios.map(s => {
-          if (s.id !== selectedScenarioId) return s;
-          const updatedCombatants = (s.combatants || []).map(sc =>
-            sc.id === sourceCombatantId
-              ? { ...sc, hp: Math.max(0, Math.min(sc.maxHp, sc.hp + delta)) }
-              : sc
-          );
-          const updatedActive = (s.activeCombatants || []).map(ac =>
-            ac.sourceCombatantId === sourceCombatantId
-              ? { ...ac, hp: Math.max(0, Math.min(ac.maxHp, ac.hp + delta)) }
-              : ac
-          );
-          return { ...s, combatants: updatedCombatants, activeCombatants: updatedActive };
-        })
-      };
-    });
-  };
-
   const handleApplySpellDamage = (damages: Record<string, number>) => {
     for (const [combatantId, amount] of Object.entries(damages)) {
       updateCombatantHp(combatantId, -amount);
@@ -352,95 +485,6 @@ export function DMScreen() {
     window.electronAPI?.sendDismissPlayerAoe?.();
     setAoeHighlights(null);
     setSpellDamageModal(null);
-  };
-
-  const updateScenarioMap = (mapImage: string) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? { ...s, mapImage } : s)
-    }) : prev);
-  };
-
-  const updateWallData = (
-    walls: WallSegment[],
-    objectWalls: WallSegment[],
-    portals: Portal[],
-    gridResolution: GridResolution
-  ) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioId
-          ? { ...s, walls, objectWalls, portals, gridResolution }
-          : s
-      )
-    }) : prev);
-  };
-
-  const updateDarknessLevel = (level: 'daylight' | 'dark') => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioId ? { ...s, darknessLevel: level } : s
-      )
-    }) : prev);
-  };
-
-  const togglePortal = (portalId: string) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioId
-          ? {
-            ...s,
-            portals: s.portals?.map(p =>
-              p.id === portalId ? { ...p, closed: !p.closed } : p
-            )
-          }
-          : s
-      )
-    }) : prev);
-  };
-
-  const addEnemyToMap = (monster: any, x: number, y: number) => {
-    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-    const newEnemyId = `e-${uniqueId}`;
-    const newEnemy: Combatant = {
-      id: newEnemyId,
-      name: monster.name,
-      hp: monster.hp,
-      maxHp: monster.hp,
-      ac: monster.ac,
-      initiative: 0,
-      type: 'enemy',
-      description: monster.description,
-      stats: monster.stats,
-      actions: monster.actions,
-      avatar: monster.avatar,
-      speedText: monster.speed,
-      cr: monster.cr,
-      specialAbilities: monster.specialAbilities,
-    };
-
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioId ? {
-        ...s,
-        tokens: [...s.tokens, {
-          id: `t-${uniqueId}`,
-          combatantId: newEnemyId,
-          name: newEnemy.name,
-          type: 'enemy',
-          x,
-          y,
-          color: '#ef4444',
-          avatar: newEnemy.avatar,
-          size: (monster.size?.split('/')[0]?.trim() as Token['size']) || 'Medium',
-        }],
-        combatants: [...(s.combatants || []), newEnemy]
-      } : s),
-      persistentEnemies: monster.isBoss ? [...prev.persistentEnemies, newEnemy] : prev.persistentEnemies
-    }) : prev);
   };
 
   const startCombat = (tokenIds: string[]) => {
@@ -823,7 +867,7 @@ export function DMScreen() {
                 onSelectedTokenIdsChange={setSelectedTokenIds}
                 leftSidebarOpen={leftSidebarOpen}
                 setLeftSidebarOpen={setLeftSidebarOpen}
-                onNoteClick={(id) => setHighlightedNoteId(id)}
+                onNoteClick={setHighlightedNoteId}
                 onAddScenario={addScenario}
                 panToNote={panToNote}
                 rightSidebarOpen={rightSidebarOpen}
@@ -834,7 +878,7 @@ export function DMScreen() {
                 gridResolution={currentScenario.gridResolution}
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}
-                onViewportCenter={(center) => { dmViewportCenterRef.current = center; }}
+                onViewportCenter={handleViewportCenter}
                 darknessLevel={currentScenario.darknessLevel}
                 onDarknessLevelChange={updateDarknessLevel}
                 clearMovementPathsRef={clearMovementPathsRef}

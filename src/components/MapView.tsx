@@ -187,14 +187,33 @@ function getTokensInAoe(
   return result;
 }
 
+const TOKEN_IMAGE_CACHE_MAX = 50;
+const tokenImageCache = new Map<string, HTMLImageElement>();
+
 const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
     if (!url) return;
+    if (tokenImageCache.has(url)) {
+      // Move to end (most recently used) for LRU ordering
+      const cached = tokenImageCache.get(url)!;
+      tokenImageCache.delete(url);
+      tokenImageCache.set(url, cached);
+      setImage(cached);
+      return;
+    }
     const img = new window.Image();
     img.src = url;
-    img.onload = () => setImage(img);
+    img.onload = () => {
+      // Evict oldest entry if cache is full
+      if (tokenImageCache.size >= TOKEN_IMAGE_CACHE_MAX) {
+        const oldest = tokenImageCache.keys().next().value;
+        if (oldest !== undefined) tokenImageCache.delete(oldest);
+      }
+      tokenImageCache.set(url, img);
+      setImage(img);
+    };
   }, [url]);
 
   if (!image) return null;
@@ -228,15 +247,25 @@ const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; color?: str
   const ringColor = color || '#fbbf24';
   return (
     <>
-      {/* Outer glow */}
+      {/* Outer glow — no shadowBlur for GPU perf */}
+      <Circle
+        radius={radius + 6 * tokenScale}
+        fill=""
+        stroke={ringColor}
+        strokeWidth={3 * tokenScale}
+        opacity={0.15}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      {/* Mid glow */}
       <Circle
         radius={radius + 5 * tokenScale}
         fill=""
         stroke={ringColor}
         strokeWidth={1.5 * tokenScale}
         opacity={0.3}
-        shadowBlur={14 * tokenScale}
-        shadowColor={ringColor}
+        listening={false}
+        perfectDrawEnabled={false}
       />
       {/* Inner bright ring */}
       <Circle
@@ -245,8 +274,8 @@ const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; color?: str
         stroke={ringColor}
         strokeWidth={2.5 * tokenScale}
         opacity={0.85}
-        shadowBlur={8 * tokenScale}
-        shadowColor={ringColor}
+        listening={false}
+        perfectDrawEnabled={false}
       />
     </>
   );
@@ -264,10 +293,16 @@ const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = 
     startTimeRef.current = Date.now();
     setProgress(0);
     let raf: number;
+    let lastUpdate = 0;
     const animate = () => {
-      const elapsed = Date.now() - startTimeRef.current;
+      const now = Date.now();
+      const elapsed = now - startTimeRef.current;
       const p = Math.min(elapsed / 3000, 1);
-      setProgress(p);
+      // Throttle React state updates to ~20fps to reduce GPU load
+      if (now - lastUpdate >= 50 || p >= 1) {
+        lastUpdate = now;
+        setProgress(p);
+      }
       if (p < 1) raf = requestAnimationFrame(animate);
     };
     raf = requestAnimationFrame(animate);
@@ -326,7 +361,7 @@ const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = 
   );
 };
 
-export const MapView: React.FC<MapViewProps> = ({
+const MapViewInner: React.FC<MapViewProps> = ({
   tokens,
   onTokensChange,
   scenarioName,
@@ -473,6 +508,8 @@ export const MapView: React.FC<MapViewProps> = ({
   const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const lastBroadcastRef = useRef(0);
   const BROADCAST_INTERVAL = 50; // ~20fps throttle — smooth on TV, much lighter on IPC
+  const lastPathSyncRef = useRef(0);
+  const PATH_SYNC_INTERVAL = 150; // ~7fps — movement path visuals are cosmetic during drag
   // Live drag position overrides for player view — drives real-time fog recomputation
   const [livePlayerPos, setLivePlayerPos] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -590,6 +627,9 @@ export const MapView: React.FC<MapViewProps> = ({
     };
   }
 
+  // ── Token lookup map for O(1) access ──
+  const tokenById = useMemo(() => new Map(tokens.map(t => [t.id, t])), [tokens]);
+
   // ── Token-in-AoE detection ──
   const ppg = gridResolution?.pixelsPerGrid || 40;
   const activeAoe = placedAoe || remoteAoe;
@@ -701,11 +741,18 @@ export const MapView: React.FC<MapViewProps> = ({
     [walls, objectWalls, portals]
   );
 
+  // Base player token positions from committed state.
+  const playerTokensBase = useMemo(
+    () => tokens.filter(t => t.type === 'player' && !t.hidden),
+    [tokens]
+  );
+
+  // Live player token positions including drag offsets — used for rendering AND visibility ray-casts.
   const playerTokenPositions = useMemo(
-    () => tokens.filter(t => t.type === 'player' && !t.hidden).map(t =>
+    () => playerTokensBase.map(t =>
       livePlayerPos[t.id] ? { ...t, ...livePlayerPos[t.id] } : t
     ),
-    [tokens, livePlayerPos]
+    [playerTokensBase, livePlayerPos]
   );
 
   // DM-only unlimited visibility polygons (skip on player view — playerVisionData handles that)
@@ -928,8 +975,14 @@ export const MapView: React.FC<MapViewProps> = ({
     othersStart: Record<string, { x: number; y: number }>;
   } | null>(null);
 
+  // Track drag start pos per token so we can cancel micro-drags (finger wobble)
+  const tokenDragOriginRef = useRef<Record<string, { x: number; y: number }>>({});
+
   const handleDragStart = (id: string) => {
     onDragStatusChange?.(true);
+    // Record the starting position so we can detect micro-drags
+    const startToken = tokens.find(t => t.id === id);
+    if (startToken) tokenDragOriginRef.current[id] = { x: startToken.x, y: startToken.y };
     const isMulti = selectedTokenIds.includes(id) && selectedTokenIds.length > 1;
     if (isMulti) {
       const draggedToken = tokens.find(t => t.id === id);
@@ -1065,8 +1118,9 @@ export const MapView: React.FC<MapViewProps> = ({
     }
     setLivePlayerPos(prev => ({ ...prev, ...liveUpdates }));
 
-    // Sync movement path ref -> state (throttled at ~20fps)
-    if (inCombat) {
+    // Sync movement path ref -> state (throttled at ~7fps — cosmetic during drag)
+    if (inCombat && now - lastPathSyncRef.current >= PATH_SYNC_INTERVAL) {
+      lastPathSyncRef.current = now;
       setMovementPaths(prev => {
         const next = { ...prev };
         Object.entries(activePathRef.current).forEach(([tid, ap]) => {
@@ -1089,6 +1143,46 @@ export const MapView: React.FC<MapViewProps> = ({
   const handleDragEnd = (id: string, e: any) => {
     const finalPos = { x: e.target.x(), y: e.target.y() };
     const multi = multiDragStartRef.current;
+
+    // ── Micro-drag cancellation (player view only) ──
+    // If the finger barely moved, treat it as a tap rather than a drag so
+    // double-tap detection still works despite minor touch wobble.
+    const DRAG_THRESHOLD_PX = 8;
+    if (isPlayerView) {
+      const origin = tokenDragOriginRef.current[id];
+      if (origin) {
+        const dx = finalPos.x - origin.x;
+        const dy = finalPos.y - origin.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < DRAG_THRESHOLD_PX) {
+          // Snap back to the original position
+          e.target.x(origin.x);
+          e.target.y(origin.y);
+          delete tokenDragOriginRef.current[id];
+          setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
+          onDragStatusChange?.(false);
+          // Register as a tap so the second tap can complete the double-tap
+          const token = tokens.find(t => t.id === id);
+          if (token && onPlayerTokenDoubleTap && token.type === 'player') {
+            const now = Date.now();
+            const last = lastTapRef.current;
+            if (last && last.tokenId === id && now - last.time < 600) {
+              lastTapRef.current = null;
+              const rect = containerRef.current?.getBoundingClientRect();
+              if (rect) {
+                const screenX = rect.left + token.x * stageScale + stagePos.x;
+                const screenY = rect.top + token.y * stageScale + stagePos.y;
+                onPlayerTokenDoubleTap(id, screenX, screenY);
+              }
+            } else {
+              lastTapRef.current = { tokenId: id, time: now };
+            }
+          }
+          return;
+        }
+        delete tokenDragOriginRef.current[id];
+      }
+    }
 
     let updatedTokens;
     if (multi && multi.draggedId === id) {
@@ -1874,7 +1968,7 @@ export const MapView: React.FC<MapViewProps> = ({
               const fade = pathFadeProgress[path.tokenId] ?? 0;
               const isFullyFaded = fade >= 1;
               if (isFullyFaded) return null;
-              const pathToken = tokens.find(t => t.id === path.tokenId);
+              const pathToken = tokenById.get(path.tokenId);
               const pathColor = pathToken?.color || '#CD7F32';
               const totalPairs = path.points.length / 2;
               const FEATHER_SEGMENTS = 16;
@@ -1891,6 +1985,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       lineCap="round"
                       lineJoin="round"
                       dash={[8 / stageScale, 4 / stageScale]}
+                      listening={false}
+                      perfectDrawEnabled={false}
                     />
                     <Circle
                       x={path.startPos.x}
@@ -1898,6 +1994,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       radius={6 / stageScale}
                       fill={pathColor}
                       opacity={0.8}
+                      listening={false}
+                      perfectDrawEnabled={false}
                     />
                   </React.Fragment>
                 );
@@ -2017,9 +2115,8 @@ export const MapView: React.FC<MapViewProps> = ({
                   fill={token.avatar ? "transparent" : token.color}
                   stroke={token.color}
                   strokeWidth={2 * tokenScale}
-                  shadowBlur={5 * tokenScale}
-                  shadowColor="black"
                   opacity={token.hidden ? 0.4 : 1}
+                  perfectDrawEnabled={false}
                 />
                 {selectedTokenIds.includes(token.id) && !isPlayerView && (
                   /* Inner rim — above drop shadow */
@@ -2029,17 +2126,29 @@ export const MapView: React.FC<MapViewProps> = ({
                     stroke="white"
                     strokeWidth={tokenScale}
                     opacity={token.hidden ? 0.4 : 1}
+                    listening={false}
+                    perfectDrawEnabled={false}
                   />
                 )}
                 {!isPlayerView && tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
+                  <>
+                  <Circle
+                    radius={r + 4 * tokenScale}
+                    fill=""
+                    stroke="rgba(255, 120, 30, 0.4)"
+                    strokeWidth={3 * tokenScale}
+                    listening={false}
+                    perfectDrawEnabled={false}
+                  />
                   <Circle
                     radius={r + 3 * tokenScale}
                     fill=""
                     stroke="rgba(255, 120, 30, 0.9)"
                     strokeWidth={2.5 * tokenScale}
-                    shadowBlur={12 * tokenScale}
-                    shadowColor="rgba(255, 120, 30, 0.7)"
+                    listening={false}
+                    perfectDrawEnabled={false}
                   />
+                  </>
                 )}
                 {/* Persistent active-turn ring */}
                 {propActiveCombatantId && (() => {
@@ -2059,7 +2168,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
                 })()}
                 {token.avatar && (
-                  <Group opacity={token.hidden ? 0.4 : 1}>
+                  <Group opacity={token.hidden ? 0.4 : 1} listening={false}>
                     <TokenAvatar
                       url={token.avatar}
                       radius={r - tokenScale}
@@ -2076,6 +2185,8 @@ export const MapView: React.FC<MapViewProps> = ({
                     scale={{ x: tokenRadius / 25, y: tokenRadius / 25 }}
                     x={-12 * (tokenRadius / 25)}
                     y={-12 * (tokenRadius / 25)}
+                    listening={false}
+                    perfectDrawEnabled={false}
                   />
                 )}
                 {!isPlayerView && tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
@@ -2120,6 +2231,8 @@ export const MapView: React.FC<MapViewProps> = ({
                     fontStyle="bold"
                     fontFamily="Inter"
                     opacity={token.hidden ? 0.6 : 1}
+                    listening={false}
+                    perfectDrawEnabled={false}
                   />
                 )}
               </Group>
@@ -2136,7 +2249,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 const distFeet = Math.round((path.totalDistancePx / ppg) * 5);
                 const lastX = path.points[path.points.length - 2];
                 const lastY = path.points[path.points.length - 1];
-                const pathToken = tokens.find(t => t.id === path.tokenId);
+                const pathToken = tokenById.get(path.tokenId);
                 const r = tokenRadius * (pathToken ? getTokenSizeMultiplier(pathToken.size) : 1);
                 const combatant = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants]
                   .find(c => c.id === pathToken?.combatantId || c.sourceCombatantId === pathToken?.combatantId);
@@ -2167,6 +2280,8 @@ export const MapView: React.FC<MapViewProps> = ({
                     align="center"
                     width={tokenRadius * 5}
                     opacity={isFullyFaded ? 0.6 : 1}
+                    listening={false}
+                    perfectDrawEnabled={false}
                   />
                 );
               })}
@@ -2646,9 +2761,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     radius={tokenRadius * 0.6}
                     fill={getNoteColor(note.type)}
                     stroke={hoveredNoteId === note.id ? "white" : "rgba(0,0,0,0.4)"}
-                    strokeWidth={1}
-                    shadowBlur={hoveredNoteId === note.id ? 10 : 5}
-                    shadowColor="black"
+                    strokeWidth={hoveredNoteId === note.id ? 2 : 1}
                   />
                   <NoteMapIcon type={note.type} />
                 </Group>
@@ -3539,3 +3652,5 @@ export const MapView: React.FC<MapViewProps> = ({
     </div>
   );
 };
+
+export const MapView = React.memo(MapViewInner);

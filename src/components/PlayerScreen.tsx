@@ -191,19 +191,20 @@ const SpellRow: React.FC<{
   spell: any;
   spellSaveDc?: number;
   onPress: () => void;
-}> = ({ spell, spellSaveDc, onPress }) => {
+  disabled?: boolean;
+}> = ({ spell, spellSaveDc, onPress, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
   return (
     <button
-      onClick={hasAoe ? onPress : undefined}
+      onPointerDown={hasAoe && !disabled ? (e) => { e.stopPropagation(); onPress(); } : undefined}
       className={cn(
         'w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border transition-colors',
-        hasAoe
+        hasAoe && !disabled
           ? 'bg-purple-500/5 border-purple-500/10 hover:bg-purple-500/15 active:bg-purple-500/25 cursor-pointer'
           : 'bg-white/[0.02] border-white/5 cursor-default'
       )}
     >
-      <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
+      <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe && !disabled ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
       <div className="flex items-center gap-1.5 shrink-0">
         {spell.saveAbility && (
           <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
@@ -262,6 +263,16 @@ const SpellsPanel: React.FC<{
   const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2014', '2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
+
+  // Prevent accidental taps: spells are not tappable for 400ms after the panel opens
+  // Block spell taps until the pointer that opened the panel has been fully released.
+  // This prevents "pass-through" taps where the finger used to tap "Spells" also triggers a spell.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const onUp = () => setReady(true);
+    window.addEventListener('pointerup', onUp, { once: true });
+    return () => window.removeEventListener('pointerup', onUp);
+  }, []);
 
   const searchResults = spellSearch.trim().length >= 2
     ? searchSpells(spellSearch, 20, { sources: enabledSources, aoeOnly: true })
@@ -359,6 +370,7 @@ const SpellsPanel: React.FC<{
                   key={i}
                   spell={spell}
                   spellSaveDc={spellSaveDc}
+                  disabled={!ready}
                   onPress={() => {
                     if (!(spell.aoeType && spell.aoeSize)) return;
                     const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
@@ -390,7 +402,7 @@ const SpellsPanel: React.FC<{
                 <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
                 <div className="space-y-1">
                   {recentSpells.map((spell, i) => (
-                    <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} onPress={() => handleSpellTap(spell)} />
+                   <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
                   ))}
                 </div>
               </div>
@@ -398,7 +410,7 @@ const SpellsPanel: React.FC<{
             {searchResults.length > 0 && (
               <div className="space-y-1 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
                 {searchResults.map((spell, i) => (
-                  <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} onPress={() => handleSpellTap(spell)} />
+                  <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
                 ))}
               </div>
             )}

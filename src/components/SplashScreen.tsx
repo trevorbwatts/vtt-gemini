@@ -27,6 +27,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
   const deleteCampaign = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const all = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]') as Campaign[];
+    // Clean up separately-stored map images for all scenarios in this campaign
+    const toDelete = all.find((c: Campaign) => c.id === id);
+    if (toDelete) {
+      for (const s of toDelete.scenarios || []) {
+        localStorage.removeItem(`map_img_${s.id}`);
+      }
+    }
     const updated = all.filter((c: Campaign) => c.id !== id);
     localStorage.setItem('dungeon_master_campaigns', JSON.stringify(updated));
     setSavedCampaigns([...updated].reverse());

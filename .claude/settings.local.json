@@ -46,7 +46,9 @@
       "Bash(node scripts/build-spells.mjs)",
       "Bash(npm run:*)",
       "Bash(node -e \"let d='''''''';process.stdin.on\\(''''data'''',c=>d+=c\\);process.stdin.on\\(''''end'''',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.scripts,null,2\\)\\)}\\)\")",
-      "Bash(node -e \"const s = require\\(''./src/data/spells-2014.json''\\); const fb = s.find\\(x=>x.name===''Fireball''\\); console.log\\(''Fireball halfDamageOnSave:'', fb.halfDamageOnSave\\); const ent = s.find\\(x=>x.name===''Entangle''\\); console.log\\(''Entangle halfDamageOnSave:'', ent.halfDamageOnSave\\); const sb = s.find\\(x=>x.name===''Sword Burst''\\); console.log\\(''Sword Burst halfDamageOnSave:'', sb.halfDamageOnSave\\);\")"
+      "Bash(node -e \"const s = require\\(''./src/data/spells-2014.json''\\); const fb = s.find\\(x=>x.name===''Fireball''\\); console.log\\(''Fireball halfDamageOnSave:'', fb.halfDamageOnSave\\); const ent = s.find\\(x=>x.name===''Entangle''\\); console.log\\(''Entangle halfDamageOnSave:'', ent.halfDamageOnSave\\); const sb = s.find\\(x=>x.name===''Sword Burst''\\); console.log\\(''Sword Burst halfDamageOnSave:'', sb.halfDamageOnSave\\);\")",
+      "Bash(grep -E \"\\\\.\\(json|js\\)$\")",
+      "Bash(find \"C:\\\\Users\\\\trevo\\\\OneDrive\\\\Desktop\\\\vtt-gemini\\\\src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec wc -c {} +)"
     ]
   }
 }
