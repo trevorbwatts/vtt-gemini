@@ -36,6 +36,9 @@ declare global {
       sendPlayerEndTurn?: () => void;
       onPlayerEndTurn?: (callback: () => void) => void;
       removePlayerEndTurnListener?: () => void;
+      sendPlayerColorUpdate?: (playerId: string, color: string) => void;
+      onPlayerColorUpdate?: (callback: (data: { playerId: string; color: string }) => void) => void;
+      removePlayerColorUpdateListener?: () => void;
     }
   }
 }

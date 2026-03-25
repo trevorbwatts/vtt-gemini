@@ -239,6 +239,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   const AOE_ICONS: Record<string, React.FC<{ size?: number }>> = {
     sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
   };
+  const makeRangeBadge = (range?: number) => {
+    if (range == null) return undefined;
+    if (range === 0) return 'Self';
+    if (range === -1) return 'Touch';
+    return `${range}ft`;
+  };
+
   const makeAoeBadge = (aoeType?: string, aoeSize?: number) => {
     if (!aoeType) return undefined;
     const Icon = AOE_ICONS[aoeType];
@@ -479,7 +486,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
               </div>
 
               {/* Detail content: stats, actions, spells */}
-              <div className="flex-1 overflow-x-auto p-4 flex gap-8">
+              <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex gap-8 min-h-0">
                 {/* Column 0: Combat stats (AC, Speed, Level/CR) */}
                 <div className="min-w-[120px] flex flex-col gap-2 shrink-0">
                   <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-0">Stats</h5>
@@ -512,7 +519,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     return (
                       <div className="bg-black/20 rounded p-2 col-span-2">
                         <div className="text-[8px] uppercase opacity-50 mb-1.5 text-center">Speed</div>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1 items-center">
                           {segments.map(({ Icon, color, value }, i) => (
                             <div key={i} className="flex items-center gap-1.5">
                               <Icon size={10} className={color} />
@@ -526,9 +533,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 </div>
 
                 {/* Column 1: Stats & Info */}
-                <div className="min-w-[200px] flex flex-col gap-4">
-                  <div>
-                    <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Attributes</h5>
+                <div className="min-w-[200px] flex flex-col min-h-0">
+                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Attributes</h5>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                     {detailSource.stats ? (
                       <div className="grid grid-cols-3 gap-2">
                         {Object.entries(detailSource.stats).map(([stat, val]) => (
@@ -544,17 +551,17 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     ) : (
                       <p className="text-xs opacity-40 italic">No stats available</p>
                     )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {detailSource.species && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.species}</span>}
-                    {detailSource.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.darkvision}ft Darkvision</span>}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {detailSource.species && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.species}</span>}
+                      {detailSource.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.darkvision}ft Darkvision</span>}
+                    </div>
                   </div>
                 </div>
 
                 {/* Column 2: Actions */}
-                <div className="min-w-[250px] flex-1">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Actions</h5>
-                  <div className="space-y-3 pr-2 custom-scrollbar">
+                <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
+                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Actions</h5>
+                  <div className="space-y-3 pr-2 overflow-y-auto custom-scrollbar flex-1">
                     {detailSource.actions && detailSource.actions.length > 0 ? (
                       detailSource.actions.map((action, i) => (
                         <div key={i} className="text-xs bg-white/5 p-2 rounded border border-white/5">
@@ -568,9 +575,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 </div>
 
                 {/* Column 3: Spells */}
-                <div className="min-w-[250px] flex-1">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Spells</h5>
-                  <div className="space-y-1.5 pr-2 custom-scrollbar">
+                <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
+                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Spells</h5>
+                  <div className="space-y-1.5 pr-2 overflow-y-auto custom-scrollbar flex-1">
                     {(() => {
                       const startCasting = (spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }) => {
                         if (!spell.aoeType || !spell.aoeSize || !detailSourceId) return;
@@ -582,6 +589,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         return detailSource.spells.map((spell, i) => (
                           <SpellAccordion key={i} name={spell.name} desc={spell.desc}
                             badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
+                            rangeBadge={makeRangeBadge(spell.range)}
                             aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                             saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
                             onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
@@ -601,6 +609,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                               {parsed.spells.map((spell, i) => (
                                 <SpellAccordion key={i} name={spell.name} desc={spell.desc}
                                   badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
+                                  rangeBadge={makeRangeBadge(spell.range)}
                                   aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                                   saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}` : undefined}
                                   onCast={spell.aoeType ? () => startCasting(spell) : undefined} />

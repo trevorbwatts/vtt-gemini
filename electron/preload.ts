@@ -70,4 +70,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerEndTurnListener: () => {
     ipcRenderer.removeAllListeners('player-end-turn');
   },
+  sendPlayerColorUpdate: (playerId: string, color: string) =>
+    ipcRenderer.send('player-color-update', { playerId, color }),
+  onPlayerColorUpdate: (callback: (data: { playerId: string; color: string }) => void) => {
+    ipcRenderer.on('player-color-update', (_event, data) => callback(data));
+  },
+  removePlayerColorUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-color-update');
+  },
 });

@@ -14,6 +14,12 @@ const AOE_ICONS: Record<string, React.FC<{ size?: number; className?: string }>>
   sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
 };
 
+const PLAYER_COLORS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#f1f5f9', '#cd7f32',
+];
+
 // ─── Sign-in Button ───
 const SignInSpot: React.FC<{
   player: Combatant | null;
@@ -22,35 +28,49 @@ const SignInSpot: React.FC<{
   onTogglePicker: () => void;
   onSignIn: (playerId: string) => void;
   onSignOut: () => void;
+  onColorChange: (playerId: string, color: string) => void;
   rotation: number;
   className: string;
   style?: React.CSSProperties;
   edge: 'top' | 'bottom' | 'left';
-}> = ({ player, availablePlayers, showPicker, onTogglePicker, onSignIn, onSignOut, rotation, className, style, edge }) => {
+}> = ({ player, availablePlayers, showPicker, onTogglePicker, onSignIn, onSignOut, onColorChange, rotation, className, style, edge }) => {
 
   return (
     <div className={cn('absolute z-20', className)} style={style}>
       <div style={{ transform: `rotate(${rotation}deg)` }}>
         {player ? (
-          <div
-            className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3 backdrop-blur-sm"
-          >
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden"
-              style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32'), outline: `2px solid ${player.color || '#cd7f32'}`, outlineOffset: '2px' }}
-            >
-              {player.avatar
-                ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
-                : player.name[0]?.toUpperCase()
-              }
+          <div className="flex flex-col gap-2 bg-white/5 border border-white/10 rounded-xl px-5 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden"
+                style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32'), boxShadow: `0 0 0 2px #111, 0 0 0 4px ${player.color || '#cd7f32'}` }}
+              >
+                {player.avatar
+                  ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+                  : player.name[0]?.toUpperCase()
+                }
+              </div>
+              <span className="text-white font-bold text-sm tracking-wide flex-1">{player.name}</span>
+              <button onClick={onSignOut} className="btn-ghost ml-1 px-2 py-1">
+                <LogOut size={10} /> Sign Out
+              </button>
             </div>
-            <span className="text-white font-bold text-sm tracking-wide">{player.name}</span>
-            <button
-              onClick={onSignOut}
-              className="btn-ghost ml-1 px-2 py-1"
-            >
-              <LogOut size={10} /> Sign Out
-            </button>
+            {/* Color swatches */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {PLAYER_COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => onColorChange(player.id, c)}
+                  className="w-5 h-5 rounded-full transition-transform hover:scale-110 active:scale-95"
+                  style={{
+                    backgroundColor: c,
+                    boxShadow: (player.color || '#cd7f32') === c
+                      ? `0 0 0 1.5px #111, 0 0 0 3px ${c}`
+                      : 'none',
+                  }}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="relative">
@@ -85,7 +105,10 @@ const SignInSpot: React.FC<{
                       >
                         <div
                           className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden"
-                          style={{ background: p.avatar ? 'transparent' : (p.color || '#cd7f32') }}
+                          style={{
+                            background: p.avatar ? 'transparent' : (p.color || '#cd7f32'),
+                            boxShadow: `0 0 0 2px #111, 0 0 0 4px ${p.color || '#cd7f32'}`,
+                          }}
                         >
                           {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" /> : p.name[0]?.toUpperCase()}
                         </div>
@@ -736,6 +759,10 @@ export function PlayerScreen() {
     setActivePickerSpot(null);
   }, []);
 
+  const handleColorChange = useCallback((playerId: string, color: string) => {
+    window.electronAPI?.sendPlayerColorUpdate?.(playerId, color);
+  }, []);
+
   const handleSignOut = useCallback((spotId: SpotId) => {
     setSignedInSpots(prev => ({ ...prev, [spotId]: null }));
     setActionRing(prev => prev?.spotId === spotId ? null : prev);
@@ -858,6 +885,7 @@ export function PlayerScreen() {
               onTogglePicker={() => setActivePickerSpot(prev => prev === spotId ? null : spotId)}
               onSignIn={(playerId) => handleSignIn(spotId, playerId)}
               onSignOut={() => handleSignOut(spotId)}
+              onColorChange={handleColorChange}
               rotation={config.rotation}
               className={config.setupClass}
               edge={config.edge}

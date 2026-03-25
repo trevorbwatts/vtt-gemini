@@ -189,6 +189,13 @@ ipcMain.on('player-condition-update', (_event, data) => {
   }
 });
 
+// Player color updates: proxy to DM window
+ipcMain.on('player-color-update', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-color-update', data);
+  }
+});
+
 // Player requests end of their turn: proxy to DM window
 ipcMain.on('player-end-turn', () => {
   if (dmWindow) {

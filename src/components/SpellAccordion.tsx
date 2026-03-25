@@ -4,9 +4,9 @@ import { ChevronDown } from '../icons';
 
 /** Expandable spell card used in token detail panels and player drawers */
 export const SpellAccordion: React.FC<{
-  name: string; desc?: string; badge?: string; aoeBadge?: React.ReactNode; saveBadge?: string;
+  name: string; desc?: string; badge?: string; rangeBadge?: string; aoeBadge?: React.ReactNode; saveBadge?: string;
   onCast?: () => void;
-}> = ({ name, desc, badge, aoeBadge, saveBadge, onCast }) => {
+}> = ({ name, desc, badge, rangeBadge, aoeBadge, saveBadge, onCast }) => {
   const [open, setOpen] = useState(false);
   const hasDesc = !!desc;
   return (
@@ -24,6 +24,11 @@ export const SpellAccordion: React.FC<{
           {aoeBadge && (
             <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300">
               {aoeBadge}
+            </span>
+          )}
+          {rangeBadge && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
+              {rangeBadge}
             </span>
           )}
           {badge && (

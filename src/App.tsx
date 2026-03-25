@@ -260,6 +260,25 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerConditionUpdateListener?.(); };
   }, []);
 
+  // Listen for color changes from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerColorUpdate) return;
+    window.electronAPI.onPlayerColorUpdate(({ playerId, color }) => {
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
+          scenarios: prev.scenarios.map(s => ({
+            ...s,
+            activeCombatants: s.activeCombatants.map(c => c.id === playerId ? { ...c, color } : c),
+          })),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerColorUpdateListener?.(); };
+  }, []);
+
   const handleCreateCampaign = (name: string) => {
     const newCampaign: Campaign = {
       id: `c-${Date.now()}`,
