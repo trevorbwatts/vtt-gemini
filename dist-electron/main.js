@@ -170,10 +170,22 @@ electron_1.ipcMain.on('player-condition-update', (_event, data) => {
         dmWindow.webContents.send('player-condition-update', data);
     }
 });
+// Player color updates: proxy to DM window
+electron_1.ipcMain.on('player-color-update', (_event, data) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-color-update', data);
+    }
+});
 // Player requests end of their turn: proxy to DM window
 electron_1.ipcMain.on('player-end-turn', () => {
     if (dmWindow) {
         dmWindow.webContents.send('player-end-turn');
+    }
+});
+// Player target updates: proxy to DM window
+electron_1.ipcMain.on('player-target-update', (_event, combatantIds) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-target-update', combatantIds);
     }
 });
 // D&D Beyond character import

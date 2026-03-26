@@ -39,6 +39,9 @@ declare global {
       sendPlayerColorUpdate?: (playerId: string, color: string) => void;
       onPlayerColorUpdate?: (callback: (data: { playerId: string; color: string }) => void) => void;
       removePlayerColorUpdateListener?: () => void;
+      sendPlayerTargetUpdate?: (combatantIds: string[]) => void;
+      onPlayerTargetUpdate?: (callback: (combatantIds: string[]) => void) => void;
+      removePlayerTargetUpdateListener?: () => void;
     }
   }
 }

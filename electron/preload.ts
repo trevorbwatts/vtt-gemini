@@ -78,4 +78,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerColorUpdateListener: () => {
     ipcRenderer.removeAllListeners('player-color-update');
   },
+  sendPlayerTargetUpdate: (combatantIds: string[]) =>
+    ipcRenderer.send('player-target-update', combatantIds),
+  onPlayerTargetUpdate: (callback: (combatantIds: string[]) => void) => {
+    ipcRenderer.on('player-target-update', (_event, ids) => callback(ids));
+  },
+  removePlayerTargetUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-target-update');
+  },
 });

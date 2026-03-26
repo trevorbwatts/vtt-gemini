@@ -70,4 +70,18 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     removePlayerEndTurnListener: () => {
         electron_1.ipcRenderer.removeAllListeners('player-end-turn');
     },
+    sendPlayerColorUpdate: (playerId, color) => electron_1.ipcRenderer.send('player-color-update', { playerId, color }),
+    onPlayerColorUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-color-update', (_event, data) => callback(data));
+    },
+    removePlayerColorUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-color-update');
+    },
+    sendPlayerTargetUpdate: (combatantIds) => electron_1.ipcRenderer.send('player-target-update', combatantIds),
+    onPlayerTargetUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-target-update', (_event, ids) => callback(ids));
+    },
+    removePlayerTargetUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-target-update');
+    },
 });

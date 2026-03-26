@@ -7,7 +7,7 @@ import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
 import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -60,6 +60,9 @@ export function DMScreen() {
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
+
+  // Player targeting — combatant IDs that players have tapped to target
+  const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
 
   // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
@@ -165,9 +168,10 @@ export function DMScreen() {
         playerMode,
         viewportCenter: dmViewportCenterRef.current,
         activeCombatantId,
+        targetedCombatantIds: [...targetedCombatantIds],
       });
     }
-  }, [campaign, selectedScenarioId, playerMode, activeCombatantId]);
+  }, [campaign, selectedScenarioId, playerMode, activeCombatantId, targetedCombatantIds]);
 
   // Listen for player screen open/close events from Electron
   useEffect(() => {
@@ -192,6 +196,7 @@ export function DMScreen() {
               scenarioId: sid,
               playerMode: playerModeRef.current,
               viewportCenter: dmViewportCenterRef.current,
+              targetedCombatantIds: [...targetedCombatantIds],
             });
           }
         } else {
@@ -277,6 +282,15 @@ export function DMScreen() {
       });
     });
     return () => { window.electronAPI?.removePlayerColorUpdateListener?.(); };
+  }, []);
+
+  // Listen for target updates from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerTargetUpdate) return;
+    window.electronAPI.onPlayerTargetUpdate((ids) => {
+      setTargetedCombatantIds(new Set(ids));
+    });
+    return () => { window.electronAPI?.removePlayerTargetUpdateListener?.(); };
   }, []);
 
   const handleCreateCampaign = (name: string) => {
@@ -480,6 +494,8 @@ export function DMScreen() {
   };
 
   const updateActiveCombatants = (activeCombatants: Combatant[]) => {
+    // Clear targeting when combat ends
+    if (activeCombatants.length === 0) setTargetedCombatantIds(new Set());
     setCampaign(prev => prev ? ({
       ...prev,
       scenarios: prev.scenarios.map(s => {
@@ -814,24 +830,24 @@ export function DMScreen() {
                 <button
                   onClick={() => setPlayerMode('setup')}
                   className={cn(
-                    "px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all",
+                    "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all",
                     playerMode === 'setup'
                       ? "bg-white/15 text-white shadow-sm"
                       : "text-white/40 hover:text-white/60"
                   )}
                 >
-                  Setup
+                  <Settings size={11} /> Setup
                 </button>
                 <button
                   onClick={() => setPlayerMode('play')}
                   className={cn(
-                    "px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all",
+                    "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all",
                     playerMode === 'play'
                       ? "bg-white/15 text-white shadow-sm"
                       : "text-white/40 hover:text-white/60"
                   )}
                 >
-                  Play
+                  <Swords size={11} /> Play
                 </button>
               </div>
             )}
@@ -902,6 +918,7 @@ export function DMScreen() {
                 clearRemoteAoeRef={clearRemoteAoeRef}
                 onAoeHighlightsChange={setAoeHighlights}
                 activeCombatantId={activeCombatantId}
+                targetedCombatantIds={targetedCombatantIds}
               />
             )}
           </main>
@@ -963,6 +980,7 @@ export function DMScreen() {
               onSelectedTokenIdsChange={setSelectedTokenIds}
               onUpdateCombatantHp={updateCombatantHp}
               startCastingRef={startCastingRef}
+              targetedCombatantIds={targetedCombatantIds}
             />
           )}
         </div>

@@ -43,6 +43,9 @@ interface BottomPanelProps {
 
   // Spell casting from detail panel
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
+
+  // Targeting
+  targetedCombatantIds?: Set<string>;
 }
 
 export const BottomPanel: React.FC<BottomPanelProps> = ({
@@ -64,6 +67,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   onSelectedTokenIdsChange,
   onUpdateCombatantHp,
   startCastingRef,
+  targetedCombatantIds,
 }) => {
   // ── Panel height (resizable) ──
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -346,6 +350,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     const isEnemy = c.type === 'enemy';
                     const isPlayer = c.type === 'player';
                     const isAoeAffected = affectedSet.has(c.sourceCombatantId || c.id);
+                    const isTargeted = targetedCombatantIds?.has(c.sourceCombatantId || c.id) ?? false;
 
                     return (
                       <div
@@ -365,6 +370,8 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                           "relative overflow-hidden rounded-lg border transition-all p-2.5 cursor-pointer",
                           isActive
                             ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]"
+                            : isTargeted
+                            ? "bg-[#1a1214] border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
                             : isAoeAffected
                             ? "bg-[#1c1510] border-orange-500/50 shadow-[0_0_12px_rgba(255,120,30,0.15)]"
                             : "bg-[#181512] border-[#2e261d]"
@@ -401,9 +408,16 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             </div>
                           )}
 
-                          {/* Center: name only */}
+                          {/* Center: name + targeting badge */}
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-[13px] truncate font-serif text-white tracking-wide">{c.name}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-[13px] truncate font-serif text-white tracking-wide">{c.name}</span>
+                              {isTargeted && (
+                                <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-sans font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
+                                  Targeted
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Delete */}

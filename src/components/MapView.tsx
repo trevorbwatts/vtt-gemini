@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, ChevronDown, Footprints, Undo2 } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2 } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -69,6 +69,12 @@ interface MapViewProps {
   activeCombatantId?: string | null;
   /** Called when a player double-taps their own token; provides screen coordinates for ring positioning */
   onPlayerTokenDoubleTap?: (tokenId: string, screenX: number, screenY: number) => void;
+  /** Set of combatant IDs currently targeted by players */
+  targetedCombatantIds?: Set<string>;
+  /** Called when a player taps an enemy token to toggle targeting */
+  onToggleTarget?: (combatantId: string) => void;
+  /** Called when a player taps empty space to clear all targets */
+  onClearTargets?: () => void;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -283,6 +289,24 @@ const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; color?: str
   );
 };
 
+/** Target ring — red crosshair-style indicator for targeted monsters */
+const TargetRing: React.FC<{ radius: number; tokenScale: number }> = ({ radius, tokenScale }) => {
+  const r = radius + 5 * tokenScale;
+  const dashLen = r * 0.35;
+  return (
+    <Circle
+      radius={r}
+      fill=""
+      stroke="#ef4444"
+      strokeWidth={2.5 * tokenScale}
+      opacity={0.9}
+      dash={[dashLen, dashLen]}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  );
+};
+
 /**
  * Animated 4-chevron turn indicator that zooms in and fades out over 3 seconds.
  * Each chevron points inward from one of the 4 cardinal directions.
@@ -411,6 +435,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onMovementPathTokensChange,
   activeCombatantId: propActiveCombatantId,
   onPlayerTokenDoubleTap,
+  targetedCombatantIds,
+  onToggleTarget,
+  onClearTargets,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -450,8 +477,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const didMarqueeRef = useRef(false);
 
   const [showFog, setShowFog] = useState(false);
-  const [darknessOpen, setDarknessOpen] = useState(false);
-  
   // Sync external selection from Initiative Tracker
   useEffect(() => {
     // We already sync selectedTokenIds in App.tsx now
@@ -930,6 +955,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
   }, [mapImage, gridResolution?.pixelsPerGrid]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-centre the player's camera whenever the DM's viewport *coordinates* change.
+  // Compares by value so that a new object reference with the same coordinates
+  // (common after IPC round-trips) does NOT reset a player's two-finger pan.
+  const lastAppliedViewportRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (isPlayerView && viewportCenter && stageScale > 0 && dimensions.width > 0) {
+      const prev = lastAppliedViewportRef.current;
+      if (prev && prev.x === viewportCenter.x && prev.y === viewportCenter.y) return;
+      lastAppliedViewportRef.current = { x: viewportCenter.x, y: viewportCenter.y };
+      setStagePos({
+        x: dimensions.width / 2 - viewportCenter.x * stageScale,
+        y: dimensions.height / 2 - viewportCenter.y * stageScale,
+      });
+    }
+  }, [viewportCenter]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (containerRef.current) {
       const observer = new ResizeObserver((entries) => {
@@ -986,6 +1027,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const tokenDragOriginRef = useRef<Record<string, { x: number; y: number }>>({});
 
   const handleDragStart = (id: string) => {
+    // Block token drag if a two-finger pan is active
+    if (twoFingerPanRef.current) return;
+    isTokenDraggingRef.current = true;
     onDragStatusChange?.(true);
     // Record the starting position so we can detect micro-drags
     const startToken = tokens.find(t => t.id === id);
@@ -1167,6 +1211,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           e.target.y(origin.y);
           delete tokenDragOriginRef.current[id];
           setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
+          isTokenDraggingRef.current = false;
           onDragStatusChange?.(false);
           // Register as a tap so the second tap can complete the double-tap
           const token = tokens.find(t => t.id === id);
@@ -1273,6 +1318,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       });
     }
 
+    isTokenDraggingRef.current = false;
     onDragStatusChange?.(false);
 
     if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
@@ -1537,8 +1583,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // Two-finger pan for player view
   const twoFingerPanRef = useRef<{ midX: number; midY: number } | null>(null);
+  // Tracks whether any token is mid-drag — prevents accidental pan start from a stray second touch
+  const isTokenDraggingRef = useRef(false);
 
   const handleTouchStart = (e: any) => {
+    if (isTokenDraggingRef.current) return;
     if (e.evt.touches.length === 2) {
       const t1 = e.evt.touches[0];
       const t2 = e.evt.touches[1];
@@ -1551,6 +1600,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchMove = (e: any) => {
+    if (isTokenDraggingRef.current) return;
     if (e.evt.touches.length === 2 && twoFingerPanRef.current) {
       const t1 = e.evt.touches[0];
       const t2 = e.evt.touches[1];
@@ -1780,36 +1830,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </button>
               )}
               <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-              <div className="relative">
-                <button
-                  onClick={() => setDarknessOpen(o => !o)}
-                  className="btn-ghost py-1 gap-2 w-[130px] justify-between"
-                >
-                  <span className="flex items-center gap-1.5">
-                    {(darknessLevel ?? 'dark') === 'daylight'
-                      ? <Sun size={12} />
-                      : <Moon size={12} />
-                    }
-                    {(darknessLevel ?? 'dark') === 'daylight' ? 'Daylight' : 'Dark'}
-                  </span>
-                  <ChevronDown size={10} className="opacity-50" />
-                </button>
-                {darknessOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-full bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 overflow-hidden">
-                    {([['daylight', 'Daylight', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
-                      <button
-                        key={val}
-                        onClick={() => { onDarknessLevelChange?.(val); setDarknessOpen(false); }}
-                        className={cn(
-                          'w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-widest hover:bg-white/5 transition-colors',
-                          (darknessLevel ?? 'dark') === val && 'text-[var(--accent)]'
-                        )}
-                      >
-                        <Icon size={12} /> {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center bg-black/40 rounded-lg p-0.5">
+                {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
+                  <button
+                    key={val}
+                    onClick={() => onDarknessLevelChange?.(val)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all',
+                      (darknessLevel ?? 'dark') === val
+                        ? 'bg-white/15 text-white shadow-sm'
+                        : 'text-white/40 hover:text-white/60'
+                    )}
+                  >
+                    <Icon size={11} /> {label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -1850,7 +1885,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
           onTouchMove={isPlayerView && !activeAoe ? handleTouchMove : undefined}
           onTouchEnd={isPlayerView && !activeAoe ? handleTouchEnd : undefined}
           onClick={(e) => {
-            if (isPlayerView) return;
+            if (isPlayerView) {
+              // Tap on empty space clears all targets
+              if (onClearTargets && targetedCombatantIds && targetedCombatantIds.size > 0) {
+                onClearTargets();
+              }
+              return;
+            }
             if (e.evt.button === 0) {
               if (didMarqueeRef.current) {
                 didMarqueeRef.current = false;
@@ -2017,7 +2058,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               );
             })}
 
-            {tokens.map(token => {
+            {tokens.filter(t => !(isPlayerView && t.type === 'player')).map(token => {
               const r = tokenRadius * getTokenSizeMultiplier(token.size);
               return (
               <Group
@@ -2032,6 +2073,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {
                   e.cancelBubble = true;
+                  // Player view: tap enemy/npc token to toggle targeting
+                  if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
+                    onToggleTarget(token.combatantId);
+                    return;
+                  }
                   // Double-tap detection for player view (touch uses onTap below)
                   if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
                     const now = Date.now();
@@ -2061,6 +2107,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 }}
                 onTap={(e) => {
                   e.cancelBubble = true;
+                  // Player view: tap enemy/npc token to toggle targeting
+                  if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
+                    onToggleTarget(token.combatantId);
+                    return;
+                  }
                   // Double-tap detection for touch on player view
                   if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
                     const now = Date.now();
@@ -2136,6 +2187,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   if (!isActiveToken) return null;
                   return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
                 })()}
+                {/* Target ring for targeted monsters */}
+                {targetedCombatantIds && token.combatantId && targetedCombatantIds.has(token.combatantId) && (
+                  <TargetRing radius={r} tokenScale={tokenScale} />
+                )}
                 {token.avatar && (
                   <Group opacity={token.hidden ? 0.4 : 1} listening={false}>
                     <TokenAvatar
@@ -2158,7 +2213,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     perfectDrawEnabled={false}
                   />
                 )}
-                {!isPlayerView && tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
+                {tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
                   const combId = token.combatantId || '';
                   const sr = activeAoe.saveResults![combId];
                   if (!sr) return null;
@@ -2717,6 +2772,98 @@ const MapViewInner: React.FC<MapViewProps> = ({
               />
             </Layer>
           )}
+          {/* ── Player tokens above fog (player view only) ── */}
+          {isPlayerView && (
+            <Layer>
+              {tokens.filter(t => t.type === 'player').map(token => {
+                const r = tokenRadius * getTokenSizeMultiplier(token.size);
+                return (
+                <Group
+                  key={token.id}
+                  x={livePlayerPos[token.id]?.x ?? token.x}
+                  y={livePlayerPos[token.id]?.y ?? token.y}
+                  draggable={!activeAoe}
+                  onMouseDown={(e) => { e.cancelBubble = true; }}
+                  onDragStart={() => handleDragStart(token.id)}
+                  onDragMove={(e) => handleDragMove(token.id, e)}
+                  onDragEnd={(e) => handleDragEnd(token.id, e)}
+                  onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    if (onPlayerTokenDoubleTap && !activeAoe) {
+                      const now = Date.now();
+                      const last = lastTapRef.current;
+                      if (last && last.tokenId === token.id && now - last.time < 400) {
+                        lastTapRef.current = null;
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          const screenX = rect.left + token.x * stageScale + stagePos.x;
+                          const screenY = rect.top + token.y * stageScale + stagePos.y;
+                          onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                        }
+                        return;
+                      }
+                      lastTapRef.current = { tokenId: token.id, time: now };
+                    }
+                  }}
+                  onTap={(e) => {
+                    e.cancelBubble = true;
+                    if (onPlayerTokenDoubleTap && !activeAoe) {
+                      const now = Date.now();
+                      const last = lastTapRef.current;
+                      if (last && last.tokenId === token.id && now - last.time < 400) {
+                        lastTapRef.current = null;
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          const screenX = rect.left + token.x * stageScale + stagePos.x;
+                          const screenY = rect.top + token.y * stageScale + stagePos.y;
+                          onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                        }
+                        return;
+                      }
+                      lastTapRef.current = { tokenId: token.id, time: now };
+                    }
+                  }}
+                >
+                  <Circle
+                    radius={r}
+                    fill={token.avatar ? 'transparent' : token.color}
+                    stroke={token.color}
+                    strokeWidth={2 * tokenScale}
+                    opacity={token.hidden ? 0.4 : 1}
+                    perfectDrawEnabled={false}
+                  />
+                  {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
+                    <>
+                      <Circle radius={r + 4 * tokenScale} fill="" stroke="rgba(255, 120, 30, 0.4)" strokeWidth={3 * tokenScale} listening={false} perfectDrawEnabled={false} />
+                      <Circle radius={r + 3 * tokenScale} fill="" stroke="rgba(255, 120, 30, 0.9)" strokeWidth={2.5 * tokenScale} listening={false} perfectDrawEnabled={false} />
+                    </>
+                  )}
+                  {propActiveCombatantId && (() => {
+                    const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
+                    if (!activeComb) return null;
+                    const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                    if (!isActiveToken) return null;
+                    return <ActiveTurnRing radius={r} tokenScale={tokenScale} color="#fbbf24" />;
+                  })()}
+                  {turnFlashCombatantId && (() => {
+                    const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
+                    if (!activeComb) return null;
+                    const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                    if (!isActiveToken) return null;
+                    return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
+                  })()}
+                  {token.avatar && (
+                    <Group opacity={token.hidden ? 0.4 : 1} listening={false}>
+                      <TokenAvatar url={token.avatar} radius={r - tokenScale} />
+                    </Group>
+                  )}
+                </Group>
+                );
+              })}
+            </Layer>
+          )}
+
           {/* Map Notes — above fog so they're always visible to the DM */}
           {!isPlayerView && mapNotes.length > 0 && (
             <Layer>

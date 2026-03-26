@@ -203,6 +203,13 @@ ipcMain.on('player-end-turn', () => {
   }
 });
 
+// Player target updates: proxy to DM window
+ipcMain.on('player-target-update', (_event, combatantIds) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-target-update', combatantIds);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

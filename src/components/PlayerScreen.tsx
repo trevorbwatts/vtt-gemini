@@ -15,9 +15,8 @@ const AOE_ICONS: Record<string, React.FC<{ size?: number; className?: string }>>
 };
 
 const PLAYER_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899',
-  '#f1f5f9', '#cd7f32',
+  '#3b82f6', '#059669', '#f59e0b', '#8b5cf6',
+  '#ec4899', '#f97316', '#06b6d4', '#84cc16', '#6366f1',
 ];
 
 // ─── Sign-in Button ───
@@ -163,7 +162,7 @@ const ActionRing: React.FC<{
   onClose: () => void;
   isPlayersTurn: boolean;
 }> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onClose, isPlayersTurn }) => {
-  const textRotate = edge === 'top' ? 180 : edge === 'left' ? -90 : 0;
+  const contentRotate = edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
   const allItems = [
     { label: 'Spells',     icon: BookOpen,      color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
     { label: 'Conditions', icon: Zap,           color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
@@ -199,10 +198,12 @@ const ActionRing: React.FC<{
           }}
           onPointerDown={(e) => { e.stopPropagation(); item.onClick(); }}
         >
-          <item.icon size={18} />
-          <span className="text-[8px] font-bold tracking-wide" style={{ transform: `rotate(${textRotate}deg)` }}>
-            {item.label}
-          </span>
+          <div className="flex flex-col items-center justify-center gap-0.5" style={{ transform: `rotate(${contentRotate}deg)` }}>
+            <item.icon size={18} />
+            <span className="text-[8px] font-bold tracking-wide">
+              {item.label}
+            </span>
+          </div>
         </motion.button>
       ))}
     </>
@@ -319,6 +320,7 @@ const SpellsPanel: React.FC<{
   };
 
   const PANEL_W = 430;
+  const isLeft = edge === 'left';
   const panelStyle: React.CSSProperties = (() => {
     const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
     if (edge === 'top') {
@@ -329,10 +331,14 @@ const SpellsPanel: React.FC<{
         transformOrigin: 'center top',
       };
     }
-    if (edge === 'left') {
+    if (isLeft) {
+      // Place a tall container on the left edge — content rotates inside.
+      const vh = window.innerHeight;
       return {
         left: 8,
-        top: 8,
+        top: Math.max(8, (vh - PANEL_W) / 2),
+        width: Math.min(vh - 16, PANEL_W),
+        height: PANEL_W,
       };
     }
     // bottom — pin to bottom of viewport so it grows upward
@@ -342,122 +348,146 @@ const SpellsPanel: React.FC<{
     };
   })();
 
+  // For the left edge the outer box is tall-and-narrow; inner content is
+  // rendered at PANEL_W width and rotated 90° CW so the player can read it.
+  const innerWrap = isLeft ? {
+    transform: 'rotate(90deg)',
+    width: PANEL_W,
+    maxHeight: 'calc(100vw - 16px)',
+  } as React.CSSProperties : undefined;
+
+  const panelContent = (
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 overflow-hidden"
+            style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32') }}
+          >
+            {player.avatar ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" /> : player.name[0]?.toUpperCase()}
+          </div>
+          <span className="text-white font-bold text-xs tracking-wide">{player.name}</span>
+        </div>
+        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
+          <X size={14} className="text-white/40" />
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-white/10 mb-3">
+        {(['my', 'lookup'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); if (tab === 'lookup') setShowKeyboard(true); else setShowKeyboard(false); }}
+            className={cn(
+              'flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
+              activeTab === tab ? 'text-purple-400 border-purple-500' : 'text-white/25 border-transparent hover:text-white/40'
+            )}
+          >
+            {tab === 'my' ? 'My Spells' : 'Spell Lookup'}
+          </button>
+        ))}
+      </div>
+
+      {/* My Spells */}
+      {activeTab === 'my' && (
+        <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="divide-y divide-white/10">
+            {spells.length === 0 ? (
+              <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
+            ) : spells.map((spell, i) => (
+              <SpellRow
+                key={i}
+                spell={spell}
+                spellSaveDc={spellSaveDc}
+                disabled={!ready}
+                onPress={() => {
+                  if (!(spell.aoeType && spell.aoeSize)) return;
+                  const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
+                  onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Spell Lookup */}
+      {activeTab === 'lookup' && (
+        <div>
+          <div className="flex items-center gap-1 mb-2">
+            {(['2014', '2024'] as const).map(src => (
+              <button
+                key={src}
+                onClick={() => toggleSource(src)}
+                className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
+                  enabledSources.has(src) ? 'bg-purple-500/25 text-purple-300' : 'bg-white/5 text-white/20')}
+              >
+                {src}
+              </button>
+            ))}
+          </div>
+          {searchResults.length === 0 && recentSpells.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
+              <div className="divide-y divide-white/10">
+                {recentSpells.map((spell, i) => (
+                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
+                ))}
+              </div>
+            </div>
+          )}
+          {searchResults.length > 0 && (
+            <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
+              {searchResults.map((spell, i) => (
+                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
+              ))}
+            </div>
+          )}
+          <div
+            className={cn('relative mb-2 cursor-pointer', showKeyboard && 'ring-1 ring-purple-500/30 rounded-lg')}
+            onClick={() => setShowKeyboard(true)}
+          >
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25" />
+            <div className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-8 py-1.5 text-xs text-white min-h-[30px] flex items-center">
+              {spellSearch || <span className="text-white/25">Tap to search AoE spells...</span>}
+            </div>
+            {spellSearch && (
+              <button onClick={(e) => { e.stopPropagation(); setSpellSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
+                <X size={12} className="text-white/30" />
+              </button>
+            )}
+          </div>
+          {showKeyboard && (
+            <OnScreenKeyboard
+              onKeyPress={(ch) => setSpellSearch(prev => prev + ch)}
+              onBackspace={() => setSpellSearch(prev => prev.slice(0, -1))}
+              onClear={() => setSpellSearch('')}
+            />
+          )}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <>
       <div className="fixed inset-0 z-50" onPointerDown={onClose} />
       <div
-        className="fixed bg-black/95 border border-white/10 rounded-lg p-3 overflow-y-auto"
-        style={{ ...panelStyle, width: PANEL_W, maxHeight: 'calc(100vh - 16px)', zIndex: 60 }}
+        className="fixed bg-black/95 border border-white/10 rounded-lg overflow-hidden"
+        style={{ ...panelStyle, ...(!isLeft && { width: PANEL_W, maxHeight: 'calc(100vh - 16px)' }), zIndex: 60 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 overflow-hidden"
-              style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32') }}
-            >
-              {player.avatar ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" /> : player.name[0]?.toUpperCase()}
-            </div>
-            <span className="text-white font-bold text-xs tracking-wide">{player.name}</span>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
-            <X size={14} className="text-white/40" />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-white/10 mb-3">
-          {(['my', 'lookup'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); if (tab === 'lookup') setShowKeyboard(true); else setShowKeyboard(false); }}
-              className={cn(
-                'flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
-                activeTab === tab ? 'text-purple-400 border-purple-500' : 'text-white/25 border-transparent hover:text-white/40'
-              )}
-            >
-              {tab === 'my' ? 'My Spells' : 'Spell Lookup'}
-            </button>
-          ))}
-        </div>
-
-        {/* My Spells */}
-        {activeTab === 'my' && (
-          <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="divide-y divide-white/10">
-              {spells.length === 0 ? (
-                <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
-              ) : spells.map((spell, i) => (
-                <SpellRow
-                  key={i}
-                  spell={spell}
-                  spellSaveDc={spellSaveDc}
-                  disabled={!ready}
-                  onPress={() => {
-                    if (!(spell.aoeType && spell.aoeSize)) return;
-                    const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
-                    onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
-                  }}
-                />
-              ))}
+        {isLeft ? (
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
+            <div style={innerWrap} className="p-3 overflow-y-auto">
+              {panelContent}
             </div>
           </div>
-        )}
-
-        {/* Spell Lookup */}
-        {activeTab === 'lookup' && (
-          <div>
-            <div className="flex items-center gap-1 mb-2">
-              {(['2014', '2024'] as const).map(src => (
-                <button
-                  key={src}
-                  onClick={() => toggleSource(src)}
-                  className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
-                    enabledSources.has(src) ? 'bg-purple-500/25 text-purple-300' : 'bg-white/5 text-white/20')}
-                >
-                  {src}
-                </button>
-              ))}
-            </div>
-            {searchResults.length === 0 && recentSpells.length > 0 && (
-              <div className="mb-2">
-                <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
-                <div className="divide-y divide-white/10">
-                  {recentSpells.map((spell, i) => (
-                   <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {searchResults.length > 0 && (
-              <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
-                {searchResults.map((spell, i) => (
-                  <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
-                ))}
-              </div>
-            )}
-            <div
-              className={cn('relative mb-2 cursor-pointer', showKeyboard && 'ring-1 ring-purple-500/30 rounded-lg')}
-              onClick={() => setShowKeyboard(true)}
-            >
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25" />
-              <div className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-8 py-1.5 text-xs text-white min-h-[30px] flex items-center">
-                {spellSearch || <span className="text-white/25">Tap to search AoE spells...</span>}
-              </div>
-              {spellSearch && (
-                <button onClick={(e) => { e.stopPropagation(); setSpellSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <X size={12} className="text-white/30" />
-                </button>
-              )}
-            </div>
-            {showKeyboard && (
-              <OnScreenKeyboard
-                onKeyPress={(ch) => setSpellSearch(prev => prev + ch)}
-                onBackspace={() => setSpellSearch(prev => prev.slice(0, -1))}
-                onClear={() => setSpellSearch('')}
-              />
-            )}
+        ) : (
+          <div className="p-3 overflow-y-auto h-full">
+            {panelContent}
           </div>
         )}
       </div>
@@ -476,6 +506,7 @@ const ConditionsPanel: React.FC<{
 }> = ({ player, anchorX, anchorY, edge, onToggle, onClose }) => {
   const activeConditions = new Set(player.conditions || []);
   const PANEL_W = 320;
+  const isLeft = edge === 'left';
   const panelStyle: React.CSSProperties = (() => {
     const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
     if (edge === 'top') {
@@ -486,10 +517,13 @@ const ConditionsPanel: React.FC<{
         transformOrigin: 'center top',
       };
     }
-    if (edge === 'left') {
+    if (isLeft) {
+      const vh = window.innerHeight;
       return {
         left: 8,
-        top: 8,
+        top: Math.max(8, (vh - PANEL_W) / 2),
+        width: Math.min(vh - 16, PANEL_W),
+        height: PANEL_W,
       };
     }
     // bottom — pin to bottom of viewport
@@ -499,36 +533,57 @@ const ConditionsPanel: React.FC<{
     };
   })();
 
+  const innerWrap = isLeft ? {
+    transform: 'rotate(90deg)',
+    width: PANEL_W,
+  } as React.CSSProperties : undefined;
+
+  const panelContent = (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white/60 text-[10px] uppercase tracking-widest font-bold">Conditions — {player.name}</span>
+        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
+          <X size={14} className="text-white/40" />
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {D5E_CONDITIONS.map(cond => (
+          <button
+            key={cond}
+            onClick={() => onToggle(cond)}
+            className={cn(
+              'px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide border transition-colors',
+              activeConditions.has(cond)
+                ? 'bg-red-500/25 border-red-500/50 text-red-300'
+                : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
+            )}
+          >
+            {cond}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <>
       <div className="fixed inset-0 z-50" onPointerDown={onClose} />
       <div
-        className="fixed bg-black/95 border border-white/10 rounded-lg p-3 overflow-y-auto"
-        style={{ ...panelStyle, width: PANEL_W, maxHeight: 'calc(100vh - 16px)', zIndex: 60 }}
+        className="fixed bg-black/95 border border-white/10 rounded-lg overflow-hidden"
+        style={{ ...panelStyle, ...(!isLeft && { width: PANEL_W, maxHeight: 'calc(100vh - 16px)' }), zIndex: 60 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-white/60 text-[10px] uppercase tracking-widest font-bold">Conditions — {player.name}</span>
-          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
-            <X size={14} className="text-white/40" />
-          </button>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {D5E_CONDITIONS.map(cond => (
-            <button
-              key={cond}
-              onClick={() => onToggle(cond)}
-              className={cn(
-                'px-2 py-1.5 rounded-lg text-[10px] font-bold tracking-wide border transition-colors',
-                activeConditions.has(cond)
-                  ? 'bg-red-500/25 border-red-500/50 text-red-300'
-                  : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
-              )}
-            >
-              {cond}
-            </button>
-          ))}
-        </div>
+        {isLeft ? (
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
+            <div style={innerWrap} className="p-3">
+              {panelContent}
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 overflow-y-auto h-full">
+            {panelContent}
+          </div>
+        )}
       </div>
     </>
   );
@@ -651,10 +706,12 @@ export function PlayerScreen() {
 
   // Active combatant turn (received from DM via IPC)
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
+  // Player targeting — combatant IDs of monsters players have targeted
+  const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
 
   // ── IPC ──
   useEffect(() => {
-    const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string; activeCombatantId?: string | null; viewportCenter?: { x: number; y: number } | null }) => {
+    const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string; activeCombatantId?: string | null; viewportCenter?: { x: number; y: number } | null; targetedCombatantIds?: string[] }) => {
       if (isDraggingRef.current) return;
       setCampaign(newState.campaign);
       setCurrentScenarioId(newState.scenarioId);
@@ -664,6 +721,9 @@ export function PlayerScreen() {
       setActiveCombatantId(newState.activeCombatantId ?? null);
       if (newState.viewportCenter) {
         setViewportCenter(newState.viewportCenter);
+      }
+      if (newState.targetedCombatantIds) {
+        setTargetedCombatantIds(new Set(newState.targetedCombatantIds));
       }
     };
 
@@ -740,6 +800,21 @@ export function PlayerScreen() {
     isDraggingRef.current = dragging;
   }, []);
 
+  const handleToggleTarget = useCallback((combatantId: string) => {
+    setTargetedCombatantIds(prev => {
+      const next = new Set(prev);
+      if (next.has(combatantId)) next.delete(combatantId);
+      else next.add(combatantId);
+      window.electronAPI?.sendPlayerTargetUpdate?.([...next]);
+      return next;
+    });
+  }, []);
+
+  const handleClearTargets = useCallback(() => {
+    setTargetedCombatantIds(new Set());
+    window.electronAPI?.sendPlayerTargetUpdate?.([]);
+  }, []);
+
   // ── Derived state ──
   const availablePlayers = useMemo(() => {
     if (!campaign) return [];
@@ -761,6 +836,13 @@ export function PlayerScreen() {
 
   const handleColorChange = useCallback((playerId: string, color: string) => {
     window.electronAPI?.sendPlayerColorUpdate?.(playerId, color);
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
+      };
+    });
   }, []);
 
   const handleSignOut = useCallback((spotId: SpotId) => {
@@ -857,7 +939,7 @@ export function PlayerScreen() {
     'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[62%] -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
     'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[25%] -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
     'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[62%] -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
-    'left':         { rotation: 90,  edge: 'left',   setupClass: 'left-6 top-1/2 -translate-y-1/2',       drawerClass: 'top-1/2 -translate-y-1/2' },
+    'left':         { rotation: 90,  edge: 'left',   setupClass: 'left-[68px] -translate-x-1/2 top-1/2 -translate-y-1/2', drawerClass: 'top-1/2 -translate-y-1/2' },
   };
 
   // ── SETUP MODE ──
@@ -943,6 +1025,9 @@ export function PlayerScreen() {
           onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
           onPlayerTokenDoubleTap={handlePlayerTokenDoubleTap}
+          targetedCombatantIds={targetedCombatantIds}
+          onToggleTarget={handleToggleTarget}
+          onClearTargets={handleClearTargets}
         />
       </div>
 
