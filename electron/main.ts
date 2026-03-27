@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, Menu } from 'electron';
 import path from 'path';
 
 let dmWindow: BrowserWindow | null = null;
 let playerWindow: BrowserWindow | null = null;
 let lastKnownState: any = null;
+let savedMenu: Menu | null = null;
 
 function createDmWindow() {
   dmWindow = new BrowserWindow({
@@ -29,6 +30,12 @@ function createDmWindow() {
     dmWindow?.webContents.send('fullscreen-status', true);
   });
   dmWindow.on('leave-full-screen', () => {
+    // Restore the menu bar when exiting fullscreen by any means (Escape, F11, etc.)
+    if (savedMenu) {
+      Menu.setApplicationMenu(savedMenu);
+    }
+    dmWindow?.setAutoHideMenuBar(false);
+    dmWindow?.setMenuBarVisibility(true);
     dmWindow?.webContents.send('fullscreen-status', false);
   });
 
@@ -109,9 +116,23 @@ app.on('window-all-closed', () => {
 ipcMain.on('toggle-fullscreen', () => {
   if (!dmWindow) return;
   const isFs = dmWindow.isFullScreen();
-  dmWindow.setFullScreen(!isFs);
-  dmWindow.setMenuBarVisibility(isFs); // show menu when exiting FS, hide when entering
-  dmWindow.setAutoHideMenuBar(!isFs);
+
+  if (!isFs) {
+    // Entering fullscreen — save the menu and remove it entirely
+    savedMenu = Menu.getApplicationMenu();
+    dmWindow.setMenuBarVisibility(false);
+    dmWindow.setAutoHideMenuBar(true);
+    Menu.setApplicationMenu(null);
+    dmWindow.setFullScreen(true);
+  } else {
+    // Leaving fullscreen — restore the menu
+    dmWindow.setFullScreen(false);
+    if (savedMenu) {
+      Menu.setApplicationMenu(savedMenu);
+    }
+    dmWindow.setAutoHideMenuBar(false);
+    dmWindow.setMenuBarVisibility(true);
+  }
 });
 
 // --- IPC Communication between Windows ---
