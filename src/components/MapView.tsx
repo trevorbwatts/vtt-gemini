@@ -136,8 +136,9 @@ function getTokensInAoe(
     const ty = token.y;
     let hit = false;
 
-    // For self-origin spells, exclude the caster's own token (center within their radius + 2px gap)
-    if (aoe.selfOrigin) {
+    // Exclude the caster's own token for self-origin spells and cones/lines (which always emanate from caster)
+    const isAnchoredToCaster = aoe.selfOrigin || aoe.aoeType === 'cone' || aoe.aoeType === 'line';
+    if (isAnchoredToCaster) {
       const distToOrigin = Math.sqrt((tx - aoe.originX) ** 2 + (ty - aoe.originY) ** 2);
       if (distToOrigin < aoe.casterRadiusPx + 2) continue;
     }
@@ -494,6 +495,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     originY: number;
     casterRadiusPx: number; // token radius in world pixels — for edge-origin offset
     selfOrigin?: boolean; // true for range=0 "Self" spells (rotate around caster)
+    saveAbility?: string;
+    saveDc?: number;
+    halfDamageOnSave?: boolean;
+    spellDesc?: string;
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<AoeState | null>(null);
@@ -617,21 +622,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const token = tokensRef.current.find(t => t.combatantId === combatantId);
       if (!token) return;
       const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token.size);
-      const ppg = gridResolution?.pixelsPerGrid || 40;
       const isSelfOrigin = spell.range === 0 || spell.range === undefined;
-      const offsetDist = (spell.aoeSize / 5) * ppg + casterRadiusPx;
-      // Place AoE directly in front of the caster (to the right by default)
-      setCastingSpell(null);
-      setCastingMousePos(null);
-      setPlacedAoe({
+      // Enter mouse-follow casting mode
+      setPlacedAoe(null);
+      setCastingSpell({
         name: spell.name,
         aoeType: spell.aoeType as 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder',
         aoeSize: spell.aoeSize,
-        x: token.x + offsetDist,
-        y: token.y,
         originX: token.x,
         originY: token.y,
-        angle: 0,
         casterRadiusPx,
         selfOrigin: isSelfOrigin,
         saveAbility: spell.saveAbility,
@@ -639,6 +638,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         halfDamageOnSave: spell.halfDamageOnSave,
         spellDesc: spell.desc,
       });
+      setCastingMousePos(null);
+      // Deselect token so the monster panel dismisses
+      setSelectedTokenIds([]);
+      setSelectedTokenId(null);
     };
   }
 
@@ -664,10 +667,46 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // ── Token-in-AoE detection ──
   const ppg = gridResolution?.pixelsPerGrid || 40;
-  const activeAoe = placedAoe || remoteAoe;
+  // Build a preview AoeState from mouse-follow casting so we can highlight tokens during drag
+  const castingPreviewAoe = useMemo<AoeState | null>(() => {
+    if (!castingSpell || !castingMousePos) return null;
+    const angleRad = Math.atan2(castingMousePos.y - castingSpell.originY, castingMousePos.x - castingSpell.originX);
+    const angle = angleRad * (180 / Math.PI);
+    const isSelf = !!castingSpell.selfOrigin;
+    const edgeX = castingSpell.originX + Math.cos(angleRad) * castingSpell.casterRadiusPx;
+    const edgeY = castingSpell.originY + Math.sin(angleRad) * castingSpell.casterRadiusPx;
+    return {
+      name: castingSpell.name,
+      aoeType: castingSpell.aoeType,
+      aoeSize: castingSpell.aoeSize,
+      x: isSelf ? edgeX : castingMousePos.x,
+      y: isSelf ? edgeY : castingMousePos.y,
+      originX: castingSpell.originX,
+      originY: castingSpell.originY,
+      angle,
+      casterRadiusPx: castingSpell.casterRadiusPx,
+      selfOrigin: isSelf,
+    };
+  }, [castingSpell, castingMousePos]);
+  const activeAoe = placedAoe || remoteAoe || castingPreviewAoe;
   const tokensInAoe = useMemo(() => {
     return getTokensInAoe(activeAoe, tokens, ppg, tokenRadius);
   }, [activeAoe?.x, activeAoe?.y, activeAoe?.angle, activeAoe?.aoeType, activeAoe?.aoeSize, activeAoe?.originX, activeAoe?.originY, tokens, ppg, tokenRadius]);
+
+  // Bloodied tokens: enemy/npc tokens at or below half HP
+  const bloodiedTokenIds = useMemo(() => {
+    const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const set = new Set<string>();
+    for (const token of tokens) {
+      if (token.type === 'player') continue;
+      if (!token.combatantId) continue;
+      const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
+      if (combatant && combatant.maxHp > 0 && combatant.hp <= combatant.maxHp / 2 && combatant.hp > 0) {
+        set.add(token.id);
+      }
+    }
+    return set;
+  }, [tokens, activeCombatants, players, npcs, persistentEnemies, scenarioCombatants]);
 
   // Notify parent of affected combatant IDs whenever tokensInAoe changes
   useEffect(() => {
@@ -1661,6 +1700,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
           angle,
           casterRadiusPx: castingSpell.casterRadiusPx,
           selfOrigin: castingSpell.selfOrigin,
+          saveAbility: castingSpell.saveAbility,
+          saveDc: castingSpell.saveDc,
+          halfDamageOnSave: castingSpell.halfDamageOnSave,
+          spellDesc: castingSpell.spellDesc,
         });
         setCastingSpell(null);
         setCastingMousePos(null);
@@ -2217,6 +2260,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   </Group>
                 )}
+                {/* Bloodied overlay — red tint when at or below half HP */}
+                {bloodiedTokenIds.has(token.id) && (
+                  <Circle
+                    radius={r - tokenScale}
+                    fill="rgba(220, 38, 38, 0.35)"
+                    listening={false}
+                    perfectDrawEnabled={false}
+                  />
+                )}
                 {token.hidden && (
                   <Path
                     data="M9.88 9.88l-3.29-3.29m7.53 7.53l3.29 3.29M3 3l18 18M10.37 4.37a11 11 0 0 1 10.63 7.63 11 11 0 0 1-7.01 6.14m-3.99-.14A11 11 0 0 1 3 12a11 11 0 0 1 3.17-4.83m2.22 2.22a3 3 0 0 0 4.24 4.24"
@@ -2373,8 +2425,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
             return (
               <Layer listening={false}>
-                {/* Range line (only for spells with range, not self-origin) */}
-                {!isSelfOrigin && (
+                {/* Range line (only for freely-placed spells, not self-origin or directional cones/lines) */}
+                {!isSelfOrigin && !isDirectionalCast && (
                   <>
                     <Line
                       points={[edgeX, edgeY, rangeLineEndX, rangeLineEndY]}

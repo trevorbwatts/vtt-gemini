@@ -4,6 +4,7 @@ import { Trash2, Zap, Swords, ChevronRight, Skull, X, Footprints, Droplet, Feath
 import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
+import { BESTIARY } from '../data/bestiary';
 
 const getCharacterLevel = (classes?: ClassDefinition[]) => {
   return classes?.reduce((sum, c) => sum + c.level, 0) || 0;
@@ -212,8 +213,33 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   }, [selectedTokenIds, tokens, allSourceCombatants, activeCombatants, combatActive, activeCombatantId, sortedCombatants]);
 
   const detailToken = detailCombatant?.token;
-  const detailSource = detailCombatant?.combatant;
   const detailSourceId = detailCombatant?.sourceCombatantId;
+
+  // Enrich combatant with original monster data for fields that weren't stored
+  const detailSource = useMemo(() => {
+    const combatant = detailCombatant?.combatant;
+    if (!combatant || combatant.type === 'player') return combatant;
+    // Look up the original monster by name to fill in missing fields
+    // Prefer 2024 source over 2014 when both exist
+    const monster = BESTIARY.find(m => m.name === combatant.name && m.source === '2024')
+      || BESTIARY.find(m => m.name === combatant.name);
+    if (!monster) return combatant;
+    return {
+      ...combatant,
+      saves: combatant.saves || monster.saves,
+      skills: combatant.skills || monster.skills,
+      immunities: combatant.immunities || monster.immunities,
+      resistances: combatant.resistances || monster.resistances,
+      vulnerabilities: combatant.vulnerabilities || monster.vulnerabilities,
+      conditionImmunities: combatant.conditionImmunities || monster.conditionImmunities,
+      senses: combatant.senses || monster.senses,
+      languages: combatant.languages || monster.languages,
+      legendaryActions: combatant.legendaryActions || monster.legendaryActions,
+      reactions: combatant.reactions || monster.reactions,
+      specialAbilities: combatant.specialAbilities || monster.specialAbilities,
+      creatureType: combatant.creatureType || monster.type,
+    } as Combatant;
+  }, [detailCombatant]);
 
   // ── Visibility ──
   // Show panel if: combat is active, OR a non-player token is selected
@@ -453,6 +479,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     {detailSource.creatureType && (
                       <span className="text-[10px] opacity-40 italic whitespace-nowrap">{detailSource.creatureType}</span>
                     )}
+                    {detailSource.cr && (
+                      <span className="text-[10px] opacity-40 whitespace-nowrap">CR {detailSource.cr}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 shrink-0 px-2 justify-end">
                     <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden shadow-inner">
@@ -518,21 +547,15 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <div className="text-[8px] uppercase opacity-50">Level</div>
                         <div className="text-sm font-bold">{getCharacterLevel(detailSource.classes)}</div>
                       </div>
-                    ) : detailSource.cr ? (
+                    ) : detailSource.stats ? (
                       <div className="bg-black/20 rounded p-2 text-center">
-                        <div className="text-[8px] uppercase opacity-50">CR</div>
-                        <div className="text-sm font-bold">{detailSource.cr}</div>
+                        <div className="text-[8px] uppercase opacity-50">Initiative</div>
+                        <div className="text-sm font-bold">
+                          {Math.floor((detailSource.stats.dex - 10) / 2) >= 0 ? '+' : ''}{Math.floor((detailSource.stats.dex - 10) / 2)}
+                        </div>
                       </div>
                     ) : null}
                   </div>
-                  {detailSource.stats && (
-                    <div className="bg-black/20 rounded p-2 text-center">
-                      <div className="text-[8px] uppercase opacity-50">Initiative</div>
-                      <div className="text-sm font-bold">
-                        {Math.floor((detailSource.stats.dex - 10) / 2) >= 0 ? '+' : ''}{Math.floor((detailSource.stats.dex - 10) / 2)}
-                      </div>
-                    </div>
-                  )}
                   {(detailSource.speedText || detailSource.speed != null) && (() => {
                     const raw = detailSource.speedText || `${detailSource.speed} ft.`;
                     const segments = raw.split(/,\s*/).map(seg => {
@@ -559,7 +582,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 </div>
 
                 {/* Column 1: Attributes, Saving Throws, Skills, Traits */}
-                <div className="min-w-[200px] flex flex-col min-h-0">
+                <div className="min-w-[160px] max-w-[220px] flex flex-col min-h-0 shrink-0">
                   <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
                     {/* Attributes */}
                     <div>
@@ -622,12 +645,6 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                               <span className="font-bold text-[var(--accent)]">Senses.</span> {detailSource.senses}
                             </div>
                           )}
-                          {/* Languages */}
-                          {detailSource.languages && (
-                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
-                              <span className="font-bold text-[var(--accent)]">Languages.</span> {detailSource.languages}
-                            </div>
-                          )}
                           {/* Immunities */}
                           {detailSource.immunities && (
                             <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
@@ -658,6 +675,12 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                               <span className="font-bold italic text-[var(--accent)]">{ability.name}.</span> {ability.desc}
                             </div>
                           ))}
+                          {/* Languages */}
+                          {detailSource.languages && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Languages.</span> {detailSource.languages}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -695,7 +718,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 )}
 
                 {/* Column 3: Spells */}
-                <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
+                <div className="min-w-[250px] flex-[2] flex flex-col min-h-0">
                   <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Spells</h5>
                   <div className="space-y-1.5 pr-2 overflow-y-auto custom-scrollbar flex-1">
                     {(() => {
