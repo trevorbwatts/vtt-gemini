@@ -5,6 +5,7 @@ import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
 import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
+import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 
 // ─── Sign-in spot types ───
 type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left';
@@ -218,10 +219,12 @@ const SpellRow: React.FC<{
   disabled?: boolean;
 }> = ({ spell, spellSaveDc, onPress, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
+  const damageType = spell.desc ? parseDamageType(spell.desc) : null;
   return (
     <div className="flex items-center gap-2 py-2">
       <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe && !disabled ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
       <div className="flex items-center gap-1.5 shrink-0">
+        <DamageTypeBadge damageType={damageType} />
         {spell.saveAbility && (
           <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
             {spell.saveAbility.toUpperCase()}{spellSaveDc ? ` ${spellSaveDc}` : ''}
@@ -229,7 +232,7 @@ const SpellRow: React.FC<{
         )}
         {spell.aoeType && (
           <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 flex items-center gap-0.5">
-            {spell.aoeSize ? `${spell.aoeSize}ft` : ''}{AOE_ICONS[spell.aoeType] ? React.createElement(AOE_ICONS[spell.aoeType], { size: 10 }) : ''}
+            {spell.aoeSize ? `${spell.aoeSize}ft` : ''}{AOE_ICONS[spell.aoeType] ? React.createElement(AOE_ICONS[spell.aoeType], { size: 9 }) : ''}
           </span>
         )}
         <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">

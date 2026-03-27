@@ -81,6 +81,14 @@ export {
   // Lighting
   Sun,
   Moon,
+
+  // Damage types
+  Flame,
+  Snowflake,
+  CloudLightning,
+  Atom,
+  Bubbles,
+  FlaskConical,
 } from 'lucide-react';
 
 // Treasure chest — lucide's Gem icon

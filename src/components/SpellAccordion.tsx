@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { cn } from '../types';
 import { ChevronDown } from '../icons';
+import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 
 /** Expandable spell card used in token detail panels and player drawers */
 export const SpellAccordion: React.FC<{
   name: string; desc?: string; badge?: string; rangeBadge?: string; aoeBadge?: React.ReactNode; saveBadge?: string;
   onCast?: () => void;
 }> = ({ name, desc, badge, rangeBadge, aoeBadge, saveBadge, onCast }) => {
+  const damageType = desc ? parseDamageType(desc) : null;
   const [open, setOpen] = useState(false);
   const hasDesc = !!desc;
   return (
@@ -17,6 +19,7 @@ export const SpellAccordion: React.FC<{
             hasDesc ? 'cursor-pointer hover:bg-white/5 transition-colors' : 'cursor-default')}>
           <span className="font-bold flex-1 min-w-0 truncate text-purple-400 text-xs">{name}</span>
           <div className="flex items-center gap-1.5 shrink-0">
+            <DamageTypeBadge damageType={damageType} />
             {saveBadge && (
               <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
                 {saveBadge}

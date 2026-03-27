@@ -33,6 +33,8 @@ function cleanText(text: string): string {
     .replace(/\{@variantrule ([^|}\s]+)[^}]*\}/g, '$1')
     // Catch-all: strip any remaining {@...} tags
     .replace(/\{@\w+[^}]*\}/g, '')
+    // Uppercase ability abbreviations before DC (e.g. "int DC 16" → "INT DC 16")
+    .replace(/\b(str|dex|con|int|wis|cha)\s+(DC\s+\d+)/gi, (_, ab, dc) => `${ab.toUpperCase()} ${dc}`)
     // Clean up any double spaces left behind
     .replace(/  +/g, ' ')
     .trim();

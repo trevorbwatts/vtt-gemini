@@ -8,6 +8,7 @@ import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
+import { parseDamageType, getDamageRgb } from '../utils/damageColors';
 import { SpeedText } from './SpeedText';
 
 interface MapViewProps {
@@ -111,6 +112,7 @@ type AoeState = {
   saveDc?: number;
   halfDamageOnSave?: boolean;
   spellDesc?: string;
+  damageType?: string;
   saveResults?: Record<string, SaveResult>;
 };
 
@@ -499,6 +501,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     saveDc?: number;
     halfDamageOnSave?: boolean;
     spellDesc?: string;
+    damageType?: string;
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<AoeState | null>(null);
@@ -637,6 +640,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         saveDc: spell.saveDc,
         halfDamageOnSave: spell.halfDamageOnSave,
         spellDesc: spell.desc,
+        damageType: parseDamageType(spell.desc || ''),
       });
       setCastingMousePos(null);
       // Deselect token so the monster panel dismisses
@@ -686,6 +690,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       angle,
       casterRadiusPx: castingSpell.casterRadiusPx,
       selfOrigin: isSelf,
+      damageType: castingSpell.damageType,
     };
   }, [castingSpell, castingMousePos]);
   const activeAoe = placedAoe || remoteAoe || castingPreviewAoe;
@@ -1704,6 +1709,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           saveDc: castingSpell.saveDc,
           halfDamageOnSave: castingSpell.halfDamageOnSave,
           spellDesc: castingSpell.spellDesc,
+          damageType: castingSpell.damageType,
         });
         setCastingSpell(null);
         setCastingMousePos(null);
@@ -2211,12 +2217,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     perfectDrawEnabled={false}
                   />
                 )}
-                {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
-                  <>
+                {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
+                  const hlRgb = getDamageRgb(activeAoe?.damageType);
+                  return <>
                   <Circle
                     radius={r + 4 * tokenScale}
                     fill=""
-                    stroke="rgba(255, 120, 30, 0.4)"
+                    stroke={`rgba(${hlRgb}, 0.4)`}
                     strokeWidth={3 * tokenScale}
                     listening={false}
                     perfectDrawEnabled={false}
@@ -2224,13 +2231,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <Circle
                     radius={r + 3 * tokenScale}
                     fill=""
-                    stroke="rgba(255, 120, 30, 0.9)"
+                    stroke={`rgba(${hlRgb}, 0.9)`}
                     strokeWidth={2.5 * tokenScale}
                     listening={false}
                     perfectDrawEnabled={false}
                   />
-                  </>
-                )}
+                  </>;
+                })()}
                 {/* Persistent active-turn ring */}
                 {propActiveCombatantId && (() => {
                   const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
@@ -2394,8 +2401,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const feetToPx = (ft: number) => (ft / 5) * ppg;
             const sizePx = feetToPx(castingSpell.aoeSize);
             const strokeW = 2 / stageScale;
-            const fillColor = 'rgba(255, 120, 30, 0.25)';
-            const strokeColor = 'rgba(255, 120, 30, 0.8)';
+            const castRgb = getDamageRgb(castingSpell.damageType);
+            const fillColor = `rgba(${castRgb}, 0.25)`;
+            const strokeColor = `rgba(${castRgb}, 0.8)`;
             const angleRad = Math.atan2(castingMousePos.y - castingSpell.originY, castingMousePos.x - castingSpell.originX);
             const edgeX = castingSpell.originX + Math.cos(angleRad) * castingSpell.casterRadiusPx;
             const edgeY = castingSpell.originY + Math.sin(angleRad) * castingSpell.casterRadiusPx;
@@ -2503,8 +2511,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const sizePx = feetToPx(placedAoe.aoeSize);
             const strokeW = 2 / stageScale;
             const hasSaveResults = !!placedAoe.saveResults;
-            const fillColor = hasSaveResults ? 'transparent' : 'rgba(255, 120, 30, 0.35)';
-            const strokeColor = 'rgba(255, 120, 30, 0.8)';
+            const placedRgb = getDamageRgb(placedAoe.damageType);
+            const fillColor = hasSaveResults ? 'transparent' : `rgba(${placedRgb}, 0.35)`;
+            const strokeColor = `rgba(${placedRgb}, 0.8)`;
 
             // Live-update position during drag so range line tracks in real-time
             const handleSphereDragMove = (e: any) => {
@@ -2779,8 +2788,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const sizePx = feetToPx(remoteAoe.aoeSize);
             const strokeW = 2 / stageScale;
             const hasRemoteSaveResults = !!remoteAoe.saveResults;
-            const fillColor = hasRemoteSaveResults ? 'transparent' : 'rgba(255, 120, 30, 0.25)';
-            const strokeColor = 'rgba(255, 120, 30, 0.6)';
+            const remoteRgb = getDamageRgb(remoteAoe.damageType);
+            const fillColor = hasRemoteSaveResults ? 'transparent' : `rgba(${remoteRgb}, 0.25)`;
+            const strokeColor = `rgba(${remoteRgb}, 0.6)`;
             const aRad = remoteAoe.angle * (Math.PI / 180);
             const edgeX = remoteAoe.originX + Math.cos(aRad) * remoteAoe.casterRadiusPx;
             const edgeY = remoteAoe.originY + Math.sin(aRad) * remoteAoe.casterRadiusPx;
@@ -2905,12 +2915,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     opacity={token.hidden ? 0.4 : 1}
                     perfectDrawEnabled={false}
                   />
-                  {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (
-                    <>
-                      <Circle radius={r + 4 * tokenScale} fill="" stroke="rgba(255, 120, 30, 0.4)" strokeWidth={3 * tokenScale} listening={false} perfectDrawEnabled={false} />
-                      <Circle radius={r + 3 * tokenScale} fill="" stroke="rgba(255, 120, 30, 0.9)" strokeWidth={2.5 * tokenScale} listening={false} perfectDrawEnabled={false} />
-                    </>
-                  )}
+                  {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
+                    const hlRgb2 = getDamageRgb(activeAoe?.damageType);
+                    return <>
+                      <Circle radius={r + 4 * tokenScale} fill="" stroke={`rgba(${hlRgb2}, 0.4)`} strokeWidth={3 * tokenScale} listening={false} perfectDrawEnabled={false} />
+                      <Circle radius={r + 3 * tokenScale} fill="" stroke={`rgba(${hlRgb2}, 0.9)`} strokeWidth={2.5 * tokenScale} listening={false} perfectDrawEnabled={false} />
+                    </>;
+                  })()}
                   {propActiveCombatantId && (() => {
                     const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
                     if (!activeComb) return null;
