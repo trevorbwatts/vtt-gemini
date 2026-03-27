@@ -25,6 +25,13 @@ function createDmWindow() {
     dmWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
+  dmWindow.on('enter-full-screen', () => {
+    dmWindow?.webContents.send('fullscreen-status', true);
+  });
+  dmWindow.on('leave-full-screen', () => {
+    dmWindow?.webContents.send('fullscreen-status', false);
+  });
+
   dmWindow.on('closed', () => {
     dmWindow = null;
     if (playerWindow) {
@@ -96,6 +103,15 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// --- Fullscreen toggle for DM window ---
+ipcMain.on('toggle-fullscreen', () => {
+  if (!dmWindow) return;
+  const isFs = dmWindow.isFullScreen();
+  dmWindow.setFullScreen(!isFs);
+  dmWindow.setMenuBarVisibility(isFs); // show menu when exiting FS, hide when entering
+  dmWindow.setAutoHideMenuBar(!isFs);
 });
 
 // --- IPC Communication between Windows ---

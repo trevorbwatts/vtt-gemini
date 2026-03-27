@@ -82,6 +82,10 @@ export {
   Sun,
   Moon,
 
+  // Fullscreen
+  Maximize,
+  Minimize,
+
   // Damage types
   Flame,
   Snowflake,

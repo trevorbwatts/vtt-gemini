@@ -131,7 +131,9 @@ export function parseSpellcastingTrait(desc: string): {
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
 
-    const spellsPart = line.substring(colonIdx + 1);
+    const spellsPart = line.substring(colonIdx + 1)
+      // Strip parenthetical notes before splitting on commas (e.g. "Shapechange (Beast or Humanoid form only, ...)")
+      .replace(/\([^)]*\)/g, '');
     spellsPart.split(',').forEach(s => {
       const name = s.trim()
         .replace(/\(.*$/g, '')

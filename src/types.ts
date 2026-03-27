@@ -42,6 +42,9 @@ declare global {
       sendPlayerTargetUpdate?: (combatantIds: string[]) => void;
       onPlayerTargetUpdate?: (callback: (combatantIds: string[]) => void) => void;
       removePlayerTargetUpdateListener?: () => void;
+      toggleFullscreen?: () => void;
+      onFullscreenStatus?: (callback: (isFs: boolean) => void) => void;
+      removeFullscreenStatusListener?: () => void;
     }
   }
 }

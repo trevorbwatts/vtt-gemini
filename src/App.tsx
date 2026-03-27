@@ -7,7 +7,7 @@ import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
 import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -38,6 +38,20 @@ export function DMScreen() {
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Listen for both browser fullscreen and Electron fullscreen changes
+
+  useEffect(() => {
+    // Browser fullscreen (dev mode fallback)
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    // Electron native fullscreen
+    window.electronAPI?.onFullscreenStatus?.((isFs) => setIsFullscreen(isFs));
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      window.electronAPI?.removeFullscreenStatusListener?.();
+    };
+  }, []);
   const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('play');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
@@ -881,6 +895,21 @@ export function DMScreen() {
             >
               {playerScreenOpen ? <MonitorX size={14} /> : <MonitorUp size={14} />}
               <span>{playerScreenOpen ? 'Close Player Screen' : 'Launch Player Screen'}</span>
+            </button>
+            <button
+              onClick={() => {
+                if (window.electronAPI?.toggleFullscreen) {
+                  window.electronAPI.toggleFullscreen();
+                } else if (document.fullscreenElement) {
+                  document.exitFullscreen();
+                } else {
+                  document.documentElement.requestFullscreen();
+                }
+              }}
+              className="btn-ghost px-2"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
             </button>
           </div>
         </header>

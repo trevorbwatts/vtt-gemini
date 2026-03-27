@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  toggleFullscreen: () => ipcRenderer.send('toggle-fullscreen'),
+  onFullscreenStatus: (callback: (isFs: boolean) => void) => {
+    ipcRenderer.on('fullscreen-status', (_event, isFs) => callback(isFs));
+  },
+  removeFullscreenStatusListener: () => {
+    ipcRenderer.removeAllListeners('fullscreen-status');
+  },
   launchPlayerScreen: () => ipcRenderer.send('launch-player-screen'),
   closePlayerScreen: () => ipcRenderer.send('close-player-screen'),
   sendStateUpdate: (state: any) => ipcRenderer.send('dm-state-update', state),
