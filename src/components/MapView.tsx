@@ -1585,6 +1585,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const twoFingerPanRef = useRef<{ midX: number; midY: number } | null>(null);
   // Tracks whether any token is mid-drag — prevents accidental pan start from a stray second touch
   const isTokenDraggingRef = useRef(false);
+  // Tracks whether a token tap consumed the current touch — prevents clearing targets on token taps
+  const tokenTapConsumedRef = useRef(false);
 
   const handleTouchStart = (e: any) => {
     if (isTokenDraggingRef.current) return;
@@ -1616,7 +1618,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const handleTouchEnd = (e: any) => {
     if (e.evt.touches.length < 2) {
-      twoFingerPanRef.current = null;
+      // If this was a two-finger pan ending, just clear the ref
+      if (twoFingerPanRef.current) {
+        twoFingerPanRef.current = null;
+        return;
+      }
+      // Single-finger tap on empty space: clear targets
+      // Use a microtask so Konva's onTap/onClick fire first and set tokenTapConsumedRef
+      if (e.evt.changedTouches.length === 1 && !isTokenDraggingRef.current) {
+        Promise.resolve().then(() => {
+          if (!tokenTapConsumedRef.current && onClearTargets && targetedCombatantIds && targetedCombatantIds.size > 0) {
+            onClearTargets();
+          }
+          tokenTapConsumedRef.current = false;
+        });
+      }
     }
   };
 
@@ -2073,6 +2089,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {
                   e.cancelBubble = true;
+                  if (isPlayerView) tokenTapConsumedRef.current = true;
                   // Player view: tap enemy/npc token to toggle targeting
                   if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
                     onToggleTarget(token.combatantId);
@@ -2107,6 +2124,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 }}
                 onTap={(e) => {
                   e.cancelBubble = true;
+                  if (isPlayerView) tokenTapConsumedRef.current = true;
                   // Player view: tap enemy/npc token to toggle targeting
                   if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
                     onToggleTarget(token.combatantId);
@@ -2790,6 +2808,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                   onClick={(e) => {
                     e.cancelBubble = true;
+                    tokenTapConsumedRef.current = true;
                     if (onPlayerTokenDoubleTap && !activeAoe) {
                       const now = Date.now();
                       const last = lastTapRef.current;
@@ -2808,6 +2827,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   }}
                   onTap={(e) => {
                     e.cancelBubble = true;
+                    tokenTapConsumedRef.current = true;
                     if (onPlayerTokenDoubleTap && !activeAoe) {
                       const now = Date.now();
                       const last = lastTapRef.current;

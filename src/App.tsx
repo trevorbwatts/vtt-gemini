@@ -276,7 +276,7 @@ export function DMScreen() {
           players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
           scenarios: prev.scenarios.map(s => ({
             ...s,
-            activeCombatants: s.activeCombatants.map(c => c.id === playerId ? { ...c, color } : c),
+            activeCombatants: s.activeCombatants.map(c => (c.id === playerId || c.sourceCombatantId === playerId) ? { ...c, color } : c),
           })),
         };
       });
@@ -443,6 +443,17 @@ export function DMScreen() {
       speedText: monster.speed,
       cr: monster.cr,
       specialAbilities: monster.specialAbilities,
+      legendaryActions: monster.legendaryActions,
+      reactions: monster.reactions,
+      saves: monster.saves,
+      skills: monster.skills,
+      immunities: monster.immunities,
+      resistances: monster.resistances,
+      vulnerabilities: monster.vulnerabilities,
+      conditionImmunities: monster.conditionImmunities,
+      senses: monster.senses,
+      languages: monster.languages,
+      creatureType: monster.type,
     };
 
     setCampaign(prev => prev ? ({
@@ -952,7 +963,11 @@ export function DMScreen() {
           {/* Bottom Panel: Initiative Tracker + Token Detail */}
           {currentScenario && (
             <BottomPanel
-              activeCombatants={currentScenario.activeCombatants || []}
+              activeCombatants={(currentScenario.activeCombatants || []).map(c => {
+                if (c.type !== 'player') return c;
+                const player = campaign?.players.find(p => p.id === (c.sourceCombatantId || c.id));
+                return player?.color ? { ...c, color: player.color } : c;
+              })}
               onActiveCombatantsChange={updateActiveCombatants}
               onCombatantClick={(cid) => {
                 const tid = cid.startsWith('combat-') ? cid.replace('combat-', '') : cid;

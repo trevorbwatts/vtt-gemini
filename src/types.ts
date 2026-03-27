@@ -111,8 +111,10 @@ export interface Monster {
   senses?: string;
   languages?: string;
   saves?: string;
+  skills?: string;
   immunities?: string;
   resistances?: string;
+  vulnerabilities?: string;
   conditionImmunities?: string;
   specialAbilities?: MonsterAction[];
   legendaryActions?: MonsterAction[];
@@ -163,6 +165,17 @@ export interface Combatant {
   cr?: string;
   actions?: MonsterAction[];
   specialAbilities?: MonsterAction[];
+  legendaryActions?: MonsterAction[];
+  reactions?: MonsterAction[];
+  saves?: string;
+  skills?: string;
+  immunities?: string;
+  resistances?: string;
+  vulnerabilities?: string;
+  conditionImmunities?: string;
+  senses?: string;
+  languages?: string;
+  creatureType?: string;
   /** When this combatant is an activeCombatant copy, stores the id of the original source combatant */
   sourceCombatantId?: string;
 }

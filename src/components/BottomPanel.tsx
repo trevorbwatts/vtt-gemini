@@ -390,23 +390,24 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                           </div>
 
                           {/* Avatar */}
-                          {c.avatar ? (
-                            <div className={cn(
-                              "w-9 h-9 rounded-full overflow-hidden border-2 shrink-0",
-                              isEnemy ? "border-red-500" :
-                              isPlayer ? "border-blue-500" : "border-emerald-500"
-                            )}>
-                              <img src={c.avatar} alt="" className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <div className={cn(
-                              "w-9 h-9 rounded-full flex items-center justify-center border-2 shrink-0",
-                              isEnemy ? "border-red-500 bg-red-500/10" :
-                              isPlayer ? "border-blue-500 bg-blue-500/10" : "border-emerald-500 bg-emerald-500/10"
-                            )}>
-                              <Skull size={16} className="text-white/40" />
-                            </div>
-                          )}
+                          {(() => {
+                            const tokenColor = c.color || (isEnemy ? '#ef4444' : isPlayer ? '#3b82f6' : '#059669');
+                            return c.avatar ? (
+                              <div
+                                className="w-9 h-9 rounded-full overflow-hidden border-2 shrink-0"
+                                style={{ borderColor: tokenColor }}
+                              >
+                                <img src={c.avatar} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div
+                                className="w-9 h-9 rounded-full flex items-center justify-center border-2 shrink-0"
+                                style={{ borderColor: tokenColor, backgroundColor: `${tokenColor}1a` }}
+                              >
+                                <Skull size={16} className="text-white/40" />
+                              </div>
+                            );
+                          })()}
 
                           {/* Center: name + targeting badge */}
                           <div className="flex-1 min-w-0">
@@ -449,6 +450,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: detailToken.color }} />
                     )}
                     <h4 className="font-bold text-base tracking-tight truncate">{detailSource.name}</h4>
+                    {detailSource.creatureType && (
+                      <span className="text-[10px] opacity-40 italic whitespace-nowrap">{detailSource.creatureType}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 shrink-0 px-2 justify-end">
                     <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden shadow-inner">
@@ -521,6 +525,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       </div>
                     ) : null}
                   </div>
+                  {detailSource.stats && (
+                    <div className="bg-black/20 rounded p-2 text-center">
+                      <div className="text-[8px] uppercase opacity-50">Initiative</div>
+                      <div className="text-sm font-bold">
+                        {Math.floor((detailSource.stats.dex - 10) / 2) >= 0 ? '+' : ''}{Math.floor((detailSource.stats.dex - 10) / 2)}
+                      </div>
+                    </div>
+                  )}
                   {(detailSource.speedText || detailSource.speed != null) && (() => {
                     const raw = detailSource.speedText || `${detailSource.speed} ft.`;
                     const segments = raw.split(/,\s*/).map(seg => {
@@ -546,29 +558,109 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                   })()}
                 </div>
 
-                {/* Column 1: Stats & Info */}
+                {/* Column 1: Attributes, Saving Throws, Skills, Traits */}
                 <div className="min-w-[200px] flex flex-col min-h-0">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Attributes</h5>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-                    {detailSource.stats ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {Object.entries(detailSource.stats).map(([stat, val]) => (
-                          <div key={stat} className="bg-black/20 rounded p-2 text-center">
-                            <div className="text-[8px] uppercase opacity-50">{stat}</div>
-                            <div className="text-sm font-bold">
-                              {Math.floor((val - 10) / 2) >= 0 ? '+' : ''}{Math.floor((val - 10) / 2)}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+                    {/* Attributes */}
+                    <div>
+                      <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Attributes</h5>
+                      {detailSource.stats ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          {Object.entries(detailSource.stats).map(([stat, val]) => (
+                            <div key={stat} className="bg-black/20 rounded p-2 text-center">
+                              <div className="text-[8px] uppercase opacity-50">{stat}</div>
+                              <div className="text-sm font-bold">
+                                {Math.floor((val - 10) / 2) >= 0 ? '+' : ''}{Math.floor((val - 10) / 2)}
+                              </div>
+                              <div className="text-[9px] opacity-30">{val}</div>
                             </div>
-                            <div className="text-[9px] opacity-30">{val}</div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs opacity-40 italic">No stats available</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {detailSource.species && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.species}</span>}
+                        {detailSource.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.darkvision}ft Darkvision</span>}
                       </div>
-                    ) : (
-                      <p className="text-xs opacity-40 italic">No stats available</p>
-                    )}
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {detailSource.species && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.species}</span>}
-                      {detailSource.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[10px]">{detailSource.darkvision}ft Darkvision</span>}
                     </div>
+
+                    {/* Saving Throws */}
+                    {detailSource.saves && (
+                      <div>
+                        <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Saving Throws</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {detailSource.saves.split(/,\s*/).map((save, i) => (
+                            <span key={i} className="px-2 py-1 bg-black/20 rounded text-[11px] font-bold">{save}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Skills */}
+                    {detailSource.skills && (
+                      <div>
+                        <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Skills</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {detailSource.skills.split(/,\s*/).map((skill, i) => (
+                            <span key={i} className="px-2 py-1 bg-black/20 rounded text-[11px]">{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Traits */}
+                    {(detailSource.specialAbilities?.some(a => !a.name.toLowerCase().includes('spellcasting')) ||
+                      detailSource.immunities || detailSource.resistances || detailSource.vulnerabilities ||
+                      detailSource.conditionImmunities || detailSource.senses || detailSource.languages) && (
+                      <div>
+                        <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2">Traits</h5>
+                        <div className="space-y-2">
+                          {/* Senses */}
+                          {detailSource.senses && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Senses.</span> {detailSource.senses}
+                            </div>
+                          )}
+                          {/* Languages */}
+                          {detailSource.languages && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Languages.</span> {detailSource.languages}
+                            </div>
+                          )}
+                          {/* Immunities */}
+                          {detailSource.immunities && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Damage Immunities.</span> {detailSource.immunities}
+                            </div>
+                          )}
+                          {/* Resistances */}
+                          {detailSource.resistances && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Damage Resistances.</span> {detailSource.resistances}
+                            </div>
+                          )}
+                          {/* Vulnerabilities */}
+                          {detailSource.vulnerabilities && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Damage Vulnerabilities.</span> {detailSource.vulnerabilities}
+                            </div>
+                          )}
+                          {/* Condition Immunities */}
+                          {detailSource.conditionImmunities && (
+                            <div className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold text-[var(--accent)]">Condition Immunities.</span> {detailSource.conditionImmunities}
+                            </div>
+                          )}
+                          {/* Special Abilities (non-spellcasting) */}
+                          {detailSource.specialAbilities?.filter(a => !a.name.toLowerCase().includes('spellcasting')).map((ability, i) => (
+                            <div key={i} className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                              <span className="font-bold italic text-[var(--accent)]">{ability.name}.</span> {ability.desc}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -587,6 +679,20 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* Column 2b: Legendary Actions */}
+                {detailSource.legendaryActions && detailSource.legendaryActions.length > 0 && (
+                  <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
+                    <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Legendary Actions</h5>
+                    <div className="space-y-3 pr-2 overflow-y-auto custom-scrollbar flex-1">
+                      {detailSource.legendaryActions.map((action, i) => (
+                        <div key={i} className="text-xs bg-white/5 p-2 rounded border border-white/5">
+                          <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Column 3: Spells */}
                 <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
