@@ -60,7 +60,7 @@ function cleanText(text) {
     .trim();
 }
 
-// ── Recursively flatten entries array into a single string ──
+// ── Recursively flatten entries array, preserving named sections and lists ──
 function flattenEntries(entries) {
   if (!entries) return '';
   const parts = [];
@@ -68,10 +68,26 @@ function flattenEntries(entries) {
     if (typeof entry === 'string') {
       parts.push(cleanText(entry));
     } else if (entry && typeof entry === 'object') {
-      if (entry.entries) {
+      if (entry.type === 'list' && entry.items) {
+        const bullets = [];
+        for (const item of entry.items) {
+          if (typeof item === 'string') {
+            bullets.push(`• ${cleanText(item)}`);
+          } else if (item && item.name && item.entries) {
+            bullets.push(`• **${cleanText(item.name)}.** ${flattenEntries(item.entries)}`);
+          } else if (item && item.entries) {
+            bullets.push(`• ${flattenEntries(item.entries)}`);
+          } else if (item && item.entry) {
+            bullets.push(`• ${cleanText(typeof item.entry === 'string' ? item.entry : '')}`);
+          }
+        }
+        if (bullets.length) parts.push(bullets.join('\n'));
+      } else if (entry.type === 'entries' && entry.name && entry.entries) {
+        const inner = flattenEntries(entry.entries);
+        parts.push(`**${cleanText(entry.name)}.** ${inner}`);
+      } else if (entry.entries) {
         parts.push(flattenEntries(entry.entries));
-      }
-      if (entry.items) {
+      } else if (entry.items) {
         for (const item of entry.items) {
           if (typeof item === 'string') {
             parts.push(cleanText(item));
@@ -84,7 +100,7 @@ function flattenEntries(entries) {
       }
     }
   }
-  return parts.filter(Boolean).join(' ');
+  return parts.filter(Boolean).join('\n\n');
 }
 
 // ── Extract AoE size from spell description text ──

@@ -36,6 +36,7 @@ export {
   Skull,
   Zap,
   Sparkles,
+  Dices,
 
   // AoE shapes
   Circle,

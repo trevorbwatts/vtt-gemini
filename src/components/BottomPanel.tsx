@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Combatant, Token, cn, ClassDefinition } from '../types';
-import { Trash2, Zap, Swords, ChevronRight, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder } from '../icons';
+import { Trash2, Zap, Swords, ChevronRight, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder, Dices } from '../icons';
 import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { BESTIARY } from '../data/bestiary';
+import { parseAction, rollAction } from '../utils/actionParser';
+import { ActionRollModal } from './ActionRollModal';
+import type { ActionRollResult } from '../utils/actionParser';
 
 const getCharacterLevel = (classes?: ClassDefinition[]) => {
   return classes?.reduce((sum, c) => sum + c.level, 0) || 0;
@@ -96,6 +99,19 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   };
 
   const [panelHpInput, setPanelHpInput] = useState('');
+
+  // ── Action roll state ──
+  const [actionRollOpen, setActionRollOpen] = useState(false);
+  const [actionRollName, setActionRollName] = useState('');
+  const [actionRollResult, setActionRollResult] = useState<ActionRollResult | null>(null);
+
+  const handleRollAction = (actionName: string, desc: string) => {
+    const parsed = parseAction(desc);
+    if (!parsed) return;
+    setActionRollName(actionName);
+    setActionRollResult(rollAction(parsed));
+    setActionRollOpen(true);
+  };
 
   const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
 
@@ -695,6 +711,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       detailSource.actions.map((action, i) => (
                         <div key={i} className="text-[13px] bg-white/5 p-2 rounded border border-white/5">
                           <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
+                          {parseAction(action.desc) && (
+                            <button
+                              onClick={() => handleRollAction(action.name, action.desc)}
+                              className="mt-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-orange-400/70 hover:text-orange-400 transition-colors"
+                            >
+                              <Dices size={12} /> Roll Attack
+                            </button>
+                          )}
                         </div>
                       ))
                     ) : (
@@ -711,6 +735,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       {detailSource.legendaryActions.map((action, i) => (
                         <div key={i} className="text-[13px] bg-white/5 p-2 rounded border border-white/5">
                           <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
+                          {parseAction(action.desc) && (
+                            <button
+                              onClick={() => handleRollAction(action.name, action.desc)}
+                              className="mt-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-orange-400/70 hover:text-orange-400 transition-colors"
+                            >
+                              <Dices size={12} /> Roll Attack
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -779,6 +811,12 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
         </div>
       </div>
     </div>}
+    <ActionRollModal
+      isOpen={actionRollOpen}
+      actionName={actionRollName}
+      result={actionRollResult}
+      onClose={() => setActionRollOpen(false)}
+    />
     </>
   );
 };

@@ -3,6 +3,35 @@ import { cn } from '../types';
 import { ChevronDown } from '../icons';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 
+function renderInline(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={i} className="text-white/80 font-semibold">{part.slice(2, -2)}</strong>
+      : part
+  );
+}
+
+function renderDesc(desc: string): React.ReactNode[] {
+  return desc.split('\n\n').map((block, i) => {
+    const lines = block.split('\n');
+    if (lines.length > 1 && lines.every(l => l.startsWith('• '))) {
+      return (
+        <ul key={i} className="space-y-0.5 ml-0.5">
+          {lines.map((line, j) => (
+            <li key={j} className="flex gap-1.5">
+              <span className="opacity-50 shrink-0">•</span>
+              <span>{renderInline(line.slice(2))}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return <p key={i}>{renderInline(block)}</p>;
+  });
+}
+
 /** Expandable spell card used in token detail panels and player drawers */
 export const SpellAccordion: React.FC<{
   name: string; desc?: string; badge?: string; rangeBadge?: string; aoeBadge?: React.ReactNode; saveBadge?: string;
@@ -53,8 +82,8 @@ export const SpellAccordion: React.FC<{
         )}
       </div>
       {hasDesc && open && (
-        <div className="px-3 pb-2.5 text-[11px] opacity-60 leading-relaxed border-t border-white/5 pt-2">
-          {desc}
+        <div className="px-3 pb-2.5 text-[11px] opacity-60 leading-relaxed border-t border-white/5 pt-2 space-y-1.5">
+          {renderDesc(desc!)}
         </div>
       )}
     </div>
