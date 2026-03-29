@@ -226,7 +226,7 @@ export interface Viewpoint {
   y: number;
   /** Absolute Konva stage scale value to zoom to when activated */
   zoomScale: number;
-  label?: string;
+  isHidden?: boolean;
 }
 
 export interface Scenario {

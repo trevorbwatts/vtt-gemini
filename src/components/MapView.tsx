@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2 } from '../icons';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
@@ -496,14 +496,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
     y: number,
     stageX: number,
     stageY: number,
-    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc'
+    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc',
+    viewpointId?: string
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
-  const [viewpointDraft, setViewpointDraft] = useState<{ label: string; zoomPercent: number }>({ label: '', zoomPercent: 25 });
+  const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
   const [activeViewpointId, setActiveViewpointId] = useState<string | null>(null);
   const viewpointReturnRef = useRef<{ scale: number; x: number; y: number } | null>(null);
   const zoomAnimRef = useRef<number | null>(null);
@@ -1686,16 +1687,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const saveViewpoint = () => {
     if (!contextMenu) return;
-    const newViewpoint: Viewpoint = {
-      id: Math.random().toString(36).substr(2, 9),
-      x: contextMenu.x,
-      y: contextMenu.y,
-      zoomScale: stageScale * (viewpointDraft.zoomPercent / 100),
-      label: viewpointDraft.label.trim() || undefined,
-    };
-    onViewpointsChange?.([...(viewpoints ?? []), newViewpoint]);
+    if (contextMenu.viewpointId) {
+      onViewpointsChange?.((viewpoints ?? []).map(vp =>
+        vp.id === contextMenu.viewpointId
+          ? { ...vp, zoomScale: stageScale * (viewpointDraft.zoomPercent / 100) }
+          : vp
+      ));
+    } else {
+      const newViewpoint: Viewpoint = {
+        id: Math.random().toString(36).substr(2, 9),
+        x: contextMenu.x,
+        y: contextMenu.y,
+        zoomScale: stageScale * (viewpointDraft.zoomPercent / 100),
+      };
+      onViewpointsChange?.([...(viewpoints ?? []), newViewpoint]);
+    }
     setContextMenu(null);
-    setViewpointDraft({ label: '', zoomPercent: 25 });
+    setViewpointDraft({ zoomPercent: 25 });
   };
 
   /** Smooth zoom animation using RAF — 500ms ease-in-out */
@@ -2206,21 +2214,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 listening={false}
               />
             ))}
-            {/* Render Portals (Doors/Windows) — line overlay on DM view only */}
-            {showWalls && !isPlayerView && portals?.map(portal => (
-              <Line
-                key={portal.id}
-                points={[portal.bounds[0].x, portal.bounds[0].y, portal.bounds[1].x, portal.bounds[1].y]}
-                stroke={portal.closed ? '#4ade80' : '#60a5fa'}
-                strokeWidth={portal.closed ? 4 : 3}
-                lineCap="round"
-                dash={portal.closed ? [] : [8, 6]}
-                opacity={0.9}
-                onClick={() => onPortalToggle?.(portal.id)}
-                onTap={() => onPortalToggle?.(portal.id)}
-                hitStrokeWidth={12}
-              />
-            ))}
+            {/* Render Portals (Doors/Windows) — line overlay on DM view, invisible hitboxes on Player view */}
+            {((showWalls && !isPlayerView) || isPlayerView) && portals?.map(portal => {
+              const showVisuals = showWalls && !isPlayerView;
+              return (
+                <Line
+                  key={portal.id}
+                  points={[portal.bounds[0].x, portal.bounds[0].y, portal.bounds[1].x, portal.bounds[1].y]}
+                  stroke={showVisuals ? (portal.closed ? '#4ade80' : '#60a5fa') : 'transparent'}
+                  strokeWidth={showVisuals ? (portal.closed ? 4 : 3) : 2}
+                  lineCap="round"
+                  dash={showVisuals && !portal.closed ? [8, 6] : []}
+                  opacity={showVisuals ? 0.9 : 1}
+                  onClick={(e) => { e.cancelBubble = true; onPortalToggle?.(portal.id); }}
+                  onTap={(e) => { e.cancelBubble = true; onPortalToggle?.(portal.id); }}
+                  hitStrokeWidth={isPlayerView ? 30 : 12}
+                />
+              );
+            })}
 
 
             {/* Marquee selection rect (DM only) */}
@@ -3231,18 +3242,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
           )}
 
           {/* Viewpoints — visible to both DM and players, above fog */}
-          {(viewpoints ?? []).length > 0 && (
+          {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).length > 0 && (
             <Layer>
-              {(viewpoints ?? []).map(vp => {
+              {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).map(vp => {
                 const isInRange = viewpointProximity.has(vp.id);
                 const isActive = activeViewpointId === vp.id;
                 const iconSize = tokenRadius * 1.3;
                 const s = iconSize / 24;
-                // Deep purple tones for all states
                 let bgFill: string;
                 let bgStroke: string;
                 let iconColor: string;
-                if (isActive) {
+                if (!isPlayerView && vp.isHidden) {
+                  // Hidden state
+                  bgFill = 'rgba(88,28,135,0.05)';
+                  bgStroke = 'rgba(126,34,206,0.15)';
+                  iconColor = 'rgba(216,180,254,0.15)';
+                } else if (isActive) {
                   // Active tower view: vivid fuchsia-purple
                   bgFill = 'rgba(126,34,206,0.6)';
                   bgStroke = '#c026d3';
@@ -3409,7 +3424,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </>
         )}
 
-        {/* Viewpoint Context Menu (DM only — delete) */}
+        {/* Viewpoint Context Menu (DM only) */}
         {!isPlayerView && viewpointContextMenu && (
           <>
             <div
@@ -3424,6 +3439,41 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <div className="px-3 py-2 border-b border-[var(--line)]">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Viewpoint</p>
               </div>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left"
+                onClick={() => {
+                  const vp = viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId);
+                  if (vp) {
+                    setViewpointDraft({ zoomPercent: (vp.zoomScale / stageScale) * 100 });
+                    setContextMenu({
+                      x: vp.x,
+                      y: vp.y,
+                      stageX: viewpointContextMenu.screenX,
+                      stageY: viewpointContextMenu.screenY,
+                      view: 'viewpoint',
+                      viewpointId: vp.id
+                    });
+                  }
+                  setViewpointContextMenu(null);
+                }}
+              >
+                <Edit2 size={13} />
+                Edit Viewpoint
+              </button>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left"
+                onClick={() => {
+                  const vp = viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId);
+                  if (vp) {
+                    onViewpointsChange?.((viewpoints ?? []).map(v => v.id === vp.id ? { ...v, isHidden: !v.isHidden } : v));
+                  }
+                  setViewpointContextMenu(null);
+                }}
+              >
+                {viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId)?.isHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+                {viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId)?.isHidden ? 'Show Viewpoint' : 'Hide Viewpoint'}
+              </button>
+              <div className="border-t border-[var(--line)]"></div>
               <button
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-left"
                 onClick={() => {
@@ -3722,19 +3772,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             {contextMenu.view === 'viewpoint' && (
               <div className="p-3">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Add Viewpoint</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">{contextMenu.viewpointId ? 'Edit Viewpoint' : 'Add Viewpoint'}</span>
                   <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
                 </div>
-
-                <input
-                  type="text"
-                  autoFocus
-                  value={viewpointDraft.label}
-                  onChange={(e) => setViewpointDraft(prev => ({ ...prev, label: e.target.value }))}
-                  placeholder="Label (optional)"
-                  className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors mb-3"
-                  onKeyDown={(e) => { if (e.key === 'Enter') saveViewpoint(); }}
-                />
 
                 <div className="mb-4">
                   <div className="flex justify-between text-[10px] opacity-50 mb-1">
@@ -3760,7 +3800,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   onClick={saveViewpoint}
                   className="btn-filled w-full py-2 rounded-lg"
                 >
-                  Place Viewpoint
+                  {contextMenu.viewpointId ? 'Save Viewpoint' : 'Place Viewpoint'}
                 </button>
               </div>
             )}
