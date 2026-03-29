@@ -3,6 +3,8 @@ import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Lin
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds } from '../icons';
+import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
+import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -77,6 +79,8 @@ interface MapViewProps {
   onToggleTarget?: (combatantId: string) => void;
   /** Called when a player taps empty space to clear all targets */
   onClearTargets?: () => void;
+  viewpoints?: Viewpoint[];
+  onViewpointsChange?: (viewpoints: Viewpoint[]) => void;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -391,8 +395,14 @@ const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = 
   );
 };
 
-// ── Lucide SVG path data for portal icons (24×24 viewBox) ──
+// ── Lucide SVG path data for viewpoint icon (Eye, 24×24 viewBox) ──
 type IconNode = ['path' | 'rect' | 'circle', Record<string, string>];
+const VIEWPOINT_NODES: IconNode[] = [
+  ['path', { d: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z' }],
+  ['circle', { cx: '12', cy: '12', r: '3' }],
+];
+
+// ── Lucide SVG path data for portal icons (24×24 viewBox) ──
 const DOOR_CLOSED_NODES: IconNode[] = [
   ['path', { d: 'M10 12h.01' }],
   ['path', { d: 'M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14' }],
@@ -472,6 +482,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   targetedCombatantIds,
   onToggleTarget,
   onClearTargets,
+  viewpoints,
+  onViewpointsChange,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -484,13 +496,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     y: number,
     stageX: number,
     stageY: number,
-    view: 'root' | 'note' | 'add-player' | 'add-enemy' | 'add-npc'
+    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc'
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
+  const [viewpointDraft, setViewpointDraft] = useState<{ label: string; zoomPercent: number }>({ label: '', zoomPercent: 25 });
+  const [activeViewpointId, setActiveViewpointId] = useState<string | null>(null);
+  const viewpointReturnRef = useRef<{ scale: number; x: number; y: number } | null>(null);
+  const zoomAnimRef = useRef<number | null>(null);
+  const [viewpointContextMenu, setViewpointContextMenu] = useState<{ screenX: number; screenY: number; viewpointId: string } | null>(null);
   const [showChangeMapModal, setShowChangeMapModal] = useState(false);
   const [monsterSearch, setMonsterSearch] = useState('');
   const [showSource2014, setShowSource2014] = useState(true);
@@ -576,6 +593,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const PATH_SYNC_INTERVAL = 150; // ~7fps — movement path visuals are cosmetic during drag
   // Live drag position overrides for player view — drives real-time fog recomputation
   const [livePlayerPos, setLivePlayerPos] = useState<Record<string, { x: number; y: number }>>({});
+
+  // Wall collision — prevents tokens from passing through walls during drag
+  const [wallCollisionEnabled, setWallCollisionEnabled] = useState(true);
+  const lastValidPosRef = useRef<Record<string, { x: number; y: number }>>({});
+  const dragTokenRadiusRef = useRef<Record<string, number>>({});
 
   // Movement path tracking — only active during initiative/combat
   const inCombat = activeCombatants.length > 0;
@@ -915,6 +937,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const hasFogData = blockingSegments.length > 0;
 
+  // Viewpoint proximity — which viewpoints have a player token within 3 grid squares
+  const VIEWPOINT_RANGE_GRIDS = 3;
+  const viewpointProximity = useMemo(() => {
+    const range = VIEWPOINT_RANGE_GRIDS * (gridResolution?.pixelsPerGrid ?? 70);
+    const range2 = range * range;
+    const inRange = new Set<string>();
+    (viewpoints ?? []).forEach(vp => {
+      playerTokenPositions.forEach(t => {
+        const dx = t.x - vp.x;
+        const dy = t.y - vp.y;
+        if (dx * dx + dy * dy <= range2) inRange.add(vp.id);
+      });
+    });
+    return inRange;
+  }, [viewpoints, playerTokenPositions, gridResolution?.pixelsPerGrid]);
+
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
       case 'treasure': return '#CD7F32';
@@ -1036,7 +1074,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // (common after IPC round-trips) does NOT reset a player's two-finger pan.
   const lastAppliedViewportRef = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
-    if (isPlayerView && viewportCenter && stageScale > 0 && dimensions.width > 0) {
+    if (isPlayerView && viewportCenter && stageScale > 0 && dimensions.width > 0 && !activeViewpointId) {
       const prev = lastAppliedViewportRef.current;
       if (prev && prev.x === viewportCenter.x && prev.y === viewportCenter.y) return;
       lastAppliedViewportRef.current = { x: viewportCenter.x, y: viewportCenter.y };
@@ -1109,7 +1147,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
     onDragStatusChange?.(true);
     // Record the starting position so we can detect micro-drags
     const startToken = tokens.find(t => t.id === id);
-    if (startToken) tokenDragOriginRef.current[id] = { x: startToken.x, y: startToken.y };
+    if (startToken) {
+      tokenDragOriginRef.current[id] = { x: startToken.x, y: startToken.y };
+      lastValidPosRef.current[id] = { x: startToken.x, y: startToken.y };
+      dragTokenRadiusRef.current[id] = getTokenCollisionRadius(startToken.size, gridResolution?.pixelsPerGrid ?? 70);
+    }
     const isMulti = selectedTokenIds.includes(id) && selectedTokenIds.length > 1;
     if (isMulti) {
       const draggedToken = tokens.find(t => t.id === id);
@@ -1118,7 +1160,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
       selectedTokenIds.forEach(tid => {
         if (tid !== id) {
           const t = tokens.find(tok => tok.id === tid);
-          if (t) othersStart[tid] = { x: t.x, y: t.y };
+          if (t) {
+            othersStart[tid] = { x: t.x, y: t.y };
+            lastValidPosRef.current[tid] = { x: t.x, y: t.y };
+            dragTokenRadiusRef.current[tid] = getTokenCollisionRadius(t.size, gridResolution?.pixelsPerGrid ?? 70);
+          }
         }
       });
       multiDragStartRef.current = {
@@ -1190,7 +1236,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleDragMove = (id: string, e: any) => {
-    const pos = { x: e.target.x(), y: e.target.y() };
+    let pos = { x: e.target.x(), y: e.target.y() };
+
+    // Wall collision: constrain token position against blocking segments
+    const shouldCollide = (isPlayerView || wallCollisionEnabled) && blockingSegments.length > 0;
+    if (shouldCollide) {
+      const radius = dragTokenRadiusRef.current[id] ?? 20;
+      const prevPos = lastValidPosRef.current[id] ?? pos;
+      pos = constrainPositionAgainstWalls(pos, prevPos, radius, blockingSegments);
+      e.target.x(pos.x);
+      e.target.y(pos.y);
+      lastValidPosRef.current[id] = pos;
+    } else {
+      lastValidPosRef.current[id] = pos;
+    }
+
     draggingPositionsRef.current[id] = pos;
 
     // Move all other selected tokens by the same delta
@@ -1199,7 +1259,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const dx = pos.x - multi.draggedStart.x;
       const dy = pos.y - multi.draggedStart.y;
       Object.entries(multi.othersStart).forEach(([tid, start]) => {
-        draggingPositionsRef.current[tid] = { x: start.x + dx, y: start.y + dy };
+        let otherPos = { x: start.x + dx, y: start.y + dy };
+        if (shouldCollide) {
+          const otherRadius = dragTokenRadiusRef.current[tid] ?? 20;
+          const otherPrev = lastValidPosRef.current[tid] ?? otherPos;
+          otherPos = constrainPositionAgainstWalls(otherPos, otherPrev, otherRadius, blockingSegments);
+          lastValidPosRef.current[tid] = otherPos;
+        }
+        draggingPositionsRef.current[tid] = otherPos;
       });
     }
 
@@ -1221,10 +1288,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
       };
       samplePoint(id, pos.x, pos.y);
       if (multi && multi.draggedId === id) {
-        const dx = pos.x - multi.draggedStart.x;
-        const dy = pos.y - multi.draggedStart.y;
-        Object.entries(multi.othersStart).forEach(([tid, start]) => {
-          samplePoint(tid, start.x + dx, start.y + dy);
+        Object.keys(multi.othersStart).forEach(tid => {
+          const corrected = draggingPositionsRef.current[tid];
+          if (corrected) samplePoint(tid, corrected.x, corrected.y);
         });
       }
     }
@@ -1237,10 +1303,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const liveUpdates: Record<string, { x: number; y: number }> = { [id]: pos };
     const multi2 = multiDragStartRef.current;
     if (multi2 && multi2.draggedId === id) {
-      const dx = pos.x - multi2.draggedStart.x;
-      const dy = pos.y - multi2.draggedStart.y;
-      Object.entries(multi2.othersStart).forEach(([tid, start]) => {
-        liveUpdates[tid] = { x: start.x + dx, y: start.y + dy };
+      Object.keys(multi2.othersStart).forEach(tid => {
+        const corrected = draggingPositionsRef.current[tid];
+        if (corrected) liveUpdates[tid] = corrected;
       });
     }
     setLivePlayerPos(prev => ({ ...prev, ...liveUpdates }));
@@ -1268,7 +1333,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleDragEnd = (id: string, e: any) => {
-    const finalPos = { x: e.target.x(), y: e.target.y() };
+    let finalPos = { x: e.target.x(), y: e.target.y() };
+
+    // Apply wall collision to the final position
+    const shouldCollide = (isPlayerView || wallCollisionEnabled) && blockingSegments.length > 0;
+    if (shouldCollide) {
+      const radius = dragTokenRadiusRef.current[id] ?? 20;
+      const prevPos = lastValidPosRef.current[id] ?? finalPos;
+      finalPos = constrainPositionAgainstWalls(finalPos, prevPos, radius, blockingSegments);
+      e.target.x(finalPos.x);
+      e.target.y(finalPos.y);
+    }
+
     const multi = multiDragStartRef.current;
 
     // ── Micro-drag cancellation (player view only) ──
@@ -1286,6 +1362,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
           e.target.x(origin.x);
           e.target.y(origin.y);
           delete tokenDragOriginRef.current[id];
+          delete lastValidPosRef.current[id];
+          delete dragTokenRadiusRef.current[id];
           setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
           isTokenDraggingRef.current = false;
           onDragStatusChange?.(false);
@@ -1314,18 +1392,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     let updatedTokens;
     if (multi && multi.draggedId === id) {
-      const dx = finalPos.x - multi.draggedStart.x;
-      const dy = finalPos.y - multi.draggedStart.y;
       updatedTokens = tokens.map(t => {
         if (t.id === id) return { ...t, ...finalPos };
-        if (multi.othersStart[t.id]) return { ...t, x: multi.othersStart[t.id].x + dx, y: multi.othersStart[t.id].y + dy };
+        if (multi.othersStart[t.id]) {
+          // Use collision-corrected position from draggingPositionsRef
+          const corrected = draggingPositionsRef.current[t.id];
+          if (corrected) return { ...t, x: corrected.x, y: corrected.y };
+          const dx = finalPos.x - multi.draggedStart.x;
+          const dy = finalPos.y - multi.draggedStart.y;
+          return { ...t, x: multi.othersStart[t.id].x + dx, y: multi.othersStart[t.id].y + dy };
+        }
         return t;
       });
-      // Clear live overrides for all dragged tokens
+      // Clear live overrides and collision refs for all dragged tokens
       setLivePlayerPos(prev => {
         const next = { ...prev };
         delete next[id];
-        Object.keys(multi.othersStart).forEach(tid => delete next[tid]);
+        Object.keys(multi.othersStart).forEach(tid => {
+          delete next[tid];
+          delete lastValidPosRef.current[tid];
+          delete dragTokenRadiusRef.current[tid];
+        });
         return next;
       });
       multiDragStartRef.current = null;
@@ -1334,6 +1421,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setLivePlayerPos(prev => { const next = { ...prev }; delete next[id]; return next; });
       updatedTokens = tokens.map(t => t.id === id ? { ...t, ...finalPos } : t);
     }
+    // Clean up collision refs for the primary dragged token
+    delete lastValidPosRef.current[id];
+    delete dragTokenRadiusRef.current[id];
 
     // Finalize movement paths
     if (inCombat) {
@@ -1350,10 +1440,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
       };
       finalizeToken(id, finalPos.x, finalPos.y);
       if (multi) {
-        const dx = finalPos.x - multi.draggedStart.x;
-        const dy = finalPos.y - multi.draggedStart.y;
-        Object.entries(multi.othersStart).forEach(([tid, start]) => {
-          finalizeToken(tid, start.x + dx, start.y + dy);
+        Object.keys(multi.othersStart).forEach(tid => {
+          const corrected = draggingPositionsRef.current[tid];
+          if (corrected) finalizeToken(tid, corrected.x, corrected.y);
         });
       }
 
@@ -1593,6 +1682,77 @@ const MapViewInner: React.FC<MapViewProps> = ({
     onMapNotesChange([...mapNotes, newNote]);
     setContextMenu(null);
     setNoteDraft({ type: 'treasure', content: '' });
+  };
+
+  const saveViewpoint = () => {
+    if (!contextMenu) return;
+    const newViewpoint: Viewpoint = {
+      id: Math.random().toString(36).substr(2, 9),
+      x: contextMenu.x,
+      y: contextMenu.y,
+      zoomScale: stageScale * (viewpointDraft.zoomPercent / 100),
+      label: viewpointDraft.label.trim() || undefined,
+    };
+    onViewpointsChange?.([...(viewpoints ?? []), newViewpoint]);
+    setContextMenu(null);
+    setViewpointDraft({ label: '', zoomPercent: 25 });
+  };
+
+  /** Smooth zoom animation using RAF — 500ms ease-in-out */
+  const animateZoom = (targetScale: number, targetX: number, targetY: number, onComplete?: () => void) => {
+    if (zoomAnimRef.current) cancelAnimationFrame(zoomAnimRef.current);
+    const startScale = stageScale;
+    const startX = stagePos.x;
+    const startY = stagePos.y;
+    const startTime = performance.now();
+    const DURATION = 500;
+    const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - startTime) / DURATION);
+      const e = easeInOut(t);
+      setStageScale(startScale + (targetScale - startScale) * e);
+      setStagePos({
+        x: startX + (targetX - startX) * e,
+        y: startY + (targetY - startY) * e,
+      });
+      if (t < 1) {
+        zoomAnimRef.current = requestAnimationFrame(frame);
+      } else {
+        zoomAnimRef.current = null;
+        onComplete?.();
+      }
+    };
+    zoomAnimRef.current = requestAnimationFrame(frame);
+  };
+
+  const handleViewpointClick = (vp: Viewpoint) => {
+    if (!isPlayerView) return;
+    if (!viewpointProximity.has(vp.id)) return;
+    if (activeViewpointId === vp.id) {
+      // Toggle off: return to saved position
+      const ret = viewpointReturnRef.current;
+      if (ret) {
+        animateZoom(ret.scale, ret.x, ret.y, () => {
+          setActiveViewpointId(null);
+          viewpointReturnRef.current = null;
+        });
+      } else {
+        setActiveViewpointId(null);
+      }
+    } else {
+      // Toggle on: save current state and zoom to viewpoint
+      viewpointReturnRef.current = { scale: stageScale, x: stagePos.x, y: stagePos.y };
+      const targetScale = vp.zoomScale;
+      const targetX = dimensions.width / 2 - vp.x * targetScale;
+      const targetY = dimensions.height / 2 - vp.y * targetScale;
+      setActiveViewpointId(vp.id);
+      animateZoom(targetScale, targetX, targetY);
+    }
+  };
+
+  const handleViewpointDragEnd = (vpId: string, e: any) => {
+    const pos = { x: e.target.x(), y: e.target.y() };
+    onViewpointsChange?.((viewpoints ?? []).map(v => v.id === vpId ? { ...v, ...pos } : v));
   };
 
   const [isPanning, setIsPanning] = useState(false);
@@ -1916,6 +2076,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   className="btn-ghost py-1"
                 >
                   {showWalls ? <Eye size={12} /> : <EyeOff size={12} />} WALLS
+                </button>
+              )}
+              {hasFogData && (
+                <button
+                  onClick={() => setWallCollisionEnabled(!wallCollisionEnabled)}
+                  className={cn("btn-ghost py-1", wallCollisionEnabled && "bg-white/10")}
+                  title="Toggle wall collision for tokens"
+                >
+                  <Footprints size={12} /> COLLISION
                 </button>
               )}
               {hasFogData && (
@@ -2914,8 +3083,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     scaleX={s}
                     scaleY={s}
                     onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
-                    onTap={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
+                    onTap={(e) => { e.cancelBubble = true; }}
                     onTouchStart={(e) => { e.cancelBubble = true; }}
+                    onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
                     onContextMenu={!isPlayerView ? (e) => {
                       e.evt.preventDefault();
                       e.cancelBubble = true;
@@ -3060,6 +3230,83 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
+          {/* Viewpoints — visible to both DM and players, above fog */}
+          {(viewpoints ?? []).length > 0 && (
+            <Layer>
+              {(viewpoints ?? []).map(vp => {
+                const isInRange = viewpointProximity.has(vp.id);
+                const isActive = activeViewpointId === vp.id;
+                const iconSize = tokenRadius * 1.3;
+                const s = iconSize / 24;
+                // Deep purple tones for all states
+                let bgFill: string;
+                let bgStroke: string;
+                let iconColor: string;
+                if (isActive) {
+                  // Active tower view: vivid fuchsia-purple
+                  bgFill = 'rgba(126,34,206,0.6)';
+                  bgStroke = '#c026d3';
+                  iconColor = '#f0abfc';
+                } else if (!isPlayerView || isInRange) {
+                  // DM view or player in range: deep purple
+                  bgFill = 'rgba(88,28,135,0.55)';
+                  bgStroke = '#7e22ce';
+                  iconColor = '#d8b4fe';
+                } else {
+                  // Out of range: dim
+                  bgFill = 'rgba(88,28,135,0.15)';
+                  bgStroke = 'rgba(126,34,206,0.3)';
+                  iconColor = 'rgba(216,180,254,0.3)';
+                }
+                return (
+                  <Group
+                    key={vp.id}
+                    x={vp.x - iconSize / 2}
+                    y={vp.y - iconSize / 2}
+                    scaleX={s}
+                    scaleY={s}
+                    draggable={!isPlayerView}
+                    onDragEnd={!isPlayerView ? (e) => handleViewpointDragEnd(vp.id, e) : undefined}
+                    onClick={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
+                    onTap={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
+                    onContextMenu={!isPlayerView ? (e) => {
+                      e.evt.preventDefault();
+                      e.cancelBubble = true;
+                      const stage = e.target.getStage();
+                      const pos = stage?.getPointerPosition();
+                      if (!pos) return;
+                      const container = stage?.container().getBoundingClientRect();
+                      setViewpointContextMenu({
+                        screenX: (container?.left ?? 0) + pos.x,
+                        screenY: (container?.top ?? 0) + pos.y,
+                        viewpointId: vp.id,
+                      });
+                    } : undefined}
+                  >
+                    {/* Background circle */}
+                    <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={isActive ? 2 / s : 1 / s} />
+                    {/* Eye icon */}
+                    {VIEWPOINT_NODES.map((node, i) => {
+                      const [type, props] = node;
+                      const sw = 1.5;
+                      if (type === 'path') return (
+                        <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
+                      );
+                      if (type === 'circle') return (
+                        <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} fill={iconColor} listening={false} />
+                      );
+                      return null;
+                    })}
+                    {/* "Active" glow ring when player is in tower view */}
+                    {isActive && (
+                      <Circle x={12} y={12} radius={15} fill="transparent" stroke="#d946ef" strokeWidth={1.5 / s} opacity={0.6} listening={false} />
+                    )}
+                  </Group>
+                );
+              })}
+            </Layer>
+          )}
+
           {/* Map Notes — above fog so they're always visible to the DM */}
           {!isPlayerView && mapNotes.length > 0 && (
             <Layer>
@@ -3088,6 +3335,31 @@ const MapViewInner: React.FC<MapViewProps> = ({
           )}
         </Stage>
 
+        {/* Tower View return button — player screen only, shown while a viewpoint is active */}
+        {isPlayerView && activeViewpointId && (() => {
+          return (
+            <div className="absolute bottom-6 right-6 z-30 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <button
+                onClick={() => {
+                  const ret = viewpointReturnRef.current;
+                  if (ret) {
+                    animateZoom(ret.scale, ret.x, ret.y, () => {
+                      setActiveViewpointId(null);
+                      viewpointReturnRef.current = null;
+                    });
+                  } else {
+                    setActiveViewpointId(null);
+                  }
+                }}
+                className="flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl font-sans font-semibold text-sm text-white transition-all active:scale-95"
+                style={{ background: 'rgba(88,28,135,0.85)', border: '1.5px solid rgba(192,38,211,0.7)', backdropFilter: 'blur(8px)' }}
+              >
+                <Eye size={15} style={{ color: '#d8b4fe' }} />
+                Leave Viewpoint
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Portal Type Context Menu (DM only) */}
         {!isPlayerView && portalContextMenu && (
@@ -3132,6 +3404,35 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <Blinds size={15} />
                 Window
                 {portalContextMenu.portalType === 'window' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Viewpoint Context Menu (DM only — delete) */}
+        {!isPlayerView && viewpointContextMenu && (
+          <>
+            <div
+              className="absolute inset-0 z-40"
+              onClick={() => setViewpointContextMenu(null)}
+              onContextMenu={(e) => { e.preventDefault(); setViewpointContextMenu(null); }}
+            />
+            <div
+              className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[160px]"
+              style={{ left: viewpointContextMenu.screenX, top: viewpointContextMenu.screenY }}
+            >
+              <div className="px-3 py-2 border-b border-[var(--line)]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Viewpoint</p>
+              </div>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-left"
+                onClick={() => {
+                  onViewpointsChange?.((viewpoints ?? []).filter(v => v.id !== viewpointContextMenu.viewpointId));
+                  setViewpointContextMenu(null);
+                }}
+              >
+                <Trash2 size={13} />
+                Delete Viewpoint
               </button>
             </div>
           </>
@@ -3230,6 +3531,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 >
                   <PlusCircle size={14} className="opacity-50 group-hover:opacity-100" />
                   <span className="flex-1 text-left">Add a Note</span>
+                  <ChevronRight size={12} className="opacity-30" />
+                </button>
+                <button
+                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'viewpoint' } : null)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
+                >
+                  <Eye size={14} className="opacity-50 group-hover:opacity-100" />
+                  <span className="flex-1 text-left">Add a Viewpoint</span>
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
                 <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-50" />
@@ -3405,6 +3715,52 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   className="btn-filled w-full py-2 rounded-lg disabled:opacity-30"
                 >
                   Save Note
+                </button>
+              </div>
+            )}
+
+            {contextMenu.view === 'viewpoint' && (
+              <div className="p-3">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Add Viewpoint</span>
+                  <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
+                </div>
+
+                <input
+                  type="text"
+                  autoFocus
+                  value={viewpointDraft.label}
+                  onChange={(e) => setViewpointDraft(prev => ({ ...prev, label: e.target.value }))}
+                  placeholder="Label (optional)"
+                  className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors mb-3"
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveViewpoint(); }}
+                />
+
+                <div className="mb-4">
+                  <div className="flex justify-between text-[10px] opacity-50 mb-1">
+                    <span>Zoom Out Amount</span>
+                    <span className="font-bold">{viewpointDraft.zoomPercent}% of current zoom</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={5}
+                    max={80}
+                    step={5}
+                    value={viewpointDraft.zoomPercent}
+                    onChange={(e) => setViewpointDraft(prev => ({ ...prev, zoomPercent: Number(e.target.value) }))}
+                    className="w-full accent-[var(--accent)]"
+                  />
+                  <div className="flex justify-between text-[9px] opacity-30 mt-0.5">
+                    <span>Very far</span>
+                    <span>Near</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={saveViewpoint}
+                  className="btn-filled w-full py-2 rounded-lg"
+                >
+                  Place Viewpoint
                 </button>
               </div>
             )}

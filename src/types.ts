@@ -220,11 +220,21 @@ export interface MapNote {
   y: number;
 }
 
+export interface Viewpoint {
+  id: string;
+  x: number;
+  y: number;
+  /** Absolute Konva stage scale value to zoom to when activated */
+  zoomScale: number;
+  label?: string;
+}
+
 export interface Scenario {
   id: string;
   name: string;
   notes: string;
   mapNotes: MapNote[];
+  viewpoints?: Viewpoint[];
   tokens: Token[];
   combatants: Combatant[];
   activeCombatants: Combatant[];

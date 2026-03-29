@@ -6,7 +6,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
-import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote } from './types';
+import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint } from './types';
 import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -357,6 +357,13 @@ export function DMScreen() {
     setCampaign(prev => prev ? ({
       ...prev,
       scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, mapNotes } : s)
+    }) : prev);
+  }, []);
+
+  const updateViewpoints = useCallback((viewpoints: Viewpoint[]) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, viewpoints } : s)
     }) : prev);
   }, []);
 
@@ -952,6 +959,8 @@ export function DMScreen() {
                 onMapChange={updateScenarioMap}
                 mapNotes={currentScenario.mapNotes || []}
                 onMapNotesChange={updateMapNotes}
+                viewpoints={currentScenario.viewpoints || []}
+                onViewpointsChange={updateViewpoints}
                 players={campaign.players || []}
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
