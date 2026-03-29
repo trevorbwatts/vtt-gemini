@@ -1018,6 +1018,7 @@ export function PlayerScreen() {
           objectWalls={currentScenario.objectWalls}
           portals={currentScenario.portals}
           gridResolution={currentScenario.gridResolution}
+          onPortalToggle={(portalId) => window.electronAPI?.sendPlayerPortalToggle?.(portalId)}
           onDragStatusChange={handleDragStatusChange}
           viewportCenter={viewportCenter}
           darknessLevel={currentScenario.darknessLevel}

@@ -247,6 +247,13 @@ ipcMain.on('player-target-update', (_event, combatantIds) => {
   }
 });
 
+// Player portal toggle: proxy to DM window
+ipcMain.on('player-portal-toggle', (_event, portalId) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-portal-toggle', portalId);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

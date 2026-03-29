@@ -18,6 +18,7 @@ const MOCK_NORMAL: ActionRollResult = {
     { rolls: [4, 6], modifier: 0, total: 10, damageType: 'Fire', diceNotation: '2d6' },
   ],
   totalDamage: 22,
+  rollMode: 'normal',
 };
 
 const MOCK_CRIT: ActionRollResult = {
@@ -31,6 +32,7 @@ const MOCK_CRIT: ActionRollResult = {
     { rolls: [3, 6, 5, 2], modifier: 0, total: 16, damageType: 'Fire', diceNotation: '2d6' },
   ],
   totalDamage: 37,
+  rollMode: 'normal',
 };
 
 const MOCK_FUMBLE: ActionRollResult = {
@@ -44,6 +46,7 @@ const MOCK_FUMBLE: ActionRollResult = {
     { rolls: [3, 1], modifier: 0, total: 4, damageType: 'Fire', diceNotation: '2d6' },
   ],
   totalDamage: 14,
+  rollMode: 'normal',
 };
 
 // ── Variation A: "Classic" — badge left, formula right, stacked damage rows ──

@@ -439,6 +439,31 @@ export function DMScreen() {
     }) : prev);
   }, []);
 
+  const changePortalType = useCallback((portalId: string, type: 'door' | 'window') => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioIdRef.current
+          ? {
+              ...s,
+              portals: s.portals?.map(p =>
+                p.id === portalId ? { ...p, portalType: type } : p
+              )
+            }
+          : s
+      )
+    }) : prev);
+  }, []);
+
+  // Listen for portal toggle from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerPortalToggle) return;
+    window.electronAPI.onPlayerPortalToggle((portalId) => {
+      togglePortal(portalId);
+    });
+    return () => { window.electronAPI?.removePlayerPortalToggleListener?.(); };
+  }, [togglePortal]);
+
   const addEnemyToMap = useCallback((monster: any, x: number, y: number) => {
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const newEnemyId = `e-${uniqueId}`;
@@ -951,6 +976,7 @@ export function DMScreen() {
                 gridResolution={currentScenario.gridResolution}
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}
+                onPortalTypeChange={changePortalType}
                 onViewportCenter={handleViewportCenter}
                 darknessLevel={currentScenario.darknessLevel}
                 onDarknessLevelChange={updateDarknessLevel}

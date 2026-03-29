@@ -42,7 +42,7 @@ export const ActionRollModal: React.FC<ActionRollModalProps> = ({ isOpen, action
         >
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--line)] bg-black/10">
-            <h2 className="text-lg font-serif font-bold tracking-tight text-orange-400">{actionName}</h2>
+            <h2 className="text-2xl font-serif font-bold tracking-tight text-orange-400">{actionName}</h2>
             <button
               onClick={onClose}
               className="p-2 hover:bg-white/5 rounded-full transition-colors opacity-50 hover:opacity-100"

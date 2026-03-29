@@ -74,6 +74,7 @@ export function parseUVTTFile(jsonString: string): UVTTParseResult {
   }));
 
   // Parse portals (doors/windows)
+  // Freestanding portals are typically windows; attached portals are doors
   const portals: Portal[] = (data.portals || []).map((portal, i) => ({
     id: `portal-${i}`,
     bounds: [
@@ -82,6 +83,7 @@ export function parseUVTTFile(jsonString: string): UVTTParseResult {
     ] as [WallPoint, WallPoint],
     closed: portal.closed,
     freestanding: portal.freestanding ?? false,
+    portalType: (portal.freestanding ? 'window' : 'door') as 'door' | 'window',
   }));
 
   const gridResolution: GridResolution = {

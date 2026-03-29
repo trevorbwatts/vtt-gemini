@@ -94,6 +94,12 @@ export {
   Atom,
   Bubbles,
   FlaskConical,
+
+  // Portals (Doors / Windows)
+  DoorClosed,
+  DoorOpen,
+  Grid2x2,
+  Blinds,
 } from 'lucide-react';
 
 // Treasure chest — lucide's Gem icon

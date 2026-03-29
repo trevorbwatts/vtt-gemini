@@ -93,4 +93,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerTargetUpdateListener: () => {
     ipcRenderer.removeAllListeners('player-target-update');
   },
+  sendPlayerPortalToggle: (portalId: string) =>
+    ipcRenderer.send('player-portal-toggle', portalId),
+  onPlayerPortalToggle: (callback: (portalId: string) => void) => {
+    ipcRenderer.on('player-portal-toggle', (_event, portalId) => callback(portalId));
+  },
+  removePlayerPortalToggleListener: () => {
+    ipcRenderer.removeAllListeners('player-portal-toggle');
+  },
 });

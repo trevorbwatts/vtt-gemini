@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2 } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds } from '../icons';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,6 +39,7 @@ interface MapViewProps {
   gridResolution?: GridResolution;
   onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
   onPortalToggle?: (portalId: string) => void;
+  onPortalTypeChange?: (portalId: string, type: 'door' | 'window') => void;
   onDragStatusChange?: (isDragging: boolean) => void;
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
@@ -390,6 +391,35 @@ const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = 
   );
 };
 
+// ── Lucide SVG path data for portal icons (24×24 viewBox) ──
+type IconNode = ['path' | 'rect' | 'circle', Record<string, string>];
+const DOOR_CLOSED_NODES: IconNode[] = [
+  ['path', { d: 'M10 12h.01' }],
+  ['path', { d: 'M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14' }],
+  ['path', { d: 'M2 20h20' }],
+];
+const DOOR_OPEN_NODES: IconNode[] = [
+  ['path', { d: 'M11 20H2' }],
+  ['path', { d: 'M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z' }],
+  ['path', { d: 'M11 4H8a2 2 0 0 0-2 2v14' }],
+  ['path', { d: 'M14 12h.01' }],
+  ['path', { d: 'M22 20h-3' }],
+];
+const GRID2X2_NODES: IconNode[] = [
+  ['path', { d: 'M12 3v18' }],
+  ['path', { d: 'M3 12h18' }],
+  ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }],
+];
+const BLINDS_NODES: IconNode[] = [
+  ['path', { d: 'M3 3h18' }],
+  ['path', { d: 'M20 7H8' }],
+  ['path', { d: 'M20 11H8' }],
+  ['path', { d: 'M10 19h10' }],
+  ['path', { d: 'M8 15h12' }],
+  ['path', { d: 'M4 3v14' }],
+  ['circle', { cx: '4', cy: '19', r: '2' }],
+];
+
 const MapViewInner: React.FC<MapViewProps> = ({
   tokens,
   onTokensChange,
@@ -418,6 +448,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   gridResolution,
   onWallDataChange,
   onPortalToggle,
+  onPortalTypeChange,
   onDragStatusChange,
   onViewportCenter,
   viewportCenter,
@@ -457,6 +488,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
+  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [showChangeMapModal, setShowChangeMapModal] = useState(false);
@@ -2005,7 +2037,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 listening={false}
               />
             ))}
-            {/* Render Portals (Doors/Windows) */}
+            {/* Render Portals (Doors/Windows) — line overlay on DM view only */}
             {showWalls && !isPlayerView && portals?.map(portal => (
               <Line
                 key={portal.id}
@@ -2015,8 +2047,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 lineCap="round"
                 dash={portal.closed ? [] : [8, 6]}
                 opacity={0.9}
-                onClick={() => !isPlayerView && onPortalToggle?.(portal.id)}
-                onTap={() => !isPlayerView && onPortalToggle?.(portal.id)}
+                onClick={() => onPortalToggle?.(portal.id)}
+                onTap={() => onPortalToggle?.(portal.id)}
                 hitStrokeWidth={12}
               />
             ))}
@@ -2842,6 +2874,87 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── Portal Icons — below fog layer, pans 1:1 with canvas ── */}
+          {portals && portals.length > 0 && (
+            <Layer>
+              {portals.map(portal => {
+                const midX = (portal.bounds[0].x + portal.bounds[1].x) / 2;
+                const midY = (portal.bounds[0].y + portal.bounds[1].y) / 2;
+                const isWindow = portal.portalType === 'window';
+                const iconSize = tokenRadius * 0.82;
+                const s = iconSize / 24; // scale from 24×24 viewBox
+
+                // Colors
+                let iconColor: string;
+                let bgFill: string;
+                let bgStroke: string;
+                if (portal.closed) {
+                  iconColor = '#ffffff';
+                  bgFill = 'rgba(255,255,255,0.15)';
+                  bgStroke = 'rgba(255,255,255,0.35)';
+                } else if (isWindow) {
+                  iconColor = '#60a5fa';
+                  bgFill = 'rgba(37,99,235,0.45)';
+                  bgStroke = 'rgba(96,165,250,0.5)';
+                } else {
+                  iconColor = '#4ade80';
+                  bgFill = 'rgba(22,163,74,0.45)';
+                  bgStroke = 'rgba(74,222,128,0.5)';
+                }
+
+                const nodes = isWindow
+                  ? (portal.closed ? BLINDS_NODES : GRID2X2_NODES)
+                  : (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES);
+
+                return (
+                  <Group
+                    key={`portal-icon-${portal.id}`}
+                    x={midX - iconSize / 2}
+                    y={midY - iconSize / 2}
+                    scaleX={s}
+                    scaleY={s}
+                    onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
+                    onTap={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
+                    onTouchStart={(e) => { e.cancelBubble = true; }}
+                    onContextMenu={!isPlayerView ? (e) => {
+                      e.evt.preventDefault();
+                      e.cancelBubble = true;
+                      const stage = e.target.getStage();
+                      const pos = stage?.getPointerPosition();
+                      if (!pos) return;
+                      // Convert from stage-relative to screen coords
+                      const container = stage?.container().getBoundingClientRect();
+                      setPortalContextMenu({
+                        screenX: (container?.left ?? 0) + pos.x,
+                        screenY: (container?.top ?? 0) + pos.y,
+                        portalId: portal.id,
+                        portalType: portal.portalType ?? 'door',
+                      });
+                    } : undefined}
+                  >
+                    {/* Background pill */}
+                    <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={1 / s} />
+                    {/* Icon paths */}
+                    {nodes.map((node, i) => {
+                      const [type, props] = node;
+                      const sw = 1.5;
+                      if (type === 'path') return (
+                        <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
+                      );
+                      if (type === 'rect') return (
+                        <Rect key={i} x={parseFloat(props.x)} y={parseFloat(props.y)} width={parseFloat(props.width)} height={parseFloat(props.height)} cornerRadius={props.rx ? parseFloat(props.rx) : 0} stroke={iconColor} strokeWidth={sw} fillEnabled={false} listening={false} />
+                      );
+                      if (type === 'circle') return (
+                        <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} stroke={iconColor} strokeWidth={sw} fillEnabled={false} listening={false} />
+                      );
+                      return null;
+                    })}
+                  </Group>
+                );
+              })}
+            </Layer>
+          )}
+
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
@@ -2974,6 +3087,55 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
         </Stage>
+
+
+        {/* Portal Type Context Menu (DM only) */}
+        {!isPlayerView && portalContextMenu && (
+          <>
+            {/* Backdrop to dismiss */}
+            <div
+              className="absolute inset-0 z-40"
+              onClick={() => setPortalContextMenu(null)}
+              onContextMenu={(e) => { e.preventDefault(); setPortalContextMenu(null); }}
+            />
+            <div
+              className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[160px]"
+              style={{ left: portalContextMenu.screenX, top: portalContextMenu.screenY }}
+            >
+              <div className="px-3 py-2 border-b border-[var(--line)]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Portal Type</p>
+              </div>
+              <button
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left',
+                  portalContextMenu.portalType === 'door' ? 'text-orange-400' : 'text-white/60',
+                )}
+                onClick={() => {
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'door');
+                  setPortalContextMenu(null);
+                }}
+              >
+                <DoorClosed size={15} />
+                Door
+                {portalContextMenu.portalType === 'door' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+              </button>
+              <button
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left',
+                  portalContextMenu.portalType === 'window' ? 'text-orange-400' : 'text-white/60',
+                )}
+                onClick={() => {
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'window');
+                  setPortalContextMenu(null);
+                }}
+              >
+                <Blinds size={15} />
+                Window
+                {portalContextMenu.portalType === 'window' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Note Tooltips Overlay */}
         {!isPlayerView && hoveredNoteId && mapNotes.find(n => n.id === hoveredNoteId) && (() => {

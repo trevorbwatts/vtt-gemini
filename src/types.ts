@@ -42,6 +42,9 @@ declare global {
       sendPlayerTargetUpdate?: (combatantIds: string[]) => void;
       onPlayerTargetUpdate?: (callback: (combatantIds: string[]) => void) => void;
       removePlayerTargetUpdateListener?: () => void;
+      sendPlayerPortalToggle?: (portalId: string) => void;
+      onPlayerPortalToggle?: (callback: (portalId: string) => void) => void;
+      removePlayerPortalToggleListener?: () => void;
       toggleFullscreen?: () => void;
       onFullscreenStatus?: (callback: (isFs: boolean) => void) => void;
       removeFullscreenStatusListener?: () => void;
@@ -198,6 +201,7 @@ export interface Portal {
   bounds: [WallPoint, WallPoint];
   closed: boolean;
   freestanding: boolean;
+  portalType?: 'door' | 'window';
 }
 
 export interface GridResolution {
