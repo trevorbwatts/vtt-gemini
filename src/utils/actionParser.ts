@@ -17,7 +17,10 @@ export interface DamageRollResult {
   modifier: number;
   total: number;
   damageType: string;
+  diceNotation: string; // e.g. "2d10"
 }
+
+export type RollMode = 'normal' | 'advantage' | 'disadvantage';
 
 export interface ActionRollResult {
   attackRoll: number;
@@ -27,6 +30,8 @@ export interface ActionRollResult {
   isFumble: boolean;
   damageResults: DamageRollResult[];
   totalDamage: number;
+  rollMode: RollMode;
+  d20Rolls?: [number, number]; // both dice when adv/dis
 }
 
 // ── Parser ──
@@ -75,8 +80,19 @@ function rollDie(sides: number): number {
   return Math.floor(Math.random() * sides) + 1;
 }
 
-export function rollAction(parsed: ParsedAction): ActionRollResult {
-  const attackRoll = rollDie(20);
+export function rollAction(parsed: ParsedAction, rollMode: RollMode = 'normal'): ActionRollResult {
+  let attackRoll: number;
+  let d20Rolls: [number, number] | undefined;
+
+  if (rollMode === 'advantage' || rollMode === 'disadvantage') {
+    const a = rollDie(20);
+    const b = rollDie(20);
+    d20Rolls = [a, b];
+    attackRoll = rollMode === 'advantage' ? Math.max(a, b) : Math.min(a, b);
+  } else {
+    attackRoll = rollDie(20);
+  }
+
   const isCrit = attackRoll === 20;
   const isFumble = attackRoll === 1;
   const attackTotal = attackRoll + parsed.attackBonus;
@@ -88,10 +104,10 @@ export function rollAction(parsed: ParsedAction): ActionRollResult {
       rolls.push(rollDie(g.sides));
     }
     const total = rolls.reduce((sum, r) => sum + r, 0) + g.modifier;
-    return { rolls, modifier: g.modifier, total: Math.max(0, total), damageType: g.damageType };
+    return { rolls, modifier: g.modifier, total: Math.max(0, total), damageType: g.damageType, diceNotation: `${g.count}d${g.sides}` };
   });
 
   const totalDamage = damageResults.reduce((sum, r) => sum + r.total, 0);
 
-  return { attackRoll, attackBonus: parsed.attackBonus, attackTotal, isCrit, isFumble, damageResults, totalDamage };
+  return { attackRoll, attackBonus: parsed.attackBonus, attackTotal, isCrit, isFumble, damageResults, totalDamage, rollMode, d20Rolls };
 }

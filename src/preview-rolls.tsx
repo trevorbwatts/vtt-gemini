@@ -14,8 +14,8 @@ const MOCK_NORMAL: ActionRollResult = {
   isCrit: false,
   isFumble: false,
   damageResults: [
-    { rolls: [5, 3], modifier: 4, total: 12, damageType: 'Slashing' },
-    { rolls: [4, 6], modifier: 0, total: 10, damageType: 'Fire' },
+    { rolls: [5, 3], modifier: 4, total: 12, damageType: 'Slashing', diceNotation: '2d6' },
+    { rolls: [4, 6], modifier: 0, total: 10, damageType: 'Fire', diceNotation: '2d6' },
   ],
   totalDamage: 22,
 };
@@ -27,8 +27,8 @@ const MOCK_CRIT: ActionRollResult = {
   isCrit: true,
   isFumble: false,
   damageResults: [
-    { rolls: [6, 2, 5, 4], modifier: 4, total: 21, damageType: 'Slashing' },
-    { rolls: [3, 6, 5, 2], modifier: 0, total: 16, damageType: 'Fire' },
+    { rolls: [6, 2, 5, 4], modifier: 4, total: 21, damageType: 'Slashing', diceNotation: '2d6' },
+    { rolls: [3, 6, 5, 2], modifier: 0, total: 16, damageType: 'Fire', diceNotation: '2d6' },
   ],
   totalDamage: 37,
 };
@@ -40,8 +40,8 @@ const MOCK_FUMBLE: ActionRollResult = {
   isCrit: false,
   isFumble: true,
   damageResults: [
-    { rolls: [4, 2], modifier: 4, total: 10, damageType: 'Slashing' },
-    { rolls: [3, 1], modifier: 0, total: 4, damageType: 'Fire' },
+    { rolls: [4, 2], modifier: 4, total: 10, damageType: 'Slashing', diceNotation: '2d6' },
+    { rolls: [3, 1], modifier: 0, total: 4, damageType: 'Fire', diceNotation: '2d6' },
   ],
   totalDamage: 14,
 };
@@ -58,33 +58,37 @@ function VariationA({ result }: { result: ActionRollResult }) {
       <div className="p-4 space-y-4">
         {/* Attack Roll */}
         <div>
-          <p className="text-[11px] uppercase tracking-widest font-bold text-white/40 mb-2">Attack Roll</p>
+          <p className="text-sm uppercase tracking-widest font-bold text-white/40 mb-2">Attack Roll</p>
           <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-1 flex-1">
+              <div className="flex items-center gap-1.5 text-sm font-sans text-white/30">
+                <span>d20</span>
+                <span className={cn(
+                  'inline-flex items-center justify-center w-7 h-7 rounded text-xs font-bold',
+                  isCrit && 'text-yellow-400 bg-yellow-500/15',
+                  isFumble && 'text-red-400 bg-red-500/15',
+                  !isCrit && !isFumble && 'text-white/60 bg-white/10',
+                )}>{attackRoll}</span>
+                <span>+</span>
+                <span className="text-white/50">{attackBonus}</span>
+              </div>
+              {isCrit && <span className="text-xs font-bold uppercase tracking-widest text-yellow-400">Critical Hit!</span>}
+              {isFumble && <span className="text-xs font-bold uppercase tracking-widest text-red-400">Critical Miss!</span>}
+            </div>
             <div className={cn(
-              'w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-bold font-mono shrink-0',
+              'w-14 h-14 rounded-xl flex items-center justify-center text-3xl font-bold font-mono shrink-0',
               isCrit && 'bg-yellow-500/15 text-yellow-400 ring-2 ring-yellow-500/30',
               isFumble && 'bg-red-500/15 text-red-400 ring-2 ring-red-500/30',
               !isCrit && !isFumble && 'bg-white/10 text-white',
             )}>
-              {attackRoll}
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-sm font-mono text-white/70">
-                <span>{attackRoll}</span>
-                <span className="text-white/30">+</span>
-                <span>{attackBonus}</span>
-                <span className="text-white/30">=</span>
-                <span className="font-bold text-white text-lg">{attackTotal}</span>
-              </div>
-              {isCrit && <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-400">Critical Hit!</span>}
-              {isFumble && <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Critical Miss!</span>}
+              {attackTotal}
             </div>
           </div>
         </div>
 
         {/* Damage */}
         <div>
-          <p className="text-[11px] uppercase tracking-widest font-bold text-white/40 mb-2">
+          <p className="text-sm uppercase tracking-widest font-bold text-white/40 mb-2">
             {isCrit ? 'Critical Damage' : 'Damage'}
           </p>
           <div className="space-y-2">
@@ -92,20 +96,21 @@ function VariationA({ result }: { result: ActionRollResult }) {
               const rgb = getDamageRgb(dr.damageType);
               return (
                 <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: `rgba(${rgb}, 0.06)`, border: `1px solid rgba(${rgb}, 0.12)` }}>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {dr.rolls.map((roll, j) => (
-                      <span key={j} className="inline-flex items-center justify-center w-7 h-7 rounded-md text-xs font-bold font-mono"
-                        style={{ backgroundColor: `rgba(${rgb}, 0.15)`, color: `rgb(${rgb})` }}>{roll}</span>
-                    ))}
-                    {dr.modifier !== 0 && (
-                      <>
-                        <span className="text-white/30 text-xs font-mono">{dr.modifier > 0 ? '+' : '−'}</span>
-                        <span className="text-xs font-bold font-mono text-white/60">{Math.abs(dr.modifier)}</span>
-                      </>
-                    )}
-                    <span className="text-white/30 text-xs font-mono">=</span>
-                    <span className="text-sm font-bold font-mono" style={{ color: `rgb(${rgb})` }}>{dr.total}</span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider ml-auto opacity-60" style={{ color: `rgb(${rgb})` }}>{dr.damageType}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                      <span className="text-xs font-bold font-sans text-white/30 mr-0.5">{dr.diceNotation}</span>
+                      {dr.rolls.map((roll, j) => (
+                        <span key={j} className="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-bold font-sans opacity-60"
+                          style={{ backgroundColor: `rgba(${rgb}, 0.12)`, color: `rgb(${rgb})` }}>{roll}</span>
+                      ))}
+                      {dr.modifier !== 0 && (
+                        <span className="text-xs font-sans text-white/30">{dr.modifier > 0 ? '+' : '−'}{Math.abs(dr.modifier)}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs font-bold uppercase tracking-wider opacity-50" style={{ color: `rgb(${rgb})` }}>{dr.damageType}</span>
+                      <span className="text-xl font-bold font-sans" style={{ color: `rgb(${rgb})` }}>{dr.total}</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -114,8 +119,8 @@ function VariationA({ result }: { result: ActionRollResult }) {
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t border-[var(--line)]">
-          <span className="text-[11px] uppercase tracking-widest font-bold text-white/40">Total Damage</span>
-          <span className={cn('text-2xl font-bold font-mono', isCrit ? 'text-yellow-400' : 'text-orange-400')}>{totalDamage}</span>
+          <span className="text-sm uppercase tracking-widest font-bold text-white/40">Total Damage</span>
+          <span className={cn('text-3xl font-bold font-sans', isCrit ? 'text-yellow-400' : 'text-orange-400')}>{totalDamage}</span>
         </div>
       </div>
     </div>

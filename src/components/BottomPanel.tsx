@@ -105,11 +105,11 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   const [actionRollName, setActionRollName] = useState('');
   const [actionRollResult, setActionRollResult] = useState<ActionRollResult | null>(null);
 
-  const handleRollAction = (actionName: string, desc: string) => {
+  const handleRollAction = (actionName: string, desc: string, rollMode: import('../utils/actionParser').RollMode = 'normal') => {
     const parsed = parseAction(desc);
     if (!parsed) return;
     setActionRollName(actionName);
-    setActionRollResult(rollAction(parsed));
+    setActionRollResult(rollAction(parsed, rollMode));
     setActionRollOpen(true);
   };
 
@@ -712,12 +712,21 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <div key={i} className="text-[13px] bg-white/5 p-2 rounded border border-white/5">
                           <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
                           {parseAction(action.desc) && (
-                            <button
-                              onClick={() => handleRollAction(action.name, action.desc)}
-                              className="mt-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-orange-400/70 hover:text-orange-400 transition-colors"
-                            >
-                              <Dices size={12} /> Roll Attack
-                            </button>
+                            <div className="mt-1.5 flex items-center gap-1">
+                              <Dices size={12} className="text-orange-400/50" />
+                              {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
+                                const mode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
+                                return (
+                                  <button
+                                    key={label}
+                                    onClick={() => handleRollAction(action.name, action.desc, mode)}
+                                    className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       ))
@@ -736,12 +745,21 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <div key={i} className="text-[13px] bg-white/5 p-2 rounded border border-white/5">
                           <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
                           {parseAction(action.desc) && (
-                            <button
-                              onClick={() => handleRollAction(action.name, action.desc)}
-                              className="mt-1.5 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-orange-400/70 hover:text-orange-400 transition-colors"
-                            >
-                              <Dices size={12} /> Roll Attack
-                            </button>
+                            <div className="mt-1.5 flex items-center gap-1">
+                              <Dices size={12} className="text-orange-400/50" />
+                              {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
+                                const mode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
+                                return (
+                                  <button
+                                    key={label}
+                                    onClick={() => handleRollAction(action.name, action.desc, mode)}
+                                    className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       ))}
