@@ -4292,6 +4292,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           <div className="flex items-center gap-3">
                             {selectedMonster.avatar && (
                               <img
+                                key={selectedMonster.id}
                                 src={selectedMonster.avatar}
                                 alt={selectedMonster.name}
                                 className="w-12 h-12 rounded-full object-cover shrink-0 bg-black/20"
