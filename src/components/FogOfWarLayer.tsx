@@ -25,8 +25,10 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
         // Fill the entire map with fog, baking opacity into the fill color so
         // destination-out cuts clean holes without offscreen-buffer compositing
         // artifacts (which occur when the Shape node itself has opacity < 1).
+        // Padding the rect slightly (-2) prevents edge bleeding artifacts from 
+        // sub-pixel rendering.
         c.fillStyle = `rgba(0, 0, 0, ${opacity})`;
-        c.fillRect(0, 0, mapWidth, mapHeight);
+        c.fillRect(-2, -2, mapWidth + 4, mapHeight + 4);
 
         // Use destination-out to erase the visible areas
         // This way overlapping polygons just erase the same area — no inversion

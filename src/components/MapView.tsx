@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown } from '../icons';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
@@ -539,6 +539,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const setSelectedTokenIds = externalSelectedTokenIds !== undefined && onSelectedTokenIdsChange ? onSelectedTokenIdsChange : setInternalSelectedTokenIds;
   
   const [showWalls, setShowWalls] = useState(true);
+  const [isMapMenuOpen, setIsMapMenuOpen] = useState(false);
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectionRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -2240,44 +2241,82 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <MapIcon size={12} className="opacity-50" />
                 <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Map</h3>
               </div>
-              <button
-                onClick={() => {
-                  if (mapImage && (tokens.length > 0 || mapNotes.length > 0)) {
-                    setShowChangeMapModal(true);
-                  } else {
-                    fileInputRef.current?.click();
-                  }
-                }}
-                className="btn-ghost py-1"
-              >
-                <Upload size={12} /> {mapImage ? 'CHANGE MAP' : 'UPLOAD MAP'}
-              </button>
-              <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,.uvtt,.dd2vtt,.df2vtt" />
-              {walls && walls.length > 0 && (
+              <div className="relative">
                 <button
-                  onClick={() => setShowWalls(!showWalls)}
-                  className="btn-ghost py-1"
+                  onClick={() => setIsMapMenuOpen(!isMapMenuOpen)}
+                  className="btn-ghost py-1 px-3 flex items-center gap-2"
                 >
-                  {showWalls ? <Eye size={12} /> : <EyeOff size={12} />} WALLS
+                  MAP SETTINGS <ChevronDown size={12} className={cn("transition-transform", isMapMenuOpen && "rotate-180")} />
                 </button>
-              )}
-              {hasFogData && (
-                <button
-                  onClick={() => setWallCollisionEnabled(!wallCollisionEnabled)}
-                  className={cn("btn-ghost py-1", wallCollisionEnabled && "bg-white/10")}
-                  title="Toggle wall collision for tokens"
-                >
-                  <Footprints size={12} /> COLLISION
-                </button>
-              )}
-              {hasFogData && (
-                <button
-                  onClick={() => setShowFog(!showFog)}
-                  className={cn("btn-ghost py-1", showFog && "bg-white/10")}
-                >
-                  <Cloud size={12} /> FOG
-                </button>
-              )}
+                <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,.uvtt,.dd2vtt,.df2vtt" />
+                
+                <AnimatePresence>
+                  {isMapMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsMapMenuOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="absolute top-full left-0 mt-2 z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[180px] flex flex-col items-stretch"
+                      >
+                        <button
+                          onClick={() => {
+                            setIsMapMenuOpen(false);
+                            if (mapImage && (tokens.length > 0 || mapNotes.length > 0)) {
+                              setShowChangeMapModal(true);
+                            } else {
+                              fileInputRef.current?.click();
+                            }
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                        >
+                          <Upload size={14} /> Change Map
+                        </button>
+                        
+                        {walls && walls.length > 0 && (
+                          <button
+                            onClick={() => {
+                              setShowWalls(!showWalls);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            {showWalls ? <EyeOff size={14} /> : <Eye size={14} />} 
+                            {showWalls ? 'Hide Walls' : 'Show Walls'}
+                          </button>
+                        )}
+                        
+                        {hasFogData && (
+                          <button
+                            onClick={() => {
+                              setWallCollisionEnabled(!wallCollisionEnabled);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <Footprints size={14} /> 
+                            {wallCollisionEnabled ? 'Disable Collisions' : 'Enable Collisions'}
+                          </button>
+                        )}
+                        
+                        {hasFogData && (
+                          <button
+                            onClick={() => {
+                              setShowFog(!showFog);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <Cloud size={14} /> 
+                            {showFog ? 'Turn Off Fog' : 'Turn On Fog'}
+                          </button>
+                        )}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
 
               <div className="h-6 w-px bg-[var(--line)] shrink-0" />
               <div className="flex items-center bg-black/40 rounded-lg p-0.5">
@@ -2302,7 +2341,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      <div className="flex-1 bg-[#111] relative overflow-hidden" style={{ cursor: isPanning && spaceHeld ? 'grabbing' : spaceHeld ? 'grab' : undefined }}>
+      <div className="flex-1 bg-black relative overflow-hidden" style={{ cursor: isPanning && spaceHeld ? 'grabbing' : spaceHeld ? 'grab' : undefined }}>
         {!loadedImage && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10">
             <div className="max-w-md space-y-6">
