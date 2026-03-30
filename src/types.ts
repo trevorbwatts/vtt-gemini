@@ -202,7 +202,7 @@ export interface Portal {
   bounds: [WallPoint, WallPoint];
   closed: boolean;
   freestanding: boolean;
-  portalType?: 'door' | 'window';
+  portalType?: 'door' | 'window' | 'secret';
 }
 
 export interface GridResolution {

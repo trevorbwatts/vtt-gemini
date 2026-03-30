@@ -105,6 +105,9 @@ export {
   Layers,
   ArrowUpDown,
   SquareDashed,
+
+  // Secret door
+  SquareDashedTopSolid,
 } from 'lucide-react';
 
 // Treasure chest — lucide's Gem icon

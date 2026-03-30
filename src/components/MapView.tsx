@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line, Transformer } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
@@ -41,7 +41,7 @@ interface MapViewProps {
   gridResolution?: GridResolution;
   onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
   onPortalToggle?: (portalId: string) => void;
-  onPortalTypeChange?: (portalId: string, type: 'door' | 'window') => void;
+  onPortalTypeChange?: (portalId: string, type: 'door' | 'window' | 'secret') => void;
   onDragStatusChange?: (isDragging: boolean) => void;
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
@@ -516,7 +516,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
-  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' } | null>(null);
+  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' | 'secret' } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
@@ -620,6 +620,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [transitionZoneMode, setTransitionZoneMode] = useState(false);
   const [drawingZone, setDrawingZone] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [transitionZoneConfig, setTransitionZoneConfig] = useState<{ rect: { x: number; y: number; width: number; height: number } } | null>(null);
+  const [tzFloorPickerOpen, setTzFloorPickerOpen] = useState(false);
+  const [tzSelectedFloorId, setTzSelectedFloorId] = useState<string>('');
   const [transitionPopup, setTransitionPopup] = useState<{
     tokenId: string;
     zone: TransitionZone;
@@ -636,6 +638,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const zoneTransformerRef = useRef<any>(null);
   const zoneRectRefs = useRef<Record<string, any>>({});
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   // Movement path tracking — only active during initiative/combat
   const inCombat = activeCombatants.length > 0;
@@ -2460,17 +2463,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         e.evt.preventDefault();
                         e.cancelBubble = true;
                         const partnerLabel = zone.pairedZoneId ? ' and its paired zone' : '';
-                        if (confirm(`Delete transition zone${zone.label ? ` "${zone.label}"` : ''}${partnerLabel}?`)) {
-                          setSelectedZoneId(null);
-                          const updated = zones.filter(z => z.id !== zone.id);
-                          onTransitionZonesChange?.(updated);
-                          if (zone.pairedZoneId && zone.targetFloorId) {
-                            onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
-                              ...f,
-                              transitionZones: (f.transitionZones || []).filter(z => z.id !== zone.pairedZoneId)
-                            }));
+                        setConfirmDialog({
+                          message: `Delete transition zone${zone.label ? ` "${zone.label}"` : ''}${partnerLabel}?`,
+                          onConfirm: () => {
+                            setSelectedZoneId(null);
+                            const updated = zones.filter(z => z.id !== zone.id);
+                            onTransitionZonesChange?.(updated);
+                            if (zone.pairedZoneId && zone.targetFloorId) {
+                              onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
+                                ...f,
+                                transitionZones: (f.transitionZones || []).filter(z => z.id !== zone.pairedZoneId)
+                              }));
+                            }
                           }
-                        }
+                        });
                       }}
                       onDragEnd={(e) => {
                         const node = e.target;
@@ -2593,16 +2599,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
             ))}
             {/* Render Portals (Doors/Windows) — line overlay on DM view, invisible hitboxes on Player view */}
             {((showWalls && !isPlayerView) || isPlayerView) && portals?.map(portal => {
+              const isSecret = portal.portalType === 'secret';
+              // Secret doors are invisible to players
+              if (isPlayerView && isSecret) return null;
               const showVisuals = showWalls && !isPlayerView;
+              const strokeColor = showVisuals
+                ? (isSecret ? '#a855f7' : portal.closed ? '#4ade80' : '#60a5fa')
+                : 'transparent';
               return (
                 <Line
                   key={portal.id}
                   points={[portal.bounds[0].x, portal.bounds[0].y, portal.bounds[1].x, portal.bounds[1].y]}
-                  stroke={showVisuals ? (portal.closed ? '#4ade80' : '#60a5fa') : 'transparent'}
+                  stroke={strokeColor}
                   strokeWidth={showVisuals ? (portal.closed ? 4 : 3) : 2}
                   lineCap="round"
-                  dash={showVisuals && !portal.closed ? [8, 6] : []}
-                  opacity={showVisuals ? 0.9 : 1}
+                  dash={showVisuals && (!portal.closed || isSecret) ? [8, 6] : []}
+                  opacity={showVisuals ? (isSecret ? 0.7 : 0.9) : 1}
                   onClick={(e) => { e.cancelBubble = true; onPortalToggle?.(portal.id); }}
                   onTap={(e) => { e.cancelBubble = true; onPortalToggle?.(portal.id); }}
                   hitStrokeWidth={isPlayerView ? 30 : 12}
@@ -3435,6 +3447,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           {portals && portals.length > 0 && (
             <Layer>
               {portals.map(portal => {
+                const isSecret = portal.portalType === 'secret';
+                // Secret doors hidden from players entirely
+                if (isPlayerView && isSecret) return null;
                 const midX = (portal.bounds[0].x + portal.bounds[1].x) / 2;
                 const midY = (portal.bounds[0].y + portal.bounds[1].y) / 2;
                 const isWindow = portal.portalType === 'window';
@@ -3445,7 +3460,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 let iconColor: string;
                 let bgFill: string;
                 let bgStroke: string;
-                if (portal.closed) {
+                if (isSecret) {
+                  iconColor = '#e879f9';
+                  bgFill = 'rgba(168,85,247,0.35)';
+                  bgStroke = 'rgba(232,121,249,0.6)';
+                } else if (portal.closed) {
                   iconColor = '#ffffff';
                   bgFill = 'rgba(255,255,255,0.15)';
                   bgStroke = 'rgba(255,255,255,0.35)';
@@ -3459,9 +3478,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   bgStroke = 'rgba(74,222,128,0.5)';
                 }
 
-                const nodes = isWindow
-                  ? (portal.closed ? BLINDS_NODES : GRID2X2_NODES)
-                  : (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES);
+                const nodes = isSecret
+                  ? (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES)
+                  : isWindow
+                    ? (portal.closed ? BLINDS_NODES : GRID2X2_NODES)
+                    : (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES);
 
                 return (
                   <Group
@@ -3480,13 +3501,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       const stage = e.target.getStage();
                       const pos = stage?.getPointerPosition();
                       if (!pos) return;
-                      // Convert from stage-relative to screen coords
-                      const container = stage?.container().getBoundingClientRect();
                       setPortalContextMenu({
-                        screenX: (container?.left ?? 0) + pos.x,
-                        screenY: (container?.top ?? 0) + pos.y,
+                        screenX: pos.x,
+                        screenY: pos.y,
                         portalId: portal.id,
-                        portalType: portal.portalType ?? 'door',
+                        portalType: (portal.portalType ?? 'door') as 'door' | 'window' | 'secret',
                       });
                     } : undefined}
                   >
@@ -3507,6 +3526,79 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       );
                       return null;
                     })}
+                  </Group>
+                );
+              })}
+            </Layer>
+          )}
+
+          {/* Viewpoints — below darkness layer on player view, like doors/windows */}
+          {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).length > 0 && (
+            <Layer>
+              {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).map(vp => {
+                const isInRange = viewpointProximity.has(vp.id);
+                const isActive = activeViewpointId === vp.id;
+                const iconSize = tokenRadius * 1.3;
+                const s = iconSize / 24;
+                let bgFill: string;
+                let bgStroke: string;
+                let iconColor: string;
+                if (!isPlayerView && vp.isHidden) {
+                  bgFill = 'rgba(88,28,135,0.05)';
+                  bgStroke = 'rgba(126,34,206,0.15)';
+                  iconColor = 'rgba(216,180,254,0.15)';
+                } else if (isActive) {
+                  bgFill = 'rgba(126,34,206,0.6)';
+                  bgStroke = '#c026d3';
+                  iconColor = '#f0abfc';
+                } else if (!isPlayerView || isInRange) {
+                  bgFill = 'rgba(88,28,135,0.55)';
+                  bgStroke = '#7e22ce';
+                  iconColor = '#d8b4fe';
+                } else {
+                  bgFill = 'rgba(88,28,135,0.15)';
+                  bgStroke = 'rgba(126,34,206,0.3)';
+                  iconColor = 'rgba(216,180,254,0.3)';
+                }
+                return (
+                  <Group
+                    key={vp.id}
+                    x={vp.x - iconSize / 2}
+                    y={vp.y - iconSize / 2}
+                    scaleX={s}
+                    scaleY={s}
+                    draggable={!isPlayerView}
+                    onDragEnd={!isPlayerView ? (e) => handleViewpointDragEnd(vp.id, e) : undefined}
+                    onClick={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
+                    onTap={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
+                    onContextMenu={!isPlayerView ? (e) => {
+                      e.evt.preventDefault();
+                      e.cancelBubble = true;
+                      const stage = e.target.getStage();
+                      const pos = stage?.getPointerPosition();
+                      if (!pos) return;
+                      setViewpointContextMenu({
+                        screenX: pos.x,
+                        screenY: pos.y,
+                        viewpointId: vp.id,
+                      });
+                    } : undefined}
+                  >
+                    <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={isActive ? 2 / s : 1 / s} />
+                    {VIEWPOINT_NODES.map((node, i) => {
+                      const [type, props] = node;
+                      const sw = 1.5;
+                      if (type === 'path') return (
+                        <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
+                      );
+                      if (type === 'circle') return (
+                        <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} fill={iconColor} listening={false} />
+                      );
+                      return null;
+                    })}
+                    {isActive && (
+                      <Circle x={12} y={12} radius={15} fill="transparent" stroke="#d946ef" strokeWidth={1.5 / s} opacity={0.6} listening={false} />
+                    )}
                   </Group>
                 );
               })}
@@ -3618,87 +3710,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
-          {/* Viewpoints — visible to both DM and players, above fog */}
-          {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).length > 0 && (
-            <Layer>
-              {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).map(vp => {
-                const isInRange = viewpointProximity.has(vp.id);
-                const isActive = activeViewpointId === vp.id;
-                const iconSize = tokenRadius * 1.3;
-                const s = iconSize / 24;
-                let bgFill: string;
-                let bgStroke: string;
-                let iconColor: string;
-                if (!isPlayerView && vp.isHidden) {
-                  // Hidden state
-                  bgFill = 'rgba(88,28,135,0.05)';
-                  bgStroke = 'rgba(126,34,206,0.15)';
-                  iconColor = 'rgba(216,180,254,0.15)';
-                } else if (isActive) {
-                  // Active tower view: vivid fuchsia-purple
-                  bgFill = 'rgba(126,34,206,0.6)';
-                  bgStroke = '#c026d3';
-                  iconColor = '#f0abfc';
-                } else if (!isPlayerView || isInRange) {
-                  // DM view or player in range: deep purple
-                  bgFill = 'rgba(88,28,135,0.55)';
-                  bgStroke = '#7e22ce';
-                  iconColor = '#d8b4fe';
-                } else {
-                  // Out of range: dim
-                  bgFill = 'rgba(88,28,135,0.15)';
-                  bgStroke = 'rgba(126,34,206,0.3)';
-                  iconColor = 'rgba(216,180,254,0.3)';
-                }
-                return (
-                  <Group
-                    key={vp.id}
-                    x={vp.x - iconSize / 2}
-                    y={vp.y - iconSize / 2}
-                    scaleX={s}
-                    scaleY={s}
-                    draggable={!isPlayerView}
-                    onDragEnd={!isPlayerView ? (e) => handleViewpointDragEnd(vp.id, e) : undefined}
-                    onClick={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
-                    onTap={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
-                    onContextMenu={!isPlayerView ? (e) => {
-                      e.evt.preventDefault();
-                      e.cancelBubble = true;
-                      const stage = e.target.getStage();
-                      const pos = stage?.getPointerPosition();
-                      if (!pos) return;
-                      const container = stage?.container().getBoundingClientRect();
-                      setViewpointContextMenu({
-                        screenX: (container?.left ?? 0) + pos.x,
-                        screenY: (container?.top ?? 0) + pos.y,
-                        viewpointId: vp.id,
-                      });
-                    } : undefined}
-                  >
-                    {/* Background circle */}
-                    <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={isActive ? 2 / s : 1 / s} />
-                    {/* Eye icon */}
-                    {VIEWPOINT_NODES.map((node, i) => {
-                      const [type, props] = node;
-                      const sw = 1.5;
-                      if (type === 'path') return (
-                        <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
-                      );
-                      if (type === 'circle') return (
-                        <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} fill={iconColor} listening={false} />
-                      );
-                      return null;
-                    })}
-                    {/* "Active" glow ring when player is in tower view */}
-                    {isActive && (
-                      <Circle x={12} y={12} radius={15} fill="transparent" stroke="#d946ef" strokeWidth={1.5 / s} opacity={0.6} listening={false} />
-                    )}
-                  </Group>
-                );
-              })}
-            </Layer>
-          )}
-
           {/* Map Notes — above fog so they're always visible to the DM */}
           {!isPlayerView && mapNotes.length > 0 && (
             <Layer>
@@ -3771,7 +3782,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               </div>
               <button
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left',
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
                   portalContextMenu.portalType === 'door' ? 'text-orange-400' : 'text-white/60',
                 )}
                 onClick={() => {
@@ -3779,13 +3790,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   setPortalContextMenu(null);
                 }}
               >
-                <DoorClosed size={15} />
+                <DoorClosed size={14} />
                 Door
                 {portalContextMenu.portalType === 'door' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
               </button>
               <button
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left',
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
                   portalContextMenu.portalType === 'window' ? 'text-orange-400' : 'text-white/60',
                 )}
                 onClick={() => {
@@ -3793,9 +3804,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   setPortalContextMenu(null);
                 }}
               >
-                <Blinds size={15} />
+                <Blinds size={14} />
                 Window
                 {portalContextMenu.portalType === 'window' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+              </button>
+              <button
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
+                  portalContextMenu.portalType === 'secret' ? 'text-orange-400' : 'text-white/60',
+                )}
+                onClick={() => {
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'secret');
+                  setPortalContextMenu(null);
+                }}
+              >
+                <SquareDashedTopSolid size={14} />
+                Secret Door
+                {portalContextMenu.portalType === 'secret' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
               </button>
             </div>
           </>
@@ -3817,7 +3842,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Viewpoint</p>
               </div>
               <button
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left"
                 onClick={() => {
                   const vp = viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId);
                   if (vp) {
@@ -3834,11 +3859,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   setViewpointContextMenu(null);
                 }}
               >
-                <Edit2 size={13} />
+                <Edit2 size={14} />
                 Edit Viewpoint
               </button>
               <button
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left"
                 onClick={() => {
                   const vp = viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId);
                   if (vp) {
@@ -3847,18 +3872,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   setViewpointContextMenu(null);
                 }}
               >
-                {viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId)?.isHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+                {viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId)?.isHidden ? <Eye size={14} /> : <EyeOff size={14} />}
                 {viewpoints?.find(v => v.id === viewpointContextMenu.viewpointId)?.isHidden ? 'Show Viewpoint' : 'Hide Viewpoint'}
               </button>
               <div className="border-t border-[var(--line)]"></div>
               <button
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors text-left"
                 onClick={() => {
                   onViewpointsChange?.((viewpoints ?? []).filter(v => v.id !== viewpointContextMenu.viewpointId));
                   setViewpointContextMenu(null);
                 }}
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} />
                 Delete Viewpoint
               </button>
             </div>
@@ -3939,7 +3964,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           <div
             className={cn(
               "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
-              contextMenu.view === 'add-enemy' ? "w-[600px] overflow-hidden" : "w-64"
+              contextMenu.view === 'add-enemy' ? "w-[740px] overflow-hidden" : "w-64"
             )}
             style={
               contextMenu.view === 'add-enemy'
@@ -4201,9 +4226,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <div className="p-3 border-b border-[var(--line)] bg-black/10 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <Skull size={14} className="text-[#ef4444]" />
-                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">Bestiary</p>
+                    <p className="text-xs font-bold uppercase tracking-widest opacity-50">Bestiary</p>
                   </div>
-                  <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-[10px] uppercase font-bold tracking-tighter">Back</button>
+                  <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-xs uppercase font-bold tracking-tighter">Back</button>
                 </div>
 
                 <div className="flex-1 flex overflow-hidden">
@@ -4218,18 +4243,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           value={monsterSearch}
                           onChange={(e) => setMonsterSearch(e.target.value)}
                           placeholder="Search monsters..."
-                          className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-xs outline-none focus:border-[var(--accent)] transition-colors"
+                          className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
                         />
                       </div>
                     </div>
                     <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                        <span className="text-[10px] opacity-60">2014</span>
+                        <span className="text-xs opacity-60">2014</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                        <span className="text-[10px] opacity-60">2024</span>
+                        <span className="text-xs opacity-60">2024</span>
                       </label>
                     </div>
                     <div className="flex-1 overflow-y-auto py-1">
@@ -4241,17 +4266,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           key={m.id}
                           onClick={() => setSelectedMonster(m)}
                           className={cn(
-                            "w-full text-left px-4 py-2.5 text-xs transition-colors flex items-center justify-between group",
+                            "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between group",
                             selectedMonster?.id === m.id ? "bg-[var(--accent)] text-white" : "hover:bg-white/5"
                           )}
                         >
                           <div className="flex flex-col">
                             <span className="font-bold">{m.name}</span>
-                            <span className={cn("text-[9px] opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>{m.type}</span>
+                            <span className={cn("text-[10px] opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>{m.type}</span>
                           </div>
                           <div className="flex flex-col items-end gap-0.5">
-                            <span className={cn("text-[9px] font-sans opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
-                            <span className={cn("text-[8px] font-sans opacity-30", selectedMonster?.id === m.id ? "text-white" : "")}>{m.source}</span>
+                            <span className={cn("text-[10px] font-sans opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
+                            <span className={cn("text-[9px] font-sans opacity-30", selectedMonster?.id === m.id ? "text-white" : "")}>{m.source}</span>
                           </div>
                         </button>
                       ))}
@@ -4274,21 +4299,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-lg font-bold tracking-tight truncate">{selectedMonster.name}</h4>
-                              <p className="text-[10px] italic opacity-50">{selectedMonster.type}</p>
+                              <h4 className="text-xl font-bold tracking-tight truncate">{selectedMonster.name}</h4>
+                              <p className="text-xs italic opacity-50">{selectedMonster.type}</p>
                             </div>
                             <div className="flex flex-col gap-1 shrink-0 items-end">
                               <div className="flex gap-1.5">
-                                <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-[10px] font-bold">HP {selectedMonster.hp}</div>
-                                <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-[10px] font-bold">AC {selectedMonster.ac}</div>
+                                <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-xs font-bold">HP {selectedMonster.hp}</div>
+                                <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-xs font-bold">AC {selectedMonster.ac}</div>
                               </div>
-                              <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold self-end">CR {selectedMonster.cr}</div>
+                              <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs font-bold self-end">CR {selectedMonster.cr}</div>
                             </div>
                           </div>
 
                           {/* Speed / Senses / Languages */}
                           {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (
-                            <div className="text-[10px] space-y-0.5 opacity-60">
+                            <div className="text-xs space-y-0.5 opacity-60">
                               {selectedMonster.speed && <div><span className="font-bold">Speed:</span> <SpeedText text={selectedMonster.speed} /></div>}
                               {selectedMonster.senses && <div><span className="font-bold">Senses:</span> {selectedMonster.senses}</div>}
                               {selectedMonster.languages && <div><span className="font-bold">Languages:</span> {selectedMonster.languages}</div>}
@@ -4299,15 +4324,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           <div className="grid grid-cols-6 gap-1 text-center">
                             {Object.entries(selectedMonster.stats).map(([stat, val]) => (
                               <div key={stat} className="bg-black/20 rounded p-1">
-                                <div className="text-[8px] uppercase opacity-50">{stat}</div>
-                                <div className="text-xs font-bold">{val}</div>
+                                <div className="text-[9px] uppercase opacity-50">{stat}</div>
+                                <div className="text-sm font-bold">{val}</div>
                               </div>
                             ))}
                           </div>
 
                           {/* Saves & Defenses */}
                           {(selectedMonster.saves || selectedMonster.immunities || selectedMonster.resistances || selectedMonster.conditionImmunities) && (
-                            <div className="text-[10px] space-y-0.5 opacity-60">
+                            <div className="text-xs space-y-0.5 opacity-60">
                               {selectedMonster.saves && <div><span className="font-bold">Saves:</span> {selectedMonster.saves}</div>}
                               {selectedMonster.resistances && <div><span className="font-bold">Resistances:</span> {selectedMonster.resistances}</div>}
                               {selectedMonster.immunities && <div><span className="font-bold">Immunities:</span> {selectedMonster.immunities}</div>}
@@ -4318,18 +4343,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           {/* Description */}
                           {selectedMonster.description && (
                             <div>
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Description</h5>
-                              <p className="text-xs leading-relaxed opacity-70">{selectedMonster.description}</p>
+                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Description</h5>
+                              <p className="text-sm leading-relaxed opacity-70">{selectedMonster.description}</p>
                             </div>
                           )}
 
                           {/* Traits / Special Abilities */}
                           {selectedMonster.specialAbilities && selectedMonster.specialAbilities.length > 0 && (
                             <div>
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Traits</h5>
+                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Traits</h5>
                               <div className="space-y-2">
                                 {selectedMonster.specialAbilities.map((ability, i) => (
-                                  <div key={i} className="text-xs leading-relaxed">
+                                  <div key={i} className="text-sm leading-relaxed">
                                     <span className="font-bold italic text-purple-400">{ability.name}.</span>{' '}
                                     <span className="opacity-80 whitespace-pre-wrap">{ability.desc}</span>
                                   </div>
@@ -4341,10 +4366,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           {/* Actions */}
                           {selectedMonster.actions.length > 0 && (
                             <div>
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Actions</h5>
+                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Actions</h5>
                               <div className="space-y-2">
                                 {selectedMonster.actions.map((action, i) => (
-                                  <div key={i} className="text-xs leading-relaxed">
+                                  <div key={i} className="text-sm leading-relaxed">
                                     <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}
                                     <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
                                   </div>
@@ -4356,10 +4381,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           {/* Reactions */}
                           {selectedMonster.reactions && selectedMonster.reactions.length > 0 && (
                             <div>
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Reactions</h5>
+                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Reactions</h5>
                               <div className="space-y-2">
                                 {selectedMonster.reactions.map((reaction, i) => (
-                                  <div key={i} className="text-xs leading-relaxed">
+                                  <div key={i} className="text-sm leading-relaxed">
                                     <span className="font-bold italic text-blue-400">{reaction.name}.</span>{' '}
                                     <span className="opacity-80 whitespace-pre-wrap">{reaction.desc}</span>
                                   </div>
@@ -4371,10 +4396,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           {/* Legendary Actions */}
                           {selectedMonster.legendaryActions && selectedMonster.legendaryActions.length > 0 && (
                             <div>
-                              <h5 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-1">Legendary Actions</h5>
+                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Legendary Actions</h5>
                               <div className="space-y-2">
                                 {selectedMonster.legendaryActions.map((action, i) => (
-                                  <div key={i} className="text-xs leading-relaxed">
+                                  <div key={i} className="text-sm leading-relaxed">
                                     <span className="font-bold italic text-amber-400">{action.name}.</span>{' '}
                                     <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
                                   </div>
@@ -4385,7 +4410,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         </div>
                         <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] space-y-3">
                           <div className="flex items-center justify-between px-1">
-                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Quantity</span>
+                            <span className="text-xs font-bold uppercase tracking-widest opacity-50">Quantity</span>
                             <div className="flex items-center gap-3 bg-black/20 rounded-lg p-1">
                               <button
                                 onClick={() => setMonsterQuantity(Math.max(1, monsterQuantity - 1))}
@@ -4393,7 +4418,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                               >
                                 -
                               </button>
-                              <span className="text-xs font-bold w-4 text-center">{monsterQuantity}</span>
+                              <span className="text-sm font-bold w-4 text-center">{monsterQuantity}</span>
                               <button
                                 onClick={() => setMonsterQuantity(Math.min(20, monsterQuantity + 1))}
                                 className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
@@ -4423,7 +4448,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     ) : (
                       <div className="flex-1 flex flex-col items-center justify-center opacity-20 p-8 text-center">
                         <Skull size={48} className="mb-4 text-[#ef4444]" />
-                        <p className="text-sm font-sans uppercase tracking-widest">Select a monster to view details</p>
+                        <p className="text-base font-sans uppercase tracking-widest">Select a monster to view details</p>
                       </div>
                     )}
                   </div>
@@ -4538,6 +4563,44 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </div>
         )}
 
+      {/* Custom Confirm Dialog */}
+      <AnimatePresence>
+        {confirmDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setConfirmDialog(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[360px] p-6 mx-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-sm mb-6 leading-relaxed">{confirmDialog.message}</p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="btn-ghost py-1.5 px-4 rounded-lg text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
+                  className="py-1.5 px-4 rounded-lg text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                >
+                  DELETE
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Change Map Warning Modal */}
       <AnimatePresence>
         {showChangeMapModal && (
@@ -4618,7 +4681,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setTransitionZoneConfig(null)}
+            onClick={() => { setTransitionZoneConfig(null); setTzSelectedFloorId(''); setTzFloorPickerOpen(false); }}
           >
             <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
@@ -4646,22 +4709,54 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
                 <div>
                   <label className="text-xs opacity-60 block mb-1">Target Floor</label>
-                  <select
-                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm"
-                    id="tz-target-floor"
-                    defaultValue=""
-                  >
-                    <option value="" disabled>Select floor...</option>
-                    {floors.filter(f => f.id !== activeFloorId).map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setTzFloorPickerOpen(o => !o)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm hover:border-[var(--accent)] transition-colors"
+                    >
+                      <span className={tzSelectedFloorId ? '' : 'opacity-40'}>
+                        {tzSelectedFloorId
+                          ? floors.find(f => f.id === tzSelectedFloorId)?.name
+                          : 'Select floor...'}
+                      </span>
+                      <ChevronDown size={14} className={cn('opacity-50 transition-transform', tzFloorPickerOpen && 'rotate-180')} />
+                    </button>
+                    <AnimatePresence>
+                      {tzFloorPickerOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setTzFloorPickerOpen(false)} />
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.12 }}
+                            className="absolute top-full left-0 right-0 mt-1 z-20 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden"
+                          >
+                            {floors.filter(f => f.id !== activeFloorId).map(f => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => { setTzSelectedFloorId(f.id); setTzFloorPickerOpen(false); }}
+                                className={cn(
+                                  'w-full text-left px-3 py-2 text-sm hover:bg-white/5 transition-colors',
+                                  tzSelectedFloorId === f.id && 'text-[var(--accent)]'
+                                )}
+                              >
+                                {f.name}
+                              </button>
+                            ))}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
                 <p className="text-xs opacity-40">You'll draw the arrival zone on the target floor next.</p>
                 <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => {
-                      const targetFloorId = (document.getElementById('tz-target-floor') as HTMLSelectElement)?.value;
+                      const targetFloorId = tzSelectedFloorId;
                       const label = (document.getElementById('tz-label') as HTMLInputElement)?.value?.trim();
                       if (!targetFloorId) return;
                       // Compute next pairIndex from all floors
@@ -4680,16 +4775,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         pairIndex: nextPairIndex,
                       });
                       setTransitionZoneConfig(null);
+                      setTzSelectedFloorId('');
                       setTransitionZoneMode(true);
                       onSwitchFloor?.(targetFloorId);
                     }}
-                    className="btn-filled py-2 px-4 rounded-xl text-sm"
+                    className="btn-filled py-1.5 px-3 rounded-lg text-xs"
                   >
                     Next: Draw Arrival Zone
                   </button>
                   <button
-                    onClick={() => setTransitionZoneConfig(null)}
-                    className="btn-ghost py-2 px-4 rounded-xl text-sm"
+                    onClick={() => { setTransitionZoneConfig(null); setTzSelectedFloorId(''); setTzFloorPickerOpen(false); }}
+                    className="btn-ghost py-1.5 px-3 rounded-lg text-xs"
                   >
                     Cancel
                   </button>
@@ -4700,16 +4796,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Pending pair banner — draw arrival zone on target floor */}
-      {pendingPairData && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-3 px-4 py-2 bg-blue-600/90 rounded-xl shadow-lg text-white text-xs font-medium">
-          <span>Draw arrival zone on {floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click and drag</span>
+      {/* Drawing banner — shown during both first and second zone drawing */}
+      {transitionZoneMode && !transitionZoneConfig && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-3 px-4 py-2 bg-blue-600/90 rounded-xl shadow-lg text-white text-xs font-medium whitespace-nowrap">
+          <span>
+            {pendingPairData
+              ? `Draw arrival zone on ${floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click and drag`
+              : 'Draw transition zone — click and drag'}
+          </span>
           <button
             onClick={() => {
+              if (pendingPairData) onSwitchFloor?.(pendingPairData.sourceFloorId);
               setPendingPairData(null);
               setTransitionZoneMode(false);
               setDrawingZone(null);
-              onSwitchFloor?.(pendingPairData.sourceFloorId);
             }}
             className="px-2 py-0.5 bg-white/20 rounded-md hover:bg-white/30"
           >

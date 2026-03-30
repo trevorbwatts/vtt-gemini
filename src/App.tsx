@@ -80,6 +80,8 @@ export function DMScreen() {
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<{ type: 'scenario' | 'floor'; scenarioId: string; floorId?: string; value: string } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const selectedScenarioIdRef = useRef(selectedScenarioId);
   selectedScenarioIdRef.current = selectedScenarioId;
   const campaignRef = useRef(campaign);
@@ -925,30 +927,45 @@ export function DMScreen() {
                 {campaign.scenarios.map((s) => (
                   <div key={s.id}>
                     <div className="flex items-center gap-2 group">
+                      {editingName?.type === 'scenario' && editingName.scenarioId === s.id ? (
+                        <input
+                          autoFocus
+                          value={editingName.value}
+                          onChange={e => setEditingName({ ...editingName, value: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              if (editingName.value.trim()) {
+                                setCampaign(prev => prev ? ({ ...prev, scenarios: prev.scenarios.map(sc => sc.id === s.id ? { ...sc, name: editingName.value.trim() } : sc) }) : prev);
+                              }
+                              setEditingName(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingName(null);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (editingName.value.trim()) {
+                              setCampaign(prev => prev ? ({ ...prev, scenarios: prev.scenarios.map(sc => sc.id === s.id ? { ...sc, name: editingName.value.trim() } : sc) }) : prev);
+                            }
+                            setEditingName(null);
+                          }}
+                          className="flex-1 px-5 py-4 rounded-[12px] text-[15px] font-medium bg-[#181512] border border-[var(--accent)] text-white outline-none"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setSelectedScenarioId(s.id)}
+                          className={cn(
+                            "flex-1 flex items-center gap-4 px-5 py-4 rounded-[12px] text-[15px] font-medium transition-all tracking-wide",
+                            selectedScenarioId === s.id
+                              ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm"
+                              : "hover:bg-[#181512] opacity-70 hover:opacity-100 border border-transparent text-white"
+                          )}
+                        >
+                          <FileText size={18} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
+                          <span className="flex-1 text-left truncate">{s.name}</span>
+                        </button>
+                      )}
                       <button
-                        onClick={() => setSelectedScenarioId(s.id)}
-                        className={cn(
-                          "flex-1 flex items-center gap-4 px-5 py-4 rounded-[12px] text-[15px] font-medium transition-all tracking-wide",
-                          selectedScenarioId === s.id
-                            ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm"
-                            : "hover:bg-[#181512] opacity-70 hover:opacity-100 border border-transparent text-white"
-                        )}
-                      >
-                        <FileText size={18} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
-                        <span className="flex-1 text-left truncate">{s.name}</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          const newName = prompt('Rename scenario:', s.name);
-                          if (newName && newName.trim()) {
-                            setCampaign(prev => prev ? ({
-                              ...prev,
-                              scenarios: prev.scenarios.map(sc =>
-                                sc.id === s.id ? { ...sc, name: newName.trim() } : sc
-                              )
-                            }) : prev);
-                          }
-                        }}
+                        onClick={() => setEditingName({ type: 'scenario', scenarioId: s.id, value: s.name })}
                         className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
                         title="Rename scenario"
                       >
@@ -957,61 +974,76 @@ export function DMScreen() {
                     </div>
                     {/* Floor list — shown when this scenario is selected */}
                     {selectedScenarioId === s.id && s.floors && s.floors.length > 0 && (
-                      <div className="ml-10 mt-1 mb-1 space-y-0.5">
+                      <div className="mt-1 mb-1 space-y-0.5">
                         {s.floors.sort((a, b) => a.order - b.order).map((floor) => {
                           const firstFloorId = s.floors![0].id;
                           const floorTokens = (s.tokens || []).filter(t =>
                             t.floorId === floor.id || (!t.floorId && floor.id === firstFloorId)
                           );
+                          const saveFloorName = (name: string) => {
+                            if (name.trim()) {
+                              setCampaign(prev => prev ? ({
+                                ...prev,
+                                scenarios: prev.scenarios.map(sc =>
+                                  sc.id !== s.id ? sc : {
+                                    ...sc,
+                                    floors: sc.floors?.map(f =>
+                                      f.id === floor.id ? { ...f, name: name.trim() } : f
+                                    )
+                                  }
+                                )
+                              }) : prev);
+                            }
+                            setEditingName(null);
+                          };
                           return (
                           <div key={floor.id} className="flex items-center gap-1 group/floor">
+                            {editingName?.type === 'floor' && editingName.floorId === floor.id ? (
+                              <input
+                                autoFocus
+                                value={editingName.value}
+                                onChange={e => setEditingName({ ...editingName, value: e.target.value })}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveFloorName(editingName.value);
+                                  else if (e.key === 'Escape') setEditingName(null);
+                                }}
+                                onBlur={() => saveFloorName(editingName.value)}
+                                className="flex-1 px-3 py-1.5 rounded-lg text-[13px] bg-black/40 border border-[var(--accent)] text-white outline-none"
+                              />
+                            ) : (
+                              <button
+                                onClick={() => setActiveFloorId(floor.id)}
+                                className={cn(
+                                  "flex-1 text-left px-3 py-1.5 rounded-lg text-[13px] transition-all flex items-center gap-2",
+                                  activeFloorId === floor.id
+                                    ? "bg-[var(--accent)]/20 text-[var(--accent)] font-medium"
+                                    : "opacity-50 hover:opacity-80 text-white"
+                                )}
+                              >
+                                <span className="flex-1">{floor.name}</span>
+                                {floorTokens.length > 0 && (
+                                  <span className="flex items-center gap-0.5">
+                                    {floorTokens.slice(0, 5).map(t => (
+                                      <span
+                                        key={t.id}
+                                        className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-[8px] font-bold text-white"
+                                        style={{ background: t.avatar ? undefined : t.color, border: `1px solid ${t.color}` }}
+                                        title={t.name}
+                                      >
+                                        {t.avatar
+                                          ? <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
+                                          : t.name[0]?.toUpperCase()}
+                                      </span>
+                                    ))}
+                                    {floorTokens.length > 5 && (
+                                      <span className="text-[9px] opacity-50 ml-0.5">+{floorTokens.length - 5}</span>
+                                    )}
+                                  </span>
+                                )}
+                              </button>
+                            )}
                             <button
-                              onClick={() => setActiveFloorId(floor.id)}
-                              className={cn(
-                                "flex-1 text-left px-3 py-1.5 rounded-lg text-[13px] transition-all flex items-center gap-2",
-                                activeFloorId === floor.id
-                                  ? "bg-[var(--accent)]/20 text-[var(--accent)] font-medium"
-                                  : "opacity-50 hover:opacity-80 text-white"
-                              )}
-                            >
-                              <span className="flex-1">{floor.name}</span>
-                              {floorTokens.length > 0 && (
-                                <span className="flex items-center gap-0.5">
-                                  {floorTokens.slice(0, 5).map(t => (
-                                    <span
-                                      key={t.id}
-                                      className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-[8px] font-bold text-white"
-                                      style={{ background: t.avatar ? undefined : t.color, border: `1px solid ${t.color}` }}
-                                      title={t.name}
-                                    >
-                                      {t.avatar
-                                        ? <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
-                                        : t.name[0]?.toUpperCase()}
-                                    </span>
-                                  ))}
-                                  {floorTokens.length > 5 && (
-                                    <span className="text-[9px] opacity-50 ml-0.5">+{floorTokens.length - 5}</span>
-                                  )}
-                                </span>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                const newName = prompt('Rename floor:', floor.name);
-                                if (newName && newName.trim()) {
-                                  setCampaign(prev => prev ? ({
-                                    ...prev,
-                                    scenarios: prev.scenarios.map(sc =>
-                                      sc.id !== s.id ? sc : {
-                                        ...sc,
-                                        floors: sc.floors?.map(f =>
-                                          f.id === floor.id ? { ...f, name: newName.trim() } : f
-                                        )
-                                      }
-                                    )
-                                  }) : prev);
-                                }
-                              }}
+                              onClick={() => setEditingName({ type: 'floor', scenarioId: s.id, floorId: floor.id, value: floor.name })}
                               className="p-1 opacity-0 group-hover/floor:opacity-40 hover:!opacity-100 transition-opacity"
                               title="Rename floor"
                             >
@@ -1020,8 +1052,9 @@ export function DMScreen() {
                             {s.floors!.length > 1 && (
                               <button
                                 onClick={() => {
-                                  if (!confirm(`Delete floor "${floor.name}"?`)) return;
-                                  setCampaign(prev => {
+                                  setConfirmDialog({
+                                    message: `Delete floor "${floor.name}"?`,
+                                    onConfirm: () => { setCampaign(prev => {
                                     if (!prev) return prev;
                                     return {
                                       ...prev,
@@ -1038,6 +1071,7 @@ export function DMScreen() {
                                         return { ...sc, floors: remaining, activeFloorId: newActiveId, tokens };
                                       })
                                     };
+                                  }); }
                                   });
                                 }}
                                 className="p-1 opacity-0 group-hover/floor:opacity-40 hover:!opacity-100 transition-opacity text-red-400"
@@ -1314,6 +1348,44 @@ export function DMScreen() {
         </div>
 
         {/* Campaign Settings Modal */}
+        {/* Custom Confirm Dialog */}
+        <AnimatePresence>
+          {confirmDialog && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => setConfirmDialog(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[360px] p-6 mx-4"
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="text-sm mb-6 leading-relaxed">{confirmDialog.message}</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setConfirmDialog(null)}
+                    className="btn-ghost py-1.5 px-4 rounded-lg text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
+                    className="py-1.5 px-4 rounded-lg text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                  >
+                    DELETE
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {settingsOpen && (
             <motion.div
