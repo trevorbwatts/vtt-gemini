@@ -788,12 +788,11 @@ export function PlayerScreen() {
   }, []);
 
   // ── Callbacks ──
-  const handleTokensChange = useCallback((newTokens: Token[]) => {
+  const handleTokensChange = useCallback((sourceFloorId: string, newTokens: Token[]) => {
     setCampaign(prev => {
       const scenarioId = currentScenarioIdRef.current;
       if (!prev || !scenarioId) return prev;
       const scenario = prev.scenarios.find(s => s.id === scenarioId);
-      const floorId = scenario?.activeFloorId;
       return {
         ...prev,
         scenarios: prev.scenarios.map(s => {
@@ -803,7 +802,7 @@ export function PlayerScreen() {
           const kept = s.tokens.filter(t => !updatedIds.has(t.id));
           const firstFloorId = s.floors?.[0]?.id;
           const originalFloorTokenIds = new Set(s.tokens.filter(t =>
-            t.floorId === floorId || (!t.floorId && floorId === firstFloorId)
+            t.floorId === sourceFloorId || (!t.floorId && sourceFloorId === firstFloorId)
           ).map(t => t.id));
           const deletedIds = new Set([...originalFloorTokenIds].filter(id => !updatedIds.has(id)));
           const surviving = kept.filter(t => !deletedIds.has(t.id));

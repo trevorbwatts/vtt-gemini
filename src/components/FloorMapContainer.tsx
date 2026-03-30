@@ -12,7 +12,7 @@ interface FloorMapContainerProps {
   scenario: Scenario;
   allTokens: Token[];
   activeFloorId: string | null;
-  onTokensChange: (tokens: Token[]) => void;
+  onTokensChange: (floorId: string, tokens: Token[]) => void;
   // Shared props that get passed through to MapView
   players: Combatant[];
   npcs: Combatant[];
@@ -99,7 +99,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
 
   const buildMapViewProps = (floor: Floor, floorTokens: Token[], isPrimary: boolean) => ({
     tokens: floorTokens,
-    onTokensChange: props.onTokensChange,
+    onTokensChange: (tokens: Token[]) => props.onTokensChange(floor.id, tokens),
     scenarioName: scenario.name,
     mapImage: floor.mapImage,
     onMapChange: isPrimary ? props.onMapChange : () => {},

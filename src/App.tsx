@@ -484,7 +484,7 @@ export function DMScreen() {
     updateActiveFloor(f => ({ ...f, viewpoints }));
   }, [updateActiveFloor]);
 
-  const updateScenarioTokens = useCallback((floorTokens: Token[]) => {
+  const updateScenarioTokens = useCallback((sourceFloorId: string, floorTokens: Token[]) => {
     setCampaign(prev => {
       if (!prev) return prev;
       return {
@@ -495,7 +495,7 @@ export function DMScreen() {
           const updatedIds = new Set(floorTokens.map(t => t.id));
           const kept = s.tokens.filter(t => !updatedIds.has(t.id));
           // Also check for tokens that were in the original set but removed (deleted)
-          const originalFloorId = activeFloorIdRef.current;
+          const originalFloorId = sourceFloorId;
           const firstFloorId = s.floors?.[0]?.id;
           const originalFloorTokenIds = new Set(s.tokens.filter(t =>
             t.floorId === originalFloorId || (!t.floorId && originalFloorId === firstFloorId)
