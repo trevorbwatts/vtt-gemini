@@ -502,7 +502,10 @@ export function DMScreen() {
           ).map(t => t.id));
           const deletedIds = new Set([...originalFloorTokenIds].filter(id => !updatedIds.has(id)));
           const surviving = kept.filter(t => !deletedIds.has(t.id));
-          return { ...s, tokens: [...surviving, ...floorTokens] };
+          // Remove stale tokens on other floors that share a combatantId with an incoming token
+          const newCombatantIds = new Set(floorTokens.filter(t => t.combatantId).map(t => t.combatantId!));
+          const deduped = surviving.filter(t => !t.combatantId || !newCombatantIds.has(t.combatantId));
+          return { ...s, tokens: [...deduped, ...floorTokens] };
         })
       };
     });
@@ -936,10 +939,18 @@ export function DMScreen() {
                       </button>
                       <button
                         onClick={() => {
-                          setSelectedScenarioId(s.id);
-                          // Logic to edit scenario name
+                          const newName = prompt('Rename scenario:', s.name);
+                          if (newName && newName.trim()) {
+                            setCampaign(prev => prev ? ({
+                              ...prev,
+                              scenarios: prev.scenarios.map(sc =>
+                                sc.id === s.id ? { ...sc, name: newName.trim() } : sc
+                              )
+                            }) : prev);
+                          }
                         }}
                         className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+                        title="Rename scenario"
                       >
                         <Edit2 size={12} />
                       </button>
@@ -947,18 +958,42 @@ export function DMScreen() {
                     {/* Floor list — shown when this scenario is selected */}
                     {selectedScenarioId === s.id && s.floors && s.floors.length > 0 && (
                       <div className="ml-10 mt-1 mb-1 space-y-0.5">
-                        {s.floors.sort((a, b) => a.order - b.order).map((floor) => (
+                        {s.floors.sort((a, b) => a.order - b.order).map((floor) => {
+                          const firstFloorId = s.floors![0].id;
+                          const floorTokens = (s.tokens || []).filter(t =>
+                            t.floorId === floor.id || (!t.floorId && floor.id === firstFloorId)
+                          );
+                          return (
                           <div key={floor.id} className="flex items-center gap-1 group/floor">
                             <button
                               onClick={() => setActiveFloorId(floor.id)}
                               className={cn(
-                                "flex-1 text-left px-3 py-1.5 rounded-lg text-[13px] transition-all",
+                                "flex-1 text-left px-3 py-1.5 rounded-lg text-[13px] transition-all flex items-center gap-2",
                                 activeFloorId === floor.id
                                   ? "bg-[var(--accent)]/20 text-[var(--accent)] font-medium"
                                   : "opacity-50 hover:opacity-80 text-white"
                               )}
                             >
-                              {floor.name}
+                              <span className="flex-1">{floor.name}</span>
+                              {floorTokens.length > 0 && (
+                                <span className="flex items-center gap-0.5">
+                                  {floorTokens.slice(0, 5).map(t => (
+                                    <span
+                                      key={t.id}
+                                      className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-[8px] font-bold text-white"
+                                      style={{ background: t.avatar ? undefined : t.color, border: `1px solid ${t.color}` }}
+                                      title={t.name}
+                                    >
+                                      {t.avatar
+                                        ? <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
+                                        : t.name[0]?.toUpperCase()}
+                                    </span>
+                                  ))}
+                                  {floorTokens.length > 5 && (
+                                    <span className="text-[9px] opacity-50 ml-0.5">+{floorTokens.length - 5}</span>
+                                  )}
+                                </span>
+                              )}
                             </button>
                             <button
                               onClick={() => {
@@ -1012,7 +1047,8 @@ export function DMScreen() {
                               </button>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                         <button
                           onClick={() => {
                             const floorId = `floor-${s.id}-${Date.now()}`;

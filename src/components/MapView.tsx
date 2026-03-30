@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line, Transformer } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown } from '../icons';
@@ -633,6 +633,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
     label?: string;
     pairIndex: number;
   } | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const zoneTransformerRef = useRef<any>(null);
+  const zoneRectRefs = useRef<Record<string, any>>({});
 
   // Movement path tracking — only active during initiative/combat
   const inCombat = activeCombatants.length > 0;
@@ -2160,6 +2163,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setSelectionRect(null);
   };
 
+  // Attach Konva Transformer to the selected transition zone rect
+  useEffect(() => {
+    const tr = zoneTransformerRef.current;
+    if (!tr) return;
+    if (selectedZoneId && zoneRectRefs.current[selectedZoneId]) {
+      tr.nodes([zoneRectRefs.current[selectedZoneId]]);
+    } else {
+      tr.nodes([]);
+    }
+    tr.getLayer()?.batchDraw();
+  }, [selectedZoneId]);
+
   // Emit the DM's current viewport center (in map-space) whenever pan/zoom changes
   useEffect(() => {
     if (!isPlayerView && dimensions.width > 0 && stageScale > 0) {
@@ -2239,7 +2254,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-4 px-4">
               <div className="flex items-center gap-2">
                 <MapIcon size={12} className="opacity-50" />
-                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">Map</h3>
+                <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">
+                  {floors && floors.length > 1
+                    ? `Map | ${floors.find(f => f.id === activeFloorId)?.name ?? 'Floor'}`
+                    : 'Map'}
+                </h3>
               </div>
               <div className="relative">
                 <button
@@ -2308,33 +2327,37 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             }}
                             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
                           >
-                            <Cloud size={14} /> 
+                            <Cloud size={14} />
                             {showFog ? 'Turn Off Fog' : 'Turn On Fog'}
                           </button>
                         )}
+
+                        <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                        <div className="px-3 py-1">
+                          <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Lighting</p>
+                          <div className="flex items-center bg-black/40 rounded-lg p-0.5">
+                            {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
+                              <button
+                                key={val}
+                                onClick={() => onDarknessLevelChange?.(val)}
+                                className={cn(
+                                  'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all flex-1 justify-center',
+                                  (darknessLevel ?? 'dark') === val
+                                    ? 'bg-white/15 text-white shadow-sm'
+                                    : 'text-white/40 hover:text-white/60'
+                                )}
+                              >
+                                <Icon size={11} /> {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </motion.div>
                     </>
                   )}
                 </AnimatePresence>
               </div>
 
-              <div className="h-6 w-px bg-[var(--line)] shrink-0" />
-              <div className="flex items-center bg-black/40 rounded-lg p-0.5">
-                {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
-                  <button
-                    key={val}
-                    onClick={() => onDarknessLevelChange?.(val)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all',
-                      (darknessLevel ?? 'dark') === val
-                        ? 'bg-white/15 text-white shadow-sm'
-                        : 'text-white/40 hover:text-white/60'
-                    )}
-                  >
-                    <Icon size={11} /> {label}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -2391,6 +2414,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               setLeftSidebarOpen(false);
               setSelectedTokenIds([]);
               setSelectedTokenId(null);
+              setSelectedZoneId(null);
             }
           }}
         >
@@ -2417,27 +2441,59 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 return (
                   <Group key={zone.id}>
                     <Rect
+                      ref={(node) => { if (node) zoneRectRefs.current[zone.id] = node; }}
                       x={zone.rect.x}
                       y={zone.rect.y}
                       width={zone.rect.width}
                       height={zone.rect.height}
                       fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
-                      stroke={color}
-                      strokeWidth={2}
+                      stroke={selectedZoneId === zone.id ? color : color}
+                      strokeWidth={selectedZoneId === zone.id ? 3 : 2}
                       dash={[8, 4]}
                       listening={true}
-                      onClick={() => {
+                      draggable={!transitionZoneMode}
+                      onClick={(e) => {
+                        e.cancelBubble = true;
+                        setSelectedZoneId(prev => prev === zone.id ? null : zone.id);
+                      }}
+                      onContextMenu={(e) => {
+                        e.evt.preventDefault();
+                        e.cancelBubble = true;
                         const partnerLabel = zone.pairedZoneId ? ' and its paired zone' : '';
                         if (confirm(`Delete transition zone${zone.label ? ` "${zone.label}"` : ''}${partnerLabel}?`)) {
+                          setSelectedZoneId(null);
                           const updated = zones.filter(z => z.id !== zone.id);
                           onTransitionZonesChange?.(updated);
                           if (zone.pairedZoneId && zone.targetFloorId) {
-                            onUpdateFloorById?.(zone.targetFloorId, f => ({
+                            onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
                               ...f,
                               transitionZones: (f.transitionZones || []).filter(z => z.id !== zone.pairedZoneId)
                             }));
                           }
                         }
+                      }}
+                      onDragEnd={(e) => {
+                        const node = e.target;
+                        const newRect = { ...zone.rect, x: node.x(), y: node.y() };
+                        const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
+                        onTransitionZonesChange?.(updated);
+                      }}
+                      onTransformEnd={(e) => {
+                        const node = e.target;
+                        const scaleX = node.scaleX();
+                        const scaleY = node.scaleY();
+                        node.scaleX(1);
+                        node.scaleY(1);
+                        const newRect = {
+                          x: node.x(),
+                          y: node.y(),
+                          width: Math.max(20, node.width() * scaleX),
+                          height: Math.max(20, node.height() * scaleY),
+                        };
+                        node.width(newRect.width);
+                        node.height(newRect.height);
+                        const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
+                        onTransitionZonesChange?.(updated);
                       }}
                     />
                     <Text
@@ -2466,8 +2522,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           fontStyle="bold"
                           align="center"
                           verticalAlign="middle"
-                          offsetX={0}
-                          offsetY={0}
+                          offsetX={10}
+                          offsetY={10}
                           width={20}
                           height={20}
                           listening={false}
@@ -2491,6 +2547,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 strokeWidth={2}
                 dash={[8, 4]}
                 listening={false}
+              />
+            )}
+
+            {/* Transformer for selected transition zone — DM only */}
+            {!isPlayerView && (
+              <Transformer
+                ref={zoneTransformerRef}
+                rotateEnabled={false}
+                keepRatio={false}
+                borderStroke="white"
+                borderStrokeWidth={1}
+                anchorStroke="white"
+                anchorFill="white"
+                anchorSize={8}
+                anchorCornerRadius={2}
               />
             )}
 
@@ -4430,6 +4501,34 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <><EyeOff size={14} /> Hide Token</>
               )}
             </button>
+            {floors && floors.length > 1 && (() => {
+              const token = tokens.find(t => t.id === tokenContextMenu.tokenId);
+              const tokenFloorId = token?.floorId || floors[0]?.id;
+              const otherFloors = floors.filter(f => f.id !== tokenFloorId);
+              return otherFloors.length > 0 ? (
+                <>
+                  <div className="h-px bg-[var(--line)] my-1" />
+                  <div className="px-4 py-1">
+                    <p className="text-[9px] uppercase tracking-widest opacity-40">Move to Floor</p>
+                  </div>
+                  {otherFloors.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        onTokensChange(tokens.map(t =>
+                          t.id === tokenContextMenu.tokenId ? { ...t, floorId: f.id } : t
+                        ));
+                        setTokenContextMenu(null);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
+                    >
+                      <Layers size={14} /> {f.name}
+                    </button>
+                  ))}
+                </>
+              ) : null;
+            })()}
+            <div className="h-px bg-[var(--line)] my-1" />
             <button
               onClick={() => deleteToken(tokenContextMenu.tokenId)}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--btn-bg)] hover:text-white transition-colors text-[var(--btn-bg)]"

@@ -196,9 +196,6 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
         animate={{ width: splitFloorIds ? '50%' : '100%' }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black/60 rounded-full text-[10px] font-bold tracking-widest uppercase text-white/70 pointer-events-none">
-          {primaryFloor.name}
-        </div>
         <MapView {...buildMapViewProps(primaryFloor, getFloorTokens(primaryFloor.id), true)} />
       </motion.div>
       <AnimatePresence>
@@ -210,10 +207,6 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
             exit={{ width: '0%', opacity: 0 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black/60 rounded-full text-[10px] font-bold tracking-widest uppercase text-white/70 pointer-events-none">
-              {secondaryFloor.name}
-            </div>
-            
             <div className="absolute inset-0 min-w-[50vw]">
               <MapView 
                 {...buildMapViewProps(secondaryFloor, getFloorTokens(secondaryFloor.id), false)} 
