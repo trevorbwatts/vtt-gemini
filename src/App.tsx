@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { DMNotes } from './components/DMNotes';
 import { MapView } from './components/MapView';
+import { FloorMapContainer } from './components/FloorMapContainer';
 import { BottomPanel } from './components/BottomPanel';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
-import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint } from './types';
+import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone } from './types';
 import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -25,6 +26,25 @@ function loadPanelStates(): { left: boolean; nav: boolean } {
 
 function savePanelStates(left: boolean, nav: boolean) {
   localStorage.setItem('dm_panel_states', JSON.stringify({ left, nav }));
+}
+
+/** Build a lightweight campaign for IPC — keep current scenario's floor images, strip everything else */
+function buildLightCampaignForIPC(campaign: Campaign, currentScenarioId: string): Campaign {
+  return {
+    ...campaign,
+    scenarios: campaign.scenarios.map(s => {
+      if (s.id === currentScenarioId) return s; // keep current scenario's images
+      // Strip floor images from non-current scenarios
+      const { mapImage, ...rest } = s;
+      return {
+        ...rest,
+        floors: rest.floors?.map(f => {
+          const { mapImage: _fImg, ...fRest } = f;
+          return fRest;
+        })
+      };
+    })
+  };
 }
 
 export function DMScreen() {
@@ -66,6 +86,24 @@ export function DMScreen() {
   campaignRef.current = campaign;
   const playerModeRef = useRef(playerMode);
   playerModeRef.current = playerMode;
+  // Active floor tracking — derived from current scenario
+  const activeFloorId = useMemo(() => {
+    if (!campaign || !selectedScenarioId) return null;
+    const scenario = campaign.scenarios.find(s => s.id === selectedScenarioId);
+    return scenario?.activeFloorId || scenario?.floors?.[0]?.id || null;
+  }, [campaign, selectedScenarioId]);
+  const activeFloorIdRef = useRef(activeFloorId);
+  activeFloorIdRef.current = activeFloorId;
+
+  const setActiveFloorId = useCallback((floorId: string) => {
+    setCampaign(prev => prev ? ({
+      ...prev,
+      scenarios: prev.scenarios.map(s =>
+        s.id === selectedScenarioIdRef.current ? { ...s, activeFloorId: floorId } : s
+      )
+    }) : prev);
+  }, []);
+
   const skipStateBroadcastRef = useRef(false);
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
   const clearMovementPathsRef = useRef<(() => void) | null>(null);
@@ -130,18 +168,32 @@ export function DMScreen() {
   // into the main campaign JSON on every state change
   useEffect(() => {
     if (campaign) {
-      // Save map images separately, keyed by scenario ID
+      // Save map images separately, keyed by scenario ID + floor ID
       for (const s of campaign.scenarios) {
-        if (s.mapImage) {
+        if (s.floors) {
+          for (const f of s.floors) {
+            if (f.mapImage) {
+              try { localStorage.setItem(`map_img_${s.id}_${f.id}`, f.mapImage); } catch { /* quota */ }
+            }
+          }
+        }
+        // Legacy fallback for non-migrated scenarios
+        if (s.mapImage && !s.floors) {
           try { localStorage.setItem(`map_img_${s.id}`, s.mapImage); } catch { /* quota */ }
         }
       }
-      // Strip mapImage from all scenarios before persisting the campaign JSON
+      // Strip mapImage from all scenarios and floors before persisting the campaign JSON
       const lightCampaign = {
         ...campaign,
         scenarios: campaign.scenarios.map(s => {
           const { mapImage, ...rest } = s;
-          return rest;
+          return {
+            ...rest,
+            floors: rest.floors?.map(f => {
+              const { mapImage: _fImg, ...fRest } = f;
+              return fRest;
+            })
+          };
         })
       };
       const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
@@ -168,16 +220,8 @@ export function DMScreen() {
         skipStateBroadcastRef.current = false; // Reset but don't broadcast
         return;
       }
-      const lightCampaign = {
-        ...campaign,
-        scenarios: campaign.scenarios.map(s => {
-          if (s.id === selectedScenarioId) return s; // keep current scenario's image
-          const { mapImage, ...rest } = s;
-          return rest;
-        })
-      };
       window.electronAPI.sendStateUpdate({
-        campaign: lightCampaign,
+        campaign: buildLightCampaignForIPC(campaign, selectedScenarioId),
         scenarioId: selectedScenarioId,
         playerMode,
         viewportCenter: dmViewportCenterRef.current,
@@ -197,16 +241,8 @@ export function DMScreen() {
           if (campaignRef.current && selectedScenarioIdRef.current) {
             const c = campaignRef.current;
             const sid = selectedScenarioIdRef.current;
-            const lightCampaign = {
-              ...c,
-              scenarios: c.scenarios.map(s => {
-                if (s.id === sid) return s;
-                const { mapImage, ...rest } = s;
-                return rest;
-              })
-            };
             window.electronAPI!.sendStateUpdate({
-              campaign: lightCampaign,
+              campaign: buildLightCampaignForIPC(c, sid),
               scenarioId: sid,
               playerMode: playerModeRef.current,
               viewportCenter: dmViewportCenterRef.current,
@@ -308,6 +344,8 @@ export function DMScreen() {
   }, []);
 
   const handleCreateCampaign = (name: string) => {
+    const scenarioId = `s-${Date.now()}`;
+    const defaultFloorId = `floor-${scenarioId}-0`;
     const newCampaign: Campaign = {
       id: `c-${Date.now()}`,
       name,
@@ -316,13 +354,22 @@ export function DMScreen() {
       persistentEnemies: [],
       scenarios: [
         {
-          id: `s-${Date.now()}`,
+          id: scenarioId,
           name: 'Initial Scenario',
           notes: '<h2>Welcome to your new campaign</h2><p>Start by adding some notes or tokens to the map.</p>',
           mapNotes: [],
           tokens: [],
           combatants: [],
-          activeCombatants: []
+          activeCombatants: [],
+          floors: [{
+            id: defaultFloorId,
+            name: 'Floor 1',
+            order: 0,
+            mapNotes: [],
+            viewpoints: [],
+            transitionZones: [],
+          }],
+          activeFloorId: defaultFloorId,
         }
       ]
     };
@@ -337,15 +384,55 @@ export function DMScreen() {
       players: selected.players || [],
       npcs: selected.npcs || [],
       persistentEnemies: selected.persistentEnemies || [],
-      scenarios: (selected.scenarios || []).map(s => ({
-        ...s,
-        tokens: s.tokens || [],
-        combatants: s.combatants || [],
-        activeCombatants: s.activeCombatants || [],
-        mapNotes: s.mapNotes || [],
-        // Rehydrate mapImage from separate storage if not already embedded (migration)
-        mapImage: s.mapImage || localStorage.getItem(`map_img_${s.id}`) || undefined
-      }))
+      scenarios: (selected.scenarios || []).map(s => {
+        const scenario = {
+          ...s,
+          tokens: s.tokens || [],
+          combatants: s.combatants || [],
+          activeCombatants: s.activeCombatants || [],
+          mapNotes: s.mapNotes || [],
+        };
+
+        // Migrate legacy flat-map scenario into floors structure
+        if (!scenario.floors || scenario.floors.length === 0) {
+          const defaultFloorId = `floor-${s.id}-0`;
+          const legacyMapImage = s.mapImage || localStorage.getItem(`map_img_${s.id}`) || undefined;
+          scenario.floors = [{
+            id: defaultFloorId,
+            name: 'Floor 1',
+            order: 0,
+            mapImage: legacyMapImage,
+            walls: s.walls,
+            objectWalls: s.objectWalls,
+            portals: s.portals,
+            gridResolution: s.gridResolution,
+            darknessLevel: s.darknessLevel,
+            mapNotes: scenario.mapNotes || [],
+            viewpoints: s.viewpoints || [],
+            transitionZones: [],
+          }];
+          scenario.activeFloorId = defaultFloorId;
+          // Migrate localStorage key
+          if (legacyMapImage) {
+            try { localStorage.setItem(`map_img_${s.id}_${defaultFloorId}`, legacyMapImage); } catch { /* quota */ }
+          }
+          // Set floorId on all existing tokens
+          for (const t of scenario.tokens) {
+            if (!t.floorId) t.floorId = defaultFloorId;
+          }
+        } else {
+          // Rehydrate floor map images from separate storage
+          scenario.floors = scenario.floors.map(f => ({
+            ...f,
+            mapImage: f.mapImage || localStorage.getItem(`map_img_${s.id}_${f.id}`) || undefined,
+          }));
+          if (!scenario.activeFloorId) {
+            scenario.activeFloorId = scenario.floors[0]?.id;
+          }
+        }
+
+        return scenario;
+      })
     };
     setCampaign(migrated);
     setSelectedScenarioId(migrated.scenarios[0]?.id || null);
@@ -353,25 +440,55 @@ export function DMScreen() {
 
   // --- Stable callbacks (useCallback) — must be defined before any early return ---
 
-  const updateMapNotes = useCallback((mapNotes: any[]) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, mapNotes } : s)
-    }) : prev);
+  /** Helper: update a field on the active floor within the current scenario */
+  const updateActiveFloor = useCallback((updater: (floor: Floor) => Floor) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          return {
+            ...s,
+            floors: s.floors?.map(f =>
+              f.id === activeFloorIdRef.current ? updater(f) : f
+            )
+          };
+        })
+      };
+    });
   }, []);
+
+  const updateMapNotes = useCallback((mapNotes: any[]) => {
+    updateActiveFloor(f => ({ ...f, mapNotes }));
+  }, [updateActiveFloor]);
 
   const updateViewpoints = useCallback((viewpoints: Viewpoint[]) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, viewpoints } : s)
-    }) : prev);
-  }, []);
+    updateActiveFloor(f => ({ ...f, viewpoints }));
+  }, [updateActiveFloor]);
 
-  const updateScenarioTokens = useCallback((tokens: any[]) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, tokens } : s)
-    }) : prev);
+  const updateScenarioTokens = useCallback((floorTokens: Token[]) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          // Merge by ID: update existing tokens, add new ones, keep tokens not in the update
+          const updatedIds = new Set(floorTokens.map(t => t.id));
+          const kept = s.tokens.filter(t => !updatedIds.has(t.id));
+          // Also check for tokens that were in the original set but removed (deleted)
+          const originalFloorId = activeFloorIdRef.current;
+          const firstFloorId = s.floors?.[0]?.id;
+          const originalFloorTokenIds = new Set(s.tokens.filter(t =>
+            t.floorId === originalFloorId || (!t.floorId && originalFloorId === firstFloorId)
+          ).map(t => t.id));
+          const deletedIds = new Set([...originalFloorTokenIds].filter(id => !updatedIds.has(id)));
+          const surviving = kept.filter(t => !deletedIds.has(t.id));
+          return { ...s, tokens: [...surviving, ...floorTokens] };
+        })
+      };
+    });
   }, []);
 
   /** Update a combatant's HP by delta, keeping both scenarioCombatants and activeCombatants in sync */
@@ -399,11 +516,8 @@ export function DMScreen() {
   }, []);
 
   const updateScenarioMap = useCallback((mapImage: string) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s => s.id === selectedScenarioIdRef.current ? { ...s, mapImage } : s)
-    }) : prev);
-  }, []);
+    updateActiveFloor(f => ({ ...f, mapImage }));
+  }, [updateActiveFloor]);
 
   const updateWallData = useCallback((
     walls: WallSegment[],
@@ -411,56 +525,30 @@ export function DMScreen() {
     portals: Portal[],
     gridResolution: GridResolution
   ) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioIdRef.current
-          ? { ...s, walls, objectWalls, portals, gridResolution }
-          : s
-      )
-    }) : prev);
-  }, []);
+    updateActiveFloor(f => ({ ...f, walls, objectWalls, portals, gridResolution }));
+  }, [updateActiveFloor]);
 
   const updateDarknessLevel = useCallback((level: 'daylight' | 'dark') => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioIdRef.current ? { ...s, darknessLevel: level } : s
-      )
-    }) : prev);
-  }, []);
+    updateActiveFloor(f => ({ ...f, darknessLevel: level }));
+  }, [updateActiveFloor]);
 
   const togglePortal = useCallback((portalId: string) => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioIdRef.current
-          ? {
-            ...s,
-            portals: s.portals?.map(p =>
-              p.id === portalId ? { ...p, closed: !p.closed } : p
-            )
-          }
-          : s
+    updateActiveFloor(f => ({
+      ...f,
+      portals: f.portals?.map(p =>
+        p.id === portalId ? { ...p, closed: !p.closed } : p
       )
-    }) : prev);
-  }, []);
+    }));
+  }, [updateActiveFloor]);
 
   const changePortalType = useCallback((portalId: string, type: 'door' | 'window') => {
-    setCampaign(prev => prev ? ({
-      ...prev,
-      scenarios: prev.scenarios.map(s =>
-        s.id === selectedScenarioIdRef.current
-          ? {
-              ...s,
-              portals: s.portals?.map(p =>
-                p.id === portalId ? { ...p, portalType: type } : p
-              )
-            }
-          : s
+    updateActiveFloor(f => ({
+      ...f,
+      portals: f.portals?.map(p =>
+        p.id === portalId ? { ...p, portalType: type } : p
       )
-    }) : prev);
-  }, []);
+    }));
+  }, [updateActiveFloor]);
 
   // Listen for portal toggle from the Player screen
   useEffect(() => {
@@ -516,6 +604,7 @@ export function DMScreen() {
           color: '#ef4444',
           avatar: newEnemy.avatar,
           size: (monster.size?.split('/')[0]?.trim() as Token['size']) || 'Medium',
+          floorId: activeFloorIdRef.current || undefined,
         }],
         combatants: [...(s.combatants || []), newEnemy]
       } : s),
@@ -533,6 +622,11 @@ export function DMScreen() {
     if (!campaign || !selectedScenarioId) return null;
     return campaign.scenarios.find(s => s.id === selectedScenarioId) || campaign.scenarios[0];
   }, [campaign, selectedScenarioId]);
+
+  const activeFloor = useMemo(() => {
+    if (!currentScenario?.floors) return null;
+    return currentScenario.floors.find(f => f.id === activeFloorId) || currentScenario.floors[0] || null;
+  }, [currentScenario, activeFloorId]);
 
   if (!campaign) {
     return <SplashScreen onSelectCampaign={handleSelectCampaign} onCreateCampaign={handleCreateCampaign} />;
@@ -663,6 +757,7 @@ export function DMScreen() {
 
   const addScenario = () => {
     const newId = `s-${Date.now()}`;
+    const defaultFloorId = `floor-${newId}-0`;
     const newScenario: Scenario = {
       id: newId,
       name: 'New Scenario',
@@ -671,7 +766,15 @@ export function DMScreen() {
       tokens: [],
       combatants: [],
       activeCombatants: [],
-      mapImage: undefined
+      floors: [{
+        id: defaultFloorId,
+        name: 'Floor 1',
+        order: 0,
+        mapNotes: [],
+        viewpoints: [],
+        transitionZones: [],
+      }],
+      activeFloorId: defaultFloorId,
     };
     setCampaign(prev => prev ? ({ ...prev, scenarios: [...prev.scenarios, newScenario] }) : prev);
     setSelectedScenarioId(newId);
@@ -800,28 +903,127 @@ export function DMScreen() {
               </div>
               <div className="space-y-3">
                 {campaign.scenarios.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 group">
-                    <button
-                      onClick={() => setSelectedScenarioId(s.id)}
-                      className={cn(
-                        "flex-1 flex items-center gap-4 px-5 py-4 rounded-[12px] text-[15px] font-medium transition-all tracking-wide",
-                        selectedScenarioId === s.id
-                          ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm"
-                          : "hover:bg-[#181512] opacity-70 hover:opacity-100 border border-transparent text-white"
-                      )}
-                    >
-                      <FileText size={18} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
-                      <span className="flex-1 text-left truncate">{s.name}</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedScenarioId(s.id);
-                        // Logic to edit scenario name
-                      }}
-                      className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
-                    >
-                      <Edit2 size={12} />
-                    </button>
+                  <div key={s.id}>
+                    <div className="flex items-center gap-2 group">
+                      <button
+                        onClick={() => setSelectedScenarioId(s.id)}
+                        className={cn(
+                          "flex-1 flex items-center gap-4 px-5 py-4 rounded-[12px] text-[15px] font-medium transition-all tracking-wide",
+                          selectedScenarioId === s.id
+                            ? "bg-[#181512] border border-[#2e261d] text-white shadow-sm"
+                            : "hover:bg-[#181512] opacity-70 hover:opacity-100 border border-transparent text-white"
+                        )}
+                      >
+                        <FileText size={18} className={cn(selectedScenarioId === s.id ? "text-[var(--accent)]" : "opacity-40")} />
+                        <span className="flex-1 text-left truncate">{s.name}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedScenarioId(s.id);
+                          // Logic to edit scenario name
+                        }}
+                        className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                    </div>
+                    {/* Floor list — shown when this scenario is selected */}
+                    {selectedScenarioId === s.id && s.floors && s.floors.length > 0 && (
+                      <div className="ml-10 mt-1 mb-1 space-y-0.5">
+                        {s.floors.sort((a, b) => a.order - b.order).map((floor) => (
+                          <div key={floor.id} className="flex items-center gap-1 group/floor">
+                            <button
+                              onClick={() => setActiveFloorId(floor.id)}
+                              className={cn(
+                                "flex-1 text-left px-3 py-1.5 rounded-lg text-[13px] transition-all",
+                                activeFloorId === floor.id
+                                  ? "bg-[var(--accent)]/20 text-[var(--accent)] font-medium"
+                                  : "opacity-50 hover:opacity-80 text-white"
+                              )}
+                            >
+                              {floor.name}
+                            </button>
+                            <button
+                              onClick={() => {
+                                const newName = prompt('Rename floor:', floor.name);
+                                if (newName && newName.trim()) {
+                                  setCampaign(prev => prev ? ({
+                                    ...prev,
+                                    scenarios: prev.scenarios.map(sc =>
+                                      sc.id !== s.id ? sc : {
+                                        ...sc,
+                                        floors: sc.floors?.map(f =>
+                                          f.id === floor.id ? { ...f, name: newName.trim() } : f
+                                        )
+                                      }
+                                    )
+                                  }) : prev);
+                                }
+                              }}
+                              className="p-1 opacity-0 group-hover/floor:opacity-40 hover:!opacity-100 transition-opacity"
+                              title="Rename floor"
+                            >
+                              <Edit2 size={10} />
+                            </button>
+                            {s.floors!.length > 1 && (
+                              <button
+                                onClick={() => {
+                                  if (!confirm(`Delete floor "${floor.name}"?`)) return;
+                                  setCampaign(prev => {
+                                    if (!prev) return prev;
+                                    return {
+                                      ...prev,
+                                      scenarios: prev.scenarios.map(sc => {
+                                        if (sc.id !== s.id) return sc;
+                                        const remaining = sc.floors?.filter(f => f.id !== floor.id) || [];
+                                        const newActiveId = sc.activeFloorId === floor.id
+                                          ? remaining[0]?.id
+                                          : sc.activeFloorId;
+                                        // Move orphaned tokens to the first remaining floor
+                                        const tokens = sc.tokens.map(t =>
+                                          t.floorId === floor.id ? { ...t, floorId: remaining[0]?.id } : t
+                                        );
+                                        return { ...sc, floors: remaining, activeFloorId: newActiveId, tokens };
+                                      })
+                                    };
+                                  });
+                                }}
+                                className="p-1 opacity-0 group-hover/floor:opacity-40 hover:!opacity-100 transition-opacity text-red-400"
+                                title="Delete floor"
+                              >
+                                <X size={10} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            const floorId = `floor-${s.id}-${Date.now()}`;
+                            const newOrder = Math.max(0, ...(s.floors?.map(f => f.order) || [])) + 1;
+                            setCampaign(prev => prev ? ({
+                              ...prev,
+                              scenarios: prev.scenarios.map(sc =>
+                                sc.id !== s.id ? sc : {
+                                  ...sc,
+                                  floors: [...(sc.floors || []), {
+                                    id: floorId,
+                                    name: `Floor ${newOrder + 1}`,
+                                    order: newOrder,
+                                    mapNotes: [],
+                                    viewpoints: [],
+                                    transitionZones: [],
+                                  }]
+                                }
+                              )
+                            }) : prev);
+                            setActiveFloorId(floorId);
+                          }}
+                          className="w-full text-left px-3 py-1 text-[12px] opacity-40 hover:opacity-70 transition-opacity text-[var(--accent)]"
+                        >
+                          + Add Floor
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -951,21 +1153,17 @@ export function DMScreen() {
           {/* Center: Map View (Always Present, full area) */}
           <main className="w-full h-full relative bg-[#111] overflow-hidden">
             {currentScenario && (
-              <MapView
-                tokens={currentScenario.tokens || []}
+              <FloorMapContainer
+                scenario={currentScenario}
+                allTokens={currentScenario.tokens || []}
+                activeFloorId={activeFloorId}
                 onTokensChange={updateScenarioTokens}
-                scenarioName={currentScenario.name}
-                mapImage={currentScenario.mapImage}
                 onMapChange={updateScenarioMap}
-                mapNotes={currentScenario.mapNotes || []}
                 onMapNotesChange={updateMapNotes}
-                viewpoints={currentScenario.viewpoints || []}
                 onViewpointsChange={updateViewpoints}
                 players={campaign.players || []}
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
-                scenarioCombatants={currentScenario.combatants || []}
-                activeCombatants={currentScenario.activeCombatants || []}
                 onUpdateCombatantHp={updateCombatantHp}
                 onAddEnemy={addEnemyToMap}
                 onStartCombat={startCombat}
@@ -979,21 +1177,17 @@ export function DMScreen() {
                 onAddScenario={addScenario}
                 panToNote={panToNote}
                 startCastingRef={startCastingRef}
-                walls={currentScenario.walls}
-                objectWalls={currentScenario.objectWalls}
-                portals={currentScenario.portals}
-                gridResolution={currentScenario.gridResolution}
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}
                 onPortalTypeChange={changePortalType}
                 onViewportCenter={handleViewportCenter}
-                darknessLevel={currentScenario.darknessLevel}
                 onDarknessLevelChange={updateDarknessLevel}
                 clearMovementPathsRef={clearMovementPathsRef}
                 clearRemoteAoeRef={clearRemoteAoeRef}
                 onAoeHighlightsChange={setAoeHighlights}
                 activeCombatantId={activeCombatantId}
                 targetedCombatantIds={targetedCombatantIds}
+                onTransitionZonesChange={(zones: TransitionZone[]) => updateActiveFloor(f => ({ ...f, transitionZones: zones }))}
               />
             )}
           </main>
@@ -1009,7 +1203,7 @@ export function DMScreen() {
               <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
               {currentScenario && (
                 <DMNotes
-                  notes={currentScenario.mapNotes}
+                  notes={activeFloor?.mapNotes || []}
                   onChange={updateMapNotes}
                   title={currentScenario.name}
                   onTitleChange={updateScenarioName}

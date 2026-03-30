@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapView } from './MapView';
+import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
@@ -748,9 +749,13 @@ export function PlayerScreen() {
           if (!prev || !scenarioId) return prev;
           return {
             ...prev,
-            scenarios: prev.scenarios.map(s =>
-              s.id === scenarioId ? { ...s, tokens: newTokens } : s
-            ),
+            scenarios: prev.scenarios.map(s => {
+              if (s.id !== scenarioId) return s;
+              // Merge by ID: DM sends floor-filtered tokens, keep tokens from other floors
+              const updatedIds = new Set(newTokens.map(t => t.id));
+              const kept = s.tokens.filter(t => !updatedIds.has(t.id));
+              return { ...s, tokens: [...kept, ...newTokens] };
+            }),
           };
         });
       });
@@ -784,17 +789,31 @@ export function PlayerScreen() {
 
   // ── Callbacks ──
   const handleTokensChange = useCallback((newTokens: Token[]) => {
-    if (window.electronAPI?.sendPlayerTokenUpdate) {
-      window.electronAPI.sendPlayerTokenUpdate(newTokens);
-    }
     setCampaign(prev => {
       const scenarioId = currentScenarioIdRef.current;
       if (!prev || !scenarioId) return prev;
+      const scenario = prev.scenarios.find(s => s.id === scenarioId);
+      const floorId = scenario?.activeFloorId;
       return {
         ...prev,
-        scenarios: prev.scenarios.map(s =>
-          s.id === scenarioId ? { ...s, tokens: newTokens } : s
-        ),
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== scenarioId) return s;
+          // Merge by ID: update existing tokens, keep tokens from other floors
+          const updatedIds = new Set(newTokens.map(t => t.id));
+          const kept = s.tokens.filter(t => !updatedIds.has(t.id));
+          const firstFloorId = s.floors?.[0]?.id;
+          const originalFloorTokenIds = new Set(s.tokens.filter(t =>
+            t.floorId === floorId || (!t.floorId && floorId === firstFloorId)
+          ).map(t => t.id));
+          const deletedIds = new Set([...originalFloorTokenIds].filter(id => !updatedIds.has(id)));
+          const surviving = kept.filter(t => !deletedIds.has(t.id));
+          const merged = [...surviving, ...newTokens];
+          // Send full merged array to DM
+          if (window.electronAPI?.sendPlayerTokenUpdate) {
+            window.electronAPI.sendPlayerTokenUpdate(merged);
+          }
+          return { ...s, tokens: merged };
+        }),
       };
     });
   }, []);
@@ -828,6 +847,10 @@ export function PlayerScreen() {
   const [viewportCenter, setViewportCenter] = useState<{ x: number; y: number } | null>(null);
 
   const currentScenario = campaign?.scenarios.find(s => s.id === currentScenarioId) ?? null;
+  const activeFloor = useMemo(() => {
+    if (!currentScenario?.floors) return null;
+    return currentScenario.floors.find(f => f.id === currentScenario.activeFloorId) || currentScenario.floors[0] || null;
+  }, [currentScenario]);
   const activeCombatants = currentScenario?.activeCombatants || [];
   const hasInitiative = activeCombatants.length > 0;
 
@@ -995,34 +1018,25 @@ export function PlayerScreen() {
     <div className="h-screen w-screen overflow-hidden bg-black relative">
       {/* Map View - leaves room for initiative strip on right if active */}
       <div className={cn('absolute inset-0', hasInitiative && 'right-12')}>
-        <MapView
-          tokens={currentScenario.tokens || []}
+        <FloorMapContainer
+          scenario={currentScenario}
+          allTokens={currentScenario.tokens || []}
+          activeFloorId={currentScenario.activeFloorId || null}
           onTokensChange={handleTokensChange}
-          scenarioName={currentScenario.name}
-          mapImage={currentScenario.mapImage}
           onMapChange={() => {}}
-          mapNotes={[]}
           onMapNotesChange={() => {}}
           players={campaign.players || []}
           npcs={campaign.npcs || []}
           persistentEnemies={campaign.persistentEnemies || []}
-          scenarioCombatants={currentScenario.combatants || []}
-          activeCombatants={currentScenario.activeCombatants || []}
           onUpdateCombatantHp={() => {}}
           onAddEnemy={() => {}}
           onStartCombat={() => {}}
           leftSidebarOpen={false}
           setLeftSidebarOpen={() => {}}
           isPlayerView={true}
-          walls={currentScenario.walls}
-          objectWalls={currentScenario.objectWalls}
-          portals={currentScenario.portals}
-          viewpoints={currentScenario.viewpoints || []}
-          gridResolution={currentScenario.gridResolution}
           onPortalToggle={(portalId) => window.electronAPI?.sendPlayerPortalToggle?.(portalId)}
           onDragStatusChange={handleDragStatusChange}
           viewportCenter={viewportCenter}
-          darknessLevel={currentScenario.darknessLevel}
           startCastingRef={startCastingRef}
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}

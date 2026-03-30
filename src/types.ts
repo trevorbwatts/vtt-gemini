@@ -67,6 +67,7 @@ export interface Token {
   combatantId?: string;
   avatar?: string;
   size?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
+  floorId?: string;
 }
 
 export interface MovementPathSegment {
@@ -229,6 +230,29 @@ export interface Viewpoint {
   isHidden?: boolean;
 }
 
+export interface TransitionZone {
+  id: string;
+  rect: { x: number; y: number; width: number; height: number };
+  targetFloorId: string;
+  targetPosition: { x: number; y: number };
+  label?: string;
+}
+
+export interface Floor {
+  id: string;
+  name: string;
+  order: number;
+  mapImage?: string;
+  walls?: WallSegment[];
+  objectWalls?: WallSegment[];
+  portals?: Portal[];
+  gridResolution?: GridResolution;
+  darknessLevel?: 'daylight' | 'dark';
+  mapNotes: MapNote[];
+  viewpoints?: Viewpoint[];
+  transitionZones?: TransitionZone[];
+}
+
 export interface Scenario {
   id: string;
   name: string;
@@ -238,11 +262,19 @@ export interface Scenario {
   tokens: Token[];
   combatants: Combatant[];
   activeCombatants: Combatant[];
+  floors?: Floor[];
+  activeFloorId?: string;
+  /** @deprecated Use floors[].mapImage instead. Kept for migration. */
   mapImage?: string;
+  /** @deprecated Use floors[].walls instead. Kept for migration. */
   walls?: WallSegment[];
+  /** @deprecated Use floors[].objectWalls instead. Kept for migration. */
   objectWalls?: WallSegment[];
+  /** @deprecated Use floors[].portals instead. Kept for migration. */
   portals?: Portal[];
+  /** @deprecated Use floors[].gridResolution instead. Kept for migration. */
   gridResolution?: GridResolution;
+  /** @deprecated Use floors[].darknessLevel instead. Kept for migration. */
   darknessLevel?: 'daylight' | 'dark';
 }
 

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath } from '../types';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2 } from '../icons';
+import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown } from '../icons';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
@@ -81,6 +81,12 @@ interface MapViewProps {
   onClearTargets?: () => void;
   viewpoints?: Viewpoint[];
   onViewpointsChange?: (viewpoints: Viewpoint[]) => void;
+  /** Current active floor ID for floor-aware token placement */
+  activeFloorId?: string | null;
+  /** All floors in the current scenario (for transition zone config) */
+  floors?: Floor[];
+  /** Callback to update transition zones on the active floor */
+  onTransitionZonesChange?: (zones: TransitionZone[]) => void;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -484,6 +490,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onClearTargets,
   viewpoints,
   onViewpointsChange,
+  activeFloorId,
+  floors,
+  onTransitionZonesChange,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -599,6 +608,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [wallCollisionEnabled, setWallCollisionEnabled] = useState(true);
   const lastValidPosRef = useRef<Record<string, { x: number; y: number }>>({});
   const dragTokenRadiusRef = useRef<Record<string, number>>({});
+
+  // Transition zone drawing mode
+  const [transitionZoneMode, setTransitionZoneMode] = useState(false);
+  const [drawingZone, setDrawingZone] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const [transitionZoneConfig, setTransitionZoneConfig] = useState<{ rect: { x: number; y: number; width: number; height: number } } | null>(null);
+  const [transitionPopup, setTransitionPopup] = useState<{
+    tokenId: string;
+    zone: TransitionZone;
+    screenX: number;
+    screenY: number;
+  } | null>(null);
 
   // Movement path tracking — only active during initiative/combat
   const inCombat = activeCombatants.length > 0;
@@ -1494,6 +1514,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     onTokensChange(updatedTokens);
+
+    // Check if token landed in a transition zone
+    const currentFloor = floors?.find(f => f.id === activeFloorId);
+    const zones = currentFloor?.transitionZones || [];
+    if (zones.length > 0) {
+      const droppedToken = updatedTokens.find(t => t.id === id);
+      if (droppedToken) {
+        const hitZone = zones.find(z =>
+          droppedToken.x >= z.rect.x && droppedToken.x <= z.rect.x + z.rect.width &&
+          droppedToken.y >= z.rect.y && droppedToken.y <= z.rect.y + z.rect.height
+        );
+        if (hitZone) {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (rect) {
+            const screenX = rect.left + droppedToken.x * stageScale + stagePos.x;
+            const screenY = rect.top + droppedToken.y * stageScale + stagePos.y;
+            setTransitionPopup({ tokenId: id, zone: hitZone, screenX, screenY });
+          }
+        }
+      }
+    }
   };
 
   // Undo a token's last movement segment (or all movement if only one segment)
@@ -1576,6 +1617,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       x: 50,
       y: 50,
       color: colors[type],
+      floorId: activeFloorId || undefined,
     };
     onTokensChange([...tokens, newToken]);
   };
@@ -1663,6 +1705,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         y: contextMenu.y,
         color: combatant.color || colors[type],
         avatar: combatant.avatar,
+        floorId: activeFloorId || undefined,
       };
       onTokensChange([...tokens, newToken]);
     }
@@ -1887,6 +1930,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseDown = (e: any) => {
+    // Transition zone drawing mode
+    if (transitionZoneMode && e.evt.button === 0 && !spaceHeldRef.current) {
+      const canvas = getCanvasPos(e.target.getStage());
+      setDrawingZone({ startX: canvas.x, startY: canvas.y, endX: canvas.x, endY: canvas.y });
+      return;
+    }
+
     // DM AoE casting: click to place (mouse-follow mode)
     if (castingSpell && e.evt.button === 0) {
       if (castingMousePos) {
@@ -1935,6 +1985,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseMove = (e: any) => {
+    // Transition zone drawing
+    if (drawingZone) {
+      const canvas = getCanvasPos(e.target.getStage());
+      setDrawingZone(prev => prev ? { ...prev, endX: canvas.x, endY: canvas.y } : null);
+      return;
+    }
+
     // DM AoE casting: track mouse in world coords
     if (castingSpell) {
       const stage = e.target.getStage();
@@ -1963,6 +2020,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseUp = () => {
+    // Finish transition zone drawing
+    if (drawingZone) {
+      const x = Math.min(drawingZone.startX, drawingZone.endX);
+      const y = Math.min(drawingZone.startY, drawingZone.endY);
+      const width = Math.abs(drawingZone.endX - drawingZone.startX);
+      const height = Math.abs(drawingZone.endY - drawingZone.startY);
+      if (width > 10 && height > 10) {
+        setTransitionZoneConfig({ rect: { x, y, width, height } });
+      }
+      setDrawingZone(null);
+      setTransitionZoneMode(false);
+      return;
+    }
+
     setIsPanning(false);
     const rect = selectionRectRef.current;
     if (selectionStartRef.current && rect && (rect.w > 5 || rect.h > 5)) {
@@ -2103,6 +2174,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <Cloud size={12} /> FOG
                 </button>
               )}
+              {floors && floors.length > 1 && (
+                <button
+                  onClick={() => setTransitionZoneMode(!transitionZoneMode)}
+                  className={cn("btn-ghost py-1", transitionZoneMode && "bg-blue-500/20 text-blue-400")}
+                  title="Draw transition zone (stairs/hole connecting floors)"
+                >
+                  <ArrowUpDown size={12} /> TRANSITION
+                </button>
+              )}
               <div className="h-6 w-px bg-[var(--line)] shrink-0" />
               <div className="flex items-center bg-black/40 rounded-lg p-0.5">
                 {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
@@ -2185,6 +2265,61 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 image={loadedImage}
                 width={loadedImage.width}
                 height={loadedImage.height}
+              />
+            )}
+
+            {/* Render Transition Zones */}
+            {(() => {
+              const currentFloor = floors?.find(f => f.id === activeFloorId);
+              const zones = currentFloor?.transitionZones || [];
+              return zones.map(zone => {
+                const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
+                return (
+                  <Group key={zone.id}>
+                    <Rect
+                      x={zone.rect.x}
+                      y={zone.rect.y}
+                      width={zone.rect.width}
+                      height={zone.rect.height}
+                      fill={isPlayerView ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.25)'}
+                      stroke={isPlayerView ? 'rgba(59, 130, 246, 0.4)' : '#3b82f6'}
+                      strokeWidth={isPlayerView ? 1 : 2}
+                      dash={isPlayerView ? undefined : [8, 4]}
+                      listening={!isPlayerView}
+                      onClick={!isPlayerView ? () => {
+                        if (confirm(`Delete transition zone${zone.label ? ` "${zone.label}"` : ''} to ${targetFloor?.name || 'unknown floor'}?`)) {
+                          const updated = zones.filter(z => z.id !== zone.id);
+                          onTransitionZonesChange?.(updated);
+                        }
+                      } : undefined}
+                    />
+                    {!isPlayerView && (
+                      <Text
+                        x={zone.rect.x + 4}
+                        y={zone.rect.y + 4}
+                        text={`→ ${targetFloor?.name || '?'}${zone.label ? ` (${zone.label})` : ''}`}
+                        fontSize={12}
+                        fill="#3b82f6"
+                        listening={false}
+                      />
+                    )}
+                  </Group>
+                );
+              });
+            })()}
+
+            {/* Render drawing-in-progress transition zone */}
+            {drawingZone && (
+              <Rect
+                x={Math.min(drawingZone.startX, drawingZone.endX)}
+                y={Math.min(drawingZone.startY, drawingZone.endY)}
+                width={Math.abs(drawingZone.endX - drawingZone.startX)}
+                height={Math.abs(drawingZone.endY - drawingZone.startY)}
+                fill="rgba(59, 130, 246, 0.2)"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dash={[8, 4]}
+                listening={false}
               />
             )}
 
@@ -4187,6 +4322,167 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Transition Zone Config Modal */}
+      <AnimatePresence>
+        {transitionZoneConfig && floors && floors.length > 1 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setTransitionZoneConfig(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[400px] p-6 mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                <ArrowUpDown size={16} className="text-blue-400" /> Configure Transition Zone
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs opacity-60 block mb-1">Label (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Stairs down, Hole, Ladder..."
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm"
+                    id="tz-label"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs opacity-60 block mb-1">Target Floor</label>
+                  <select
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm"
+                    id="tz-target-floor"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select floor...</option>
+                    {floors.filter(f => f.id !== activeFloorId).map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs opacity-40">Tokens arriving on the target floor will be placed at its center. You can adjust their position afterward.</p>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => {
+                      const targetFloorId = (document.getElementById('tz-target-floor') as HTMLSelectElement)?.value;
+                      const label = (document.getElementById('tz-label') as HTMLInputElement)?.value?.trim();
+                      if (!targetFloorId) return;
+                      const targetFloor = floors.find(f => f.id === targetFloorId);
+                      // Default arrival position: center of target floor map or (200, 200)
+                      const targetX = targetFloor?.gridResolution
+                        ? (targetFloor.gridResolution.mapSize.x * targetFloor.gridResolution.pixelsPerGrid) / 2
+                        : 200;
+                      const targetY = targetFloor?.gridResolution
+                        ? (targetFloor.gridResolution.mapSize.y * targetFloor.gridResolution.pixelsPerGrid) / 2
+                        : 200;
+                      const newZone: TransitionZone = {
+                        id: `tz-${Date.now()}`,
+                        rect: transitionZoneConfig.rect,
+                        targetFloorId,
+                        targetPosition: { x: targetX, y: targetY },
+                        label: label || undefined,
+                      };
+                      const currentFloor = floors.find(f => f.id === activeFloorId);
+                      const existing = currentFloor?.transitionZones || [];
+                      onTransitionZonesChange?.([...existing, newZone]);
+                      setTransitionZoneConfig(null);
+                    }}
+                    className="btn-filled py-2 px-4 rounded-xl text-sm"
+                  >
+                    Create Zone
+                  </button>
+                  <button
+                    onClick={() => setTransitionZoneConfig(null)}
+                    className="btn-ghost py-2 px-4 rounded-xl text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Transition Popup — appears when token is dropped on a transition zone */}
+      <AnimatePresence>
+        {transitionPopup && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="fixed z-[70] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl p-3 min-w-[180px]"
+            style={{ left: transitionPopup.screenX - 90, top: transitionPopup.screenY + 30 }}
+          >
+            {(() => {
+              const targetFloor = floors?.find(f => f.id === transitionPopup.zone.targetFloorId);
+              return (
+                <>
+                  <p className="text-xs opacity-60 mb-2 text-center">
+                    {transitionPopup.zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      onClick={() => {
+                        const zone = transitionPopup.zone;
+                        const updated = tokens.map(t =>
+                          t.id === transitionPopup.tokenId
+                            ? { ...t, floorId: zone.targetFloorId, x: zone.targetPosition.x, y: zone.targetPosition.y }
+                            : t
+                        );
+                        onTokensChange(updated);
+                        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                          window.electronAPI.sendPlayerTokenUpdate(updated);
+                        }
+                        setTransitionPopup(null);
+                      }}
+                      className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                    >
+                      <User size={12} className="text-blue-400" /> Move Just Me
+                    </button>
+                    <button
+                      onClick={() => {
+                        const zone = transitionPopup.zone;
+                        const spacing = gridResolution?.pixelsPerGrid || 70;
+                        let offsetIndex = 0;
+                        const updated = tokens.map(t => {
+                          if (t.type === 'player') {
+                            const offset = offsetIndex * spacing;
+                            offsetIndex++;
+                            return { ...t, floorId: zone.targetFloorId, x: zone.targetPosition.x + offset, y: zone.targetPosition.y };
+                          }
+                          return t;
+                        });
+                        onTokensChange(updated);
+                        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                          window.electronAPI.sendPlayerTokenUpdate(updated);
+                        }
+                        setTransitionPopup(null);
+                      }}
+                      className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                    >
+                      <Layers size={12} className="text-blue-400" /> Move Whole Team
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setTransitionPopup(null)}
+                    className="absolute top-1 right-1 p-1 opacity-40 hover:opacity-100"
+                  >
+                    <X size={10} />
+                  </button>
+                </>
+              );
+            })()}
           </motion.div>
         )}
       </AnimatePresence>

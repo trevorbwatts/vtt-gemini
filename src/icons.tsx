@@ -100,6 +100,11 @@ export {
   DoorOpen,
   Grid2x2,
   Blinds,
+
+  // Floors / Transition Zones
+  Layers,
+  ArrowUpDown,
+  SquareDashed,
 } from 'lucide-react';
 
 // Treasure chest — lucide's Gem icon
