@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { MapView } from './MapView';
+import { motion, AnimatePresence } from 'motion/react';
 import { Scenario, Token, Floor, Combatant, Monster, MapNote, WallSegment, Portal, GridResolution, Viewpoint, TransitionZone } from '../types';
 import type { SaveResult } from './MapView';
 
@@ -97,6 +98,28 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   const getFloorTokens = (floorId: string) =>
     allTokens.filter(t => t.floorId === floorId || (!t.floorId && floorId === firstFloorId));
 
+  const prevSplitRef = useRef(splitFloorIds);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [secondaryCenter, setSecondaryCenter] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const prev = prevSplitRef.current;
+    if (splitFloorIds && !prev) {
+      setShowOverlay(true);
+      setTimeout(() => setShowOverlay(false), 800); // fade out after slide finishes
+      
+      const secondaryId = splitFloorIds[1];
+      const secondaryTokens = allTokens.filter(t => t.floorId === secondaryId && t.type === 'player' && !t.hidden);
+      if (secondaryTokens.length > 0) {
+        setSecondaryCenter({ x: secondaryTokens[0].x, y: secondaryTokens[0].y });
+      }
+    } else if (!splitFloorIds && prev) {
+      setShowOverlay(false);
+      setSecondaryCenter(null);
+    }
+    prevSplitRef.current = splitFloorIds;
+  }, [splitFloorIds, allTokens]);
+
   const buildMapViewProps = (floor: Floor, floorTokens: Token[], isPrimary: boolean) => ({
     tokens: floorTokens,
     onTokensChange: (tokens: Token[]) => props.onTokensChange(floor.id, tokens),
@@ -135,11 +158,9 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onUpdateFloorById: props.onUpdateFloorById,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
-    // Player interaction props — needed on both views for player interactivity
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
     onToggleTarget: props.onToggleTarget,
     onClearTargets: props.onClearTargets,
-    // Only pass through DM-specific refs and editing callbacks to the primary view
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
       onAddScenario: props.onAddScenario,
@@ -162,33 +183,57 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     } : {}),
   });
 
-  if (!needsSplit || !splitFloorIds) {
-    // Single floor view
-    if (!activeFloor) return null;
-    const floorTokens = getFloorTokens(activeFloor.id);
-    return <MapView {...buildMapViewProps(activeFloor, floorTokens, true)} />;
-  }
+  const primaryFloor = splitFloorIds ? floors.find(f => f.id === splitFloorIds[0]) : activeFloor;
+  const secondaryFloor = splitFloorIds ? floors.find(f => f.id === splitFloorIds[1]) : null;
 
-  // Split-screen: two MapViews side by side
-  const [primaryFloorId, secondaryFloorId] = splitFloorIds;
-  const primaryFloor = floors.find(f => f.id === primaryFloorId);
-  const secondaryFloor = floors.find(f => f.id === secondaryFloorId);
-  if (!primaryFloor || !secondaryFloor) return null;
+  if (!primaryFloor) return null;
 
   return (
-    <div className="flex w-full h-full">
-      <div className="w-1/2 h-full relative border-r border-[var(--line)]">
+    <div className="flex w-full h-full overflow-hidden bg-black">
+      <motion.div 
+        className={`h-full relative z-10 ${splitFloorIds ? 'border-r border-[var(--line)]' : ''}`}
+        initial={{ width: '100%' }}
+        animate={{ width: splitFloorIds ? '50%' : '100%' }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      >
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black/60 rounded-full text-[10px] font-bold tracking-widest uppercase text-white/70 pointer-events-none">
           {primaryFloor.name}
         </div>
-        <MapView {...buildMapViewProps(primaryFloor, getFloorTokens(primaryFloorId), true)} />
-      </div>
-      <div className="w-1/2 h-full relative">
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black/60 rounded-full text-[10px] font-bold tracking-widest uppercase text-white/70 pointer-events-none">
-          {secondaryFloor.name}
-        </div>
-        <MapView {...buildMapViewProps(secondaryFloor, getFloorTokens(secondaryFloorId), false)} />
-      </div>
+        <MapView {...buildMapViewProps(primaryFloor, getFloorTokens(primaryFloor.id), true)} />
+      </motion.div>
+      <AnimatePresence>
+        {splitFloorIds && secondaryFloor && (
+          <motion.div 
+            className="h-full relative overflow-hidden shrink-0"
+            initial={{ width: '0%', opacity: 1 }}
+            animate={{ width: '50%', opacity: 1 }}
+            exit={{ width: '0%', opacity: 0 }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-black/60 rounded-full text-[10px] font-bold tracking-widest uppercase text-white/70 pointer-events-none">
+              {secondaryFloor.name}
+            </div>
+            
+            <div className="absolute inset-0 min-w-[50vw]">
+              <MapView 
+                {...buildMapViewProps(secondaryFloor, getFloorTokens(secondaryFloor.id), false)} 
+                viewportCenter={secondaryCenter || undefined}
+              />
+            </div>
+            
+            <AnimatePresence>
+              {showOverlay && (
+                <motion.div 
+                  className="absolute inset-0 bg-black z-40 pointer-events-none"
+                  initial={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                />
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
