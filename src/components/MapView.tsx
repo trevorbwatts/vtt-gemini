@@ -2278,15 +2278,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <Cloud size={12} /> FOG
                 </button>
               )}
-              {floors && floors.length > 1 && (
-                <button
-                  onClick={() => setTransitionZoneMode(!transitionZoneMode)}
-                  className={cn("btn-ghost py-1", transitionZoneMode && "bg-blue-500/20 text-blue-400")}
-                  title="Draw transition zone (stairs/hole connecting floors)"
-                >
-                  <ArrowUpDown size={12} /> TRANSITION
-                </button>
-              )}
+
               <div className="h-6 w-px bg-[var(--line)] shrink-0" />
               <div className="flex items-center bg-black/40 rounded-lg p-0.5">
                 {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
@@ -3867,6 +3859,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <span className="flex-1 text-left">Add a Viewpoint</span>
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
+                {floors && floors.length > 1 && (
+                  <button
+                    onMouseEnter={() => setActiveSubmenu(null)}
+                    onClick={() => {
+                      setTransitionZoneMode(!transitionZoneMode);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
+                  >
+                    <ArrowUpDown size={14} className="opacity-50 group-hover:opacity-100" />
+                    <span className="flex-1 text-left">{transitionZoneMode ? 'Cancel Transition Zone' : 'Add Transition Zone'}</span>
+                    <ChevronRight size={12} className="opacity-30" />
+                  </button>
+                )}
                 <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-50" />
 
                 {/* Player Flyout Trigger */}
@@ -4495,6 +4501,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     placeholder="e.g. Stairs down, Hole, Ladder..."
                     className="w-full px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm"
                     id="tz-label"
+                    autoFocus
+                    onKeyDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
                   />
                 </div>
                 <div>
