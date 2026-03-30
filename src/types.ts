@@ -236,6 +236,8 @@ export interface TransitionZone {
   targetFloorId: string;
   targetPosition: { x: number; y: number };
   label?: string;
+  pairedZoneId?: string;
+  pairIndex?: number;
 }
 
 export interface Floor {

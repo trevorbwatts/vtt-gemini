@@ -55,6 +55,8 @@ interface FloorMapContainerProps {
   onToggleTarget?: (combatantId: string) => void;
   onClearTargets?: () => void;
   onTransitionZonesChange?: (zones: TransitionZone[]) => void;
+  onSwitchFloor?: (floorId: string) => void;
+  onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -129,6 +131,8 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     activeFloorId: floor.id,
     floors: floors,
     onTransitionZonesChange: isPrimary ? props.onTransitionZonesChange : undefined,
+    onSwitchFloor: props.onSwitchFloor,
+    onUpdateFloorById: props.onUpdateFloorById,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     // Player interaction props — needed on both views for player interactivity

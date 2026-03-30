@@ -459,6 +459,23 @@ export function DMScreen() {
     });
   }, []);
 
+  /** Update a specific floor by ID (for cross-floor operations like paired transition zones) */
+  const updateFloorById = useCallback((floorId: string, updater: (floor: Floor) => Floor) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          return {
+            ...s,
+            floors: s.floors?.map(f => f.id === floorId ? updater(f) : f)
+          };
+        })
+      };
+    });
+  }, []);
+
   const updateMapNotes = useCallback((mapNotes: any[]) => {
     updateActiveFloor(f => ({ ...f, mapNotes }));
   }, [updateActiveFloor]);
@@ -1188,6 +1205,8 @@ export function DMScreen() {
                 activeCombatantId={activeCombatantId}
                 targetedCombatantIds={targetedCombatantIds}
                 onTransitionZonesChange={(zones: TransitionZone[]) => updateActiveFloor(f => ({ ...f, transitionZones: zones }))}
+                onSwitchFloor={setActiveFloorId}
+                onUpdateFloorById={updateFloorById}
               />
             )}
           </main>

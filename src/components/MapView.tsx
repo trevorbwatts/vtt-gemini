@@ -87,6 +87,10 @@ interface MapViewProps {
   floors?: Floor[];
   /** Callback to update transition zones on the active floor */
   onTransitionZonesChange?: (zones: TransitionZone[]) => void;
+  /** Switch the active floor (for two-step transition zone drawing) */
+  onSwitchFloor?: (floorId: string) => void;
+  /** Update a specific floor by ID (for cross-floor operations) */
+  onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -493,6 +497,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   activeFloorId,
   floors,
   onTransitionZonesChange,
+  onSwitchFloor,
+  onUpdateFloorById,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -618,6 +624,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
     zone: TransitionZone;
     screenX: number;
     screenY: number;
+  } | null>(null);
+  const [pendingPairData, setPendingPairData] = useState<{
+    sourceFloorId: string;
+    sourceRect: { x: number; y: number; width: number; height: number };
+    targetFloorId: string;
+    label?: string;
+    pairIndex: number;
   } | null>(null);
 
   // Movement path tracking — only active during initiative/combat
@@ -1877,6 +1890,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const handleTouchStart = (e: any) => {
     if (isTokenDraggingRef.current) return;
+
+    // AoE casting on player view: track touch position for preview
+    if (castingSpell && e.evt.touches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      setCastingMousePos(pos);
+      e.evt.preventDefault();
+      return;
+    }
+
     if (e.evt.touches.length === 2) {
       const t1 = e.evt.touches[0];
       const t2 = e.evt.touches[1];
@@ -1890,6 +1913,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const handleTouchMove = (e: any) => {
     if (isTokenDraggingRef.current) return;
+
+    // AoE casting on player view: update preview position as finger moves
+    if (castingSpell && e.evt.touches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      setCastingMousePos(pos);
+      e.evt.preventDefault();
+      return;
+    }
+
     if (e.evt.touches.length === 2 && twoFingerPanRef.current) {
       const t1 = e.evt.touches[0];
       const t2 = e.evt.touches[1];
@@ -1904,6 +1937,34 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchEnd = (e: any) => {
+    // AoE casting on player view: place AoE on finger lift
+    if (castingSpell && e.evt.changedTouches.length === 1 && castingMousePos) {
+      const angle = Math.atan2(
+        castingMousePos.y - castingSpell.originY,
+        castingMousePos.x - castingSpell.originX
+      ) * (180 / Math.PI);
+      setPlacedAoe({
+        name: castingSpell.name,
+        aoeType: castingSpell.aoeType,
+        aoeSize: castingSpell.aoeSize,
+        x: castingMousePos.x,
+        y: castingMousePos.y,
+        originX: castingSpell.originX,
+        originY: castingSpell.originY,
+        angle,
+        casterRadiusPx: castingSpell.casterRadiusPx,
+        selfOrigin: castingSpell.selfOrigin,
+        saveAbility: castingSpell.saveAbility,
+        saveDc: castingSpell.saveDc,
+        halfDamageOnSave: castingSpell.halfDamageOnSave,
+        spellDesc: castingSpell.spellDesc,
+        damageType: castingSpell.damageType,
+      });
+      setCastingSpell(null);
+      setCastingMousePos(null);
+      return;
+    }
+
     if (e.evt.touches.length < 2) {
       // If this was a two-finger pan ending, just clear the ref
       if (twoFingerPanRef.current) {
@@ -2027,7 +2088,50 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const width = Math.abs(drawingZone.endX - drawingZone.startX);
       const height = Math.abs(drawingZone.endY - drawingZone.startY);
       if (width > 10 && height > 10) {
-        setTransitionZoneConfig({ rect: { x, y, width, height } });
+        if (pendingPairData) {
+          // This is the second zone in a paired flow
+          const targetRect = { x, y, width, height };
+          const sourceZoneId = `tz-${Date.now()}-a`;
+          const targetZoneId = `tz-${Date.now()}-b`;
+          const sourceCenter = {
+            x: pendingPairData.sourceRect.x + pendingPairData.sourceRect.width / 2,
+            y: pendingPairData.sourceRect.y + pendingPairData.sourceRect.height / 2,
+          };
+          const targetCenter = { x: x + width / 2, y: y + height / 2 };
+
+          // Create target zone on current (target) floor
+          const targetZone: TransitionZone = {
+            id: targetZoneId,
+            rect: targetRect,
+            targetFloorId: pendingPairData.sourceFloorId,
+            targetPosition: sourceCenter,
+            label: pendingPairData.label,
+            pairedZoneId: sourceZoneId,
+            pairIndex: pendingPairData.pairIndex,
+          };
+          const currentFloor = floors?.find(f => f.id === pendingPairData.targetFloorId);
+          const existingTarget = currentFloor?.transitionZones || [];
+          onTransitionZonesChange?.([...existingTarget, targetZone]);
+
+          // Create source zone on original floor
+          const sourceZone: TransitionZone = {
+            id: sourceZoneId,
+            rect: pendingPairData.sourceRect,
+            targetFloorId: pendingPairData.targetFloorId,
+            targetPosition: targetCenter,
+            label: pendingPairData.label,
+            pairedZoneId: targetZoneId,
+            pairIndex: pendingPairData.pairIndex,
+          };
+          onUpdateFloorById?.(pendingPairData.sourceFloorId, (f: Floor) => ({
+            ...f,
+            transitionZones: [...(f.transitionZones || []), sourceZone],
+          }));
+
+          setPendingPairData(null);
+        } else {
+          setTransitionZoneConfig({ rect: { x, y, width, height } });
+        }
       }
       setDrawingZone(null);
       setTransitionZoneMode(false);
@@ -2235,9 +2339,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           onMouseLeave={isPlayerView ? undefined : handleStageMouseUp}
           onContextMenu={isPlayerView ? undefined : handleContextMenu}
           onWheel={isPlayerView ? undefined : handleWheel}
-          onTouchStart={isPlayerView && !activeAoe ? handleTouchStart : undefined}
-          onTouchMove={isPlayerView && !activeAoe ? handleTouchMove : undefined}
-          onTouchEnd={isPlayerView && !activeAoe ? handleTouchEnd : undefined}
+          onTouchStart={isPlayerView && (!activeAoe || castingSpell) ? handleTouchStart : undefined}
+          onTouchMove={isPlayerView && (!activeAoe || castingSpell) ? handleTouchMove : undefined}
+          onTouchEnd={isPlayerView && (!activeAoe || castingSpell) ? handleTouchEnd : undefined}
           onClick={(e) => {
             if (isPlayerView) {
               // Tap on empty space clears all targets
@@ -2268,12 +2372,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
               />
             )}
 
-            {/* Render Transition Zones */}
-            {(() => {
+            {/* Render Transition Zones — DM only */}
+            {!isPlayerView && (() => {
+              const PAIR_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#f97316'];
               const currentFloor = floors?.find(f => f.id === activeFloorId);
               const zones = currentFloor?.transitionZones || [];
               return zones.map(zone => {
                 const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
+                const color = PAIR_COLORS[(zone.pairIndex ?? 0) % PAIR_COLORS.length];
+                const r = parseInt(color.slice(1, 3), 16);
+                const g = parseInt(color.slice(3, 5), 16);
+                const b = parseInt(color.slice(5, 7), 16);
                 return (
                   <Group key={zone.id}>
                     <Rect
@@ -2281,27 +2390,58 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       y={zone.rect.y}
                       width={zone.rect.width}
                       height={zone.rect.height}
-                      fill={isPlayerView ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.25)'}
-                      stroke={isPlayerView ? 'rgba(59, 130, 246, 0.4)' : '#3b82f6'}
-                      strokeWidth={isPlayerView ? 1 : 2}
-                      dash={isPlayerView ? undefined : [8, 4]}
-                      listening={!isPlayerView}
-                      onClick={!isPlayerView ? () => {
-                        if (confirm(`Delete transition zone${zone.label ? ` "${zone.label}"` : ''} to ${targetFloor?.name || 'unknown floor'}?`)) {
+                      fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
+                      stroke={color}
+                      strokeWidth={2}
+                      dash={[8, 4]}
+                      listening={true}
+                      onClick={() => {
+                        const partnerLabel = zone.pairedZoneId ? ' and its paired zone' : '';
+                        if (confirm(`Delete transition zone${zone.label ? ` "${zone.label}"` : ''}${partnerLabel}?`)) {
                           const updated = zones.filter(z => z.id !== zone.id);
                           onTransitionZonesChange?.(updated);
+                          if (zone.pairedZoneId && zone.targetFloorId) {
+                            onUpdateFloorById?.(zone.targetFloorId, f => ({
+                              ...f,
+                              transitionZones: (f.transitionZones || []).filter(z => z.id !== zone.pairedZoneId)
+                            }));
+                          }
                         }
-                      } : undefined}
+                      }}
                     />
-                    {!isPlayerView && (
-                      <Text
-                        x={zone.rect.x + 4}
-                        y={zone.rect.y + 4}
-                        text={`→ ${targetFloor?.name || '?'}${zone.label ? ` (${zone.label})` : ''}`}
-                        fontSize={12}
-                        fill="#3b82f6"
-                        listening={false}
-                      />
+                    <Text
+                      x={zone.rect.x + 4}
+                      y={zone.rect.y + 4}
+                      text={`${zone.pairIndex != null ? `#${zone.pairIndex} ` : ''}↔ ${targetFloor?.name || '?'}${zone.label ? ` (${zone.label})` : ''}`}
+                      fontSize={12}
+                      fill={color}
+                      listening={false}
+                    />
+                    {zone.pairIndex != null && (
+                      <>
+                        <Circle
+                          x={zone.rect.x + zone.rect.width - 2}
+                          y={zone.rect.y + 2}
+                          radius={10}
+                          fill={color}
+                          listening={false}
+                        />
+                        <Text
+                          x={zone.rect.x + zone.rect.width - 2}
+                          y={zone.rect.y + 2}
+                          text={String(zone.pairIndex)}
+                          fontSize={11}
+                          fill="white"
+                          fontStyle="bold"
+                          align="center"
+                          verticalAlign="middle"
+                          offsetX={0}
+                          offsetY={0}
+                          width={20}
+                          height={20}
+                          listening={false}
+                        />
+                      </>
                     )}
                   </Group>
                 );
@@ -4370,36 +4510,35 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     ))}
                   </select>
                 </div>
-                <p className="text-xs opacity-40">Tokens arriving on the target floor will be placed at its center. You can adjust their position afterward.</p>
+                <p className="text-xs opacity-40">You'll draw the arrival zone on the target floor next.</p>
                 <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => {
                       const targetFloorId = (document.getElementById('tz-target-floor') as HTMLSelectElement)?.value;
                       const label = (document.getElementById('tz-label') as HTMLInputElement)?.value?.trim();
                       if (!targetFloorId) return;
-                      const targetFloor = floors.find(f => f.id === targetFloorId);
-                      // Default arrival position: center of target floor map or (200, 200)
-                      const targetX = targetFloor?.gridResolution
-                        ? (targetFloor.gridResolution.mapSize.x * targetFloor.gridResolution.pixelsPerGrid) / 2
-                        : 200;
-                      const targetY = targetFloor?.gridResolution
-                        ? (targetFloor.gridResolution.mapSize.y * targetFloor.gridResolution.pixelsPerGrid) / 2
-                        : 200;
-                      const newZone: TransitionZone = {
-                        id: `tz-${Date.now()}`,
-                        rect: transitionZoneConfig.rect,
+                      // Compute next pairIndex from all floors
+                      let maxPairIndex = 0;
+                      for (const f of floors) {
+                        for (const tz of f.transitionZones || []) {
+                          if (tz.pairIndex != null && tz.pairIndex > maxPairIndex) maxPairIndex = tz.pairIndex;
+                        }
+                      }
+                      const nextPairIndex = maxPairIndex + 1;
+                      setPendingPairData({
+                        sourceFloorId: activeFloorId || floors[0]?.id || '',
+                        sourceRect: transitionZoneConfig.rect,
                         targetFloorId,
-                        targetPosition: { x: targetX, y: targetY },
                         label: label || undefined,
-                      };
-                      const currentFloor = floors.find(f => f.id === activeFloorId);
-                      const existing = currentFloor?.transitionZones || [];
-                      onTransitionZonesChange?.([...existing, newZone]);
+                        pairIndex: nextPairIndex,
+                      });
                       setTransitionZoneConfig(null);
+                      setTransitionZoneMode(true);
+                      onSwitchFloor?.(targetFloorId);
                     }}
                     className="btn-filled py-2 px-4 rounded-xl text-sm"
                   >
-                    Create Zone
+                    Next: Draw Arrival Zone
                   </button>
                   <button
                     onClick={() => setTransitionZoneConfig(null)}
@@ -4414,6 +4553,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Pending pair banner — draw arrival zone on target floor */}
+      {pendingPairData && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-3 px-4 py-2 bg-blue-600/90 rounded-xl shadow-lg text-white text-xs font-medium">
+          <span>Draw arrival zone on {floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click and drag</span>
+          <button
+            onClick={() => {
+              setPendingPairData(null);
+              setTransitionZoneMode(false);
+              setDrawingZone(null);
+              onSwitchFloor?.(pendingPairData.sourceFloorId);
+            }}
+            className="px-2 py-0.5 bg-white/20 rounded-md hover:bg-white/30"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Transition Popup — appears when token is dropped on a transition zone */}
       <AnimatePresence>
         {transitionPopup && (
@@ -4425,19 +4582,29 @@ const MapViewInner: React.FC<MapViewProps> = ({
             style={{ left: transitionPopup.screenX - 90, top: transitionPopup.screenY + 30 }}
           >
             {(() => {
-              const targetFloor = floors?.find(f => f.id === transitionPopup.zone.targetFloorId);
+              const zone = transitionPopup.zone;
+              const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
+              // Compute arrival position: use partner zone's rect center if available, fall back to targetPosition
+              let arrivalX = zone.targetPosition.x;
+              let arrivalY = zone.targetPosition.y;
+              if (zone.pairedZoneId && targetFloor) {
+                const partnerZone = targetFloor.transitionZones?.find(tz => tz.id === zone.pairedZoneId);
+                if (partnerZone) {
+                  arrivalX = partnerZone.rect.x + partnerZone.rect.width / 2;
+                  arrivalY = partnerZone.rect.y + partnerZone.rect.height / 2;
+                }
+              }
               return (
                 <>
                   <p className="text-xs opacity-60 mb-2 text-center">
-                    {transitionPopup.zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
+                    {zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
                   </p>
                   <div className="flex flex-col gap-1.5">
                     <button
                       onClick={() => {
-                        const zone = transitionPopup.zone;
                         const updated = tokens.map(t =>
                           t.id === transitionPopup.tokenId
-                            ? { ...t, floorId: zone.targetFloorId, x: zone.targetPosition.x, y: zone.targetPosition.y }
+                            ? { ...t, floorId: zone.targetFloorId, x: arrivalX, y: arrivalY }
                             : t
                         );
                         onTokensChange(updated);
@@ -4452,14 +4619,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     </button>
                     <button
                       onClick={() => {
-                        const zone = transitionPopup.zone;
                         const spacing = gridResolution?.pixelsPerGrid || 70;
                         let offsetIndex = 0;
                         const updated = tokens.map(t => {
                           if (t.type === 'player') {
                             const offset = offsetIndex * spacing;
                             offsetIndex++;
-                            return { ...t, floorId: zone.targetFloorId, x: zone.targetPosition.x + offset, y: zone.targetPosition.y };
+                            return { ...t, floorId: zone.targetFloorId, x: arrivalX + offset, y: arrivalY };
                           }
                           return t;
                         });
