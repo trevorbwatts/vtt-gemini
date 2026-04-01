@@ -317,6 +317,20 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerConditionUpdateListener?.(); };
   }, []);
 
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerDarkvisionUpdate) return;
+    window.electronAPI.onPlayerDarkvisionUpdate(({ playerId, darkvision }) => {
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.map(p => p.id === playerId ? { ...p, darkvision } : p),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerDarkvisionUpdateListener?.(); };
+  }, []);
+
   // Listen for color changes from the Player screen
   useEffect(() => {
     if (!window.electronAPI?.onPlayerColorUpdate) return;

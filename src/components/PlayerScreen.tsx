@@ -4,7 +4,7 @@ import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, Flame } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 
@@ -153,6 +153,13 @@ const RING_OFFSETS_2: Record<'bottom' | 'top' | 'left', { dx: number; dy: number
   left:   [{ dx: -75, dy: -70 }, { dx: -75, dy: 70  }],
 };
 
+// ─── Ring item offsets: 4-item layout ───
+const RING_OFFSETS_4: Record<'bottom' | 'top' | 'left', { dx: number; dy: number }[]> = {
+  bottom: [{ dx: -90, dy: 52 }, { dx: -42, dy: 90 }, { dx: 42, dy: 90 }, { dx: 90, dy: 52 }],
+  top:    [{ dx: -90, dy: -52 }, { dx: -42, dy: -90 }, { dx: 42, dy: -90 }, { dx: 90, dy: -52 }],
+  left:   [{ dx: -52, dy: -90 }, { dx: -90, dy: -42 }, { dx: -90, dy: 42 }, { dx: -52, dy: 90 }],
+};
+
 // ─── Action Ring ───
 const ActionRing: React.FC<{
   anchorX: number;
@@ -161,13 +168,15 @@ const ActionRing: React.FC<{
   onSpells: () => void;
   onConditions: () => void;
   onEndTurn: () => void;
+  onLightTorch: () => void;
   onClose: () => void;
   isPlayersTurn: boolean;
-}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onClose, isPlayersTurn }) => {
+}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onLightTorch, onClose, isPlayersTurn }) => {
   const contentRotate = edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
   const allItems = [
     { label: 'Spells',     icon: BookOpen,      color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
     { label: 'Conditions', icon: Zap,           color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
+    { label: 'Torch',      icon: Flame,         color: 'bg-[#1a0e00] border-orange-500/40 text-orange-400', onClick: onLightTorch },
   ];
   if (isPlayersTurn) {
     allItems.push(
@@ -175,7 +184,7 @@ const ActionRing: React.FC<{
     );
   }
   const items = allItems;
-  const offsets = items.length === 3 ? RING_OFFSETS[edge] : RING_OFFSETS_2[edge];
+  const offsets = items.length === 4 ? RING_OFFSETS_4[edge] : items.length === 3 ? RING_OFFSETS[edge] : RING_OFFSETS_2[edge];
   const BUTTON_SIZE = 62;
   return (
     <>
@@ -905,6 +914,20 @@ export function PlayerScreen() {
     });
   }, [signedInSpots, campaign]);
 
+  const handleLightTorch = useCallback((spotId: SpotId) => {
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+    const player = campaign.players.find(p => p.id === playerId);
+    if (!player) return;
+    const newDarkvision = Math.max(40, player.darkvision ?? 0);
+    if (newDarkvision === (player.darkvision ?? 0)) return; // already >= 40ft, no change
+    window.electronAPI?.sendPlayerDarkvisionUpdate?.(player.id, newDarkvision);
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return { ...prev, players: prev.players.map(p => p.id === player.id ? { ...p, darkvision: newDarkvision } : p) };
+    });
+  }, [signedInSpots, campaign]);
+
   const handlePlayerTokenDoubleTap = useCallback((tokenId: string, screenX: number, screenY: number) => {
     // Look up the token's combatantId (token.id is a random string, not the player ID)
     const token = currentScenario?.tokens.find(t => t.id === tokenId);
@@ -1106,6 +1129,7 @@ export function PlayerScreen() {
             onSpells={() => setOpenPanel('spells')}
             onConditions={() => setOpenPanel('conditions')}
             onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); }}
+            onLightTorch={() => { handleLightTorch(actionRing.spotId); setActionRing(null); }}
             onClose={() => setActionRing(null)}
             isPlayersTurn={isPlayersTurn}
           />

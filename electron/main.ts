@@ -226,6 +226,13 @@ ipcMain.on('player-condition-update', (_event, data) => {
   }
 });
 
+// Player darkvision updates: proxy to DM window
+ipcMain.on('player-darkvision-update', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-darkvision-update', data);
+  }
+});
+
 // Player color updates: proxy to DM window
 ipcMain.on('player-color-update', (_event, data) => {
   if (dmWindow) {

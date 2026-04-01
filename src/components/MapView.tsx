@@ -91,6 +91,8 @@ interface MapViewProps {
   onSwitchFloor?: (floorId: string) => void;
   /** Update a specific floor by ID (for cross-floor operations) */
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
+  /** Whether this is the primary (left-most) map panel */
+  isPrimary?: boolean;
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -499,6 +501,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onTransitionZonesChange,
   onSwitchFloor,
   onUpdateFloorById,
+  isPrimary = true,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2228,30 +2231,32 @@ const MapViewInner: React.FC<MapViewProps> = ({
       {!isPlayerView && (
         <div className="h-10 border-b border-[var(--line)] bg-[var(--surface)] flex justify-between items-center shrink-0">
           <div className="flex items-center h-full">
-            <AnimatePresence>
-              {!leftSidebarOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{
-                    opacity: 1,
-                    transition: { delay: 0.2, duration: 0.1 }
-                  }}
-                  exit={{
-                    opacity: 0,
-                    transition: { delay: 0, duration: 0.05 }
-                  }}
-                  className="flex items-center h-full"
-                >
-                  <button
-                    onClick={() => setLeftSidebarOpen(true)}
-                    className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
-                    title="Open Notes"
+            {isPrimary && (
+              <AnimatePresence>
+                {!leftSidebarOpen && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{
+                      opacity: 1,
+                      transition: { delay: 0.2, duration: 0.1 }
+                    }}
+                    exit={{
+                      opacity: 0,
+                      transition: { delay: 0, duration: 0.05 }
+                    }}
+                    className="flex items-center h-full"
                   >
-                    <FileText size={12} />
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <button
+                      onClick={() => setLeftSidebarOpen(true)}
+                      className="h-full px-3 hover:bg-black/5 transition-colors flex items-center justify-center"
+                      title="Open Notes"
+                    >
+                      <FileText size={12} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
             <div className="h-6 w-px bg-[var(--line)] shrink-0" />
 
             <div className="flex items-center gap-4 px-4">

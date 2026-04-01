@@ -45,6 +45,9 @@ declare global {
       sendPlayerPortalToggle?: (portalId: string) => void;
       onPlayerPortalToggle?: (callback: (portalId: string) => void) => void;
       removePlayerPortalToggleListener?: () => void;
+      sendPlayerDarkvisionUpdate?: (playerId: string, darkvision: number) => void;
+      onPlayerDarkvisionUpdate?: (callback: (data: { playerId: string; darkvision: number }) => void) => void;
+      removePlayerDarkvisionUpdateListener?: () => void;
       toggleFullscreen?: () => void;
       onFullscreenStatus?: (callback: (isFs: boolean) => void) => void;
       removeFullscreenStatusListener?: () => void;

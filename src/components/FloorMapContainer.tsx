@@ -181,6 +181,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       undoMovementRef: props.undoMovementRef,
       onMovementPathTokensChange: props.onMovementPathTokensChange,
     } : {}),
+    isPrimary,
   });
 
   const primaryFloor = splitFloorIds ? floors.find(f => f.id === splitFloorIds[0]) : activeFloor;
