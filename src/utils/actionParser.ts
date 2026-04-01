@@ -111,3 +111,46 @@ export function rollAction(parsed: ParsedAction, rollMode: RollMode = 'normal'):
 
   return { attackRoll, attackBonus: parsed.attackBonus, attackTotal, isCrit, isFumble, damageResults, totalDamage, rollMode, d20Rolls };
 }
+
+// ── AOE damage-only roller (no attack roll) ──
+
+const AOE_DAMAGE_GROUP_RE =
+  /(\d+)\s*\((\d+)d(\d+)(?:\s*([+-])\s*(\d+))?\)\s*(\w+)\s*damage/gi;
+
+/**
+ * Parse damage groups from an AOE action description (no attack bonus required).
+ * Returns null if no dice damage is found.
+ */
+export function parseAoeDamage(desc: string): DamageGroup[] | null {
+  const groups: DamageGroup[] = [];
+  let m: RegExpExecArray | null;
+  AOE_DAMAGE_GROUP_RE.lastIndex = 0;
+  while ((m = AOE_DAMAGE_GROUP_RE.exec(desc)) !== null) {
+    const sign = m[4] === '-' ? -1 : 1;
+    groups.push({
+      count: parseInt(m[2], 10),
+      sides: parseInt(m[3], 10),
+      modifier: m[5] ? sign * parseInt(m[5], 10) : 0,
+      damageType: m[6].charAt(0).toUpperCase() + m[6].slice(1).toLowerCase(),
+    });
+  }
+  return groups.length > 0 ? groups : null;
+}
+
+/**
+ * Roll damage for an AOE action (save-based, no attack roll).
+ * Returns an ActionRollResult with attackRoll === -1 as a damage-only sentinel.
+ */
+export function rollAoeDamage(groups: DamageGroup[]): ActionRollResult {
+  const damageResults: DamageRollResult[] = groups.map(g => {
+    const rolls: number[] = [];
+    for (let i = 0; i < g.count; i++) {
+      rolls.push(rollDie(g.sides));
+    }
+    const total = rolls.reduce((sum, r) => sum + r, 0) + g.modifier;
+    return { rolls, modifier: g.modifier, total: Math.max(0, total), damageType: g.damageType, diceNotation: `${g.count}d${g.sides}` };
+  });
+  const totalDamage = damageResults.reduce((sum, r) => sum + r.total, 0);
+  // attackRoll === -1 signals "damage-only" mode to ActionRollModal
+  return { attackRoll: -1, attackBonus: 0, attackTotal: 0, isCrit: false, isFumble: false, damageResults, totalDamage, rollMode: 'normal' };
+}

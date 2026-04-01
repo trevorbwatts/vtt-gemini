@@ -5,9 +5,10 @@ import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { BESTIARY } from '../data/bestiary';
-import { parseAction, rollAction } from '../utils/actionParser';
+import { parseAction, rollAction, parseAoeDamage, rollAoeDamage } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import type { ActionRollResult } from '../utils/actionParser';
+import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 
 // ── Monster action AOE parser ──
 export interface ActionAoe {
@@ -76,6 +77,11 @@ export function parseActionAoe(desc: string): ActionAoe | null {
 const AOE_ICONS_SMALL: Record<string, React.FC<{ size?: number }>> = {
   sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
 };
+
+/** Strip the [Area of Effect] marker from a displayed action description. */
+function cleanActionDesc(desc: string): string {
+  return desc.replace(/\s*\[Area of Effect\]/gi, '').trim();
+}
 
 const getCharacterLevel = (classes?: ClassDefinition[]) => {
   return classes?.reduce((sum, c) => sum + c.level, 0) || 0;
@@ -779,50 +785,33 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       detailSource.actions.map((action, i) => {
                         const actionAoe = parseActionAoe(action.desc);
                         const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
+                        const damageType = parseDamageType(action.desc);
                         return (
                           <div key={i} className={`text-[13px] p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{action.desc}
-                              </div>
-                              {actionAoe && detailSourceId && startCastingRef && (
-                                <button
-                                  onClick={() => startCastingRef.current?.(
-                                    {
-                                      name: action.name,
-                                      aoeType: actionAoe.aoeType,
-                                      aoeSize: actionAoe.aoeSize,
-                                      saveAbility: actionAoe.saveAbility,
-                                      saveDc: actionAoe.saveDc,
-                                      halfDamageOnSave: actionAoe.halfDamageOnSave,
-                                      desc: action.desc,
-                                      range: 0,
-                                    },
-                                    detailSourceId
-                                  )}
-                                  className="shrink-0 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center gap-1"
-                                  title={`Cast ${action.name} AoE`}
-                                >
-                                  {AoeIcon && <AoeIcon size={10} />}
-                                  Cast
-                                </button>
-                              )}
+                            {/* Description */}
+                            <div>
+                              <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{cleanActionDesc(action.desc)}
                             </div>
                             {/* AOE badge row */}
                             {actionAoe && (
                               <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                                <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20">
-                                  {actionAoe.aoeSize}ft
-                                  {AoeIcon && <AoeIcon size={9} />}
-                                  {actionAoe.aoeType}
-                                </span>
+                                <DamageTypeBadge damageType={damageType} />
                                 {actionAoe.saveAbility && (
                                   <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/15">
                                     {actionAoe.saveAbility.toUpperCase()}{actionAoe.saveDc ? ` DC ${actionAoe.saveDc}` : ''}
                                   </span>
                                 )}
+                                <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20">
+                                  {actionAoe.aoeSize}ft
+                                  {AoeIcon && <AoeIcon size={9} />}
+                                  {actionAoe.aoeType}
+                                </span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-white/30">
+                                  Self
+                                </span>
                               </div>
                             )}
+                            {/* Dice roll buttons */}
                             {parseAction(action.desc) && (
                               <div className="mt-1.5 flex items-center gap-1">
                                 <Dices size={12} className="text-orange-400/50" />
@@ -838,6 +827,38 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                     </button>
                                   );
                                 })}
+                              </div>
+                            )}
+                            {/* Cast button — bottom of card */}
+                            {actionAoe && detailSourceId && startCastingRef && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => {
+                                    startCastingRef.current?.(
+                                      {
+                                        name: action.name,
+                                        aoeType: actionAoe.aoeType,
+                                        aoeSize: actionAoe.aoeSize,
+                                        saveAbility: actionAoe.saveAbility,
+                                        saveDc: actionAoe.saveDc,
+                                        halfDamageOnSave: actionAoe.halfDamageOnSave,
+                                        desc: action.desc,
+                                        range: 0,
+                                      },
+                                      detailSourceId
+                                    );
+                                    const dmgGroups = parseAoeDamage(action.desc);
+                                    if (dmgGroups) {
+                                      setActionRollName(action.name);
+                                      setActionRollResult(rollAoeDamage(dmgGroups));
+                                      setActionRollOpen(true);
+                                    }
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center justify-center gap-1"
+                                >
+                                  {AoeIcon && <AoeIcon size={10} />}
+                                  Cast on Map
+                                </button>
                               </div>
                             )}
                           </div>
@@ -857,49 +878,33 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       {detailSource.legendaryActions.map((action, i) => {
                         const actionAoe = parseActionAoe(action.desc);
                         const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
+                        const damageType = parseDamageType(action.desc);
                         return (
                           <div key={i} className={`text-[13px] p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{action.desc}
-                              </div>
-                              {actionAoe && detailSourceId && startCastingRef && (
-                                <button
-                                  onClick={() => startCastingRef.current?.(
-                                    {
-                                      name: action.name,
-                                      aoeType: actionAoe.aoeType,
-                                      aoeSize: actionAoe.aoeSize,
-                                      saveAbility: actionAoe.saveAbility,
-                                      saveDc: actionAoe.saveDc,
-                                      halfDamageOnSave: actionAoe.halfDamageOnSave,
-                                      desc: action.desc,
-                                      range: 0,
-                                    },
-                                    detailSourceId
-                                  )}
-                                  className="shrink-0 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center gap-1"
-                                  title={`Cast ${action.name} AoE`}
-                                >
-                                  {AoeIcon && <AoeIcon size={10} />}
-                                  Cast
-                                </button>
-                              )}
+                            {/* Description */}
+                            <div>
+                              <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{cleanActionDesc(action.desc)}
                             </div>
+                            {/* AOE badge row */}
                             {actionAoe && (
                               <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                                <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20">
-                                  {actionAoe.aoeSize}ft
-                                  {AoeIcon && <AoeIcon size={9} />}
-                                  {actionAoe.aoeType}
-                                </span>
+                                <DamageTypeBadge damageType={damageType} />
                                 {actionAoe.saveAbility && (
                                   <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/15">
                                     {actionAoe.saveAbility.toUpperCase()}{actionAoe.saveDc ? ` DC ${actionAoe.saveDc}` : ''}
                                   </span>
                                 )}
+                                <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20">
+                                  {actionAoe.aoeSize}ft
+                                  {AoeIcon && <AoeIcon size={9} />}
+                                  {actionAoe.aoeType}
+                                </span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-white/30">
+                                  Self
+                                </span>
                               </div>
                             )}
+                            {/* Dice roll buttons */}
                             {parseAction(action.desc) && (
                               <div className="mt-1.5 flex items-center gap-1">
                                 <Dices size={12} className="text-orange-400/50" />
@@ -916,7 +921,30 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                   );
                                 })}
                               </div>
-
+                            )}
+                            {/* Cast button — bottom of card */}
+                            {actionAoe && detailSourceId && startCastingRef && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => startCastingRef.current?.(
+                                    {
+                                      name: action.name,
+                                      aoeType: actionAoe.aoeType,
+                                      aoeSize: actionAoe.aoeSize,
+                                      saveAbility: actionAoe.saveAbility,
+                                      saveDc: actionAoe.saveDc,
+                                      halfDamageOnSave: actionAoe.halfDamageOnSave,
+                                      desc: action.desc,
+                                      range: 0,
+                                    },
+                                    detailSourceId
+                                  )}
+                                  className="w-full px-2.5 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center justify-center gap-1"
+                                >
+                                  {AoeIcon && <AoeIcon size={10} />}
+                                  Cast on Map
+                                </button>
+                              </div>
                             )}
                           </div>
                         );

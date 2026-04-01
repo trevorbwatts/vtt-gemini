@@ -22,6 +22,7 @@ export const ActionRollModal: React.FC<ActionRollModalProps> = ({ isOpen, action
   if (!isOpen || !result) return null;
 
   const { attackRoll, attackBonus, attackTotal, isCrit, isFumble, damageResults, totalDamage, rollMode, d20Rolls } = result;
+  const isDamageOnly = attackRoll === -1;
 
   return (
     <AnimatePresence>
@@ -52,7 +53,8 @@ export const ActionRollModal: React.FC<ActionRollModalProps> = ({ isOpen, action
           </div>
 
           <div className="p-4 space-y-4">
-            {/* Attack Roll */}
+            {/* Attack Roll — hidden for damage-only AOE rolls */}
+            {!isDamageOnly && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm uppercase tracking-widest font-bold text-white/40">Attack Roll</p>
@@ -125,11 +127,12 @@ export const ActionRollModal: React.FC<ActionRollModalProps> = ({ isOpen, action
                 </div>
               </div>
             </div>
+            )}
 
             {/* Damage */}
             <div>
               <p className="text-sm uppercase tracking-widest font-bold text-white/40 mb-2">
-                {isCrit ? 'Critical Damage' : 'Damage'}
+                {isDamageOnly ? 'Damage Roll' : isCrit ? 'Critical Damage' : 'Damage'}
               </p>
               <div className="space-y-2">
                 {damageResults.map((dr, i) => {
