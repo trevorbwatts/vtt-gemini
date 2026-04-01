@@ -9,6 +9,74 @@ import { parseAction, rollAction } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import type { ActionRollResult } from '../utils/actionParser';
 
+// ── Monster action AOE parser ──
+export interface ActionAoe {
+  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+  aoeSize: number;   // feet (radius for sphere/cylinder, length for cone/line, side for cube)
+  saveAbility?: string; // 'str'|'dex'|'con'|'int'|'wis'|'cha'
+  saveDc?: number;
+  halfDamageOnSave?: boolean;
+}
+
+/**
+ * Extracts AOE info from a monster action description.
+ * Handles patterns like:
+ *   "90-foot-long, 5-foot-wide Line [Area of Effect]"
+ *   "90-foot Cone [Area of Effect]"
+ *   "20-foot-radius Sphere"
+ *   "15-foot Cube"
+ *   "10-foot-radius Cylinder"
+ */
+export function parseActionAoe(desc: string): ActionAoe | null {
+  if (!desc) return null;
+
+  // Only parse if [Area of Effect] marker present OR common AOE keywords appear
+  const hasAoeMarker = /\[area of effect\]/i.test(desc);
+  if (!hasAoeMarker && !/\b(cone|sphere|cylinder|cube)\b/i.test(desc)) return null;
+
+  // Detect AOE type
+  let aoeType: ActionAoe['aoeType'] | null = null;
+  if (/\bline\b/i.test(desc)) aoeType = 'line';
+  else if (/\bcone\b/i.test(desc)) aoeType = 'cone';
+  else if (/\bsphere\b/i.test(desc)) aoeType = 'sphere';
+  else if (/\bcylinder\b/i.test(desc)) aoeType = 'cylinder';
+  else if (/\bcube\b/i.test(desc)) aoeType = 'cube';
+  if (!aoeType) return null;
+
+  // Detect size (first/largest ft number preceding the type keyword)
+  // e.g. "90-foot-long" or "90-foot Cone" or "20-foot-radius"
+  const sizeMatch = desc.match(/(\d+)[-\s]foot(?:[-\s](?:long|wide|radius|tall))?/gi);
+  if (!sizeMatch || sizeMatch.length === 0) return null;
+  // For a line, use the first number (the length), for others use first number
+  const aoeSize = parseInt(sizeMatch[0].match(/\d+/)![0], 10);
+  if (!aoeSize) return null;
+
+  // Detect save ability / DC  e.g. "DEX DC 21" or "DC 21 Dexterity"
+  let saveAbility: string | undefined;
+  let saveDc: number | undefined;
+  const saveMatch1 = desc.match(/\b(STR|DEX|CON|INT|WIS|CHA)\s+DC\s+(\d+)/i);
+  const saveMatch2 = desc.match(/DC\s+(\d+)\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)/i);
+  if (saveMatch1) {
+    saveAbility = saveMatch1[1].toLowerCase();
+    saveDc = parseInt(saveMatch1[2], 10);
+  } else if (saveMatch2) {
+    saveDc = parseInt(saveMatch2[1], 10);
+    const abilityMap: Record<string, string> = {
+      strength: 'str', dexterity: 'dex', constitution: 'con',
+      intelligence: 'int', wisdom: 'wis', charisma: 'cha',
+    };
+    saveAbility = abilityMap[saveMatch2[2].toLowerCase()];
+  }
+
+  const halfDamageOnSave = /half(?:\s+as\s+much)?\s+damage|half\s+damage/i.test(desc);
+
+  return { aoeType, aoeSize, saveAbility, saveDc, halfDamageOnSave };
+}
+
+const AOE_ICONS_SMALL: Record<string, React.FC<{ size?: number }>> = {
+  sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
+};
+
 const getCharacterLevel = (classes?: ClassDefinition[]) => {
   return classes?.reduce((sum, c) => sum + c.level, 0) || 0;
 };
@@ -708,28 +776,73 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                   <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Actions</h5>
                   <div className="space-y-3 pr-2 overflow-y-auto custom-scrollbar flex-1">
                     {detailSource.actions && detailSource.actions.length > 0 ? (
-                      detailSource.actions.map((action, i) => (
-                        <div key={i} className="text-[13px] bg-white/5 p-2 rounded border border-white/5">
-                          <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
-                          {parseAction(action.desc) && (
-                            <div className="mt-1.5 flex items-center gap-1">
-                              <Dices size={12} className="text-orange-400/50" />
-                              {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
-                                const mode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
-                                return (
-                                  <button
-                                    key={label}
-                                    onClick={() => handleRollAction(action.name, action.desc, mode)}
-                                    className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
-                                  >
-                                    {label}
-                                  </button>
-                                );
-                              })}
+                      detailSource.actions.map((action, i) => {
+                        const actionAoe = parseActionAoe(action.desc);
+                        const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
+                        return (
+                          <div key={i} className={`text-[13px] p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{action.desc}
+                              </div>
+                              {actionAoe && detailSourceId && startCastingRef && (
+                                <button
+                                  onClick={() => startCastingRef.current?.(
+                                    {
+                                      name: action.name,
+                                      aoeType: actionAoe.aoeType,
+                                      aoeSize: actionAoe.aoeSize,
+                                      saveAbility: actionAoe.saveAbility,
+                                      saveDc: actionAoe.saveDc,
+                                      halfDamageOnSave: actionAoe.halfDamageOnSave,
+                                      desc: action.desc,
+                                      range: 0,
+                                    },
+                                    detailSourceId
+                                  )}
+                                  className="shrink-0 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center gap-1"
+                                  title={`Cast ${action.name} AoE`}
+                                >
+                                  {AoeIcon && <AoeIcon size={10} />}
+                                  Cast
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))
+                            {/* AOE badge row */}
+                            {actionAoe && (
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20">
+                                  {actionAoe.aoeSize}ft
+                                  {AoeIcon && <AoeIcon size={9} />}
+                                  {actionAoe.aoeType}
+                                </span>
+                                {actionAoe.saveAbility && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/15">
+                                    {actionAoe.saveAbility.toUpperCase()}{actionAoe.saveDc ? ` DC ${actionAoe.saveDc}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {parseAction(action.desc) && (
+                              <div className="mt-1.5 flex items-center gap-1">
+                                <Dices size={12} className="text-orange-400/50" />
+                                {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
+                                  const mode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
+                                  return (
+                                    <button
+                                      key={label}
+                                      onClick={() => handleRollAction(action.name, action.desc, mode)}
+                                      className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                     ) : (
                       <p className="text-[13px] opacity-40 italic">No actions listed</p>
                     )}
@@ -741,28 +854,73 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                   <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
                     <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Legendary Actions</h5>
                     <div className="space-y-3 pr-2 overflow-y-auto custom-scrollbar flex-1">
-                      {detailSource.legendaryActions.map((action, i) => (
-                        <div key={i} className="text-[13px] bg-white/5 p-2 rounded border border-white/5">
-                          <span className="font-bold italic text-[var(--accent)]">{action.name}.</span> {action.desc}
-                          {parseAction(action.desc) && (
-                            <div className="mt-1.5 flex items-center gap-1">
-                              <Dices size={12} className="text-orange-400/50" />
-                              {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
-                                const mode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
-                                return (
-                                  <button
-                                    key={label}
-                                    onClick={() => handleRollAction(action.name, action.desc, mode)}
-                                    className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
-                                  >
-                                    {label}
-                                  </button>
-                                );
-                              })}
+                      {detailSource.legendaryActions.map((action, i) => {
+                        const actionAoe = parseActionAoe(action.desc);
+                        const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
+                        return (
+                          <div key={i} className={`text-[13px] p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{action.desc}
+                              </div>
+                              {actionAoe && detailSourceId && startCastingRef && (
+                                <button
+                                  onClick={() => startCastingRef.current?.(
+                                    {
+                                      name: action.name,
+                                      aoeType: actionAoe.aoeType,
+                                      aoeSize: actionAoe.aoeSize,
+                                      saveAbility: actionAoe.saveAbility,
+                                      saveDc: actionAoe.saveDc,
+                                      halfDamageOnSave: actionAoe.halfDamageOnSave,
+                                      desc: action.desc,
+                                      range: 0,
+                                    },
+                                    detailSourceId
+                                  )}
+                                  className="shrink-0 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center gap-1"
+                                  title={`Cast ${action.name} AoE`}
+                                >
+                                  {AoeIcon && <AoeIcon size={10} />}
+                                  Cast
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {actionAoe && (
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span className="flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20">
+                                  {actionAoe.aoeSize}ft
+                                  {AoeIcon && <AoeIcon size={9} />}
+                                  {actionAoe.aoeType}
+                                </span>
+                                {actionAoe.saveAbility && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/15">
+                                    {actionAoe.saveAbility.toUpperCase()}{actionAoe.saveDc ? ` DC ${actionAoe.saveDc}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {parseAction(action.desc) && (
+                              <div className="mt-1.5 flex items-center gap-1">
+                                <Dices size={12} className="text-orange-400/50" />
+                                {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
+                                  const mode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
+                                  return (
+                                    <button
+                                      key={label}
+                                      onClick={() => handleRollAction(action.name, action.desc, mode)}
+                                      className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
