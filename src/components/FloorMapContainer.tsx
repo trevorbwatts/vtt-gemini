@@ -95,8 +95,22 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   const activeFloor = floors.find(f => f.id === activeFloorId) || floors[0] || null;
 
   const firstFloorId = floors[0]?.id;
-  const getFloorTokens = (floorId: string) =>
-    allTokens.filter(t => t.floorId === floorId || (!t.floorId && floorId === firstFloorId));
+
+  // Produce stable token arrays per floor — without memoization, .filter() creates a new array
+  // reference on every render, which causes MapView's tokensInAoe useMemo to always invalidate,
+  // triggering an infinite onAoeHighlightsChange → setAoeHighlights → re-render loop.
+  const floorTokensMap = useMemo(() => {
+    const map = new Map<string, Token[]>();
+    for (const floor of floors) {
+      map.set(
+        floor.id,
+        allTokens.filter(t => t.floorId === floor.id || (!t.floorId && floor.id === firstFloorId))
+      );
+    }
+    return map;
+  }, [allTokens, floors, firstFloorId]);
+
+  const getFloorTokens = (floorId: string) => floorTokensMap.get(floorId) ?? [];
 
   const prevSplitRef = useRef(splitFloorIds);
   const [showOverlay, setShowOverlay] = useState(false);

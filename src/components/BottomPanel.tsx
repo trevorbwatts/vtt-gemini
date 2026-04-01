@@ -108,6 +108,8 @@ interface BottomPanelProps {
   aoeHighlights?: {
     affectedCombatantIds: string[];
     saveResults: Record<string, { roll: number; modifier: number; total: number; success: boolean; name: string }> | null;
+    spellName?: string;
+    spellDesc?: string;
   } | null;
 
   // Token selection
@@ -178,6 +180,37 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   const [actionRollOpen, setActionRollOpen] = useState(false);
   const [actionRollName, setActionRollName] = useState('');
   const [actionRollResult, setActionRollResult] = useState<ActionRollResult | null>(null);
+
+  // ── Pending AOE action — set when "Cast on Map" is clicked, used after confirm ──
+  const [pendingAoeAction, setPendingAoeAction] = useState<{ name: string; desc: string } | null>(null);
+
+  // When the DM confirms a cast (saveResults becomes non-null) and tokens were hit, roll damage
+  const prevSaveResultsRef = useRef<Record<string, unknown> | null | undefined>(undefined);
+  useEffect(() => {
+    const saveResults = aoeHighlights?.saveResults;
+    const prevSaveResults = prevSaveResultsRef.current;
+    prevSaveResultsRef.current = saveResults;
+
+    // Detect transition: saveResults just went from null/undefined → an object
+    const justConfirmed = saveResults != null && prevSaveResults == null;
+    if (!justConfirmed) return;
+
+    // Only trigger if tokens were in the AOE
+    const hitCount = aoeHighlights?.affectedCombatantIds?.length ?? 0;
+    if (hitCount === 0) return;
+
+    // Use the pending AOE action if available, otherwise fall back to spellDesc from highlights
+    const actionName = pendingAoeAction?.name || aoeHighlights?.spellName || '';
+    const actionDesc = pendingAoeAction?.desc || aoeHighlights?.spellDesc || '';
+    if (!actionDesc) return;
+
+    const dmgGroups = parseAoeDamage(actionDesc);
+    if (!dmgGroups) return;
+
+    setActionRollName(actionName);
+    setActionRollResult(rollAoeDamage(dmgGroups));
+    setActionRollOpen(true);
+  }, [aoeHighlights?.saveResults, aoeHighlights?.affectedCombatantIds?.length]);
 
   const handleRollAction = (actionName: string, desc: string, rollMode: import('../utils/actionParser').RollMode = 'normal') => {
     const parsed = parseAction(desc);
@@ -847,12 +880,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                       },
                                       detailSourceId
                                     );
-                                    const dmgGroups = parseAoeDamage(action.desc);
-                                    if (dmgGroups) {
-                                      setActionRollName(action.name);
-                                      setActionRollResult(rollAoeDamage(dmgGroups));
-                                      setActionRollOpen(true);
-                                    }
+                                    setPendingAoeAction({ name: action.name, desc: action.desc });
                                   }}
                                   className="w-full px-2.5 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center justify-center gap-1"
                                 >
