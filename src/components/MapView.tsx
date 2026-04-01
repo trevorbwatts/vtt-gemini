@@ -3964,7 +3964,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           <div
             className={cn(
               "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
-              contextMenu.view === 'add-enemy' ? "w-[740px] overflow-hidden" : "w-64"
+              contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden" : "w-64"
             )}
             style={
               contextMenu.view === 'add-enemy'
@@ -4222,7 +4222,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             )}
 
             {contextMenu.view === 'add-enemy' && (
-              <div className="flex flex-col h-[500px]">
+              <div className="flex flex-col h-[550px]">
                 <div className="p-3 border-b border-[var(--line)] bg-black/10 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <Skull size={14} className="text-[#ef4444]" />
@@ -4233,7 +4233,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
                 <div className="flex-1 flex overflow-hidden">
                   {/* Left Panel: List */}
-                  <div className="w-1/2 border-r border-[var(--line)] flex flex-col overflow-hidden">
+                  <div className="w-2/5 border-r border-[var(--line)] flex flex-col overflow-hidden">
                     <div className="p-2 border-b border-[var(--line)]">
                       <div className="relative">
                         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
@@ -4284,7 +4284,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </div>
 
                   {/* Right Panel: Details */}
-                  <div className="w-1/2 flex flex-col overflow-hidden bg-black/5">
+                  <div className="w-3/5 flex flex-col overflow-hidden bg-black/5">
                     {selectedMonster ? (
                       <>
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
