@@ -168,15 +168,23 @@ const ActionRing: React.FC<{
   onSpells: () => void;
   onConditions: () => void;
   onEndTurn: () => void;
-  onLightTorch: () => void;
+  onToggleTorch: () => void;
+  isTorchLit: boolean;
   onClose: () => void;
   isPlayersTurn: boolean;
-}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onLightTorch, onClose, isPlayersTurn }) => {
+}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onToggleTorch, isTorchLit, onClose, isPlayersTurn }) => {
   const contentRotate = edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
   const allItems = [
-    { label: 'Spells',     icon: BookOpen,      color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
-    { label: 'Conditions', icon: Zap,           color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
-    { label: 'Torch',      icon: Flame,         color: 'bg-[#1a0e00] border-orange-500/40 text-orange-400', onClick: onLightTorch },
+    { label: 'Spells',     icon: BookOpen, color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
+    { label: 'Conditions', icon: Zap,      color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
+    {
+      label: isTorchLit ? 'Douse' : 'Torch',
+      icon: Flame,
+      color: isTorchLit
+        ? 'bg-[#1a1200] border-orange-400/60 text-orange-300 opacity-60'
+        : 'bg-[#1a0e00] border-orange-500/40 text-orange-400',
+      onClick: onToggleTorch,
+    },
   ];
   if (isPlayersTurn) {
     allItems.push(
@@ -693,6 +701,13 @@ export function PlayerScreen() {
   // Track whether the player is actively dragging a token
   const isDraggingRef = useRef(false);
 
+  // Torch state — tracks which player IDs have an active torch so that DM broadcasts
+  // can't accidentally wipe the locally-set darkvision.
+  const torchLitPlayerIdsRef = useRef<Set<string>>(new Set());
+  const [torchLitPlayerIds, setTorchLitPlayerIds] = useState<Set<string>>(new Set());
+  // Stores each player's darkvision before the torch was lit so we can restore it on douse.
+  const preTorchDarkvisionRef = useRef<Record<string, number>>({});
+
   // Sign-in state
   const [signedInSpots, setSignedInSpots] = useState<Record<SpotId, string | null>>({
     'top-left': null, 'top-right': null,
@@ -726,7 +741,21 @@ export function PlayerScreen() {
   useEffect(() => {
     const handleStateUpdate = (newState: { campaign: Campaign; scenarioId: string; playerMode?: string; activeCombatantId?: string | null; viewportCenter?: { x: number; y: number } | null; targetedCombatantIds?: string[] }) => {
       if (isDraggingRef.current) return;
-      setCampaign(newState.campaign);
+      setCampaign(prev => {
+        const incoming = newState.campaign;
+        if (!incoming) return prev;
+        if (!incoming.players?.length) return incoming;
+        // If any players have an active torch, keep their darkvision at 40 so
+        // a DM broadcast with stale data can't accidentally extinguish it.
+        const litIds = torchLitPlayerIdsRef.current;
+        if (litIds.size === 0) return incoming;
+        return {
+          ...incoming,
+          players: incoming.players.map(np =>
+            litIds.has(np.id) ? { ...np, darkvision: 40 } : np
+          ),
+        };
+      });
       setCurrentScenarioId(newState.scenarioId);
       if (newState.playerMode) {
         setMode(newState.playerMode as 'setup' | 'play');
@@ -921,10 +950,30 @@ export function PlayerScreen() {
     if (!player) return;
     const newDarkvision = Math.max(40, player.darkvision ?? 0);
     if (newDarkvision === (player.darkvision ?? 0)) return; // already >= 40ft, no change
+    // Remember the original darkvision so we can restore it on douse
+    preTorchDarkvisionRef.current[player.id] = player.darkvision ?? 0;
+    torchLitPlayerIdsRef.current.add(player.id);
+    setTorchLitPlayerIds(prev => new Set([...prev, player.id]));
     window.electronAPI?.sendPlayerDarkvisionUpdate?.(player.id, newDarkvision);
     setCampaign(prev => {
       if (!prev) return prev;
       return { ...prev, players: prev.players.map(p => p.id === player.id ? { ...p, darkvision: newDarkvision } : p) };
+    });
+  }, [signedInSpots, campaign]);
+
+  const handleDouseTorch = useCallback((spotId: SpotId) => {
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+    const player = campaign.players.find(p => p.id === playerId);
+    if (!player) return;
+    const original = preTorchDarkvisionRef.current[player.id] ?? 0;
+    delete preTorchDarkvisionRef.current[player.id];
+    torchLitPlayerIdsRef.current.delete(player.id);
+    setTorchLitPlayerIds(prev => { const next = new Set(prev); next.delete(player.id); return next; });
+    window.electronAPI?.sendPlayerDarkvisionUpdate?.(player.id, original);
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return { ...prev, players: prev.players.map(p => p.id === player.id ? { ...p, darkvision: original } : p) };
     });
   }, [signedInSpots, campaign]);
 
@@ -1117,10 +1166,10 @@ export function PlayerScreen() {
       {/* Action Ring */}
       {actionRing && openPanel === null && (() => {
         const config = spotConfigs[actionRing.spotId];
-        // Check if it's this player's turn
         const playerId = signedInSpots[actionRing.spotId];
         const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
         const isPlayersTurn = !!(activeEntry && activeEntry.sourceCombatantId === playerId);
+        const isTorchLit = !!(playerId && torchLitPlayerIds.has(playerId));
         return (
           <ActionRing
             anchorX={actionRing.x}
@@ -1129,7 +1178,12 @@ export function PlayerScreen() {
             onSpells={() => setOpenPanel('spells')}
             onConditions={() => setOpenPanel('conditions')}
             onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); }}
-            onLightTorch={() => { handleLightTorch(actionRing.spotId); setActionRing(null); }}
+            onToggleTorch={() => {
+              if (isTorchLit) handleDouseTorch(actionRing.spotId);
+              else handleLightTorch(actionRing.spotId);
+              setActionRing(null);
+            }}
+            isTorchLit={isTorchLit}
             onClose={() => setActionRing(null)}
             isPlayersTurn={isPlayersTurn}
           />

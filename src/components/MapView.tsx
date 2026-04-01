@@ -507,6 +507,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<{ tokenId: string; time: number } | null>(null);
+  const aoeJustPlacedRef = useRef(false); // prevents token reselection after AoE placement click
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   const [contextMenu, setContextMenu] = useState<{
@@ -2737,13 +2738,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 x={livePlayerPos[token.id]?.x ?? token.x}
                 y={livePlayerPos[token.id]?.y ?? token.y}
                 draggable={isPlayerView ? (token.type === 'player' && !activeAoe) : true}
-                onMouseDown={(e) => { e.cancelBubble = true; }}
+                onMouseDown={(e) => {
+                  if (castingSpell && !isPlayerView) {
+                    // Let stage mousedown fire so the AoE gets placed
+                    aoeJustPlacedRef.current = true;
+                    return;
+                  }
+                  e.cancelBubble = true;
+                }}
                 onDragStart={() => handleDragStart(token.id)}
                 onDragMove={(e) => handleDragMove(token.id, e)}
                 onDragEnd={(e) => handleDragEnd(token.id, e)}
                 onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
                 onClick={(e) => {
                   e.cancelBubble = true;
+                  // If we just placed an AoE via this mousedown, skip token selection
+                  if (aoeJustPlacedRef.current) {
+                    aoeJustPlacedRef.current = false;
+                    return;
+                  }
                   if (isPlayerView) tokenTapConsumedRef.current = true;
                   // Player view: tap enemy/npc token to toggle targeting
                   if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {

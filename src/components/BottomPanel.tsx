@@ -5,7 +5,7 @@ import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { BESTIARY } from '../data/bestiary';
-import { parseAction, rollAction, parseAoeDamage, rollAoeDamage } from '../utils/actionParser';
+import { parseAction, rollAction } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import type { ActionRollResult } from '../utils/actionParser';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
@@ -181,36 +181,6 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   const [actionRollName, setActionRollName] = useState('');
   const [actionRollResult, setActionRollResult] = useState<ActionRollResult | null>(null);
 
-  // ── Pending AOE action — set when "Cast on Map" is clicked, used after confirm ──
-  const [pendingAoeAction, setPendingAoeAction] = useState<{ name: string; desc: string } | null>(null);
-
-  // When the DM confirms a cast (saveResults becomes non-null) and tokens were hit, roll damage
-  const prevSaveResultsRef = useRef<Record<string, unknown> | null | undefined>(undefined);
-  useEffect(() => {
-    const saveResults = aoeHighlights?.saveResults;
-    const prevSaveResults = prevSaveResultsRef.current;
-    prevSaveResultsRef.current = saveResults;
-
-    // Detect transition: saveResults just went from null/undefined → an object
-    const justConfirmed = saveResults != null && prevSaveResults == null;
-    if (!justConfirmed) return;
-
-    // Only trigger if tokens were in the AOE
-    const hitCount = aoeHighlights?.affectedCombatantIds?.length ?? 0;
-    if (hitCount === 0) return;
-
-    // Use the pending AOE action if available, otherwise fall back to spellDesc from highlights
-    const actionName = pendingAoeAction?.name || aoeHighlights?.spellName || '';
-    const actionDesc = pendingAoeAction?.desc || aoeHighlights?.spellDesc || '';
-    if (!actionDesc) return;
-
-    const dmgGroups = parseAoeDamage(actionDesc);
-    if (!dmgGroups) return;
-
-    setActionRollName(actionName);
-    setActionRollResult(rollAoeDamage(dmgGroups));
-    setActionRollOpen(true);
-  }, [aoeHighlights?.saveResults, aoeHighlights?.affectedCombatantIds?.length]);
 
   const handleRollAction = (actionName: string, desc: string, rollMode: import('../utils/actionParser').RollMode = 'normal') => {
     const parsed = parseAction(desc);
@@ -820,7 +790,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
                         const damageType = parseDamageType(action.desc);
                         return (
-                          <div key={i} className={`text-[13px] p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
+                          <div key={i} className={`text-xs p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
                             {/* Description */}
                             <div>
                               <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{cleanActionDesc(action.desc)}
@@ -880,7 +850,6 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                       },
                                       detailSourceId
                                     );
-                                    setPendingAoeAction({ name: action.name, desc: action.desc });
                                   }}
                                   className="w-full px-2.5 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors flex items-center justify-center gap-1"
                                 >
@@ -893,7 +862,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         );
                       })
                     ) : (
-                      <p className="text-[13px] opacity-40 italic">No actions listed</p>
+                      <p className="text-xs opacity-40 italic">No actions listed</p>
                     )}
                   </div>
                 </div>
@@ -908,7 +877,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
                         const damageType = parseDamageType(action.desc);
                         return (
-                          <div key={i} className={`text-[13px] p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
+                          <div key={i} className={`text-xs p-2 rounded border ${actionAoe ? 'bg-orange-500/5 border-orange-500/15' : 'bg-white/5 border-white/5'}`}>
                             {/* Description */}
                             <div>
                               <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}{cleanActionDesc(action.desc)}

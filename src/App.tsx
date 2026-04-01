@@ -14,6 +14,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AddCombatantModal } from './components/AddCombatantModal';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
+import { parseAoeDamage, rollAoeDamage } from './utils/actionParser';
+import type { ActionRollResult } from './utils/actionParser';
 
 // Load persisted panel states from localStorage
 function loadPanelStates(): { left: boolean; nav: boolean } {
@@ -110,6 +112,7 @@ export function DMScreen() {
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
   const clearMovementPathsRef = useRef<(() => void) | null>(null);
   const clearRemoteAoeRef = useRef<(() => void) | null>(null);
+  const cancelCastingRef = useRef<(() => void) | null>(null);
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
@@ -120,10 +123,10 @@ export function DMScreen() {
 
   // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
-  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any> } | null>(null);
+  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any>; rolledDamage: ActionRollResult | null } | null>(null);
   const prevSaveResultsRef = useRef<Record<string, any> | null>(null);
 
-  // Auto-open spell damage modal when save results arrive from player
+  // Auto-open combined damage + saves modal when save results arrive
   useEffect(() => {
     const prev = prevSaveResultsRef.current;
     const curr = aoeHighlights?.saveResults;
@@ -133,31 +136,25 @@ export function DMScreen() {
     if (prev || !curr) return;
     if (!aoeHighlights?.spellName || !aoeHighlights?.saveAbility || !aoeHighlights?.saveDc) return;
 
-    // Check if spell does damage (has damage dice in description)
-    const hasDamage = /\d+d\d+/.test(aoeHighlights.spellDesc || '');
-    if (!hasDamage) {
+    // Roll damage from the spell description
+    const dmgGroups = parseAoeDamage(aoeHighlights.spellDesc || '');
+    const rolledDamage = dmgGroups ? rollAoeDamage(dmgGroups) : null;
+
+    if (!rolledDamage) {
       // Condition-only spell — auto-dismiss AoE on both screens
       window.electronAPI?.sendDismissPlayerAoe?.();
       setAoeHighlights(null);
       return;
     }
 
-    // Check if there are any creatures to apply damage to
-    const failed = Object.values(curr).filter((r: any) => !r.success);
-    const passed = Object.values(curr).filter((r: any) => r.success);
-    if (failed.length === 0 && (!aoeHighlights.halfDamageOnSave || passed.length === 0)) {
-      // No damage to apply
-      window.electronAPI?.sendDismissPlayerAoe?.();
-      setAoeHighlights(null);
-      return;
-    }
-
+    // Open combined modal — shows damage roll + save results (even if only players in AoE)
     setSpellDamageModal({
       spellName: aoeHighlights.spellName,
       saveAbility: aoeHighlights.saveAbility,
       saveDc: aoeHighlights.saveDc,
       halfDamageOnSave: aoeHighlights.halfDamageOnSave || false,
       saveResults: curr,
+      rolledDamage,
     });
   }, [aoeHighlights?.saveResults]);
 
@@ -701,7 +698,8 @@ export function DMScreen() {
     for (const [combatantId, amount] of Object.entries(damages)) {
       updateCombatantHp(combatantId, -amount);
     }
-    // Immediately clear the remote AoE on the DM map (no IPC round-trip needed)
+    // Clear both the DM's placed AoE and any remote (player) AoE
+    cancelCastingRef.current?.();
     clearRemoteAoeRef.current?.();
     // Dismiss the AoE on the player screen via IPC
     window.electronAPI?.sendDismissPlayerAoe?.();
@@ -1285,6 +1283,7 @@ export function DMScreen() {
                 onDarknessLevelChange={updateDarknessLevel}
                 clearMovementPathsRef={clearMovementPathsRef}
                 clearRemoteAoeRef={clearRemoteAoeRef}
+                cancelCastingRef={cancelCastingRef}
                 onAoeHighlightsChange={setAoeHighlights}
                 activeCombatantId={activeCombatantId}
                 targetedCombatantIds={targetedCombatantIds}
@@ -1450,9 +1449,11 @@ export function DMScreen() {
           saveDc={spellDamageModal?.saveDc || 0}
           halfDamageOnSave={spellDamageModal?.halfDamageOnSave || false}
           saveResults={spellDamageModal?.saveResults || {}}
+          rolledDamage={spellDamageModal?.rolledDamage || null}
           onApply={handleApplySpellDamage}
           onClose={() => {
             // DM closed without applying — still clear the AoE on both screens
+            cancelCastingRef.current?.();
             clearRemoteAoeRef.current?.();
             window.electronAPI?.sendDismissPlayerAoe?.();
             setAoeHighlights(null);
