@@ -5,74 +5,10 @@ import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { BESTIARY } from '../data/bestiary';
-import { parseAction, rollAction } from '../utils/actionParser';
+import { parseAction, rollAction, parseActionAoe, ActionAoe } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import type { ActionRollResult } from '../utils/actionParser';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
-
-// ── Monster action AOE parser ──
-export interface ActionAoe {
-  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
-  aoeSize: number;   // feet (radius for sphere/cylinder, length for cone/line, side for cube)
-  saveAbility?: string; // 'str'|'dex'|'con'|'int'|'wis'|'cha'
-  saveDc?: number;
-  halfDamageOnSave?: boolean;
-}
-
-/**
- * Extracts AOE info from a monster action description.
- * Handles patterns like:
- *   "90-foot-long, 5-foot-wide Line [Area of Effect]"
- *   "90-foot Cone [Area of Effect]"
- *   "20-foot-radius Sphere"
- *   "15-foot Cube"
- *   "10-foot-radius Cylinder"
- */
-export function parseActionAoe(desc: string): ActionAoe | null {
-  if (!desc) return null;
-
-  // Only parse if [Area of Effect] marker present OR common AOE keywords appear
-  const hasAoeMarker = /\[area of effect\]/i.test(desc);
-  if (!hasAoeMarker && !/\b(cone|sphere|cylinder|cube)\b/i.test(desc)) return null;
-
-  // Detect AOE type
-  let aoeType: ActionAoe['aoeType'] | null = null;
-  if (/\bline\b/i.test(desc)) aoeType = 'line';
-  else if (/\bcone\b/i.test(desc)) aoeType = 'cone';
-  else if (/\bsphere\b/i.test(desc)) aoeType = 'sphere';
-  else if (/\bcylinder\b/i.test(desc)) aoeType = 'cylinder';
-  else if (/\bcube\b/i.test(desc)) aoeType = 'cube';
-  if (!aoeType) return null;
-
-  // Detect size (first/largest ft number preceding the type keyword)
-  // e.g. "90-foot-long" or "90-foot Cone" or "20-foot-radius"
-  const sizeMatch = desc.match(/(\d+)[-\s]foot(?:[-\s](?:long|wide|radius|tall))?/gi);
-  if (!sizeMatch || sizeMatch.length === 0) return null;
-  // For a line, use the first number (the length), for others use first number
-  const aoeSize = parseInt(sizeMatch[0].match(/\d+/)![0], 10);
-  if (!aoeSize) return null;
-
-  // Detect save ability / DC  e.g. "DEX DC 21" or "DC 21 Dexterity"
-  let saveAbility: string | undefined;
-  let saveDc: number | undefined;
-  const saveMatch1 = desc.match(/\b(STR|DEX|CON|INT|WIS|CHA)\s+DC\s+(\d+)/i);
-  const saveMatch2 = desc.match(/DC\s+(\d+)\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)/i);
-  if (saveMatch1) {
-    saveAbility = saveMatch1[1].toLowerCase();
-    saveDc = parseInt(saveMatch1[2], 10);
-  } else if (saveMatch2) {
-    saveDc = parseInt(saveMatch2[1], 10);
-    const abilityMap: Record<string, string> = {
-      strength: 'str', dexterity: 'dex', constitution: 'con',
-      intelligence: 'int', wisdom: 'wis', charisma: 'cha',
-    };
-    saveAbility = abilityMap[saveMatch2[2].toLowerCase()];
-  }
-
-  const halfDamageOnSave = /half(?:\s+as\s+much)?\s+damage|half\s+damage/i.test(desc);
-
-  return { aoeType, aoeSize, saveAbility, saveDc, halfDamageOnSave };
-}
 
 const AOE_ICONS_SMALL: Record<string, React.FC<{ size?: number }>> = {
   sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,

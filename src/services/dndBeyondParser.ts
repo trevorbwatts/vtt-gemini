@@ -10,7 +10,7 @@
  *   - Spells with AoE geometry (for the future Player Drawer casting system)
  */
 
-import { Combatant, ClassDefinition } from '../types';
+import { Combatant, ClassDefinition, MonsterAction } from '../types';
 
 // Stat IDs used by D&D Beyond
 const STAT_IDS = { STR: 1, DEX: 2, CON: 3, INT: 4, WIS: 5, CHA: 6 } as const;
@@ -232,6 +232,26 @@ function sanitizeHtml(html: string): string {
     .trim();
 }
 
+// --- Player Actions (racial/class/feat features that show up as usable actions) ---
+
+function getPlayerActions(data: any): MonsterAction[] | undefined {
+  // D&D Beyond stores activatable actions under data.actions.{class,race,feat,item}
+  const sources = [
+    ...(data.actions?.class || []),
+    ...(data.actions?.race  || []),
+    ...(data.actions?.feat  || []),
+  ];
+
+  const actions: MonsterAction[] = sources
+    .map((a: any) => ({
+      name: (a.definition?.name || a.name || '').trim(),
+      desc: sanitizeHtml(a.definition?.description || a.definition?.snippet || ''),
+    }))
+    .filter((a: MonsterAction) => a.name.length > 0);
+
+  return actions.length > 0 ? actions : undefined;
+}
+
 // --- Main Parser ---
 
 export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
@@ -261,6 +281,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
     },
     spellSaveDc: getSpellSaveDc(data),
     spells: getSpells(data),
+    actions: getPlayerActions(data),
     avatar: data.decorations?.avatarUrl || undefined,
   };
 }

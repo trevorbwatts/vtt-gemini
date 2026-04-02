@@ -137,6 +137,97 @@ export function parseAoeDamage(desc: string): DamageGroup[] | null {
   return groups.length > 0 ? groups : null;
 }
 
+// ── Spell damage parser — handles bare dice format used in spell descriptions ──
+
+const BARE_DICE_RE = /\b(\d+)d(\d+)(?:\s*([+-])\s*(\d+))?\s+(\w+)\s+damage/gi;
+
+/**
+ * Parses damage groups from a spell description.
+ * Handles both the parenthetical monster format "10 (2d6) fire damage"
+ * and the bare dice format "2d6 fire damage" used in spell descriptions.
+ */
+export function parseSpellDamage(desc: string): DamageGroup[] | null {
+  if (!desc) return null;
+
+  // Try parenthetical format first: "10 (2d6) fire damage"
+  const groups = parseAoeDamage(desc);
+  if (groups) return groups;
+
+  // Fall back to bare dice format: "2d6 fire damage"
+  const bareGroups: DamageGroup[] = [];
+  let m: RegExpExecArray | null;
+  BARE_DICE_RE.lastIndex = 0;
+  while ((m = BARE_DICE_RE.exec(desc)) !== null) {
+    const sign = m[3] === '-' ? -1 : 1;
+    bareGroups.push({
+      count: parseInt(m[1], 10),
+      sides: parseInt(m[2], 10),
+      modifier: m[4] ? sign * parseInt(m[4], 10) : 0,
+      damageType: m[5].charAt(0).toUpperCase() + m[5].slice(1).toLowerCase(),
+    });
+  }
+  return bareGroups.length > 0 ? bareGroups : null;
+}
+
+// ── Action AOE parser (shared between BottomPanel and PlayerScreen) ──
+
+export interface ActionAoe {
+  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+  aoeSize: number;        // feet (radius for sphere/cylinder, length for cone/line, side for cube)
+  saveAbility?: string;  // 'str'|'dex'|'con'|'int'|'wis'|'cha'
+  saveDc?: number;
+  halfDamageOnSave?: boolean;
+}
+
+/**
+ * Extracts AOE info from a monster/player action description.
+ * Handles patterns like:
+ *   "90-foot-long, 5-foot-wide Line [Area of Effect]"
+ *   "90-foot Cone [Area of Effect]"
+ *   "20-foot-radius Sphere"
+ *   "15-foot Cube"
+ *   "10-foot-radius Cylinder"
+ */
+export function parseActionAoe(desc: string): ActionAoe | null {
+  if (!desc) return null;
+
+  const hasAoeMarker = /\[area of effect\]/i.test(desc);
+  if (!hasAoeMarker && !/\b(cone|sphere|cylinder|cube)\b/i.test(desc)) return null;
+
+  let aoeType: ActionAoe['aoeType'] | null = null;
+  if (/\bline\b/i.test(desc)) aoeType = 'line';
+  else if (/\bcone\b/i.test(desc)) aoeType = 'cone';
+  else if (/\bsphere\b/i.test(desc)) aoeType = 'sphere';
+  else if (/\bcylinder\b/i.test(desc)) aoeType = 'cylinder';
+  else if (/\bcube\b/i.test(desc)) aoeType = 'cube';
+  if (!aoeType) return null;
+
+  const sizeMatch = desc.match(/(\d+)[-\s]foot(?:[-\s](?:long|wide|radius|tall))?/gi);
+  if (!sizeMatch || sizeMatch.length === 0) return null;
+  const aoeSize = parseInt(sizeMatch[0].match(/\d+/)![0], 10);
+  if (!aoeSize) return null;
+
+  let saveAbility: string | undefined;
+  let saveDc: number | undefined;
+  const saveMatch1 = desc.match(/\b(STR|DEX|CON|INT|WIS|CHA)\s+DC\s+(\d+)/i);
+  const saveMatch2 = desc.match(/DC\s+(\d+)\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)/i);
+  if (saveMatch1) {
+    saveAbility = saveMatch1[1].toLowerCase();
+    saveDc = parseInt(saveMatch1[2], 10);
+  } else if (saveMatch2) {
+    saveDc = parseInt(saveMatch2[1], 10);
+    const abilityMap: Record<string, string> = {
+      strength: 'str', dexterity: 'dex', constitution: 'con',
+      intelligence: 'int', wisdom: 'wis', charisma: 'cha',
+    };
+    saveAbility = abilityMap[saveMatch2[2].toLowerCase()];
+  }
+
+  const halfDamageOnSave = /half(?:\s+as\s+much)?\s+damage|half\s+damage/i.test(desc);
+
+  return { aoeType, aoeSize, saveAbility, saveDc, halfDamageOnSave };
+}
+
 /**
  * Roll damage for an AOE action (save-based, no attack roll).
  * Returns an ActionRollResult with attackRoll === -1 as a damage-only sentinel.

@@ -2,11 +2,13 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { MapView } from './MapView';
 import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
-import { Campaign, Token, Combatant, cn } from '../types';
+import { Campaign, Token, Combatant, MonsterAction, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, Flame } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
+import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
+import { ActionRollModal } from './ActionRollModal';
 
 // ─── Sign-in spot types ───
 type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left';
@@ -233,14 +235,20 @@ const ActionRing: React.FC<{
 const SpellRow: React.FC<{
   spell: any;
   spellSaveDc?: number;
+  spellAttackBonus?: number;
   onPress: () => void;
+  onRoll?: (mode: RollMode) => void;
   disabled?: boolean;
-}> = ({ spell, spellSaveDc, onPress, disabled }) => {
+}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onRoll, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
   const damageType = spell.desc ? parseDamageType(spell.desc) : null;
+  const hasDamage = !hasAoe && !!onRoll && !!(spell.desc && parseSpellDamage(spell.desc));
   return (
     <div className="flex items-center gap-2 py-2">
-      <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', hasAoe && !disabled ? 'text-purple-400' : 'text-white/40')}>{spell.name}</span>
+      <span className={cn(
+        'font-bold flex-1 min-w-0 truncate text-xs',
+        hasAoe && !disabled ? 'text-purple-400' : hasDamage && !disabled ? 'text-blue-400' : 'text-white/40'
+      )}>{spell.name}</span>
       <div className="flex items-center gap-1.5 shrink-0">
         <DamageTypeBadge damageType={damageType} />
         {spell.saveAbility && (
@@ -267,10 +275,88 @@ const SpellRow: React.FC<{
             Cast
           </button>
         )}
+        {hasDamage && !disabled && onRoll && (
+          <div className="flex gap-0.5 ml-1">
+            {(['normal', 'advantage', 'disadvantage'] as RollMode[]).map((mode) => (
+              <button
+                key={mode}
+                onPointerDown={(e) => { e.stopPropagation(); onRoll(mode); }}
+                className={cn(
+                  'shrink-0 px-1.5 py-1 rounded text-[8px] font-bold uppercase tracking-wide border transition-colors',
+                  mode === 'normal'      && 'bg-blue-500/15 text-blue-300 border-blue-500/30 active:bg-blue-500/30',
+                  mode === 'advantage'   && 'bg-green-500/15 text-green-300 border-green-500/30 active:bg-green-500/30',
+                  mode === 'disadvantage'&& 'bg-purple-500/15 text-purple-300 border-purple-500/30 active:bg-purple-500/30',
+                )}
+              >
+                {mode === 'normal' ? 'NRML' : mode === 'advantage' ? 'ADV' : 'DIS'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
+// ─── Action Row (for special player actions tab) ───
+const ActionRow: React.FC<{
+  action: MonsterAction;
+  aoe: ActionAoe | null;
+  disabled: boolean;
+  onCast: () => void;
+}> = ({ action, aoe, disabled, onCast }) => {
+  const [expanded, setExpanded] = useState(false);
+  const damageType = action.desc ? parseDamageType(action.desc) : null;
+  return (
+    <div className="py-2">
+      <div className="flex items-center gap-2">
+        <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', aoe && !disabled ? 'text-orange-400' : 'text-white/70')}>
+          {action.name}
+        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <DamageTypeBadge damageType={damageType} />
+          {aoe?.saveAbility && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
+              {aoe.saveAbility.toUpperCase()}{aoe.saveDc ? ` ${aoe.saveDc}` : ''}
+            </span>
+          )}
+          {aoe && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-orange-500/15 text-orange-300 flex items-center gap-0.5">
+              {aoe.aoeSize}ft{AOE_ICONS[aoe.aoeType] ? React.createElement(AOE_ICONS[aoe.aoeType], { size: 9 }) : ''}
+            </span>
+          )}
+          {aoe && !disabled && (
+            <button
+              onPointerDown={(e) => { e.stopPropagation(); onCast(); }}
+              className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/40 active:bg-orange-500/40 transition-colors"
+            >
+              Cast
+            </button>
+          )}
+          {action.desc && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
+              className="p-0.5 text-white/25 hover:text-white/40 transition-colors"
+            >
+              <ChevronDown size={10} className={cn('transition-transform duration-150', expanded && 'rotate-180')} />
+            </button>
+          )}
+        </div>
+      </div>
+      {expanded && action.desc && (
+        <p className="text-[10px] text-white/40 mt-1 leading-relaxed pr-1">{action.desc}</p>
+      )}
+    </div>
+  );
+};
+
+/** Compute a save DC for a player action when not present in the description. */
+function computeActionSaveDc(player: Combatant): number {
+  if (!player.stats || !player.proficiencyBonus) return 13;
+  // Default: CON-based (covers most racial features like Breath Weapon)
+  const conMod = Math.floor(((player.stats.con || 10) - 10) / 2);
+  return 8 + player.proficiencyBonus + conMod;
+}
 
 // ─── Spells Panel ───
 const SpellsPanel: React.FC<{
@@ -303,8 +389,23 @@ const SpellsPanel: React.FC<{
     return 8 + player.proficiencyBonus + bestMod;
   }, [player]);
 
+  const actions = useMemo(() => [
+    ...(player.actions || []),
+    ...(player.specialAbilities || []),
+  ], [player.actions, player.specialAbilities]);
+
+  const spellAttackBonus = useMemo(() => {
+    if (!player.proficiencyBonus || !player.classes?.length || !player.stats) return undefined;
+    // spellSaveDc = 8 + prof + mod  →  spell attack bonus = prof + mod = spellSaveDc - 8
+    if (player.spellSaveDc != null) return player.spellSaveDc - 8;
+    if (spellSaveDc != null) return spellSaveDc - 8;
+    return undefined;
+  }, [player, spellSaveDc]);
+
+  const [rollModal, setRollModal] = useState<{ name: string; result: ActionRollResult } | null>(null);
+
   const [showKeyboard, setShowKeyboard] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'lookup'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'actions' | 'lookup'>('my');
   const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2014', '2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
@@ -397,18 +498,29 @@ const SpellsPanel: React.FC<{
 
       {/* Tabs */}
       <div className="flex border-b border-white/10 mb-3">
-        {(['my', 'lookup'] as const).map(tab => (
+        <button
+          onClick={() => { setActiveTab('my'); setShowKeyboard(false); }}
+          className={cn('flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
+            activeTab === 'my' ? 'text-purple-400 border-purple-500' : 'text-white/25 border-transparent hover:text-white/40')}
+        >
+          My Spells
+        </button>
+        {actions.length > 0 && (
           <button
-            key={tab}
-            onClick={() => { setActiveTab(tab); if (tab === 'lookup') setShowKeyboard(true); else setShowKeyboard(false); }}
-            className={cn(
-              'flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
-              activeTab === tab ? 'text-purple-400 border-purple-500' : 'text-white/25 border-transparent hover:text-white/40'
-            )}
+            onClick={() => { setActiveTab('actions'); setShowKeyboard(false); }}
+            className={cn('flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
+              activeTab === 'actions' ? 'text-orange-400 border-orange-500' : 'text-white/25 border-transparent hover:text-white/40')}
           >
-            {tab === 'my' ? 'My Spells' : 'Spell Lookup'}
+            Actions
           </button>
-        ))}
+        )}
+        <button
+          onClick={() => { setActiveTab('lookup'); setShowKeyboard(true); }}
+          className={cn('flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
+            activeTab === 'lookup' ? 'text-purple-400 border-purple-500' : 'text-white/25 border-transparent hover:text-white/40')}
+        >
+          Spell Lookup
+        </button>
       </div>
 
       {/* My Spells */}
@@ -422,14 +534,56 @@ const SpellsPanel: React.FC<{
                 key={i}
                 spell={spell}
                 spellSaveDc={spellSaveDc}
+                spellAttackBonus={spellAttackBonus}
                 disabled={!ready}
                 onPress={() => {
                   if (!(spell.aoeType && spell.aoeSize)) return;
                   const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
                   onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
                 }}
+                onRoll={(mode) => {
+                  const groups = parseSpellDamage(spell.desc || '');
+                  if (!groups) return;
+                  const bonus = spellAttackBonus ?? 0;
+                  const result = rollAction({ attackBonus: bonus, damageGroups: groups }, mode);
+                  setRollModal({ name: spell.name, result });
+                }}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      {activeTab === 'actions' && (
+        <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="divide-y divide-white/10">
+            {actions.map((action, i) => {
+              const aoe = parseActionAoe(action.desc);
+              const saveDc = aoe?.saveDc ?? computeActionSaveDc(player);
+              return (
+                <ActionRow
+                  key={i}
+                  action={action}
+                  aoe={aoe}
+                  disabled={!ready}
+                  onCast={() => {
+                    if (!aoe) return;
+                    onCast({
+                      name: action.name,
+                      desc: action.desc,
+                      aoeType: aoe.aoeType,
+                      aoeSize: aoe.aoeSize,
+                      range: 0,
+                      saveAbility: aoe.saveAbility,
+                      saveDc,
+                      halfDamageOnSave: aoe.halfDamageOnSave ?? true,
+                      level: 0,
+                    });
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
       )}
@@ -454,7 +608,7 @@ const SpellsPanel: React.FC<{
               <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
               <div className="divide-y divide-white/10">
                 {recentSpells.map((spell, i) => (
-                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
+                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
                 ))}
               </div>
             </div>
@@ -462,7 +616,7 @@ const SpellsPanel: React.FC<{
           {searchResults.length > 0 && (
             <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
               {searchResults.map((spell, i) => (
-                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} disabled={!ready} onPress={() => handleSpellTap(spell)} />
+                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
               ))}
             </div>
           )}
@@ -512,6 +666,12 @@ const SpellsPanel: React.FC<{
           </div>
         )}
       </div>
+      <ActionRollModal
+        isOpen={!!rollModal}
+        actionName={rollModal?.name || ''}
+        result={rollModal?.result || null}
+        onClose={() => setRollModal(null)}
+      />
     </>
   );
 };
