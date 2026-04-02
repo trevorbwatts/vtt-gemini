@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
+import { lookupSpell } from '../data/spellDatabase';
 
 // ─── Sign-in spot types ───
 type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left';
@@ -241,8 +242,11 @@ const SpellRow: React.FC<{
   disabled?: boolean;
 }> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onRoll, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
-  const damageType = spell.desc ? parseDamageType(spell.desc) : null;
-  const hasDamage = !hasAoe && !!onRoll && !!(spell.desc && parseSpellDamage(spell.desc));
+  // Resolve effective description: prefer spell.desc, fall back to local DB if it yields no damage
+  const localEntry = !hasAoe ? lookupSpell(spell.name) : null;
+  const effectiveDesc = spell.desc || localEntry?.desc || '';
+  const damageType = effectiveDesc ? parseDamageType(effectiveDesc) : null;
+  const hasDamage = !hasAoe && !!onRoll && !!(effectiveDesc && parseSpellDamage(effectiveDesc));
   return (
     <div className="flex items-center gap-2 py-2">
       <span className={cn(
@@ -420,9 +424,13 @@ const SpellsPanel: React.FC<{
     return () => window.removeEventListener('pointerup', onUp);
   }, []);
 
-  const searchResults = spellSearch.trim().length >= 2
-    ? searchSpells(spellSearch, 20, { sources: enabledSources, aoeOnly: true })
-    : [];
+  const searchResults = useMemo(() => {
+    if (spellSearch.trim().length < 2) return [];
+    // Include AoE spells (for Cast) AND non-AoE spells with damage dice (for NRML/ADV/DIS rolls)
+    return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell =>
+      (spell.aoeType && spell.aoeSize) || !!(spell.desc && parseSpellDamage(spell.desc))
+    ).slice(0, 20);
+  }, [spellSearch, enabledSources]);
 
   const toggleSource = (src: '2014' | '2024') => {
     setEnabledSources(prev => {
@@ -542,7 +550,8 @@ const SpellsPanel: React.FC<{
                   onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
                 }}
                 onRoll={(mode) => {
-                  const groups = parseSpellDamage(spell.desc || '');
+                  const localDesc = lookupSpell(spell.name)?.desc || '';
+                  const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
                   if (!groups) return;
                   const bonus = spellAttackBonus ?? 0;
                   const result = rollAction({ attackBonus: bonus, damageGroups: groups }, mode);
@@ -626,7 +635,7 @@ const SpellsPanel: React.FC<{
           >
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25" />
             <div className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-8 py-1.5 text-xs text-white min-h-[30px] flex items-center">
-              {spellSearch || <span className="text-white/25">Tap to search AoE spells...</span>}
+              {spellSearch || <span className="text-white/25">Tap to search spells...</span>}
             </div>
             {spellSearch && (
               <button onClick={(e) => { e.stopPropagation(); setSpellSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { cn } from '../types';
-import { ChevronDown } from '../icons';
+import { ChevronDown, Dices } from '../icons';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
+import type { RollMode } from '../utils/actionParser';
 
 function renderInline(text: string): React.ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*)/);
@@ -36,7 +37,8 @@ function renderDesc(desc: string): React.ReactNode[] {
 export const SpellAccordion: React.FC<{
   name: string; desc?: string; badge?: string; rangeBadge?: string; aoeBadge?: React.ReactNode; saveBadge?: string;
   onCast?: () => void;
-}> = ({ name, desc, badge, rangeBadge, aoeBadge, saveBadge, onCast }) => {
+  onRoll?: (mode: RollMode) => void;
+}> = ({ name, desc, badge, rangeBadge, aoeBadge, saveBadge, onCast, onRoll }) => {
   const damageType = desc ? parseDamageType(desc) : null;
   const [open, setOpen] = useState(false);
   const hasDesc = !!desc;
@@ -79,6 +81,23 @@ export const SpellAccordion: React.FC<{
           >
             Cast
           </button>
+        )}
+        {onRoll && !onCast && (
+          <div className="flex items-center gap-1 mr-2 shrink-0">
+            <Dices size={12} className="text-orange-400/50" />
+            {(['NRML', 'ADV', 'DIS'] as const).map((label) => {
+              const mode: RollMode = label === 'NRML' ? 'normal' : label === 'ADV' ? 'advantage' : 'disadvantage';
+              return (
+                <button
+                  key={label}
+                  onClick={(e) => { e.stopPropagation(); onRoll(mode); }}
+                  className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/20 text-orange-400/60 hover:text-orange-400 hover:border-orange-400/50 hover:bg-orange-400/10 transition-all"
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
       {hasDesc && open && (

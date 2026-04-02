@@ -5,7 +5,7 @@ import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
 import { BESTIARY } from '../data/bestiary';
-import { parseAction, rollAction, parseActionAoe, ActionAoe } from '../utils/actionParser';
+import { parseAction, rollAction, parseActionAoe, ActionAoe, parseSpellDamage } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import type { ActionRollResult } from '../utils/actionParser';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
@@ -896,16 +896,35 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         startCastingRef?.current?.(spell, detailSourceId);
                       };
 
+                      // Compute spell attack bonus from spellSaveDc (DC = 8 + prof + mod, attack = prof + mod)
+                      const spellAtkBonus = detailSource.spellSaveDc ? detailSource.spellSaveDc - 8 : 0;
+
+                      const makeSpellRoll = (spellDesc: string, spellName: string) => {
+                        if (!spellDesc) return undefined;
+                        const groups = parseSpellDamage(spellDesc);
+                        if (!groups) return undefined;
+                        return (mode: import('../utils/actionParser').RollMode) => {
+                          const result = rollAction({ attackBonus: spellAtkBonus, damageGroups: groups }, mode);
+                          setActionRollName(spellName);
+                          setActionRollResult(result);
+                          setActionRollOpen(true);
+                        };
+                      };
+
                       // Structured spells
                       if (detailSource.spells && detailSource.spells.length > 0) {
-                        return detailSource.spells.map((spell, i) => (
+                        return detailSource.spells.map((spell, i) => {
+                          const hasAoe = !!(spell.aoeType && spell.aoeSize);
+                          return (
                           <SpellAccordion key={i} name={spell.name} desc={spell.desc}
                             badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
                             rangeBadge={makeRangeBadge(spell.range)}
                             aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                             saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
-                            onCast={spell.aoeType ? () => startCasting(spell) : undefined} />
-                        ));
+                            onCast={spell.aoeType ? () => startCasting(spell) : undefined}
+                            onRoll={!hasAoe ? makeSpellRoll(spell.desc, spell.name) : undefined} />
+                          );
+                        });
                       }
 
                       // Monster spellcasting — parse from specialAbilities
@@ -914,19 +933,34 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       );
                       if (spellcastingTrait) {
                         const parsed = parseSpellcastingTrait(spellcastingTrait.desc);
+                        // Extract spell attack bonus from preamble if available (e.g. "+7 to hit with spell attacks")
+                        const preambleAtkMatch = spellcastingTrait.desc.match(/\+(\d+)\s+to hit with spell attacks/i);
+                        const preambleAtkBonus = preambleAtkMatch ? parseInt(preambleAtkMatch[1], 10) : spellAtkBonus;
                         if (parsed.spells.length > 0) {
                           return (
                             <>
                               <p className="text-[11px] opacity-40 italic leading-relaxed mb-2">{parsed.preamble}</p>
                               {parsed.spells.map((spell, i) => {
                                 const spellWithDc = { ...spell, saveDc: parsed.saveDc };
+                                const hasAoe = !!(spell.aoeType && spell.aoeSize);
+                                const rollHandler = !hasAoe && spell.desc ? (() => {
+                                  const groups = parseSpellDamage(spell.desc);
+                                  if (!groups) return undefined;
+                                  return (mode: import('../utils/actionParser').RollMode) => {
+                                    const result = rollAction({ attackBonus: preambleAtkBonus, damageGroups: groups }, mode);
+                                    setActionRollName(spell.name);
+                                    setActionRollResult(result);
+                                    setActionRollOpen(true);
+                                  };
+                                })() : undefined;
                                 return (
                                 <SpellAccordion key={i} name={spell.name} desc={spell.desc}
                                   badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
                                   rangeBadge={makeRangeBadge(spell.range)}
                                   aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                                   saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}` : undefined}
-                                  onCast={spell.aoeType ? () => startCasting(spellWithDc) : undefined} />
+                                  onCast={spell.aoeType ? () => startCasting(spellWithDc) : undefined}
+                                  onRoll={rollHandler} />
                                 );
                               })}
                             </>
