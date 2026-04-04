@@ -4,8 +4,9 @@ import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { Campaign, Token, Combatant, MonsterAction, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame, Swords, Ruler } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
+import actionsData from '../data/actions.json';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
@@ -163,6 +164,20 @@ const RING_OFFSETS_4: Record<'bottom' | 'top' | 'left', { dx: number; dy: number
   left:   [{ dx: -52, dy: -90 }, { dx: -90, dy: -42 }, { dx: -90, dy: 42 }, { dx: -52, dy: 90 }],
 };
 
+// ─── Ring item offsets: 5-item layout ───
+const RING_OFFSETS_5: Record<'bottom' | 'top' | 'left', { dx: number; dy: number }[]> = {
+  bottom: [{ dx: -90, dy: 52 }, { dx: -52, dy: 86 }, { dx: 0, dy: 97 }, { dx: 52, dy: 86 }, { dx: 90, dy: 52 }],
+  top:    [{ dx: -90, dy: -52 }, { dx: -52, dy: -86 }, { dx: 0, dy: -97 }, { dx: 52, dy: -86 }, { dx: 90, dy: -52 }],
+  left:   [{ dx: -52, dy: -90 }, { dx: -86, dy: -52 }, { dx: -97, dy: 0 }, { dx: -86, dy: 52 }, { dx: -52, dy: 90 }],
+};
+
+// ─── Ring item offsets: 6-item layout ───
+const RING_OFFSETS_6: Record<'bottom' | 'top' | 'left', { dx: number; dy: number }[]> = {
+  bottom: [{ dx: -95, dy: 50 }, { dx: -68, dy: 77 }, { dx: -28, dy: 95 }, { dx: 28, dy: 95 }, { dx: 68, dy: 77 }, { dx: 95, dy: 50 }],
+  top:    [{ dx: -95, dy: -50 }, { dx: -68, dy: -77 }, { dx: -28, dy: -95 }, { dx: 28, dy: -95 }, { dx: 68, dy: -77 }, { dx: 95, dy: -50 }],
+  left:   [{ dx: -50, dy: -95 }, { dx: -77, dy: -68 }, { dx: -95, dy: -28 }, { dx: -95, dy: 28 }, { dx: -77, dy: 68 }, { dx: -50, dy: 95 }],
+};
+
 // ─── Action Ring ───
 const ActionRing: React.FC<{
   anchorX: number;
@@ -170,16 +185,20 @@ const ActionRing: React.FC<{
   edge: 'top' | 'bottom' | 'left';
   onSpells: () => void;
   onConditions: () => void;
+  onActions: () => void;
+  onMeasure: () => void;
   onEndTurn: () => void;
   onToggleTorch: () => void;
   isTorchLit: boolean;
   onClose: () => void;
   isPlayersTurn: boolean;
-}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onEndTurn, onToggleTorch, isTorchLit, onClose, isPlayersTurn }) => {
+  hasAbilities: boolean;
+}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onActions, onMeasure, onEndTurn, onToggleTorch, isTorchLit, onClose, isPlayersTurn, hasAbilities }) => {
   const contentRotate = edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
   const allItems = [
     { label: 'Spells',     icon: BookOpen, color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
     { label: 'Conditions', icon: Zap,      color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
+    ...(hasAbilities ? [{ label: 'Abilities', icon: Swords, color: 'bg-[#001a1a] border-teal-500/40 text-teal-400', onClick: onActions }] : []),
     {
       label: isTorchLit ? 'Douse' : 'Torch',
       icon: Flame,
@@ -188,6 +207,7 @@ const ActionRing: React.FC<{
         : 'bg-[#1a0e00] border-orange-500/40 text-orange-400',
       onClick: onToggleTorch,
     },
+    { label: 'Measure', icon: Ruler, color: 'bg-[#0a001a] border-indigo-500/40 text-indigo-400', onClick: onMeasure },
   ];
   if (isPlayersTurn) {
     allItems.push(
@@ -195,7 +215,7 @@ const ActionRing: React.FC<{
     );
   }
   const items = allItems;
-  const offsets = items.length === 4 ? RING_OFFSETS_4[edge] : items.length === 3 ? RING_OFFSETS[edge] : RING_OFFSETS_2[edge];
+  const offsets = items.length === 6 ? RING_OFFSETS_6[edge] : items.length === 5 ? RING_OFFSETS_5[edge] : items.length === 4 ? RING_OFFSETS_4[edge] : items.length === 3 ? RING_OFFSETS[edge] : RING_OFFSETS_2[edge];
   const BUTTON_SIZE = 62;
   return (
     <>
@@ -779,6 +799,171 @@ const ConditionsPanel: React.FC<{
   );
 };
 
+// ─── Actions Panel ───
+interface AbilityEntry {
+  id: string;
+  name: string;
+  source: 'class' | 'subclass' | 'species';
+  class?: string;
+  subclass?: string | null;
+  species?: string;
+  levelRequired: number;
+  actionType: string;
+  description: string;
+  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'display' | 'wip';
+  darkvisionBonus?: number;
+  darkvisionValue?: number;
+}
+
+const ACTION_TYPE_COLORS: Record<string, string> = {
+  'action':        'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  'bonus action':  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  'magic action':  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  'reaction':      'bg-red-500/20 text-red-300 border-red-500/30',
+  'passive':       'bg-white/10 text-white/40 border-white/15',
+};
+
+const ActionsPanel: React.FC<{
+  player: Combatant;
+  anchorX: number;
+  anchorY: number;
+  edge: 'top' | 'bottom' | 'left';
+  onClose: () => void;
+  onDarkvisionChange: (newValue: number) => void;
+  preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
+}> = ({ player, anchorX, anchorY, edge, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
+  const [activeAbilities, setActiveAbilities] = useState<Set<string>>(new Set());
+
+  const abilities = (actionsData as AbilityEntry[]).filter(entry => {
+    if (entry.source === 'species') {
+      if (!entry.species) return false;
+      return player.species?.toLowerCase().includes(entry.species.toLowerCase()) ?? false;
+    }
+    return player.classes?.some(c =>
+      c.name.toLowerCase() === (entry.class ?? '').toLowerCase() &&
+      (!entry.subclass || c.subclass?.toLowerCase().includes(entry.subclass.toLowerCase())) &&
+      c.level >= entry.levelRequired
+    ) ?? false;
+  });
+
+  const handleToggle = (entry: AbilityEntry) => {
+    const isOn = activeAbilities.has(entry.id);
+    const next = new Set(activeAbilities);
+    if (isOn) {
+      next.delete(entry.id);
+      if (entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet') {
+        const original = preAbilityDarkvisionRef.current[entry.id] ?? (player.darkvision ?? 0);
+        delete preAbilityDarkvisionRef.current[entry.id];
+        onDarkvisionChange(original);
+      }
+    } else {
+      next.add(entry.id);
+      if (entry.behavior === 'darkvision' && entry.darkvisionBonus != null) {
+        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
+        onDarkvisionChange((player.darkvision ?? 0) + entry.darkvisionBonus);
+      } else if (entry.behavior === 'darkvisionSet' && entry.darkvisionValue != null) {
+        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
+        onDarkvisionChange(entry.darkvisionValue);
+      }
+    }
+    setActiveAbilities(next);
+  };
+
+  const PANEL_W = 340;
+  const isLeft = edge === 'left';
+  const panelStyle: React.CSSProperties = (() => {
+    const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
+    if (edge === 'top') return { left: hCenter, top: 8, transform: 'rotate(180deg)', transformOrigin: 'center top' };
+    if (isLeft) {
+      const vh = window.innerHeight;
+      return { left: 8, top: Math.max(8, (vh - PANEL_W) / 2), width: Math.min(vh - 16, PANEL_W), height: PANEL_W };
+    }
+    return { left: hCenter, bottom: 8 };
+  })();
+
+  const innerWrap = isLeft ? { transform: 'rotate(90deg)', width: PANEL_W } as React.CSSProperties : undefined;
+
+  const panelContent = (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white/60 text-[10px] uppercase tracking-widest font-bold">Abilities — {player.name}</span>
+        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
+          <X size={14} className="text-white/40" />
+        </button>
+      </div>
+      {abilities.length === 0 ? (
+        <p className="text-white/30 text-xs text-center py-4">No abilities available for this character.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {abilities.map(entry => {
+            const isActive = activeAbilities.has(entry.id);
+            const isInteractive = entry.behavior === 'toggle' || entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet';
+            const badgeColor = ACTION_TYPE_COLORS[entry.actionType] ?? ACTION_TYPE_COLORS['passive'];
+            return (
+              <div
+                key={entry.id}
+                className={cn(
+                  'rounded-lg border p-2.5 transition-colors',
+                  isActive ? 'bg-teal-500/10 border-teal-500/30' : 'bg-white/5 border-white/10'
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className={cn('text-xs font-bold', isActive ? 'text-teal-300' : 'text-white/80')}>
+                    {entry.name}
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {entry.behavior === 'wip' && (
+                      <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white/30 border border-white/15">
+                        Soon
+                      </span>
+                    )}
+                    <span className={cn('text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border', badgeColor)}>
+                      {entry.actionType}
+                    </span>
+                    {isInteractive && (
+                      <button
+                        onPointerDown={(e) => { e.stopPropagation(); handleToggle(entry); }}
+                        className={cn(
+                          'text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded border transition-colors',
+                          isActive
+                            ? 'bg-teal-500/25 border-teal-500/50 text-teal-300'
+                            : 'bg-white/10 border-white/20 text-white/50 hover:bg-white/15'
+                        )}
+                      >
+                        {isActive ? 'On' : 'Off'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[9px] text-white/40 leading-relaxed">{entry.description}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50" onPointerDown={onClose} />
+      <div
+        className="fixed bg-black/95 border border-white/10 rounded-lg overflow-hidden"
+        style={{ ...panelStyle, ...(!isLeft && { width: PANEL_W, maxHeight: 'calc(100vh - 16px)' }), zIndex: 60 }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {isLeft ? (
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
+            <div style={innerWrap} className="p-3">{panelContent}</div>
+          </div>
+        ) : (
+          <div className="p-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 32px)' }}>{panelContent}</div>
+        )}
+      </div>
+    </>
+  );
+};
+
 // ─── Initiative Strip ───
 // Condenses multiple enemies of the same name into a single entry.
 interface StripEntry {
@@ -876,6 +1061,8 @@ export function PlayerScreen() {
   const [torchLitPlayerIds, setTorchLitPlayerIds] = useState<Set<string>>(new Set());
   // Stores each player's darkvision before the torch was lit so we can restore it on douse.
   const preTorchDarkvisionRef = useRef<Record<string, number>>({});
+  // Stores each player's darkvision before an ability toggle so we can restore it when toggled off.
+  const preAbilityDarkvisionRef = useRef<Record<string, number>>({});
 
   // Sign-in state
   const [signedInSpots, setSignedInSpots] = useState<Record<SpotId, string | null>>({
@@ -888,15 +1075,20 @@ export function PlayerScreen() {
 
   // Action ring + panel state (play mode)
   const [actionRing, setActionRing] = useState<{ tokenId: string; spotId: SpotId; x: number; y: number } | null>(null);
-  const [openPanel, setOpenPanel] = useState<'spells' | 'conditions' | null>(null);
+  const [openPanel, setOpenPanel] = useState<'spells' | 'conditions' | 'actions' | null>(null);
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
+  const startMeasuringRef = useRef<(() => void) | null>(null);
+  const cancelMeasuringRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string } | null>(null);
+  // Track active measuring (for banner positioning)
+  const [activeMeasuring, setActiveMeasuring] = useState<{ spotId: SpotId } | null>(null);
+  const [measureDistanceFeet, setMeasureDistanceFeet] = useState<number | null>(null);
 
   // AoE highlights received from MapView
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
@@ -1281,6 +1473,9 @@ export function PlayerScreen() {
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}
           onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}
+          startMeasuringRef={startMeasuringRef}
+          cancelMeasuringRef={cancelMeasuringRef}
+          onMeasureDistanceChange={(feet) => setMeasureDistanceFeet(feet)}
           onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
           onPlayerTokenDoubleTap={handlePlayerTokenDoubleTap}
@@ -1332,6 +1527,36 @@ export function PlayerScreen() {
         );
       })()}
 
+      {/* Measuring Banner */}
+      {activeMeasuring && (() => {
+        const config = spotConfigs[activeMeasuring.spotId];
+        const edge = config.edge;
+        const posClass = edge === 'top'
+          ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
+          : edge === 'left'
+          ? 'left-4 top-1/2 -translate-y-1/2 -rotate-90'
+          : 'bottom-4 left-1/2 -translate-x-1/2';
+        return (
+          <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
+            <div className="bg-black/80 border border-indigo-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-indigo-500/10">
+              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+              {measureDistanceFeet != null
+                ? <span className="text-sm font-bold text-indigo-300">{measureDistanceFeet} ft</span>
+                : <span className="text-sm font-bold text-indigo-400">Measuring</span>
+              }
+              <span className="text-xs text-white/40">Touch &amp; drag to measure</span>
+              <button
+                onClick={() => { cancelMeasuringRef.current?.(); setActiveMeasuring(null); setMeasureDistanceFeet(null); }}
+                onPointerDown={(e) => e.preventDefault()}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Action Ring */}
       {actionRing && openPanel === null && (() => {
         const config = spotConfigs[actionRing.spotId];
@@ -1339,6 +1564,17 @@ export function PlayerScreen() {
         const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
         const isPlayersTurn = !!(activeEntry && activeEntry.sourceCombatantId === playerId);
         const isTorchLit = !!(playerId && torchLitPlayerIds.has(playerId));
+        const ringPlayer = getPlayerForSpot(actionRing.spotId);
+        const hasAbilities = ringPlayer != null && (actionsData as AbilityEntry[]).some(entry => {
+          if (entry.source === 'species') {
+            return ringPlayer.species?.toLowerCase().includes((entry.species ?? '').toLowerCase()) ?? false;
+          }
+          return ringPlayer.classes?.some(c =>
+            c.name.toLowerCase() === (entry.class ?? '').toLowerCase() &&
+            (!entry.subclass || c.subclass?.toLowerCase().includes(entry.subclass.toLowerCase())) &&
+            c.level >= entry.levelRequired
+          ) ?? false;
+        });
         return (
           <ActionRing
             anchorX={actionRing.x}
@@ -1346,6 +1582,15 @@ export function PlayerScreen() {
             edge={config.edge}
             onSpells={() => setOpenPanel('spells')}
             onConditions={() => setOpenPanel('conditions')}
+            onActions={() => setOpenPanel('actions')}
+            onMeasure={() => {
+              const spotId = actionRing.spotId;
+              setActionRing(null);
+              setOpenPanel(null);
+              startMeasuringRef.current?.();
+              setActiveMeasuring({ spotId });
+              setMeasureDistanceFeet(null);
+            }}
             onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); }}
             onToggleTorch={() => {
               if (isTorchLit) handleDouseTorch(actionRing.spotId);
@@ -1355,6 +1600,7 @@ export function PlayerScreen() {
             isTorchLit={isTorchLit}
             onClose={() => setActionRing(null)}
             isPlayersTurn={isPlayersTurn}
+            hasAbilities={hasAbilities}
           />
         );
       })()}
@@ -1389,6 +1635,32 @@ export function PlayerScreen() {
             edge={config.edge}
             onToggle={(cond) => handleConditionToggle(actionRing.spotId, cond)}
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
+          />
+        );
+      })()}
+
+      {/* Abilities Panel */}
+      {actionRing && openPanel === 'actions' && (() => {
+        const player = getPlayerForSpot(actionRing.spotId);
+        if (!player) return null;
+        const config = spotConfigs[actionRing.spotId];
+        return (
+          <ActionsPanel
+            player={player}
+            anchorX={actionRing.x}
+            anchorY={actionRing.y}
+            edge={config.edge}
+            onClose={() => { setOpenPanel(null); setActionRing(null); }}
+            onDarkvisionChange={(newValue) => {
+              const playerId = signedInSpots[actionRing.spotId];
+              if (!playerId) return;
+              window.electronAPI?.sendPlayerDarkvisionUpdate?.(playerId, newValue);
+              setCampaign(prev => {
+                if (!prev) return prev;
+                return { ...prev, players: prev.players.map(p => p.id === playerId ? { ...p, darkvision: newValue } : p) };
+              });
+            }}
+            preAbilityDarkvisionRef={preAbilityDarkvisionRef}
           />
         );
       })()}

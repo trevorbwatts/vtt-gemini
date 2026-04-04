@@ -55,6 +55,12 @@ interface MapViewProps {
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref that MapView populates so players can enter ruler/measure mode */
+  startMeasuringRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref that MapView populates so players can cancel measure mode */
+  cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
+  /** Called with the current measured distance in feet as the player drags (null when cleared) */
+  onMeasureDistanceChange?: (feet: number | null) => void;
   /** Ref that MapView populates so external code can confirm cast (roll saves) */
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when placed AoE is dismissed (by any means) */
@@ -484,6 +490,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   cancelCastingRef,
   confirmCastRef,
   onCastingDismissed,
+  startMeasuringRef,
+  cancelMeasuringRef,
+  onMeasureDistanceChange,
   onAoeHighlightsChange,
   clearMovementPathsRef,
   clearRemoteAoeRef,
@@ -576,6 +585,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<AoeState | null>(null);
 
+  // ── Measure / Ruler State ──
+  const [isMeasuringActive, setIsMeasuringActive] = useState(false);
+  const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
+  const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
+
   // Remote AoE: placed by the other screen (DM sees player's AoE, player sees DM's AoE)
   const [remoteAoe, setRemoteAoe] = useState<typeof placedAoe>(null);
 
@@ -591,6 +605,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
       // IPC not available (dev mode or stale preload)
     }
   }, [placedAoe, isPlayerView]);
+
+  // Broadcast measure distance to PlayerScreen banner
+  useEffect(() => {
+    if (!onMeasureDistanceChange) return;
+    if (!isMeasuringActive || !measureStart || !measureEnd) {
+      // Don't clear if we're just waiting for first touch
+      return;
+    }
+    const ppg = gridResolution?.pixelsPerGrid || 40;
+    const dx = measureEnd.x - measureStart.x;
+    const dy = measureEnd.y - measureStart.y;
+    const distFeet = Math.round((Math.sqrt(dx * dx + dy * dy) / ppg) * 5);
+    onMeasureDistanceChange(distFeet);
+  }, [measureStart, measureEnd, isMeasuringActive, gridResolution, onMeasureDistanceChange]);
 
   // Listen for AoE from the other screen
   useEffect(() => {
@@ -755,6 +783,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setCastingMousePos(null);
       onCastingDismissed?.();
       onAoeHighlightsChange?.(null);
+    };
+  }
+
+  if (startMeasuringRef) {
+    startMeasuringRef.current = () => {
+      setIsMeasuringActive(true);
+      setMeasureStart(null);
+      setMeasureEnd(null);
+    };
+  }
+
+  if (cancelMeasuringRef) {
+    cancelMeasuringRef.current = () => {
+      setIsMeasuringActive(false);
+      setMeasureStart(null);
+      setMeasureEnd(null);
+      onMeasureDistanceChange?.(null);
     };
   }
 
@@ -1186,6 +1231,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const tokenDragOriginRef = useRef<Record<string, { x: number; y: number }>>({});
 
   const handleDragStart = (id: string) => {
+    // Block token drag while measuring
+    if (isMeasuringActive) return;
     // Block token drag if a two-finger pan is active
     if (twoFingerPanRef.current) return;
     isTokenDraggingRef.current = true;
@@ -1900,6 +1947,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const tokenTapConsumedRef = useRef(false);
 
   const handleTouchStart = (e: any) => {
+    // Measure mode intercepts ALL touches first — must come before the drag guard
+    // so that touching your own token doesn't start a drag instead of measuring.
+    if (isMeasuringActive && e.evt.touches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      setMeasureStart(pos);
+      setMeasureEnd(pos);
+      e.evt.preventDefault();
+      return;
+    }
+
     if (isTokenDraggingRef.current) return;
 
     // AoE casting on player view: track touch position for preview
@@ -1930,6 +1988,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const stage = e.target.getStage();
       const pos = getCanvasPos(stage);
       setCastingMousePos(pos);
+      e.evt.preventDefault();
+      return;
+    }
+
+    // Measure mode: update end point as finger drags
+    if (isMeasuringActive && measureStart && e.evt.touches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      setMeasureEnd(pos);
       e.evt.preventDefault();
       return;
     }
@@ -2009,6 +2076,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
       return;
     }
 
+    // Measure mode: mouse down sets start point (desktop support)
+    if (isMeasuringActive && e.evt.button === 0) {
+      const pos = getCanvasPos(e.target.getStage());
+      setMeasureStart(pos);
+      setMeasureEnd(pos);
+      return;
+    }
+
     // DM AoE casting: click to place (mouse-follow mode)
     if (castingSpell && e.evt.button === 0) {
       if (castingMousePos) {
@@ -2069,6 +2144,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const stage = e.target.getStage();
       const pos = getCanvasPos(stage);
       setCastingMousePos(pos);
+      return;
+    }
+
+    // Measure mode: update end point as mouse moves (after start is set)
+    if (isMeasuringActive && measureStart) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      setMeasureEnd(pos);
       return;
     }
 
@@ -2737,7 +2820,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 key={token.id}
                 x={livePlayerPos[token.id]?.x ?? token.x}
                 y={livePlayerPos[token.id]?.y ?? token.y}
-                draggable={isPlayerView ? (token.type === 'player' && !activeAoe) : true}
+                draggable={isPlayerView ? (token.type === 'player' && !activeAoe && !isMeasuringActive) : true}
                 onMouseDown={(e) => {
                   if (castingSpell && !isPlayerView) {
                     // Let stage mousedown fire so the AoE gets placed
@@ -3396,6 +3479,44 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   );
                 })()}
+              </Layer>
+            );
+          })()}
+
+          {/* ── Measure / Ruler ── */}
+          {isMeasuringActive && measureStart && measureEnd && (() => {
+            const ppg = gridResolution?.pixelsPerGrid || 40;
+            const dx = measureEnd.x - measureStart.x;
+            const dy = measureEnd.y - measureStart.y;
+            const distPx = Math.sqrt(dx * dx + dy * dy);
+            const distFeet = Math.round((distPx / ppg) * 5);
+            const midX = (measureStart.x + measureEnd.x) / 2;
+            const midY = (measureStart.y + measureEnd.y) / 2;
+            const labelFontSize = 14 / stageScale;
+            const dotR = 5 / stageScale;
+            const sw = 2 / stageScale;
+            return (
+              <Layer listening={false}>
+                <Line
+                  points={[measureStart.x, measureStart.y, measureEnd.x, measureEnd.y]}
+                  stroke="rgba(100, 220, 255, 0.85)"
+                  strokeWidth={sw}
+                  dash={[8 / stageScale, 5 / stageScale]}
+                />
+                <Circle x={measureStart.x} y={measureStart.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
+                <Circle x={measureEnd.x} y={measureEnd.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
+                <Text
+                  x={midX - 40 / stageScale}
+                  y={midY - labelFontSize * 2}
+                  width={80 / stageScale}
+                  text={`${distFeet} ft`}
+                  fontSize={labelFontSize}
+                  fill="rgba(100, 220, 255, 1)"
+                  fontStyle="bold"
+                  fontFamily="Inter"
+                  align="center"
+                  listening={false}
+                />
               </Layer>
             );
           })()}

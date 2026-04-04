@@ -37,6 +37,7 @@ export {
   Zap,
   Sparkles,
   Dices,
+  Ruler,
 
   // AoE shapes
   Circle,

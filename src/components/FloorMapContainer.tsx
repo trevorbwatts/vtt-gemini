@@ -45,6 +45,9 @@ interface FloorMapContainerProps {
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
+  startMeasuringRef?: React.MutableRefObject<(() => void) | null>;
+  cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
+  onMeasureDistanceChange?: (feet: number | null) => void;
   clearRemoteAoeRef?: React.MutableRefObject<(() => void) | null>;
   onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null) => void;
   clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
@@ -189,6 +192,9 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       cancelCastingRef: props.cancelCastingRef,
       confirmCastRef: props.confirmCastRef,
       onCastingDismissed: props.onCastingDismissed,
+      startMeasuringRef: props.startMeasuringRef,
+      cancelMeasuringRef: props.cancelMeasuringRef,
+      onMeasureDistanceChange: props.onMeasureDistanceChange,
       clearRemoteAoeRef: props.clearRemoteAoeRef,
       onAoeHighlightsChange: props.onAoeHighlightsChange,
       clearMovementPathsRef: props.clearMovementPathsRef,

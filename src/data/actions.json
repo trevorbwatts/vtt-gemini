@@ -1,0 +1,212 @@
+[
+  {
+    "id": "barbarian-rage",
+    "name": "Rage",
+    "source": "class",
+    "class": "Barbarian",
+    "subclass": null,
+    "levelRequired": 1,
+    "actionType": "bonus action",
+    "description": "You enter a rage as a Bonus Action. While raging, you gain resistance to Bludgeoning, Piercing, and Slashing damage, a bonus to attack rolls and damage rolls, and can't have the Frightened condition.",
+    "behavior": "toggle"
+  },
+  {
+    "id": "barbarian-wild-heart-owl-aspect",
+    "name": "Owl Aspect",
+    "source": "subclass",
+    "class": "Barbarian",
+    "subclass": "Path of the Wild Heart",
+    "levelRequired": 6,
+    "actionType": "passive",
+    "description": "You have Darkvision with a range of 60 feet. If you already have Darkvision, its range increases by 60 feet.",
+    "behavior": "darkvision",
+    "darkvisionBonus": 60
+  },
+  {
+    "id": "cleric-turn-undead",
+    "name": "Turn Undead",
+    "source": "class",
+    "class": "Cleric",
+    "subclass": null,
+    "levelRequired": 2,
+    "actionType": "magic action",
+    "description": "As a Magic action, you present your Holy Symbol and censure Undead creatures. Each Undead of your choice within 30 feet of you must make a Wisdom saving throw. If the creature fails its save, it has the Frightened and Incapacitated conditions for 1 minute. For that duration, it tries to move as far from you as it can on its turns. This effect ends early on the creature if it takes any damage, if you have the Incapacitated condition, or if you die.",
+    "behavior": "display"
+  },
+  {
+    "id": "cleric-light-radiance-of-the-dawn",
+    "name": "Radiance of the Dawn",
+    "source": "subclass",
+    "class": "Cleric",
+    "subclass": "Light Domain",
+    "levelRequired": 3,
+    "actionType": "magic action",
+    "description": "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to emit a flash of light in a 30-foot Emanation originating from yourself. Any magical Darkness in that area is dispelled. Additionally, each creature of your choice in that area must make a Constitution saving throw, taking Radiant damage equal to 2d10 plus your Cleric level on a failed save or half as much damage on a successful one.",
+    "behavior": "display"
+  },
+  {
+    "id": "cleric-light-corona-of-light",
+    "name": "Corona of Light",
+    "source": "subclass",
+    "class": "Cleric",
+    "subclass": "Light Domain",
+    "levelRequired": 17,
+    "actionType": "magic action",
+    "description": "As a Magic action, you cause yourself to emit an aura of sunlight that lasts for 1 minute or until you dismiss it. You emit Bright Light in a 60-foot radius and Dim Light for an additional 30 feet. Your enemies in the Bright Light have Disadvantage on saving throws against your Radiance of the Dawn and any spell that deals Fire or Radiant damage.",
+    "behavior": "darkvisionSet",
+    "darkvisionValue": 90
+  },
+  {
+    "id": "cleric-trickery-invoke-duplicity",
+    "name": "Invoke Duplicity",
+    "source": "subclass",
+    "class": "Cleric",
+    "subclass": "Trickery Domain",
+    "levelRequired": 3,
+    "actionType": "bonus action",
+    "description": "As a Bonus Action, you can expend one use of your Channel Divinity to create a perfect visual illusion of yourself in an unoccupied space you can see within 30 feet of yourself. The illusion is intangible and doesn't occupy its space. It lasts for 1 minute, but it ends early if you dismiss it or have the Incapacitated condition.",
+    "behavior": "wip"
+  },
+  {
+    "id": "druid-wild-shape",
+    "name": "Wild Shape",
+    "source": "class",
+    "class": "Druid",
+    "subclass": null,
+    "levelRequired": 2,
+    "actionType": "bonus action",
+    "description": "As a Bonus Action, you shape-shift into a Beast form that you have learned for this feature. You stay in that form for a number of hours equal to half your Druid level or until you use Wild Shape again, have the Incapacitated condition, or die.",
+    "behavior": "wip"
+  },
+  {
+    "id": "druid-land-lands-aid",
+    "name": "Land's Aid",
+    "source": "subclass",
+    "class": "Druid",
+    "subclass": "Circle of the Land",
+    "levelRequired": 3,
+    "actionType": "magic action",
+    "description": "As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points. The damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6).",
+    "behavior": "display"
+  },
+  {
+    "id": "druid-land-natures-sanctuary",
+    "name": "Nature's Sanctuary",
+    "source": "subclass",
+    "class": "Druid",
+    "subclass": "Circle of the Land",
+    "levelRequired": 14,
+    "actionType": "magic action",
+    "description": "As a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that area, and your allies gain the current Resistance of your Nature's Ward while there. As a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself.",
+    "behavior": "display"
+  },
+  {
+    "id": "druid-sea-wrath-of-the-sea",
+    "name": "Wrath of the Sea",
+    "source": "subclass",
+    "class": "Druid",
+    "subclass": "Circle of the Sea",
+    "levelRequired": 3,
+    "actionType": "bonus action",
+    "description": "As a Bonus Action, you can expend a use of your Wild Shape to manifest a 5-foot Emanation of ocean spray that surrounds you for 10 minutes. When you manifest the Emanation and as a Bonus Action on your subsequent turns, you can choose another creature you can see in the Emanation. The target must succeed on a Constitution saving throw or take Cold damage and, if Large or smaller, be pushed up to 15 feet away from you.",
+    "behavior": "toggle"
+  },
+  {
+    "id": "druid-sea-aquatic-affinity",
+    "name": "Aquatic Affinity",
+    "source": "subclass",
+    "class": "Druid",
+    "subclass": "Circle of the Sea",
+    "levelRequired": 6,
+    "actionType": "passive",
+    "description": "Your Wrath of the Sea Emanation increases to 10 feet in size. In addition, you gain a Swim Speed equal to your Speed.",
+    "behavior": "display"
+  },
+  {
+    "id": "druid-sea-oceanic-gift",
+    "name": "Oceanic Gift",
+    "source": "subclass",
+    "class": "Druid",
+    "subclass": "Circle of the Sea",
+    "levelRequired": 14,
+    "actionType": "passive",
+    "description": "Instead of manifesting Wrath of the Sea around yourself, you can manifest it around one willing creature within 60 feet of yourself. That creature gains all the benefits of the Emanation and uses your spell save DC and Wisdom modifier for it. You can manifest the Emanation around both the other creature and yourself if you expend two uses of Wild Shape instead of one.",
+    "behavior": "display"
+  },
+  {
+    "id": "monk-elements-elemental-burst",
+    "name": "Elemental Burst",
+    "source": "subclass",
+    "class": "Monk",
+    "subclass": "Warrior of the Elements",
+    "levelRequired": 6,
+    "actionType": "magic action",
+    "description": "As a Magic action, you can expend 2 Focus Points to cause elemental energy to burst in a 20-foot-radius Sphere centered on a point within 120 feet of yourself. Choose a damage type: Acid, Cold, Fire, Lightning, or Thunder. Each creature in the Sphere must make a Dexterity saving throw. On a failed save, a creature takes damage equal to three rolls of your Martial Arts die. On a successful save, a creature takes half as much damage.",
+    "behavior": "display"
+  },
+  {
+    "id": "paladin-ancients-natures-wrath",
+    "name": "Nature's Wrath",
+    "source": "subclass",
+    "class": "Paladin",
+    "subclass": "Oath of the Ancients",
+    "levelRequired": 3,
+    "actionType": "magic action",
+    "description": "As a Magic action, you can expend one use of your Channel Divinity to conjure spectral vines around nearby creatures. Each creature of your choice that you can see within 15 feet of yourself must succeed on a Strength saving throw or have the Restrained condition for 1 minute. A Restrained creature repeats the save at the end of each of its turns, ending the effect on itself on a success.",
+    "behavior": "display"
+  },
+  {
+    "id": "ranger-gloomstalker-umbral-sight",
+    "name": "Umbral Sight",
+    "source": "subclass",
+    "class": "Ranger",
+    "subclass": "Gloomstalker",
+    "levelRequired": 3,
+    "actionType": "passive",
+    "description": "You gain Darkvision with a range of 60 feet. If you already have Darkvision, its range increases by 60 feet. While entirely in Darkness, you have the Invisible condition to any creature that relies on Darkvision to see you.",
+    "behavior": "darkvision",
+    "darkvisionBonus": 60
+  },
+  {
+    "id": "wizard-diviner-third-eye-darkvision",
+    "name": "Third Eye: Darkvision",
+    "source": "subclass",
+    "class": "Wizard",
+    "subclass": "Diviner",
+    "levelRequired": 10,
+    "actionType": "passive",
+    "description": "You gain Darkvision with a range of 120 feet.",
+    "behavior": "darkvisionSet",
+    "darkvisionValue": 120
+  },
+  {
+    "id": "aasimar-celestial-revelation",
+    "name": "Celestial Revelation",
+    "source": "species",
+    "species": "Aasimar",
+    "levelRequired": 3,
+    "actionType": "bonus action",
+    "description": "When you reach character level 3, you can transform as a Bonus Action once per Long Rest. The transformation lasts for 1 minute. Choose one option: Inner Radiance — you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, dealing Radiant damage equal to your Proficiency Bonus to each creature within 10 feet at the end of each of your turns. Necrotic Shroud — creatures other than your allies within 10 feet must succeed on a Charisma saving throw or have the Frightened condition until the end of your next turn. Once on each of your turns before the transformation ends, you deal extra damage equal to your Proficiency Bonus to one target.",
+    "behavior": "display"
+  },
+  {
+    "id": "dragonborn-breath-weapon",
+    "name": "Breath Weapon",
+    "source": "species",
+    "species": "Dragonborn",
+    "levelRequired": 1,
+    "actionType": "action",
+    "description": "When you take the Attack action, you can replace one of your attacks with an exhalation of magical energy in either a 15-foot Cone or a 30-foot Line that is 5 feet wide. Each creature in that area must make a Dexterity saving throw (DC 8 + Constitution modifier + Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry. On a successful save, a creature takes half as much damage. This damage increases by 1d10 at character levels 5 (2d10), 11 (3d10), and 17 (4d10).",
+    "behavior": "display"
+  },
+  {
+    "id": "dwarf-stonecunning",
+    "name": "Stonecunning",
+    "source": "species",
+    "species": "Dwarf",
+    "levelRequired": 1,
+    "actionType": "bonus action",
+    "description": "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense.",
+    "behavior": "wip"
+  }
+]
