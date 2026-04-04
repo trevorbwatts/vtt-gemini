@@ -45,7 +45,7 @@ interface FloorMapContainerProps {
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
-  startMeasuringRef?: React.MutableRefObject<(() => void) | null>;
+  startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
   cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
   onMeasureDistanceChange?: (feet: number | null) => void;
   clearRemoteAoeRef?: React.MutableRefObject<(() => void) | null>;

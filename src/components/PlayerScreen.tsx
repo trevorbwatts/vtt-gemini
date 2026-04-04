@@ -590,25 +590,34 @@ const SpellsPanel: React.FC<{
             {actions.map((action, i) => {
               const aoe = parseActionAoe(action.desc);
               const saveDc = aoe?.saveDc ?? computeActionSaveDc(player);
+              // Convert action to spell-like object so SpellRow renders it identically to spells
+              const asSpell = {
+                name: action.name,
+                desc: action.desc,
+                aoeType: aoe?.aoeType,
+                aoeSize: aoe?.aoeSize,
+                range: 0,
+                saveAbility: aoe?.saveAbility,
+                level: 0,
+              };
               return (
-                <ActionRow
+                <SpellRow
                   key={i}
-                  action={action}
-                  aoe={aoe}
+                  spell={asSpell}
+                  spellSaveDc={saveDc}
+                  spellAttackBonus={spellAttackBonus}
                   disabled={!ready}
-                  onCast={() => {
+                  onPress={() => {
                     if (!aoe) return;
-                    onCast({
-                      name: action.name,
-                      desc: action.desc,
-                      aoeType: aoe.aoeType,
-                      aoeSize: aoe.aoeSize,
-                      range: 0,
-                      saveAbility: aoe.saveAbility,
-                      saveDc,
-                      halfDamageOnSave: aoe.halfDamageOnSave ?? true,
-                      level: 0,
-                    });
+                    const half = aoe.halfDamageOnSave ?? true;
+                    onCast({ ...asSpell, saveDc, halfDamageOnSave: half });
+                  }}
+                  onRoll={(mode) => {
+                    const groups = parseSpellDamage(action.desc || '');
+                    if (!groups) return;
+                    const bonus = spellAttackBonus ?? 0;
+                    const result = rollAction({ attackBonus: bonus, damageGroups: groups }, mode);
+                    setRollModal({ name: action.name, result });
                   }}
                 />
               );
@@ -1081,7 +1090,7 @@ export function PlayerScreen() {
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
-  const startMeasuringRef = useRef<(() => void) | null>(null);
+  const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
   const cancelMeasuringRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
@@ -1585,9 +1594,10 @@ export function PlayerScreen() {
             onActions={() => setOpenPanel('actions')}
             onMeasure={() => {
               const spotId = actionRing.spotId;
+              const edge = spotConfigs[spotId].edge;
               setActionRing(null);
               setOpenPanel(null);
-              startMeasuringRef.current?.();
+              startMeasuringRef.current?.(edge);
               setActiveMeasuring({ spotId });
               setMeasureDistanceFeet(null);
             }}

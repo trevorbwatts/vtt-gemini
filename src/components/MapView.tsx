@@ -56,7 +56,7 @@ interface MapViewProps {
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so players can enter ruler/measure mode */
-  startMeasuringRef?: React.MutableRefObject<(() => void) | null>;
+  startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
   /** Ref that MapView populates so players can cancel measure mode */
   cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
   /** Called with the current measured distance in feet as the player drags (null when cleared) */
@@ -587,6 +587,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // ── Measure / Ruler State ──
   const [isMeasuringActive, setIsMeasuringActive] = useState(false);
+  const [measureEdge, setMeasureEdge] = useState<'top' | 'bottom' | 'left'>('bottom');
   const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
 
@@ -787,8 +788,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }
 
   if (startMeasuringRef) {
-    startMeasuringRef.current = () => {
+    startMeasuringRef.current = (edge: 'top' | 'bottom' | 'left') => {
       setIsMeasuringActive(true);
+      setMeasureEdge(edge);
       setMeasureStart(null);
       setMeasureEnd(null);
     };
@@ -841,6 +843,38 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const tokensInAoe = useMemo(() => {
     return getTokensInAoe(activeAoe, tokens, ppg, tokenRadius);
   }, [activeAoe?.x, activeAoe?.y, activeAoe?.angle, activeAoe?.aoeType, activeAoe?.aoeSize, activeAoe?.originX, activeAoe?.originY, tokens, ppg, tokenRadius]);
+
+  // Engaged pairs: player ↔ enemy/npc tokens within 5ft (melee range) during combat
+  const engagedPairs = useMemo(() => {
+    if (!inCombat || !gridResolution) return [] as { key: string; ptId: string; etId: string; px1: number; py1: number; px2: number; py2: number }[];
+    const pairs: { key: string; ptId: string; etId: string; px1: number; py1: number; px2: number; py2: number }[] = [];
+    const playerTokens = tokens.filter(t => t.type === 'player');
+    const enemyTokens  = tokens.filter(t => t.type === 'enemy' || t.type === 'npc');
+    for (const pt of playerTokens) {
+      const r1 = tokenRadius * getTokenSizeMultiplier(pt.size);
+      const px1 = livePlayerPos[pt.id]?.x ?? pt.x;
+      const py1 = livePlayerPos[pt.id]?.y ?? pt.y;
+      for (const et of enemyTokens) {
+        const r2 = tokenRadius * getTokenSizeMultiplier(et.size);
+        const px2 = livePlayerPos[et.id]?.x ?? et.x;
+        const py2 = livePlayerPos[et.id]?.y ?? et.y;
+        const dist = Math.sqrt((px2 - px1) ** 2 + (py2 - py1) ** 2);
+        if (dist - r1 - r2 <= ppg) {
+          pairs.push({ key: `engaged-${pt.id}|${et.id}`, ptId: pt.id, etId: et.id, px1, py1, px2, py2 });
+        }
+      }
+    }
+    return pairs;
+  }, [inCombat, tokens, livePlayerPos, tokenRadius, ppg, gridResolution]);
+
+  const engagedTokenIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const pair of engagedPairs) {
+      ids.add(pair.ptId);
+      ids.add(pair.etId);
+    }
+    return ids;
+  }, [engagedPairs]);
 
   // Bloodied tokens: enemy/npc tokens at or below half HP
   const bloodiedTokenIds = useMemo(() => {
@@ -2813,6 +2847,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
               );
             })}
 
+            {/* Engaged range lines — rendered UNDER tokens */}
+            {engagedPairs.map(pair => (
+              <Line
+                key={pair.key}
+                points={[pair.px1, pair.py1, pair.px2, pair.py2]}
+                stroke="#FF4444"
+                strokeWidth={2 / stageScale}
+                opacity={0.6}
+                dash={[8 / stageScale, 5 / stageScale]}
+                listening={false}
+                perfectDrawEnabled={false}
+              />
+            ))}
+
             {tokens.filter(t => !(isPlayerView && t.type === 'player')).map(token => {
               const r = tokenRadius * getTokenSizeMultiplier(token.size);
               return (
@@ -2907,6 +2955,19 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   opacity={token.hidden ? 0.4 : 1}
                   perfectDrawEnabled={false}
                 />
+                {/* Engaged range ring — shown when within 5ft of an opposing token during combat */}
+                {engagedTokenIds.has(token.id) && (
+                  <Circle
+                    radius={r + 5 / stageScale}
+                    fill="transparent"
+                    stroke="#FF4444"
+                    strokeWidth={2 / stageScale}
+                    opacity={0.75}
+                    dash={[6 / stageScale, 4 / stageScale]}
+                    listening={false}
+                    perfectDrawEnabled={false}
+                  />
+                )}
                 {selectedTokenIds.includes(token.id) && !isPlayerView && (
                   /* Inner rim — above drop shadow */
                   <Circle
@@ -3495,6 +3556,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const labelFontSize = 14 / stageScale;
             const dotR = 5 / stageScale;
             const sw = 2 / stageScale;
+            const textW = 80 / stageScale;
+            const labelRotation = measureEdge === 'top' ? 180 : measureEdge === 'left' ? -90 : 0;
             return (
               <Layer listening={false}>
                 <Line
@@ -3506,9 +3569,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <Circle x={measureStart.x} y={measureStart.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
                 <Circle x={measureEnd.x} y={measureEnd.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
                 <Text
-                  x={midX - 40 / stageScale}
-                  y={midY - labelFontSize * 2}
-                  width={80 / stageScale}
+                  x={midX}
+                  y={midY}
+                  width={textW}
+                  offsetX={textW / 2}
+                  offsetY={labelFontSize / 2}
+                  rotation={labelRotation}
                   text={`${distFeet} ft`}
                   fontSize={labelFontSize}
                   fill="rgba(100, 220, 255, 1)"
@@ -3764,7 +3830,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   key={token.id}
                   x={livePlayerPos[token.id]?.x ?? token.x}
                   y={livePlayerPos[token.id]?.y ?? token.y}
-                  draggable={!activeAoe}
+                  draggable={!activeAoe && !isMeasuringActive}
                   onMouseDown={(e) => { e.cancelBubble = true; }}
                   onDragStart={() => handleDragStart(token.id)}
                   onDragMove={(e) => handleDragMove(token.id, e)}
