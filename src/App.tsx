@@ -590,6 +590,24 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerPortalToggleListener?.(); };
   }, [togglePortal]);
 
+  // Listen for spell marker updates from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerSpellMarkerUpdate) return;
+    window.electronAPI.onPlayerSpellMarkerUpdate((markers: any) => {
+      setCampaign(prev => {
+        const scenarioId = selectedScenarioIdRef.current;
+        if (!prev || !scenarioId) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s =>
+            s.id === scenarioId ? { ...s, spellMarkers: markers } : s
+          ),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerSpellMarkerUpdateListener?.(); };
+  }, []);
+
   const addEnemyToMap = useCallback((monster: any, x: number, y: number) => {
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const newEnemyId = `e-${uniqueId}`;

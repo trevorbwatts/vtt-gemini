@@ -8,6 +8,7 @@ const path_1 = __importDefault(require("path"));
 let dmWindow = null;
 let playerWindow = null;
 let lastKnownState = null;
+let savedMenu = null;
 function createDmWindow() {
     dmWindow = new electron_1.BrowserWindow({
         width: 1400,
@@ -27,6 +28,18 @@ function createDmWindow() {
     else {
         dmWindow.loadFile(path_1.default.join(__dirname, '../dist/index.html'));
     }
+    dmWindow.on('enter-full-screen', () => {
+        dmWindow?.webContents.send('fullscreen-status', true);
+    });
+    dmWindow.on('leave-full-screen', () => {
+        // Restore the menu bar when exiting fullscreen by any means (Escape, F11, etc.)
+        if (savedMenu) {
+            electron_1.Menu.setApplicationMenu(savedMenu);
+        }
+        dmWindow?.setAutoHideMenuBar(false);
+        dmWindow?.setMenuBarVisibility(true);
+        dmWindow?.webContents.send('fullscreen-status', false);
+    });
     dmWindow.on('closed', () => {
         dmWindow = null;
         if (playerWindow) {
@@ -90,6 +103,29 @@ electron_1.app.whenReady().then(() => {
 electron_1.app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         electron_1.app.quit();
+    }
+});
+// --- Fullscreen toggle for DM window ---
+electron_1.ipcMain.on('toggle-fullscreen', () => {
+    if (!dmWindow)
+        return;
+    const isFs = dmWindow.isFullScreen();
+    if (!isFs) {
+        // Entering fullscreen — save the menu and remove it entirely
+        savedMenu = electron_1.Menu.getApplicationMenu();
+        dmWindow.setMenuBarVisibility(false);
+        dmWindow.setAutoHideMenuBar(true);
+        electron_1.Menu.setApplicationMenu(null);
+        dmWindow.setFullScreen(true);
+    }
+    else {
+        // Leaving fullscreen — restore the menu
+        dmWindow.setFullScreen(false);
+        if (savedMenu) {
+            electron_1.Menu.setApplicationMenu(savedMenu);
+        }
+        dmWindow.setAutoHideMenuBar(false);
+        dmWindow.setMenuBarVisibility(true);
     }
 });
 // --- IPC Communication between Windows ---
@@ -170,6 +206,12 @@ electron_1.ipcMain.on('player-condition-update', (_event, data) => {
         dmWindow.webContents.send('player-condition-update', data);
     }
 });
+// Player darkvision updates: proxy to DM window
+electron_1.ipcMain.on('player-darkvision-update', (_event, data) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-darkvision-update', data);
+    }
+});
 // Player color updates: proxy to DM window
 electron_1.ipcMain.on('player-color-update', (_event, data) => {
     if (dmWindow) {
@@ -186,6 +228,23 @@ electron_1.ipcMain.on('player-end-turn', () => {
 electron_1.ipcMain.on('player-target-update', (_event, combatantIds) => {
     if (dmWindow) {
         dmWindow.webContents.send('player-target-update', combatantIds);
+    }
+});
+// Player portal toggle: proxy to DM window
+electron_1.ipcMain.on('player-portal-toggle', (_event, portalId) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-portal-toggle', portalId);
+    }
+});
+// Spell marker sync between DM and Player
+electron_1.ipcMain.on('dm-spell-marker-update', (_event, markers) => {
+    if (playerWindow) {
+        playerWindow.webContents.send('dm-spell-marker-update', markers);
+    }
+});
+electron_1.ipcMain.on('player-spell-marker-update', (_event, markers) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-spell-marker-update', markers);
     }
 });
 // D&D Beyond character import

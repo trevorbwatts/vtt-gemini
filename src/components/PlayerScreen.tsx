@@ -1075,6 +1075,22 @@ export function PlayerScreen() {
       });
     }
 
+    // Listen for DM spell marker updates
+    if (window.electronAPI?.onDMSpellMarkerUpdate) {
+      window.electronAPI.onDMSpellMarkerUpdate((markers: any) => {
+        setCampaign(prev => {
+          const scenarioId = currentScenarioIdRef.current;
+          if (!prev || !scenarioId) return prev;
+          return {
+            ...prev,
+            scenarios: prev.scenarios.map(s =>
+              s.id === scenarioId ? { ...s, spellMarkers: markers } : s
+            ),
+          };
+        });
+      });
+    }
+
     // Listen for DM dismiss (after DM applies damage from the modal)
     if (window.electronAPI?.onDismissPlayerAoe) {
       window.electronAPI.onDismissPlayerAoe(() => {
@@ -1094,6 +1110,7 @@ export function PlayerScreen() {
         window.electronAPI.removeStateUpdateListener();
         window.electronAPI.removeDMTokenUpdateListener?.();
         window.electronAPI.removeDismissPlayerAoeListener?.();
+        window.electronAPI.removeDMSpellMarkerUpdateListener?.();
       }
       if (window.electronAPI?.removePlayerModeListener) {
         window.electronAPI.removePlayerModeListener();
@@ -1412,6 +1429,7 @@ export function PlayerScreen() {
           onClearTargets={handleClearTargets}
           spellMarkers={currentScenario?.spellMarkers || []}
           onSpellMarkersChange={(markers) => {
+            window.electronAPI?.sendPlayerSpellMarkerUpdate?.(markers);
             setCampaign(prev => {
               if (!prev) return prev;
               return {

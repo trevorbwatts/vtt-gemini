@@ -683,53 +683,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
   }, [isPlayerView]);
 
-  // Broadcast spell markers to the other screen on change
-  const spellMarkersJsonRef = useRef('');
-  useEffect(() => {
-    const json = JSON.stringify(spellMarkers);
-    if (json === spellMarkersJsonRef.current) return;
-    spellMarkersJsonRef.current = json;
-    try {
-      if (isPlayerView) {
-        window.electronAPI?.sendPlayerSpellMarkerUpdate?.(spellMarkers);
-      } else {
-        window.electronAPI?.sendDMSpellMarkerUpdate?.(spellMarkers);
-      }
-    } catch (e) {
-      // IPC not available
-    }
-  }, [spellMarkers, isPlayerView]);
-
-  // Listen for spell marker updates from the other screen
-  useEffect(() => {
-    try {
-      if (isPlayerView) {
-        window.electronAPI?.onDMSpellMarkerUpdate?.((markers: any) => {
-          spellMarkersJsonRef.current = JSON.stringify(markers);
-          onSpellMarkersChange?.(markers);
-        });
-      } else {
-        window.electronAPI?.onPlayerSpellMarkerUpdate?.((markers: any) => {
-          spellMarkersJsonRef.current = JSON.stringify(markers);
-          onSpellMarkersChange?.(markers);
-        });
-      }
-    } catch (e) {
-      // IPC not available
-    }
-    return () => {
-      try {
-        if (isPlayerView) {
-          window.electronAPI?.removeDMSpellMarkerUpdateListener?.();
-        } else {
-          window.electronAPI?.removePlayerSpellMarkerUpdateListener?.();
-        }
-      } catch (e) {
-        // IPC not available
-      }
-    };
-  }, [isPlayerView, onSpellMarkersChange]);
-
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
   // Konva moves the node natively during drag; we just need the position for IPC broadcasts.
   const draggingPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -2176,7 +2129,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
         visibleToPlayers: true,
         floorId: activeFloorId || undefined,
       };
-      onSpellMarkersChange?.([...spellMarkers, marker]);
+      const updated = [...spellMarkers, marker];
+      onSpellMarkersChange?.(updated);
+      // Immediately notify the other screen via IPC
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+        } else {
+          window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+        }
+      } catch (_e) { /* IPC not available */ }
       setPlacingSpell(null);
       e.evt.preventDefault();
       return;
@@ -2267,7 +2229,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           visibleToPlayers: true,
           floorId: activeFloorId || undefined,
         };
-        onSpellMarkersChange?.([...spellMarkers, marker]);
+        const updated = [...spellMarkers, marker];
+        onSpellMarkersChange?.(updated);
+        try { window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
         setPlacingSpell(null);
       } else {
         // DM: show visibility prompt
@@ -4090,9 +4054,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       y={marker.y}
                       draggable={!isPlayerView}
                       onDragEnd={(e) => {
-                        onSpellMarkersChange?.(spellMarkers.map(m =>
+                        const updated = spellMarkers.map(m =>
                           m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
-                        ));
+                        );
+                        onSpellMarkersChange?.(updated);
+                        try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
                       }}
                       onMouseEnter={() => setHoveredMarkerId(marker.id)}
                       onMouseLeave={() => setHoveredMarkerId(null)}
@@ -4242,7 +4208,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     visibleToPlayers: true,
                     floorId: activeFloorId || undefined,
                   };
-                  onSpellMarkersChange?.([...spellMarkers, marker]);
+                  const updated = [...spellMarkers, marker];
+                  onSpellMarkersChange?.(updated);
+                  try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
                   setPlacingSpell(null);
                   setPendingMarkerPos(null);
                 }}
@@ -4263,7 +4231,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     visibleToPlayers: false,
                     floorId: activeFloorId || undefined,
                   };
-                  onSpellMarkersChange?.([...spellMarkers, marker]);
+                  const updated = [...spellMarkers, marker];
+                  onSpellMarkersChange?.(updated);
+                  try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
                   setPlacingSpell(null);
                   setPendingMarkerPos(null);
                 }}
@@ -4775,9 +4745,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest opacity-30">{marker.spellName}</p>
                   <button
                     onClick={() => {
-                      onSpellMarkersChange?.(spellMarkers.map(m =>
+                      const updated = spellMarkers.map(m =>
                         m.id === marker.id ? { ...m, visibleToPlayers: !m.visibleToPlayers } : m
-                      ));
+                      );
+                      onSpellMarkersChange?.(updated);
+                      try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
                       setContextMenu(null);
                     }}
                     className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
@@ -4787,7 +4759,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </button>
                   <button
                     onClick={() => {
-                      onSpellMarkersChange?.(spellMarkers.filter(m => m.id !== marker.id));
+                      const updated = spellMarkers.filter(m => m.id !== marker.id);
+                      onSpellMarkersChange?.(updated);
+                      try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
                       setContextMenu(null);
                     }}
                     className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-red-500 hover:text-white transition-colors group text-red-400"

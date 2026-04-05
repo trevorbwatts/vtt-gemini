@@ -2,6 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 electron_1.contextBridge.exposeInMainWorld('electronAPI', {
+    toggleFullscreen: () => electron_1.ipcRenderer.send('toggle-fullscreen'),
+    onFullscreenStatus: (callback) => {
+        electron_1.ipcRenderer.on('fullscreen-status', (_event, isFs) => callback(isFs));
+    },
+    removeFullscreenStatusListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('fullscreen-status');
+    },
     launchPlayerScreen: () => electron_1.ipcRenderer.send('launch-player-screen'),
     closePlayerScreen: () => electron_1.ipcRenderer.send('close-player-screen'),
     sendStateUpdate: (state) => electron_1.ipcRenderer.send('dm-state-update', state),
@@ -83,5 +90,33 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     },
     removePlayerTargetUpdateListener: () => {
         electron_1.ipcRenderer.removeAllListeners('player-target-update');
+    },
+    sendPlayerPortalToggle: (portalId) => electron_1.ipcRenderer.send('player-portal-toggle', portalId),
+    onPlayerPortalToggle: (callback) => {
+        electron_1.ipcRenderer.on('player-portal-toggle', (_event, portalId) => callback(portalId));
+    },
+    removePlayerPortalToggleListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-portal-toggle');
+    },
+    sendPlayerDarkvisionUpdate: (playerId, darkvision) => electron_1.ipcRenderer.send('player-darkvision-update', { playerId, darkvision }),
+    onPlayerDarkvisionUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-darkvision-update', (_event, data) => callback(data));
+    },
+    removePlayerDarkvisionUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-darkvision-update');
+    },
+    sendDMSpellMarkerUpdate: (markers) => electron_1.ipcRenderer.send('dm-spell-marker-update', markers),
+    onDMSpellMarkerUpdate: (callback) => {
+        electron_1.ipcRenderer.on('dm-spell-marker-update', (_event, markers) => callback(markers));
+    },
+    removeDMSpellMarkerUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('dm-spell-marker-update');
+    },
+    sendPlayerSpellMarkerUpdate: (markers) => electron_1.ipcRenderer.send('player-spell-marker-update', markers),
+    onPlayerSpellMarkerUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-spell-marker-update', (_event, markers) => callback(markers));
+    },
+    removePlayerSpellMarkerUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-spell-marker-update');
     },
 });
