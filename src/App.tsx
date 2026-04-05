@@ -113,6 +113,7 @@ export function DMScreen() {
   const clearRemoteAoeRef = useRef<(() => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
+  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
@@ -1273,6 +1274,19 @@ export function DMScreen() {
                 onAddScenario={addScenario}
                 panToNote={panToNote}
                 startCastingRef={startCastingRef}
+                startPlacingRef={startPlacingRef}
+                spellMarkers={currentScenario?.spellMarkers || []}
+                onSpellMarkersChange={(markers) => {
+                  setCampaign(prev => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      scenarios: prev.scenarios.map(s =>
+                        s.id === currentScenario?.id ? { ...s, spellMarkers: markers } : s
+                      ),
+                    };
+                  });
+                }}
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}
                 onPortalTypeChange={changePortalType}
@@ -1352,6 +1366,7 @@ export function DMScreen() {
               onSelectedTokenIdsChange={setSelectedTokenIds}
               onUpdateCombatantHp={updateCombatantHp}
               startCastingRef={startCastingRef}
+              startPlacingRef={startPlacingRef}
               targetedCombatantIds={targetedCombatantIds}
             />
           )}

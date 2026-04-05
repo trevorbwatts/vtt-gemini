@@ -37,8 +37,9 @@ function renderDesc(desc: string): React.ReactNode[] {
 export const SpellAccordion: React.FC<{
   name: string; desc?: string; badge?: string; rangeBadge?: string; aoeBadge?: React.ReactNode; saveBadge?: string;
   onCast?: () => void;
+  onPlace?: () => void;
   onRoll?: (mode: RollMode) => void;
-}> = ({ name, desc, badge, rangeBadge, aoeBadge, saveBadge, onCast, onRoll }) => {
+}> = ({ name, desc, badge, rangeBadge, aoeBadge, saveBadge, onCast, onPlace, onRoll }) => {
   const damageType = desc ? parseDamageType(desc) : null;
   const [open, setOpen] = useState(false);
   const hasDesc = !!desc;
@@ -82,7 +83,15 @@ export const SpellAccordion: React.FC<{
             Cast
           </button>
         )}
-        {onRoll && !onCast && (
+        {onPlace && !onCast && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onPlace(); }}
+            className="shrink-0 px-2.5 py-1 mr-2 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
+          >
+            Place
+          </button>
+        )}
+        {onRoll && !onCast && !onPlace && (
           <div className="flex items-center gap-1 mr-2 shrink-0">
             <Dices size={12} className="text-orange-400/50" />
             {(['NRML', 'ADV', 'DIS'] as const).map((label) => {

@@ -261,6 +261,19 @@ ipcMain.on('player-portal-toggle', (_event, portalId) => {
   }
 });
 
+// Spell marker sync between DM and Player
+ipcMain.on('dm-spell-marker-update', (_event, markers) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dm-spell-marker-update', markers);
+  }
+});
+
+ipcMain.on('player-spell-marker-update', (_event, markers) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-spell-marker-update', markers);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

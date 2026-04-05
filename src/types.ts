@@ -48,6 +48,12 @@ declare global {
       sendPlayerDarkvisionUpdate?: (playerId: string, darkvision: number) => void;
       onPlayerDarkvisionUpdate?: (callback: (data: { playerId: string; darkvision: number }) => void) => void;
       removePlayerDarkvisionUpdateListener?: () => void;
+      sendDMSpellMarkerUpdate?: (markers: any) => void;
+      onDMSpellMarkerUpdate?: (callback: (markers: any) => void) => void;
+      removeDMSpellMarkerUpdateListener?: () => void;
+      sendPlayerSpellMarkerUpdate?: (markers: any) => void;
+      onPlayerSpellMarkerUpdate?: (callback: (markers: any) => void) => void;
+      removePlayerSpellMarkerUpdateListener?: () => void;
       toggleFullscreen?: () => void;
       onFullscreenStatus?: (callback: (isFs: boolean) => void) => void;
       removeFullscreenStatusListener?: () => void;
@@ -163,8 +169,10 @@ export interface Combatant {
     name: string;
     level: number;       // 0 = cantrip
     desc: string;
+    school?: string;     // e.g. 'Illusion', 'Conjuration'
     aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
     aoeSize?: number;    // feet: radius for sphere/cylinder, length for cone/line, side for cube
+    effectRadius?: number; // feet — for non-AoE spells with an area (Light, Alarm, etc.)
     range?: number;      // cast range in feet (0 = self, -1 = touch)
     saveAbility?: string; // 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
     halfDamageOnSave?: boolean;
@@ -225,6 +233,18 @@ export interface MapNote {
   y: number;
 }
 
+export interface SpellMarker {
+  id: string;
+  spellName: string;
+  school: string;
+  casterId?: string;
+  x: number;
+  y: number;
+  effectRadius?: number;    // feet — rendered as translucent circle
+  visibleToPlayers: boolean;
+  floorId?: string;
+}
+
 export interface Viewpoint {
   id: string;
   x: number;
@@ -255,6 +275,7 @@ export interface Floor {
   gridResolution?: GridResolution;
   darknessLevel?: 'daylight' | 'dark';
   mapNotes: MapNote[];
+  spellMarkers?: SpellMarker[];
   viewpoints?: Viewpoint[];
   transitionZones?: TransitionZone[];
 }
@@ -264,6 +285,7 @@ export interface Scenario {
   name: string;
   notes: string;
   mapNotes: MapNote[];
+  spellMarkers?: SpellMarker[];
   viewpoints?: Viewpoint[];
   tokens: Token[];
   combatants: Combatant[];

@@ -30,7 +30,8 @@
     "school": "Illusion",
     "desc": "You create up to four torch-size lights within range, making them appear as torches, lanterns, or glowing orbs that hover for the duration. Alternatively, you combine the four lights into one glowing Medium form that is vaguely humanlike. Whichever form you choose, each light sheds Dim in a 10-foot radius.\n\nAs a Bonus, you can move the lights up to 60 feet to a space within range. A light must be within 20 feet of another light created by this spell, and a light vanishes if it exceeds the spell's range.",
     "range": 120,
-    "source": "2024"
+    "source": "2024",
+    "effectRadius": 10
   },
   {
     "name": "Druidcraft",
@@ -88,7 +89,8 @@
     "school": "Evocation",
     "desc": "You touch one Large or smaller object that isn't being worn or carried by someone else. Until the spell ends, the object sheds Bright in a 20-foot radius and Dim for an additional 20 feet. The light can be colored as you like.\n\nCovering the object with something opaque blocks the light. The spell ends if you cast it again.",
     "range": 0,
-    "source": "2024"
+    "source": "2024",
+    "effectRadius": 20
   },
   {
     "name": "Mage Hand",
@@ -129,7 +131,8 @@
     "school": "Illusion",
     "desc": "You create a sound or an image of an object within range that lasts for the duration. See the descriptions below for the effects of each. The illusion ends if you cast this spell again.\n\nIf a creature takes a Study action to examine the sound or image, the creature can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the illusion becomes faint to the creature.\n\n**Sound.** If you create a sound, its volume can range from a whisper to a scream. It can be your voice, someone else's voice, a lion's roar, a beating of drums, or any other sound you choose. The sound continues unabated throughout the duration, or you can make discrete sounds at different times before the spell ends.\n\n**Image.** If you create an image of an object—such as a chair, muddy footprints, or a small chest—it must be no larger than a 5-foot Cube. The image can't create sound, light, smell, or any other sensory effect. Physical interaction with the image reveals it to be an illusion, since things can pass through it.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "effectRadius": 5
   },
   {
     "name": "Poison Spray",
@@ -288,7 +291,8 @@
     "desc": "You set an alarm against intrusion. Choose a door, a window, or an area within range that is no larger than a 20-foot Cube. Until the spell ends, an alarm alerts you whenever a creature touches or enters the warded area. When you cast the spell, you can designate creatures that won't set off the alarm. You also choose whether the alarm is audible or mental:\n\n• **Audible Alarm.** The alarm produces the sound of a handbell for 10 seconds within 60 feet of the warded area.\n• **Mental Alarm.** You are alerted by a mental ping if you are within 1 mile of the warded area. This ping awakens you if you're asleep.",
     "range": 30,
     "source": "2024",
-    "aoeType": "cone"
+    "aoeType": "cone",
+    "effectRadius": 20
   },
   {
     "name": "Animal Friendship",
@@ -518,7 +522,8 @@
     "source": "2024",
     "aoeType": "cone",
     "aoeSize": 10,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "effectRadius": 20
   },
   {
     "name": "False Life",
@@ -552,7 +557,8 @@
     "range": 120,
     "source": "2024",
     "aoeType": "sphere",
-    "aoeSize": 20
+    "aoeSize": 20,
+    "effectRadius": 20
   },
   {
     "name": "Goodberry",
@@ -766,7 +772,8 @@
     "school": "Illusion",
     "desc": "You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 15-foot Cube. The image appears at a spot within range and lasts for the duration. The image is purely visual; it isn't accompanied by sound, smell, or other sensory effects.\n\nAs a Magic action, you can cause the image to move to any spot within range. As the image changes location, you can alter its appearance so that its movements appear natural for the image. For example, if you create an image of a creature and move it, you can alter the image so that it appears to be walking.\n\nPhysical interaction with the image reveals it to be an illusion, since things can pass through it. A creature that takes a Study action to examine the image can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the creature can see through the image.",
     "range": 60,
-    "source": "2024"
+    "source": "2024",
+    "effectRadius": 15
   },
   {
     "name": "Sleep",
@@ -987,7 +994,8 @@
     "range": 60,
     "source": "2024",
     "aoeType": "sphere",
-    "aoeSize": 15
+    "aoeSize": 15,
+    "effectRadius": 15
   },
   {
     "name": "Darkvision",
@@ -1625,7 +1633,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "effectRadius": 20
   },
   {
     "name": "Hypnotic Pattern",
@@ -1686,7 +1695,8 @@
     "school": "Illusion",
     "desc": "You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 20-foot Cube. The image appears at a spot that you can see within range and lasts for the duration. It seems real, including sounds, smells, and temperature appropriate to the thing depicted, but it can't deal damage or cause conditions.\n\nIf you are within range of the illusion, you can take a Magic action to cause the image to move to any other spot within range. As the image changes location, you can alter its appearance so that its movements appear natural for the image. For example, if you create an image of a creature and move it, you can alter the image so that it appears to be walking. Similarly, you can cause the illusion to make different sounds at different times, even making it carry on a conversation, for example.\n\nPhysical interaction with the image reveals it to be an illusion, for things can pass through it. A creature that takes a Study action to examine the image can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the creature can see through the image, and its other sensory qualities become faint to the creature.",
     "range": 120,
-    "source": "2024"
+    "source": "2024",
+    "effectRadius": 20
   },
   {
     "name": "Mass Healing Word",
@@ -2098,7 +2108,8 @@
     "desc": "You make natural terrain in a 150-foot Cube in range look, sound, and smell like another sort of natural terrain. Thus, open fields or a road can be made to resemble a swamp, hill, crevasse, or some other difficult or impassable terrain. A pond can be made to seem like a grassy meadow, a precipice like a gentle slope, or a rock-strewn gully like a wide and smooth road. Manufactured structures, equipment, and creatures within the area aren't changed.\n\nThe tactile characteristics of the terrain are unchanged, so creatures entering the area are likely to notice the illusion. If the difference isn't obvious by touch, a creature examining the illusion can take the Study action to make an Intelligence (Investigation) check against your spell save DC to disbelieve it. If a creature discerns that the terrain is illusory, the creature sees a vague image superimposed on the real terrain.",
     "range": 300,
     "source": "2024",
-    "aoeType": "cone"
+    "aoeType": "cone",
+    "effectRadius": 150
   },
   {
     "name": "Ice Storm",
@@ -2259,7 +2270,8 @@
     "desc": "An aura extends from you in a 10-foot Emanation for the duration. The aura prevents creatures other than Constructs and Undead from passing or reaching through it. An affected creature can cast spells or make attacks with Ranged or Reach weapons through the barrier.\n\nIf you move so that an affected creature is forced to pass through the barrier, the spell ends.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "sphere",
+    "effectRadius": 10
   },
   {
     "name": "Awaken",
@@ -2906,7 +2918,8 @@
     "school": "Illusion",
     "desc": "You create an illusion of an object, a creature, or some other visible phenomenon within range that activates when a specific trigger occurs. The illusion is imperceptible until then. It must be no larger than a 30-foot Cube, and you decide when you cast the spell how the illusion behaves and what sounds it makes. This scripted performance can last up to 5 minutes.\n\nWhen the trigger you specify occurs, the illusion springs into existence and performs in the manner you described. Once the illusion finishes performing, it disappears and remains dormant for 10 minutes, after which the illusion can be activated again.\n\nThe trigger can be as general or as detailed as you like, though it must be based on visual or audible phenomena that occur within 30 feet of the area. For example, you could create an illusion of yourself to appear and warn off others who attempt to open a trapped door.\n\nPhysical interaction with the image reveals it to be illusory, since things can pass through it. A creature that takes the Study action to examine the image can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the creature can see through the image, and any noise it makes sounds hollow to the creature.",
     "range": 120,
-    "source": "2024"
+    "source": "2024",
+    "effectRadius": 30
   },
   {
     "name": "Summon Fiend",

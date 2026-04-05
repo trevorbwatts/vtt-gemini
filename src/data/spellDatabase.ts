@@ -9,6 +9,7 @@ export interface SpellEntry {
   range: number;
   aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
   aoeSize?: number;
+  effectRadius?: number;
   saveAbility?: string;
   halfDamageOnSave?: boolean;
   source?: '2014' | '2024';
@@ -42,8 +43,10 @@ export function resolveSpells(spellNames: string[]): {
   name: string;
   level: number;
   desc: string;
+  school?: string;
   aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
   aoeSize?: number;
+  effectRadius?: number;
   range?: number;
   saveAbility?: string;
   halfDamageOnSave?: boolean;
@@ -66,8 +69,10 @@ export function resolveSpells(spellNames: string[]): {
         name: entry.name,
         level: entry.level,
         desc: entry.desc,
+        ...(entry.school ? { school: entry.school } : {}),
         ...(entry.aoeType ? { aoeType: entry.aoeType } : {}),
         ...(entry.aoeSize ? { aoeSize: entry.aoeSize } : {}),
+        ...(entry.effectRadius ? { effectRadius: entry.effectRadius } : {}),
         ...(entry.range != null ? { range: entry.range } : {}),
         ...(entry.saveAbility ? { saveAbility: entry.saveAbility } : {}),
         ...(entry.halfDamageOnSave ? { halfDamageOnSave: entry.halfDamageOnSave } : {}),

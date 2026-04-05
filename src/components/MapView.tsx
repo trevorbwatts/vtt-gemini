@@ -10,8 +10,10 @@ import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { BESTIARY } from '../data/bestiary';
+import { lookupSpell } from '../data/spellDatabase';
 import { parseDamageType, getDamageRgb } from '../utils/damageColors';
 import { SpeedText } from './SpeedText';
+import type { SpellMarker } from '../types';
 
 interface MapViewProps {
   tokens: Token[];
@@ -53,6 +55,8 @@ interface MapViewProps {
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
+  /** Ref that MapView populates so external code can trigger spell marker placement */
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so players can enter ruler/measure mode */
@@ -99,6 +103,37 @@ interface MapViewProps {
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
   /** Whether this is the primary (left-most) map panel */
   isPrimary?: boolean;
+  /** Spell markers placed on the map */
+  spellMarkers?: import('../types').SpellMarker[];
+  /** Callback to update spell markers */
+  onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
+}
+
+const SCHOOL_COLORS: Record<string, string> = {
+  Abjuration: '#3b82f6',
+  Conjuration: '#f59e0b',
+  Divination: '#c0c0c0',
+  Enchantment: '#ec4899',
+  Evocation: '#ef4444',
+  Illusion: '#a855f7',
+  Necromancy: '#22c55e',
+  Transmutation: '#f97316',
+};
+
+// SVG path data for school icons (simplified from lucide, scaled to 24x24 viewbox centered at 0,0)
+const SCHOOL_ICON_PATHS: Record<string, string> = {
+  Abjuration:    'M-9 3.6L0-8.4L9 3.6L9 3.6L0 8.4L-9 3.6Z',                    // Shield
+  Conjuration:   'M0-7L1.5-2L7-2L2.5 1.5L4 7L0 3.5L-4 7L-2.5 1.5L-7-2L-1.5-2Z', // Star
+  Divination:    'M0 0m-7 0a7 7 0 1 0 14 0a7 7 0 1 0-14 0M0 0m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0', // Eye
+  Enchantment:   'M0-6C-3-6-6-3-6 0C-6 5 0 8 0 8S6 5 6 0C6-3 3-6 0-6Z',         // Brain/heart
+  Evocation:     'M-2-8L0 0L2-8M0 0L0 8',                                         // Zap
+  Illusion:      'M0-7A7 7 0 0 1 0 7A7 7 0 0 0 0-7',                              // Moon
+  Necromancy:    'M0-5A5 5 0 0 1 0 5A5 5 0 0 1 0-5M-2-2L-2-1M2-2L2-1M-3 2Q0 5 3 2', // Skull
+  Transmutation: 'M-4-3Q0-7 4-3M-5 0Q0-2 5 0M-4 3Q0 7 4 3',                      // Wind
+};
+
+function getSchoolColor(school: string): string {
+  return SCHOOL_COLORS[school] || '#a855f7';
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -487,6 +522,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   darknessLevel,
   onDarknessLevelChange,
   startCastingRef,
+  startPlacingRef,
   cancelCastingRef,
   confirmCastRef,
   onCastingDismissed,
@@ -511,6 +547,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onSwitchFloor,
   onUpdateFloorById,
   isPrimary = true,
+  spellMarkers = [],
+  onSpellMarkersChange,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -524,8 +562,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
     y: number,
     stageX: number,
     stageY: number,
-    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc',
-    viewpointId?: string
+    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc' | 'spell-marker',
+    viewpointId?: string,
+    markerId?: string,
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
@@ -591,6 +630,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
 
+  // ── Spell Marker Placement State ──
+  const [placingSpell, setPlacingSpell] = useState<{
+    name: string;
+    school: string;
+    effectRadius?: number;
+    casterId?: string;
+  } | null>(null);
+  const [pendingMarkerPos, setPendingMarkerPos] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+
   // Remote AoE: placed by the other screen (DM sees player's AoE, player sees DM's AoE)
   const [remoteAoe, setRemoteAoe] = useState<typeof placedAoe>(null);
 
@@ -633,6 +682,53 @@ const MapViewInner: React.FC<MapViewProps> = ({
       // IPC not available
     }
   }, [isPlayerView]);
+
+  // Broadcast spell markers to the other screen on change
+  const spellMarkersJsonRef = useRef('');
+  useEffect(() => {
+    const json = JSON.stringify(spellMarkers);
+    if (json === spellMarkersJsonRef.current) return;
+    spellMarkersJsonRef.current = json;
+    try {
+      if (isPlayerView) {
+        window.electronAPI?.sendPlayerSpellMarkerUpdate?.(spellMarkers);
+      } else {
+        window.electronAPI?.sendDMSpellMarkerUpdate?.(spellMarkers);
+      }
+    } catch (e) {
+      // IPC not available
+    }
+  }, [spellMarkers, isPlayerView]);
+
+  // Listen for spell marker updates from the other screen
+  useEffect(() => {
+    try {
+      if (isPlayerView) {
+        window.electronAPI?.onDMSpellMarkerUpdate?.((markers: any) => {
+          spellMarkersJsonRef.current = JSON.stringify(markers);
+          onSpellMarkersChange?.(markers);
+        });
+      } else {
+        window.electronAPI?.onPlayerSpellMarkerUpdate?.((markers: any) => {
+          spellMarkersJsonRef.current = JSON.stringify(markers);
+          onSpellMarkersChange?.(markers);
+        });
+      }
+    } catch (e) {
+      // IPC not available
+    }
+    return () => {
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.removeDMSpellMarkerUpdateListener?.();
+        } else {
+          window.electronAPI?.removePlayerSpellMarkerUpdateListener?.();
+        }
+      } catch (e) {
+        // IPC not available
+      }
+    };
+  }, [isPlayerView, onSpellMarkersChange]);
 
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
   // Konva moves the node natively during drag; we just need the position for IPC broadcasts.
@@ -772,6 +868,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
       });
       setCastingMousePos(null);
       // Deselect token so the monster panel dismisses
+      setSelectedTokenIds([]);
+      setSelectedTokenId(null);
+    };
+  }
+
+  // Expose spell-marker placement function to external code via ref
+  if (startPlacingRef) {
+    startPlacingRef.current = (spell, combatantId) => {
+      const entry = lookupSpell(spell.name);
+      setPlacingSpell({
+        name: spell.name,
+        school: spell.school || entry?.school || 'Evocation',
+        effectRadius: spell.effectRadius ?? entry?.effectRadius,
+        casterId: combatantId,
+      });
+      setPendingMarkerPos(null);
       setSelectedTokenIds([]);
       setSelectedTokenId(null);
     };
@@ -2049,6 +2161,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchEnd = (e: any) => {
+    // Spell marker placement on touch (player view)
+    if (placingSpell && e.evt.changedTouches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      const marker: SpellMarker = {
+        id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        spellName: placingSpell.name,
+        school: placingSpell.school,
+        casterId: placingSpell.casterId,
+        x: pos.x,
+        y: pos.y,
+        effectRadius: placingSpell.effectRadius,
+        visibleToPlayers: true,
+        floorId: activeFloorId || undefined,
+      };
+      onSpellMarkersChange?.([...spellMarkers, marker]);
+      setPlacingSpell(null);
+      e.evt.preventDefault();
+      return;
+    }
+
     // AoE casting on player view: place AoE on finger lift
     if (castingSpell && e.evt.changedTouches.length === 1 && castingMousePos) {
       const angle = Math.atan2(
@@ -2115,6 +2248,31 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const pos = getCanvasPos(e.target.getStage());
       setMeasureStart(pos);
       setMeasureEnd(pos);
+      return;
+    }
+
+    // Spell marker placement: click to place
+    if (placingSpell && e.evt.button === 0) {
+      const pos = getCanvasPos(e.target.getStage());
+      if (isPlayerView) {
+        // Player: place immediately as visible
+        const marker: SpellMarker = {
+          id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          spellName: placingSpell.name,
+          school: placingSpell.school,
+          casterId: placingSpell.casterId,
+          x: pos.x,
+          y: pos.y,
+          effectRadius: placingSpell.effectRadius,
+          visibleToPlayers: true,
+          floorId: activeFloorId || undefined,
+        };
+        onSpellMarkersChange?.([...spellMarkers, marker]);
+        setPlacingSpell(null);
+      } else {
+        // DM: show visibility prompt
+        setPendingMarkerPos(pos);
+      }
       return;
     }
 
@@ -3915,6 +4073,101 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
+          {/* Spell Markers — visible to both DM and players */}
+          {spellMarkers.length > 0 && (
+            <Layer>
+              {spellMarkers
+                .filter(m => !isPlayerView || m.visibleToPlayers)
+                .filter(m => !m.floorId || m.floorId === activeFloorId)
+                .map(marker => {
+                  const color = getSchoolColor(marker.school);
+                  const markerRadius = tokenRadius * 0.5;
+                  const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
+                  return (
+                    <Group
+                      key={marker.id}
+                      x={marker.x}
+                      y={marker.y}
+                      draggable={!isPlayerView}
+                      onDragEnd={(e) => {
+                        onSpellMarkersChange?.(spellMarkers.map(m =>
+                          m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
+                        ));
+                      }}
+                      onMouseEnter={() => setHoveredMarkerId(marker.id)}
+                      onMouseLeave={() => setHoveredMarkerId(null)}
+                      onContextMenu={(e) => {
+                        if (isPlayerView) return;
+                        e.evt.preventDefault();
+                        e.cancelBubble = true;
+                        setContextMenu({
+                          x: marker.x,
+                          y: marker.y,
+                          stageX: e.evt.clientX,
+                          stageY: e.evt.clientY,
+                          view: 'spell-marker',
+                          markerId: marker.id,
+                        });
+                      }}
+                      onMouseDown={(e) => { e.cancelBubble = true; }}
+                    >
+                      {/* Effect radius overlay */}
+                      {effectPx > 0 && (
+                        <Circle
+                          radius={effectPx}
+                          fill={color}
+                          opacity={0.1}
+                          stroke={color}
+                          strokeWidth={1}
+                          dash={[6, 4]}
+                        />
+                      )}
+                      {/* Icon background circle */}
+                      <Circle
+                        radius={markerRadius}
+                        fill={color}
+                        opacity={!isPlayerView && !marker.visibleToPlayers ? 0.4 : 0.85}
+                        stroke={hoveredMarkerId === marker.id ? 'white' : 'rgba(0,0,0,0.5)'}
+                        strokeWidth={hoveredMarkerId === marker.id ? 2 : 1}
+                      />
+                      {/* School icon */}
+                      {SCHOOL_ICON_PATHS[marker.school] && (
+                        <Path
+                          data={SCHOOL_ICON_PATHS[marker.school]}
+                          fill="white"
+                          opacity={0.9}
+                          scaleX={markerRadius / 14}
+                          scaleY={markerRadius / 14}
+                        />
+                      )}
+                      {/* Hidden indicator for DM */}
+                      {!isPlayerView && !marker.visibleToPlayers && (
+                        <Text
+                          text="🚫"
+                          fontSize={markerRadius * 0.6}
+                          x={markerRadius * 0.3}
+                          y={-markerRadius * 0.9}
+                        />
+                      )}
+                      {/* Hover label */}
+                      {hoveredMarkerId === marker.id && (
+                        <Text
+                          text={marker.spellName}
+                          y={markerRadius + 4}
+                          fontSize={12}
+                          fill="white"
+                          align="center"
+                          offsetX={0}
+                          width={120}
+                          x={-60}
+                        />
+                      )}
+                    </Group>
+                  );
+                })}
+            </Layer>
+          )}
+
           {/* Map Notes — above fog so they're always visible to the DM */}
           {!isPlayerView && mapNotes.length > 0 && (
             <Layer>
@@ -3942,6 +4195,94 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
         </Stage>
+
+        {/* Placing spell indicator */}
+        {placingSpell && !pendingMarkerPos && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
+            <div className="flex items-center gap-3 px-4 py-2 rounded-xl shadow-2xl border"
+              style={{
+                background: `${getSchoolColor(placingSpell.school)}20`,
+                borderColor: `${getSchoolColor(placingSpell.school)}40`,
+              }}
+            >
+              <span className="text-xs font-bold" style={{ color: getSchoolColor(placingSpell.school) }}>
+                Placing: {placingSpell.name}
+              </span>
+              <button
+                onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); }}
+                className="text-white/40 hover:text-white/80 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Spell marker visibility prompt — DM only */}
+        {pendingMarkerPos && placingSpell && !isPlayerView && (
+          <div
+            className="absolute z-50 pointer-events-auto"
+            style={{
+              left: (pendingMarkerPos.x * stageScale + stagePos.x) - 60,
+              top: (pendingMarkerPos.y * stageScale + stagePos.y) - 60,
+            }}
+          >
+            <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl p-3 space-y-2 w-[140px]">
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 text-center">{placingSpell.name}</p>
+              <button
+                onClick={() => {
+                  const marker: SpellMarker = {
+                    id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    spellName: placingSpell.name,
+                    school: placingSpell.school,
+                    casterId: placingSpell.casterId,
+                    x: pendingMarkerPos.x,
+                    y: pendingMarkerPos.y,
+                    effectRadius: placingSpell.effectRadius,
+                    visibleToPlayers: true,
+                    floorId: activeFloorId || undefined,
+                  };
+                  onSpellMarkersChange?.([...spellMarkers, marker]);
+                  setPlacingSpell(null);
+                  setPendingMarkerPos(null);
+                }}
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
+              >
+                Visible
+              </button>
+              <button
+                onClick={() => {
+                  const marker: SpellMarker = {
+                    id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    spellName: placingSpell.name,
+                    school: placingSpell.school,
+                    casterId: placingSpell.casterId,
+                    x: pendingMarkerPos.x,
+                    y: pendingMarkerPos.y,
+                    effectRadius: placingSpell.effectRadius,
+                    visibleToPlayers: false,
+                    floorId: activeFloorId || undefined,
+                  };
+                  onSpellMarkersChange?.([...spellMarkers, marker]);
+                  setPlacingSpell(null);
+                  setPendingMarkerPos(null);
+                }}
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 transition-colors"
+              >
+                Hidden
+              </button>
+              <button
+                onClick={() => {
+                  setPlacingSpell(null);
+                  setPendingMarkerPos(null);
+                }}
+                className="w-full px-2 py-1 rounded text-[10px] font-bold text-white/20 hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tower View return button — player screen only, shown while a viewpoint is active */}
         {isPlayerView && activeViewpointId && (() => {
@@ -4425,6 +4766,38 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </button>
               </div>
             )}
+
+            {contextMenu.view === 'spell-marker' && contextMenu.markerId && (() => {
+              const marker = spellMarkers.find(m => m.id === contextMenu.markerId);
+              if (!marker) return null;
+              return (
+                <div className="flex flex-col py-1">
+                  <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest opacity-30">{marker.spellName}</p>
+                  <button
+                    onClick={() => {
+                      onSpellMarkersChange?.(spellMarkers.map(m =>
+                        m.id === marker.id ? { ...m, visibleToPlayers: !m.visibleToPlayers } : m
+                      ));
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
+                  >
+                    {marker.visibleToPlayers ? <EyeOff size={14} className="opacity-50 group-hover:opacity-100" /> : <Eye size={14} className="opacity-50 group-hover:opacity-100" />}
+                    <span>{marker.visibleToPlayers ? 'Hide from Players' : 'Show to Players'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onSpellMarkersChange?.(spellMarkers.filter(m => m.id !== marker.id));
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-red-500 hover:text-white transition-colors group text-red-400"
+                  >
+                    <Trash2 size={14} className="opacity-50 group-hover:opacity-100" />
+                    <span>Dismiss</span>
+                  </button>
+                </div>
+              );
+            })()}
 
             {contextMenu.view === 'add-enemy' && (
               <div className="flex flex-col h-[550px]">

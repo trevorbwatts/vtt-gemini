@@ -16,17 +16,21 @@ interface ActionRollModalProps {
   actionName: string;
   result: ActionRollResult | null;
   onClose: () => void;
+  /** Player edge — rotates the modal for top/left players */
+  edge?: 'top' | 'bottom' | 'left';
 }
 
-export const ActionRollModal: React.FC<ActionRollModalProps> = ({ isOpen, actionName, result, onClose }) => {
+export const ActionRollModal: React.FC<ActionRollModalProps> = ({ isOpen, actionName, result, onClose, edge }) => {
   if (!isOpen || !result) return null;
 
   const { attackRoll, attackBonus, attackTotal, isCrit, isFumble, damageResults, totalDamage, rollMode, d20Rolls } = result;
   const isDamageOnly = attackRoll === -1;
 
+  const rotationClass = edge === 'top' ? 'rotate-180' : edge === 'left' ? 'rotate-90' : '';
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
+      <div className={cn("fixed inset-0 z-[100] flex items-center justify-center p-4", rotationClass)} onClick={onClose}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

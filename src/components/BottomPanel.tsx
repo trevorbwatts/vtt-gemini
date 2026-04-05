@@ -60,6 +60,9 @@ interface BottomPanelProps {
   // Spell casting from detail panel
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
 
+  // Spell marker placement from detail panel
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>;
+
   // Targeting
   targetedCombatantIds?: Set<string>;
 }
@@ -83,6 +86,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   onSelectedTokenIdsChange,
   onUpdateCombatantHp,
   startCastingRef,
+  startPlacingRef,
   targetedCombatantIds,
 }) => {
   // ── Panel height (resizable) ──
@@ -896,6 +900,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         startCastingRef?.current?.(spell, detailSourceId);
                       };
 
+                      const startPlacing = (spell: { name: string; school?: string; effectRadius?: number; range?: number }) => {
+                        if (!detailSourceId) return;
+                        startPlacingRef?.current?.(spell, detailSourceId);
+                      };
+
+                      const isPlaceable = (spell: { aoeType?: string; aoeSize?: number; range?: number }) =>
+                        !spell.aoeType && spell.range != null && spell.range > 0;
+
                       // Compute spell attack bonus from spellSaveDc (DC = 8 + prof + mod, attack = prof + mod)
                       const spellAtkBonus = detailSource.spellSaveDc ? detailSource.spellSaveDc - 8 : 0;
 
@@ -922,6 +934,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                             saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
                             onCast={spell.aoeType ? () => startCasting(spell) : undefined}
+                            onPlace={isPlaceable(spell) ? () => startPlacing(spell) : undefined}
                             onRoll={!hasAoe ? makeSpellRoll(spell.desc, spell.name) : undefined} />
                           );
                         });
@@ -960,6 +973,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                   aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                                   saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}` : undefined}
                                   onCast={spell.aoeType ? () => startCasting(spellWithDc) : undefined}
+                                  onPlace={isPlaceable(spell) ? () => startPlacing(spell) : undefined}
                                   onRoll={rollHandler} />
                                 );
                               })}

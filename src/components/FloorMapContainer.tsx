@@ -42,6 +42,7 @@ interface FloorMapContainerProps {
   onSelectedTokenIdsChange?: (ids: string[]) => void;
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   startCastingRef?: React.MutableRefObject<((spell: any, combatantId: string) => void) | null>;
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>;
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
@@ -61,6 +62,8 @@ interface FloorMapContainerProps {
   onTransitionZonesChange?: (zones: TransitionZone[]) => void;
   onSwitchFloor?: (floorId: string) => void;
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
+  spellMarkers?: import('../types').SpellMarker[];
+  onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -173,6 +176,8 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onTransitionZonesChange: isPrimary ? props.onTransitionZonesChange : undefined,
     onSwitchFloor: props.onSwitchFloor,
     onUpdateFloorById: props.onUpdateFloorById,
+    spellMarkers: props.spellMarkers,
+    onSpellMarkersChange: isPrimary ? props.onSpellMarkersChange : undefined,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
@@ -189,6 +194,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       selectedTokenIds: props.selectedTokenIds,
       onSelectedTokenIdsChange: props.onSelectedTokenIdsChange,
       startCastingRef: props.startCastingRef,
+      startPlacingRef: props.startPlacingRef,
       cancelCastingRef: props.cancelCastingRef,
       confirmCastRef: props.confirmCastRef,
       onCastingDismissed: props.onCastingDismissed,

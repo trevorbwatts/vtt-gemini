@@ -109,4 +109,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerDarkvisionUpdateListener: () => {
     ipcRenderer.removeAllListeners('player-darkvision-update');
   },
+  sendDMSpellMarkerUpdate: (markers: any) => ipcRenderer.send('dm-spell-marker-update', markers),
+  onDMSpellMarkerUpdate: (callback: (markers: any) => void) => {
+    ipcRenderer.on('dm-spell-marker-update', (_event, markers) => callback(markers));
+  },
+  removeDMSpellMarkerUpdateListener: () => {
+    ipcRenderer.removeAllListeners('dm-spell-marker-update');
+  },
+  sendPlayerSpellMarkerUpdate: (markers: any) => ipcRenderer.send('player-spell-marker-update', markers),
+  onPlayerSpellMarkerUpdate: (callback: (markers: any) => void) => {
+    ipcRenderer.on('player-spell-marker-update', (_event, markers) => callback(markers));
+  },
+  removePlayerSpellMarkerUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-spell-marker-update');
+  },
 });

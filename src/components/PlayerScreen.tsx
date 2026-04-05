@@ -255,10 +255,12 @@ const SpellRow: React.FC<{
   spellSaveDc?: number;
   spellAttackBonus?: number;
   onPress: () => void;
+  onPlace?: () => void;
   onRoll?: (mode: RollMode) => void;
   disabled?: boolean;
-}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onRoll, disabled }) => {
+}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, onRoll, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
+  const isPlaceable = !hasAoe && spell.range != null && spell.range > 0;
   // Resolve effective description: prefer spell.desc, fall back to local DB if it yields no damage
   const localEntry = !hasAoe ? lookupSpell(spell.name) : null;
   const effectiveDesc = spell.desc || localEntry?.desc || '';
@@ -268,7 +270,7 @@ const SpellRow: React.FC<{
     <div className="flex items-center gap-2 py-2">
       <span className={cn(
         'font-bold flex-1 min-w-0 truncate text-xs',
-        hasAoe && !disabled ? 'text-purple-400' : hasDamage && !disabled ? 'text-blue-400' : 'text-white/40'
+        hasAoe && !disabled ? 'text-purple-400' : hasDamage && !disabled ? 'text-blue-400' : isPlaceable && !disabled && onPlace ? 'text-purple-400' : 'text-white/40'
       )}>{spell.name}</span>
       <div className="flex items-center gap-1.5 shrink-0">
         <DamageTypeBadge damageType={damageType} />
@@ -294,6 +296,14 @@ const SpellRow: React.FC<{
             className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40 active:bg-[var(--accent)]/40 transition-colors"
           >
             Cast
+          </button>
+        )}
+        {isPlaceable && !disabled && onPlace && (
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onPlace(); }}
+            className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/40 active:bg-purple-500/40 transition-colors"
+          >
+            Place
           </button>
         )}
         {hasDamage && !disabled && onRoll && (
@@ -350,10 +360,11 @@ const SpellsPanel: React.FC<{
   anchorY: number;
   edge: 'top' | 'bottom' | 'left';
   onCast: (spell: any) => void;
+  onPlace: (spell: any) => void;
   onClose: () => void;
   onDarkvisionChange: (newValue: number) => void;
   preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
-}> = ({ player, anchorX, anchorY, edge, onCast, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
   const spells = player.spells || [];
 
   const spellSaveDc = useMemo(() => {
@@ -442,9 +453,11 @@ const SpellsPanel: React.FC<{
 
   const searchResults = useMemo(() => {
     if (spellSearch.trim().length < 2) return [];
-    // Include AoE spells (for Cast) AND non-AoE spells with damage dice (for NRML/ADV/DIS rolls)
+    // Include AoE spells (for Cast), non-AoE spells with damage dice (for NRML/ADV/DIS rolls),
+    // and placeable spells (range > 0, no aoeType) for spell markers
     return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell =>
-      (spell.aoeType && spell.aoeSize) || !!(spell.desc && parseSpellDamage(spell.desc))
+      (spell.aoeType && spell.aoeSize) || !!(spell.desc && parseSpellDamage(spell.desc)) ||
+      (!spell.aoeType && spell.range != null && spell.range > 0)
     ).slice(0, 20);
   }, [spellSearch, enabledSources]);
 
@@ -565,6 +578,7 @@ const SpellsPanel: React.FC<{
                   const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
                   onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
                 }}
+                onPlace={() => onPlace(spell)}
                 onRoll={(mode) => {
                   const localDesc = lookupSpell(spell.name)?.desc || '';
                   const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
@@ -684,7 +698,7 @@ const SpellsPanel: React.FC<{
               <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
               <div className="divide-y divide-white/10">
                 {recentSpells.map((spell, i) => (
-                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
+                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
                 ))}
               </div>
             </div>
@@ -692,7 +706,7 @@ const SpellsPanel: React.FC<{
           {searchResults.length > 0 && (
             <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
               {searchResults.map((spell, i) => (
-                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
+                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
               ))}
             </div>
           )}
@@ -747,6 +761,7 @@ const SpellsPanel: React.FC<{
         actionName={rollModal?.name || ''}
         result={rollModal?.result || null}
         onClose={() => setRollModal(null)}
+        edge={edge}
       />
     </>
   );
@@ -978,6 +993,7 @@ export function PlayerScreen() {
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
+  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
@@ -1187,6 +1203,18 @@ export function PlayerScreen() {
     setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility });
   }, [actionRing, signedInSpots, campaign]);
 
+  const handlePlaceSpell = useCallback((spell: any) => {
+    if (!actionRing) return;
+    const { spotId } = actionRing;
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+    const player = campaign.players.find(p => p.id === playerId);
+    if (!player) return;
+    setActionRing(null);
+    setOpenPanel(null);
+    startPlacingRef.current?.(spell, player.id);
+  }, [actionRing, signedInSpots, campaign]);
+
   const handleConditionToggle = useCallback((spotId: SpotId, condition: string) => {
     const playerId = signedInSpots[spotId];
     if (!playerId || !campaign) return;
@@ -1369,6 +1397,7 @@ export function PlayerScreen() {
           onDragStatusChange={handleDragStatusChange}
           viewportCenter={viewportCenter}
           startCastingRef={startCastingRef}
+          startPlacingRef={startPlacingRef}
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}
           onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}
@@ -1381,6 +1410,18 @@ export function PlayerScreen() {
           targetedCombatantIds={targetedCombatantIds}
           onToggleTarget={handleToggleTarget}
           onClearTargets={handleClearTargets}
+          spellMarkers={currentScenario?.spellMarkers || []}
+          onSpellMarkersChange={(markers) => {
+            setCampaign(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                scenarios: prev.scenarios.map(s =>
+                  s.id === currentScenarioId ? { ...s, spellMarkers: markers } : s
+                ),
+              };
+            });
+          }}
         />
       </div>
 
@@ -1392,7 +1433,7 @@ export function PlayerScreen() {
         const posClass = edge === 'top'
           ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
           : edge === 'left'
-          ? 'left-4 top-1/2 -translate-y-1/2 -rotate-90'
+          ? 'left-4 top-1/2 -translate-y-1/2 origin-left rotate-90'
           : 'bottom-4 left-1/2 -translate-x-1/2';
         return (
           <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
@@ -1433,7 +1474,7 @@ export function PlayerScreen() {
         const posClass = edge === 'top'
           ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
           : edge === 'left'
-          ? 'left-4 top-1/2 -translate-y-1/2 -rotate-90'
+          ? 'left-4 top-1/2 -translate-y-1/2 origin-left rotate-90'
           : 'bottom-4 left-1/2 -translate-x-1/2';
         return (
           <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
@@ -1504,6 +1545,7 @@ export function PlayerScreen() {
             anchorY={actionRing.y}
             edge={config.edge}
             onCast={handleCastSpell}
+            onPlace={handlePlaceSpell}
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
             onDarkvisionChange={(newValue) => {
               const playerId = signedInSpots[actionRing.spotId];
