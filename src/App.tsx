@@ -14,8 +14,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AddCombatantModal } from './components/AddCombatantModal';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
-import { parseAoeDamage, rollAoeDamage } from './utils/actionParser';
-import type { ActionRollResult } from './utils/actionParser';
+import { parseSpellDamage } from './utils/actionParser';
 
 // Load persisted panel states from localStorage
 function loadPanelStates(): { left: boolean; nav: boolean } {
@@ -123,10 +122,10 @@ export function DMScreen() {
 
   // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
-  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any>; rolledDamage: ActionRollResult | null } | null>(null);
+  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any> } | null>(null);
   const prevSaveResultsRef = useRef<Record<string, any> | null>(null);
 
-  // Auto-open combined damage + saves modal when save results arrive
+  // Auto-open damage input modal when player confirms an AoE cast
   useEffect(() => {
     const prev = prevSaveResultsRef.current;
     const curr = aoeHighlights?.saveResults;
@@ -136,25 +135,23 @@ export function DMScreen() {
     if (prev || !curr) return;
     if (!aoeHighlights?.spellName || !aoeHighlights?.saveAbility || !aoeHighlights?.saveDc) return;
 
-    // Roll damage from the spell description
-    const dmgGroups = parseAoeDamage(aoeHighlights.spellDesc || '');
-    const rolledDamage = dmgGroups ? rollAoeDamage(dmgGroups) : null;
+    // Check if this spell deals damage at all (vs. condition-only)
+    const hasDamage = !!parseSpellDamage(aoeHighlights.spellDesc || '');
 
-    if (!rolledDamage) {
+    if (!hasDamage) {
       // Condition-only spell — auto-dismiss AoE on both screens
       window.electronAPI?.sendDismissPlayerAoe?.();
       setAoeHighlights(null);
       return;
     }
 
-    // Open combined modal — shows damage roll + save results (even if only players in AoE)
+    // Open modal so DM can enter the damage the player physically rolled
     setSpellDamageModal({
       spellName: aoeHighlights.spellName,
       saveAbility: aoeHighlights.saveAbility,
       saveDc: aoeHighlights.saveDc,
       halfDamageOnSave: aoeHighlights.halfDamageOnSave || false,
       saveResults: curr,
-      rolledDamage,
     });
   }, [aoeHighlights?.saveResults]);
 
@@ -1449,7 +1446,6 @@ export function DMScreen() {
           saveDc={spellDamageModal?.saveDc || 0}
           halfDamageOnSave={spellDamageModal?.halfDamageOnSave || false}
           saveResults={spellDamageModal?.saveResults || {}}
-          rolledDamage={spellDamageModal?.rolledDamage || null}
           onApply={handleApplySpellDamage}
           onClose={() => {
             // DM closed without applying — still clear the AoE on both screens

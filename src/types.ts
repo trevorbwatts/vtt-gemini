@@ -142,6 +142,7 @@ export interface Combatant {
   ac: number;
   type: 'player' | 'enemy' | 'npc';
   species?: string;
+  draconicAncestry?: string; // e.g. 'red', 'blue', 'gold' — for Dragonborn breath weapon
   speed?: number;
   darkvision?: number;
   classes?: ClassDefinition[];

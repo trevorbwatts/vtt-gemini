@@ -112,6 +112,61 @@ function getArmorClass(data: any): number {
   return baseAc + bonusAc + dexBonus;
 }
 
+// --- Draconic Ancestry ---
+
+const DRAGON_COLORS = ['black','blue','brass','bronze','copper','gold','green','red','silver','white'];
+
+function getDraconicAncestry(data: any): string | undefined {
+  // Only applies to Dragonborn characters
+  const raceName = (data.race?.baseRaceName || data.race?.fullName || '').toLowerCase();
+  if (!raceName.includes('dragonborn')) return undefined;
+
+  const search = (str: string) => {
+    const s = str.toLowerCase();
+    return DRAGON_COLORS.find(c => s.includes(c));
+  };
+
+  // Strategy 1: color in fullName / subRaceName / subRaceShortName
+  for (const field of ['fullName', 'subRaceName', 'subRaceShortName', 'baseRaceName']) {
+    const found = search(data.race?.[field] || '');
+    if (found) return found;
+  }
+
+  // Strategy 2: racial traits like "Draconic Ancestry (Red)"
+  for (const trait of (data.race?.racialTraits || [])) {
+    const found = search(trait.definition?.name || '');
+    if (found) return found;
+  }
+
+  // Strategy 3: racial choices — find the "Draconic Ancestry" choice and read its selected option
+  for (const choice of (data.choices?.race || [])) {
+    const defName = (choice.definition?.name || '').toLowerCase();
+    if (defName.includes('draconic') || defName.includes('ancestry') || defName.includes('dragon')) {
+      const options: any[] = choice.definition?.options || [];
+      const selected = options.find((o: any) => o.id === choice.optionValue);
+      if (selected) {
+        const found = search(selected.label || selected.name || '');
+        if (found) return found;
+      }
+      // Also try string-searching the option keys directly
+      for (const opt of options) {
+        if (opt.id === choice.optionValue) {
+          const found = search(JSON.stringify(opt));
+          if (found) return found;
+        }
+      }
+    }
+  }
+
+  // Strategy 4: scan all racial trait definitions for a color name
+  for (const trait of (data.race?.racialTraits || [])) {
+    const found = search(JSON.stringify(trait.definition || ''));
+    if (found) return found;
+  }
+
+  return undefined;
+}
+
 // --- Speed & Darkvision ---
 
 function getSpeed(data: any): number {
@@ -266,6 +321,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
     ac: getArmorClass(data),
     type: 'player',
     species: data.race?.fullName || data.race?.baseRaceName,
+    draconicAncestry: getDraconicAncestry(data),
     speed: getSpeed(data),
     darkvision: getDarkvision(data),
     classes: getClasses(data),

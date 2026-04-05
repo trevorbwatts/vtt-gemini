@@ -2,9 +2,9 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { MapView } from './MapView';
 import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
-import { Campaign, Token, Combatant, MonsterAction, cn } from '../types';
+import { Campaign, Token, Combatant, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame, Swords, Ruler } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, Flame, Ruler } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import actionsData from '../data/actions.json';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
@@ -185,20 +185,17 @@ const ActionRing: React.FC<{
   edge: 'top' | 'bottom' | 'left';
   onSpells: () => void;
   onConditions: () => void;
-  onActions: () => void;
   onMeasure: () => void;
   onEndTurn: () => void;
   onToggleTorch: () => void;
   isTorchLit: boolean;
   onClose: () => void;
   isPlayersTurn: boolean;
-  hasAbilities: boolean;
-}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onActions, onMeasure, onEndTurn, onToggleTorch, isTorchLit, onClose, isPlayersTurn, hasAbilities }) => {
+}> = ({ anchorX, anchorY, edge, onSpells, onConditions, onMeasure, onEndTurn, onToggleTorch, isTorchLit, onClose, isPlayersTurn }) => {
   const contentRotate = edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
   const allItems = [
-    { label: 'Spells',     icon: BookOpen, color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
+    { label: 'Spells &\nAbils', icon: BookOpen, color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
     { label: 'Conditions', icon: Zap,      color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
-    ...(hasAbilities ? [{ label: 'Abilities', icon: Swords, color: 'bg-[#001a1a] border-teal-500/40 text-teal-400', onClick: onActions }] : []),
     {
       label: isTorchLit ? 'Douse' : 'Torch',
       icon: Flame,
@@ -242,7 +239,7 @@ const ActionRing: React.FC<{
         >
           <div className="flex flex-col items-center justify-center gap-0.5" style={{ transform: `rotate(${contentRotate}deg)` }}>
             <item.icon size={18} />
-            <span className="text-[8px] font-bold tracking-wide">
+            <span className="text-[8px] font-bold tracking-wide text-center whitespace-pre-line leading-tight">
               {item.label}
             </span>
           </div>
@@ -322,57 +319,21 @@ const SpellRow: React.FC<{
   );
 };
 
-// ─── Action Row (for special player actions tab) ───
-const ActionRow: React.FC<{
-  action: MonsterAction;
-  aoe: ActionAoe | null;
-  disabled: boolean;
-  onCast: () => void;
-}> = ({ action, aoe, disabled, onCast }) => {
-  const [expanded, setExpanded] = useState(false);
-  const damageType = action.desc ? parseDamageType(action.desc) : null;
-  return (
-    <div className="py-2">
-      <div className="flex items-center gap-2">
-        <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', aoe && !disabled ? 'text-orange-400' : 'text-white/70')}>
-          {action.name}
-        </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <DamageTypeBadge damageType={damageType} />
-          {aoe?.saveAbility && (
-            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
-              {aoe.saveAbility.toUpperCase()}{aoe.saveDc ? ` ${aoe.saveDc}` : ''}
-            </span>
-          )}
-          {aoe && (
-            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-orange-500/15 text-orange-300 flex items-center gap-0.5">
-              {aoe.aoeSize}ft{AOE_ICONS[aoe.aoeType] ? React.createElement(AOE_ICONS[aoe.aoeType], { size: 9 }) : ''}
-            </span>
-          )}
-          {aoe && !disabled && (
-            <button
-              onPointerDown={(e) => { e.stopPropagation(); onCast(); }}
-              className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/40 active:bg-orange-500/40 transition-colors"
-            >
-              Cast
-            </button>
-          )}
-          {action.desc && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
-              className="p-0.5 text-white/25 hover:text-white/40 transition-colors"
-            >
-              <ChevronDown size={10} className={cn('transition-transform duration-150', expanded && 'rotate-180')} />
-            </button>
-          )}
-        </div>
-      </div>
-      {expanded && action.desc && (
-        <p className="text-[10px] text-white/40 mt-1 leading-relaxed pr-1">{action.desc}</p>
-      )}
-    </div>
-  );
+// Dragon ancestry → damage type mapping
+const DRACONIC_DAMAGE: Record<string, string> = {
+  black: 'acid', blue: 'lightning', brass: 'fire', bronze: 'lightning',
+  copper: 'acid', gold: 'fire', green: 'poison', red: 'fire',
+  silver: 'cold', white: 'cold',
 };
+
+/** Breath Weapon damage dice based on total character level */
+function getBreathWeaponDice(player: Combatant): string {
+  const level = player.classes?.reduce((sum, c) => sum + c.level, 0) || 1;
+  if (level >= 17) return '4d10';
+  if (level >= 11) return '3d10';
+  if (level >= 5)  return '2d10';
+  return '1d10';
+}
 
 /** Compute a save DC for a player action when not present in the description. */
 function computeActionSaveDc(player: Combatant): number {
@@ -390,7 +351,9 @@ const SpellsPanel: React.FC<{
   edge: 'top' | 'bottom' | 'left';
   onCast: (spell: any) => void;
   onClose: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onClose }) => {
+  onDarkvisionChange: (newValue: number) => void;
+  preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
+}> = ({ player, anchorX, anchorY, edge, onCast, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
   const spells = player.spells || [];
 
   const spellSaveDc = useMemo(() => {
@@ -413,11 +376,6 @@ const SpellsPanel: React.FC<{
     return 8 + player.proficiencyBonus + bestMod;
   }, [player]);
 
-  const actions = useMemo(() => [
-    ...(player.actions || []),
-    ...(player.specialAbilities || []),
-  ], [player.actions, player.specialAbilities]);
-
   const spellAttackBonus = useMemo(() => {
     if (!player.proficiencyBonus || !player.classes?.length || !player.stats) return undefined;
     // spellSaveDc = 8 + prof + mod  →  spell attack bonus = prof + mod = spellSaveDc - 8
@@ -428,8 +386,46 @@ const SpellsPanel: React.FC<{
 
   const [rollModal, setRollModal] = useState<{ name: string; result: ActionRollResult } | null>(null);
 
+  // ── Abilities (from static actions data) ──
+  const abilities = useMemo(() => (actionsData as AbilityEntry[]).filter(entry => {
+    if (entry.source === 'species') {
+      if (!entry.species) return false;
+      return player.species?.toLowerCase().includes(entry.species.toLowerCase()) ?? false;
+    }
+    return player.classes?.some(c =>
+      c.name.toLowerCase() === (entry.class ?? '').toLowerCase() &&
+      (!entry.subclass || c.subclass?.toLowerCase().includes(entry.subclass.toLowerCase())) &&
+      c.level >= entry.levelRequired
+    ) ?? false;
+  }), [player]);
+
+  const [activeAbilities, setActiveAbilities] = useState<Set<string>>(new Set());
+
+  const handleToggleAbility = (entry: AbilityEntry) => {
+    const isOn = activeAbilities.has(entry.id);
+    const next = new Set(activeAbilities);
+    if (isOn) {
+      next.delete(entry.id);
+      if (entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet') {
+        const original = preAbilityDarkvisionRef.current[entry.id] ?? (player.darkvision ?? 0);
+        delete preAbilityDarkvisionRef.current[entry.id];
+        onDarkvisionChange(original);
+      }
+    } else {
+      next.add(entry.id);
+      if (entry.behavior === 'darkvision' && entry.darkvisionBonus != null) {
+        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
+        onDarkvisionChange((player.darkvision ?? 0) + entry.darkvisionBonus);
+      } else if (entry.behavior === 'darkvisionSet' && entry.darkvisionValue != null) {
+        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
+        onDarkvisionChange(entry.darkvisionValue);
+      }
+    }
+    setActiveAbilities(next);
+  };
+
   const [showKeyboard, setShowKeyboard] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'actions' | 'lookup'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'abilities' | 'lookup'>('my');
   const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2014', '2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
@@ -533,13 +529,13 @@ const SpellsPanel: React.FC<{
         >
           My Spells
         </button>
-        {actions.length > 0 && (
+        {abilities.length > 0 && (
           <button
-            onClick={() => { setActiveTab('actions'); setShowKeyboard(false); }}
+            onClick={() => { setActiveTab('abilities'); setShowKeyboard(false); }}
             className={cn('flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
-              activeTab === 'actions' ? 'text-orange-400 border-orange-500' : 'text-white/25 border-transparent hover:text-white/40')}
+              activeTab === 'abilities' ? 'text-teal-400 border-teal-500' : 'text-white/25 border-transparent hover:text-white/40')}
           >
-            Actions
+            Abilities
           </button>
         )}
         <button
@@ -583,44 +579,86 @@ const SpellsPanel: React.FC<{
         </div>
       )}
 
-      {/* Actions */}
-      {activeTab === 'actions' && (
+      {/* Abilities */}
+      {activeTab === 'abilities' && (
         <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="divide-y divide-white/10">
-            {actions.map((action, i) => {
-              const aoe = parseActionAoe(action.desc);
+            {abilities.flatMap(entry => {
+              const isInteractive = entry.behavior === 'toggle' || entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet';
+              if (isInteractive) {
+                const isActive = activeAbilities.has(entry.id);
+                return [(
+                  <div key={entry.id} className="flex items-center gap-2 py-2">
+                    <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', isActive ? 'text-teal-300' : 'text-white/40')}>
+                      {entry.name}
+                    </span>
+                    <button
+                      onPointerDown={(e) => { e.stopPropagation(); handleToggleAbility(entry); }}
+                      className={cn(
+                        'shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border transition-colors',
+                        isActive
+                          ? 'bg-teal-500/20 border-teal-500/40 text-teal-300 active:bg-teal-500/30'
+                          : 'bg-white/10 border-white/20 text-white/40 active:bg-white/15'
+                      )}
+                    >
+                      {isActive ? 'On' : 'Off'}
+                    </button>
+                  </div>
+                )];
+              }
+
+              // Entries with multiple AoE variants (e.g. Breath Weapon: Cone + Line)
+              if (entry.variants && entry.variants.length > 0) {
+                const ancestryKey = player.draconicAncestry?.toLowerCase() || '';
+                const damageType = DRACONIC_DAMAGE[ancestryKey] || 'fire';
+                const dice = getBreathWeaponDice(player);
+                const saveDc = computeActionSaveDc(player);
+                return entry.variants.map(variant => {
+                  const asSpell = {
+                    name: `${entry.name} (${variant.label})`,
+                    desc: `${dice} ${damageType} damage`,
+                    aoeType: variant.aoeType as any,
+                    aoeSize: variant.aoeSize,
+                    range: 0,
+                    saveAbility: 'dex',
+                    level: 0,
+                  };
+                  return (
+                    <SpellRow
+                      key={`${entry.id}-${variant.label}`}
+                      spell={asSpell}
+                      spellSaveDc={saveDc}
+                      disabled={!ready}
+                      onPress={() => onCast({ ...asSpell, saveDc, halfDamageOnSave: true })}
+                    />
+                  );
+                });
+              }
+
+              // Standard single-AoE castable ability
+              const aoe = parseActionAoe(entry.description);
               const saveDc = aoe?.saveDc ?? computeActionSaveDc(player);
-              // Convert action to spell-like object so SpellRow renders it identically to spells
               const asSpell = {
-                name: action.name,
-                desc: action.desc,
+                name: entry.name,
+                desc: entry.description,
                 aoeType: aoe?.aoeType,
                 aoeSize: aoe?.aoeSize,
                 range: 0,
                 saveAbility: aoe?.saveAbility,
                 level: 0,
               };
-              return (
+              return [(
                 <SpellRow
-                  key={i}
+                  key={entry.id}
                   spell={asSpell}
                   spellSaveDc={saveDc}
-                  spellAttackBonus={spellAttackBonus}
                   disabled={!ready}
                   onPress={() => {
                     if (!aoe) return;
-                    const half = aoe.halfDamageOnSave ?? true;
-                    onCast({ ...asSpell, saveDc, halfDamageOnSave: half });
-                  }}
-                  onRoll={(mode) => {
-                    const groups = parseSpellDamage(action.desc || '');
-                    if (!groups) return;
-                    const bonus = spellAttackBonus ?? 0;
-                    const result = rollAction({ attackBonus: bonus, damageGroups: groups }, mode);
-                    setRollModal({ name: action.name, result });
+                    onCast({ ...asSpell, saveDc, halfDamageOnSave: aoe.halfDamageOnSave ?? true });
                   }}
                 />
-              );
+              )];
             })}
           </div>
         </div>
@@ -822,156 +860,8 @@ interface AbilityEntry {
   behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'display' | 'wip';
   darkvisionBonus?: number;
   darkvisionValue?: number;
+  variants?: Array<{ label: string; aoeType: string; aoeSize: number }>;
 }
-
-const ACTION_TYPE_COLORS: Record<string, string> = {
-  'action':        'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  'bonus action':  'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  'magic action':  'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  'reaction':      'bg-red-500/20 text-red-300 border-red-500/30',
-  'passive':       'bg-white/10 text-white/40 border-white/15',
-};
-
-const ActionsPanel: React.FC<{
-  player: Combatant;
-  anchorX: number;
-  anchorY: number;
-  edge: 'top' | 'bottom' | 'left';
-  onClose: () => void;
-  onDarkvisionChange: (newValue: number) => void;
-  preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
-}> = ({ player, anchorX, anchorY, edge, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
-  const [activeAbilities, setActiveAbilities] = useState<Set<string>>(new Set());
-
-  const abilities = (actionsData as AbilityEntry[]).filter(entry => {
-    if (entry.source === 'species') {
-      if (!entry.species) return false;
-      return player.species?.toLowerCase().includes(entry.species.toLowerCase()) ?? false;
-    }
-    return player.classes?.some(c =>
-      c.name.toLowerCase() === (entry.class ?? '').toLowerCase() &&
-      (!entry.subclass || c.subclass?.toLowerCase().includes(entry.subclass.toLowerCase())) &&
-      c.level >= entry.levelRequired
-    ) ?? false;
-  });
-
-  const handleToggle = (entry: AbilityEntry) => {
-    const isOn = activeAbilities.has(entry.id);
-    const next = new Set(activeAbilities);
-    if (isOn) {
-      next.delete(entry.id);
-      if (entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet') {
-        const original = preAbilityDarkvisionRef.current[entry.id] ?? (player.darkvision ?? 0);
-        delete preAbilityDarkvisionRef.current[entry.id];
-        onDarkvisionChange(original);
-      }
-    } else {
-      next.add(entry.id);
-      if (entry.behavior === 'darkvision' && entry.darkvisionBonus != null) {
-        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
-        onDarkvisionChange((player.darkvision ?? 0) + entry.darkvisionBonus);
-      } else if (entry.behavior === 'darkvisionSet' && entry.darkvisionValue != null) {
-        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
-        onDarkvisionChange(entry.darkvisionValue);
-      }
-    }
-    setActiveAbilities(next);
-  };
-
-  const PANEL_W = 340;
-  const isLeft = edge === 'left';
-  const panelStyle: React.CSSProperties = (() => {
-    const hCenter = Math.max(8, Math.min(window.innerWidth - PANEL_W - 8, anchorX - PANEL_W / 2));
-    if (edge === 'top') return { left: hCenter, top: 8, transform: 'rotate(180deg)', transformOrigin: 'center top' };
-    if (isLeft) {
-      const vh = window.innerHeight;
-      return { left: 8, top: Math.max(8, (vh - PANEL_W) / 2), width: Math.min(vh - 16, PANEL_W), height: PANEL_W };
-    }
-    return { left: hCenter, bottom: 8 };
-  })();
-
-  const innerWrap = isLeft ? { transform: 'rotate(90deg)', width: PANEL_W } as React.CSSProperties : undefined;
-
-  const panelContent = (
-    <>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-white/60 text-[10px] uppercase tracking-widest font-bold">Abilities — {player.name}</span>
-        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
-          <X size={14} className="text-white/40" />
-        </button>
-      </div>
-      {abilities.length === 0 ? (
-        <p className="text-white/30 text-xs text-center py-4">No abilities available for this character.</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {abilities.map(entry => {
-            const isActive = activeAbilities.has(entry.id);
-            const isInteractive = entry.behavior === 'toggle' || entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet';
-            const badgeColor = ACTION_TYPE_COLORS[entry.actionType] ?? ACTION_TYPE_COLORS['passive'];
-            return (
-              <div
-                key={entry.id}
-                className={cn(
-                  'rounded-lg border p-2.5 transition-colors',
-                  isActive ? 'bg-teal-500/10 border-teal-500/30' : 'bg-white/5 border-white/10'
-                )}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className={cn('text-xs font-bold', isActive ? 'text-teal-300' : 'text-white/80')}>
-                    {entry.name}
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {entry.behavior === 'wip' && (
-                      <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white/30 border border-white/15">
-                        Soon
-                      </span>
-                    )}
-                    <span className={cn('text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border', badgeColor)}>
-                      {entry.actionType}
-                    </span>
-                    {isInteractive && (
-                      <button
-                        onPointerDown={(e) => { e.stopPropagation(); handleToggle(entry); }}
-                        className={cn(
-                          'text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded border transition-colors',
-                          isActive
-                            ? 'bg-teal-500/25 border-teal-500/50 text-teal-300'
-                            : 'bg-white/10 border-white/20 text-white/50 hover:bg-white/15'
-                        )}
-                      >
-                        {isActive ? 'On' : 'Off'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <p className="text-[9px] text-white/40 leading-relaxed">{entry.description}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
-
-  return (
-    <>
-      <div className="fixed inset-0 z-50" onPointerDown={onClose} />
-      <div
-        className="fixed bg-black/95 border border-white/10 rounded-lg overflow-hidden"
-        style={{ ...panelStyle, ...(!isLeft && { width: PANEL_W, maxHeight: 'calc(100vh - 16px)' }), zIndex: 60 }}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        {isLeft ? (
-          <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            <div style={innerWrap} className="p-3">{panelContent}</div>
-          </div>
-        ) : (
-          <div className="p-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 32px)' }}>{panelContent}</div>
-        )}
-      </div>
-    </>
-  );
-};
 
 // ─── Initiative Strip ───
 // Condenses multiple enemies of the same name into a single entry.
@@ -1084,7 +974,7 @@ export function PlayerScreen() {
 
   // Action ring + panel state (play mode)
   const [actionRing, setActionRing] = useState<{ tokenId: string; spotId: SpotId; x: number; y: number } | null>(null);
-  const [openPanel, setOpenPanel] = useState<'spells' | 'conditions' | 'actions' | null>(null);
+  const [openPanel, setOpenPanel] = useState<'spells' | 'conditions' | null>(null);
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
@@ -1573,17 +1463,6 @@ export function PlayerScreen() {
         const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
         const isPlayersTurn = !!(activeEntry && activeEntry.sourceCombatantId === playerId);
         const isTorchLit = !!(playerId && torchLitPlayerIds.has(playerId));
-        const ringPlayer = getPlayerForSpot(actionRing.spotId);
-        const hasAbilities = ringPlayer != null && (actionsData as AbilityEntry[]).some(entry => {
-          if (entry.source === 'species') {
-            return ringPlayer.species?.toLowerCase().includes((entry.species ?? '').toLowerCase()) ?? false;
-          }
-          return ringPlayer.classes?.some(c =>
-            c.name.toLowerCase() === (entry.class ?? '').toLowerCase() &&
-            (!entry.subclass || c.subclass?.toLowerCase().includes(entry.subclass.toLowerCase())) &&
-            c.level >= entry.levelRequired
-          ) ?? false;
-        });
         return (
           <ActionRing
             anchorX={actionRing.x}
@@ -1591,7 +1470,6 @@ export function PlayerScreen() {
             edge={config.edge}
             onSpells={() => setOpenPanel('spells')}
             onConditions={() => setOpenPanel('conditions')}
-            onActions={() => setOpenPanel('actions')}
             onMeasure={() => {
               const spotId = actionRing.spotId;
               const edge = spotConfigs[spotId].edge;
@@ -1610,7 +1488,6 @@ export function PlayerScreen() {
             isTorchLit={isTorchLit}
             onClose={() => setActionRing(null)}
             isPlayersTurn={isPlayersTurn}
-            hasAbilities={hasAbilities}
           />
         );
       })()}
@@ -1628,6 +1505,16 @@ export function PlayerScreen() {
             edge={config.edge}
             onCast={handleCastSpell}
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
+            onDarkvisionChange={(newValue) => {
+              const playerId = signedInSpots[actionRing.spotId];
+              if (!playerId) return;
+              window.electronAPI?.sendPlayerDarkvisionUpdate?.(playerId, newValue);
+              setCampaign(prev => {
+                if (!prev) return prev;
+                return { ...prev, players: prev.players.map(p => p.id === playerId ? { ...p, darkvision: newValue } : p) };
+              });
+            }}
+            preAbilityDarkvisionRef={preAbilityDarkvisionRef}
           />
         );
       })()}
@@ -1645,32 +1532,6 @@ export function PlayerScreen() {
             edge={config.edge}
             onToggle={(cond) => handleConditionToggle(actionRing.spotId, cond)}
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
-          />
-        );
-      })()}
-
-      {/* Abilities Panel */}
-      {actionRing && openPanel === 'actions' && (() => {
-        const player = getPlayerForSpot(actionRing.spotId);
-        if (!player) return null;
-        const config = spotConfigs[actionRing.spotId];
-        return (
-          <ActionsPanel
-            player={player}
-            anchorX={actionRing.x}
-            anchorY={actionRing.y}
-            edge={config.edge}
-            onClose={() => { setOpenPanel(null); setActionRing(null); }}
-            onDarkvisionChange={(newValue) => {
-              const playerId = signedInSpots[actionRing.spotId];
-              if (!playerId) return;
-              window.electronAPI?.sendPlayerDarkvisionUpdate?.(playerId, newValue);
-              setCampaign(prev => {
-                if (!prev) return prev;
-                return { ...prev, players: prev.players.map(p => p.id === playerId ? { ...p, darkvision: newValue } : p) };
-              });
-            }}
-            preAbilityDarkvisionRef={preAbilityDarkvisionRef}
           />
         );
       })()}
