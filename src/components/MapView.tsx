@@ -4052,13 +4052,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       key={marker.id}
                       x={marker.x}
                       y={marker.y}
-                      draggable={!isPlayerView}
+                      draggable={true}
                       onDragEnd={(e) => {
                         const updated = spellMarkers.map(m =>
                           m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
                         );
                         onSpellMarkersChange?.(updated);
-                        try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
+                        if (!isPlayerView) {
+                          try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
+                        }
                       }}
                       onMouseEnter={() => setHoveredMarkerId(marker.id)}
                       onMouseLeave={() => setHoveredMarkerId(null)}
