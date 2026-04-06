@@ -694,6 +694,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const PATH_SYNC_INTERVAL = 150; // ~7fps — movement path visuals are cosmetic during drag
   // Live drag position overrides for player view — drives real-time fog recomputation
   const [livePlayerPos, setLivePlayerPos] = useState<Record<string, { x: number; y: number }>>({});
+  // Live drag positions for spell markers (Light cantrip) — drives real-time fog recomputation
+  const [liveMarkerPos, setLiveMarkerPos] = useState<Record<string, { x: number; y: number }>>({});
 
   // Wall collision — prevents tokens from passing through walls during drag
   const [wallCollisionEnabled, setWallCollisionEnabled] = useState(true);
@@ -1144,13 +1146,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
       ));
     }
 
-    // Placed Light cantrip markers — treated as dynamic light sources
+    // Placed Light cantrip markers — treated as dynamic light sources.
+    // Use live drag position if currently being dragged for real-time fog update.
     for (const marker of spellMarkers) {
       if (marker.spellName !== 'Light' || !marker.effectRadius) continue;
       if (marker.floorId && marker.floorId !== activeFloorId) continue;
+      const live = liveMarkerPos[marker.id];
       const radiusPx = (marker.effectRadius / 5) * ppg;
       results.push(computeRadiusLimitedVisibilityPolygon(
-        { x: marker.x, y: marker.y },
+        { x: live?.x ?? marker.x, y: live?.y ?? marker.y },
         blockingSegments,
         mapW, mapH,
         radiusPx
@@ -1158,7 +1162,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     return results;
-  }, [lights, spellMarkers, activeFloorId, blockingSegments, loadedImage, ppg]);
+  }, [lights, spellMarkers, liveMarkerPos, activeFloorId, blockingSegments, loadedImage, ppg]);
 
   // Full (unclipped) LOS polygons for every player token — used as clip masks when rendering
   // light-visible areas. Only computed when there are lights and we're in player view.
@@ -4101,7 +4105,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       x={marker.x}
                       y={marker.y}
                       draggable={true}
+                      onDragMove={(e) => {
+                        if (marker.spellName === 'Light') {
+                          setLiveMarkerPos(prev => ({
+                            ...prev,
+                            [marker.id]: { x: e.target.x(), y: e.target.y() },
+                          }));
+                        }
+                      }}
                       onDragEnd={(e) => {
+                        // Clear live position override
+                        setLiveMarkerPos(prev => {
+                          const next = { ...prev };
+                          delete next[marker.id];
+                          return next;
+                        });
                         const updated = spellMarkers.map(m =>
                           m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
                         );
@@ -4127,8 +4145,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       }}
                       onMouseDown={(e) => { e.cancelBubble = true; }}
                     >
-                      {/* Effect radius overlay */}
-                      {effectPx > 0 && (
+                      {/* Effect radius overlay — hidden for Light (fog removal is the visual feedback).
+                          listening=false so the large circle doesn't capture drag events. */}
+                      {effectPx > 0 && marker.spellName !== 'Light' && (
                         <Circle
                           radius={effectPx}
                           fill={color}
@@ -4136,6 +4155,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           stroke={color}
                           strokeWidth={1}
                           dash={[6, 4]}
+                          listening={false}
                         />
                       )}
                       {/* Icon background circle */}
