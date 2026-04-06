@@ -147,7 +147,7 @@
     "range": 0,
     "source": "2014",
     "saveAbility": "dex",
-    "effectRadius": 20
+    "effectRadius": 40
   },
   {
     "name": "Lightning Lure",

@@ -13,8 +13,8 @@ import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
 
 // ─── Sign-in spot types ───
-type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left';
-const SPOT_IDS: SpotId[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'left'];
+type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+const SPOT_IDS: SpotId[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 const AOE_ICONS: Record<string, React.FC<{ size?: number; className?: string }>> = {
   sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
@@ -256,21 +256,19 @@ const SpellRow: React.FC<{
   spellAttackBonus?: number;
   onPress: () => void;
   onPlace?: () => void;
-  onRoll?: (mode: RollMode) => void;
   disabled?: boolean;
-}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, onRoll, disabled }) => {
+}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
   const isPlaceable = !hasAoe && spell.range != null && spell.range > 0;
   // Resolve effective description: prefer spell.desc, fall back to local DB if it yields no damage
   const localEntry = !hasAoe ? lookupSpell(spell.name) : null;
   const effectiveDesc = spell.desc || localEntry?.desc || '';
   const damageType = effectiveDesc ? parseDamageType(effectiveDesc) : null;
-  const hasDamage = !hasAoe && !!onRoll && !!(effectiveDesc && parseSpellDamage(effectiveDesc));
   return (
     <div className="flex items-center gap-2 py-2">
       <span className={cn(
         'font-bold flex-1 min-w-0 truncate text-xs',
-        hasAoe && !disabled ? 'text-purple-400' : hasDamage && !disabled ? 'text-blue-400' : isPlaceable && !disabled && onPlace ? 'text-purple-400' : 'text-white/40'
+        hasAoe && !disabled ? 'text-purple-400' : isPlaceable && !disabled && onPlace ? 'text-purple-400' : 'text-white/40'
       )}>{spell.name}</span>
       <div className="flex items-center gap-1.5 shrink-0">
         <DamageTypeBadge damageType={damageType} />
@@ -305,24 +303,6 @@ const SpellRow: React.FC<{
           >
             Place
           </button>
-        )}
-        {hasDamage && !disabled && onRoll && (
-          <div className="flex gap-0.5 ml-1">
-            {(['normal', 'advantage', 'disadvantage'] as RollMode[]).map((mode) => (
-              <button
-                key={mode}
-                onPointerDown={(e) => { e.stopPropagation(); onRoll(mode); }}
-                className={cn(
-                  'shrink-0 px-1.5 py-1 rounded text-[8px] font-bold uppercase tracking-wide border transition-colors',
-                  mode === 'normal'      && 'bg-blue-500/15 text-blue-300 border-blue-500/30 active:bg-blue-500/30',
-                  mode === 'advantage'   && 'bg-green-500/15 text-green-300 border-green-500/30 active:bg-green-500/30',
-                  mode === 'disadvantage'&& 'bg-purple-500/15 text-purple-300 border-purple-500/30 active:bg-purple-500/30',
-                )}
-              >
-                {mode === 'normal' ? 'NRML' : mode === 'advantage' ? 'ADV' : 'DIS'}
-              </button>
-            ))}
-          </div>
         )}
       </div>
     </div>
@@ -453,11 +433,12 @@ const SpellsPanel: React.FC<{
 
   const searchResults = useMemo(() => {
     if (spellSearch.trim().length < 2) return [];
-    // Include AoE spells (for Cast), non-AoE spells with damage dice (for NRML/ADV/DIS rolls),
-    // and placeable spells (range > 0, no aoeType) for spell markers
+    // Include AoE spells (for Cast), placeable spells (range > 0, no aoeType), and named exceptions
+    const PLACEABLE_EXCEPTIONS = ['Light'];
     return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell =>
-      (spell.aoeType && spell.aoeSize) || !!(spell.desc && parseSpellDamage(spell.desc)) ||
-      (!spell.aoeType && spell.range != null && spell.range > 0)
+      (spell.aoeType && spell.aoeSize) ||
+      (!spell.aoeType && spell.range != null && spell.range > 0) ||
+      PLACEABLE_EXCEPTIONS.includes(spell.name)
     ).slice(0, 20);
   }, [spellSearch, enabledSources]);
 
@@ -698,7 +679,7 @@ const SpellsPanel: React.FC<{
               <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
               <div className="divide-y divide-white/10">
                 {recentSpells.map((spell, i) => (
-                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
+                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} />
                 ))}
               </div>
             </div>
@@ -706,7 +687,7 @@ const SpellsPanel: React.FC<{
           {searchResults.length > 0 && (
             <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
               {searchResults.map((spell, i) => (
-                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} onRoll={(mode) => { const groups = parseSpellDamage(spell.desc || ''); if (!groups) return; const result = rollAction({ attackBonus: spellAttackBonus ?? 0, damageGroups: groups }, mode); setRollModal({ name: spell.name, result }); }} />
+                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} />
               ))}
             </div>
           )}
@@ -1341,7 +1322,6 @@ export function PlayerScreen() {
     'top-right':    { rotation: 180, edge: 'top',    setupClass: 'top-6 left-[62%] -translate-x-1/2',     drawerClass: '-translate-x-1/2' },
     'bottom-left':  { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[25%] -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
     'bottom-right': { rotation: 0,   edge: 'bottom', setupClass: 'bottom-6 left-[62%] -translate-x-1/2',  drawerClass: '-translate-x-1/2' },
-    'left':         { rotation: 90,  edge: 'left',   setupClass: 'left-[68px] -translate-x-1/2 top-1/2 -translate-y-1/2', drawerClass: 'top-1/2 -translate-y-1/2' },
   };
 
   // ── SETUP MODE ──
