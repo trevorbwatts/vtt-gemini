@@ -1126,19 +1126,39 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }, [isPlayerView, loadedImage, darknessLevel, playerTokenPositions, blockingSegments,
       players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
-  // Light illumination polygons — one per UVTT light source (raycasted from each light's position)
+  // Light illumination polygons — UVTT static lights + placed Light spell markers.
+  // Each polygon represents the area a light source can illuminate (wall-blocked raycasting
+  // from the light's position). The FogOfWarLayer intersects these with player LOS to reveal fog.
   const lightPolygons = useMemo((): WallPoint[][] => {
-    if (!lights?.length || !loadedImage) return [];
-    return lights.map(light =>
-      computeRadiusLimitedVisibilityPolygon(
+    if (!loadedImage) return [];
+    const { width: mapW, height: mapH } = loadedImage;
+    const results: WallPoint[][] = [];
+
+    // UVTT static lights (torches, fires, etc. baked into the map file)
+    for (const light of (lights ?? [])) {
+      results.push(computeRadiusLimitedVisibilityPolygon(
         { x: light.x, y: light.y },
         blockingSegments,
-        loadedImage.width,
-        loadedImage.height,
+        mapW, mapH,
         light.radiusPx
-      )
-    );
-  }, [lights, blockingSegments, loadedImage]);
+      ));
+    }
+
+    // Placed Light cantrip markers — treated as dynamic light sources
+    for (const marker of spellMarkers) {
+      if (marker.spellName !== 'Light' || !marker.effectRadius) continue;
+      if (marker.floorId && marker.floorId !== activeFloorId) continue;
+      const radiusPx = (marker.effectRadius / 5) * ppg;
+      results.push(computeRadiusLimitedVisibilityPolygon(
+        { x: marker.x, y: marker.y },
+        blockingSegments,
+        mapW, mapH,
+        radiusPx
+      ));
+    }
+
+    return results;
+  }, [lights, spellMarkers, activeFloorId, blockingSegments, loadedImage, ppg]);
 
   // Full (unclipped) LOS polygons for every player token — used as clip masks when rendering
   // light-visible areas. Only computed when there are lights and we're in player view.
