@@ -4134,11 +4134,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         if (isPlayerView) return;
                         e.evt.preventDefault();
                         e.cancelBubble = true;
+                        const pos = e.target.getStage()?.getPointerPosition();
                         setContextMenu({
                           x: marker.x,
                           y: marker.y,
-                          stageX: e.evt.clientX,
-                          stageY: e.evt.clientY,
+                          stageX: pos?.x ?? e.evt.clientX,
+                          stageY: pos?.y ?? e.evt.clientY,
                           view: 'spell-marker',
                           markerId: marker.id,
                         });
