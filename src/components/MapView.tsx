@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line, Transformer } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone } from '../types';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
-import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle } from '../utils/visibility';
+import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle, computeRadiusLimitedVisibilityPolygon } from '../utils/visibility';
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
@@ -41,7 +41,8 @@ interface MapViewProps {
   objectWalls?: WallSegment[];
   portals?: Portal[];
   gridResolution?: GridResolution;
-  onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
+  lights?: UVTTLight[];
+  onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution, lights?: UVTTLight[]) => void;
   onPortalToggle?: (portalId: string) => void;
   onPortalTypeChange?: (portalId: string, type: 'door' | 'window' | 'secret') => void;
   onDragStatusChange?: (isDragging: boolean) => void;
@@ -509,6 +510,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   objectWalls,
   portals,
   gridResolution,
+  lights,
   onWallDataChange,
   onPortalToggle,
   onPortalTypeChange,
@@ -1124,6 +1126,30 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }, [isPlayerView, loadedImage, darknessLevel, playerTokenPositions, blockingSegments,
       players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
+  // Light illumination polygons — one per UVTT light source (raycasted from each light's position)
+  const lightPolygons = useMemo((): WallPoint[][] => {
+    if (!lights?.length || !loadedImage) return [];
+    return lights.map(light =>
+      computeRadiusLimitedVisibilityPolygon(
+        { x: light.x, y: light.y },
+        blockingSegments,
+        loadedImage.width,
+        loadedImage.height,
+        light.radiusPx
+      )
+    );
+  }, [lights, blockingSegments, loadedImage]);
+
+  // Full (unclipped) LOS polygons for every player token — used as clip masks when rendering
+  // light-visible areas. Only computed when there are lights and we're in player view.
+  const playerFullLOSPolygons = useMemo((): WallPoint[][] => {
+    if (!isPlayerView || !loadedImage || !lightPolygons.length) return [];
+    const { width: mapW, height: mapH } = loadedImage;
+    return playerTokenPositions.map(t =>
+      computeVisibilityPolygon({ x: t.x, y: t.y }, blockingSegments, mapW, mapH)
+    );
+  }, [isPlayerView, loadedImage, lightPolygons.length, playerTokenPositions, blockingSegments]);
+
   const hasFogData = blockingSegments.length > 0;
 
   // Viewpoint proximity — which viewpoints have a player token within 3 grid squares
@@ -1303,7 +1329,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         try {
           const result = parseUVTTFile(event.target?.result as string);
           onMapChange(result.mapImage);
-          onWallDataChange?.(result.walls, result.objectWalls, result.portals, result.gridResolution);
+          onWallDataChange?.(result.walls, result.objectWalls, result.portals, result.gridResolution, result.lights);
         } catch (err) {
           alert(`Failed to parse UVTT file: ${(err as Error).message}`);
         }
@@ -3936,6 +3962,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
             <Layer listening={false}>
               <FogOfWarLayer
                 visibilityPolygons={isPlayerView ? playerVisionData : visibilityPolygons}
+                playerLOSPolygons={playerFullLOSPolygons}
+                lightPolygons={lightPolygons}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
                 opacity={isPlayerView ? 1.0 : 0.7}

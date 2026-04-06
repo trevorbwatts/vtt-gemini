@@ -223,6 +223,15 @@ export interface GridResolution {
   pixelsPerGrid: number;
 }
 
+export interface UVTTLight {
+  id: string;
+  x: number;        // pixel coords
+  y: number;
+  radiusPx: number; // illumination radius in pixels (converted from feet at parse time)
+  color?: string;   // hex color string from UVTT file
+  intensity?: number; // 0–1
+}
+
 export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'secret' | 'clue';
 
 export interface MapNote {
@@ -273,6 +282,7 @@ export interface Floor {
   objectWalls?: WallSegment[];
   portals?: Portal[];
   gridResolution?: GridResolution;
+  lights?: UVTTLight[];
   darknessLevel?: 'daylight' | 'dark';
   mapNotes: MapNote[];
   spellMarkers?: SpellMarker[];

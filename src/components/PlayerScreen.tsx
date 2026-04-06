@@ -12,6 +12,9 @@ import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, Acti
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
 
+// Spells with range 0 (touch) that should still appear as placeable map markers
+const PLACEABLE_EXCEPTIONS = ['Light'];
+
 // ─── Sign-in spot types ───
 type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const SPOT_IDS: SpotId[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
@@ -259,7 +262,7 @@ const SpellRow: React.FC<{
   disabled?: boolean;
 }> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, disabled }) => {
   const hasAoe = !!(spell.aoeType && spell.aoeSize);
-  const isPlaceable = !hasAoe && spell.range != null && spell.range > 0;
+  const isPlaceable = !hasAoe && (PLACEABLE_EXCEPTIONS.includes(spell.name) || (spell.range != null && spell.range > 0));
   // Resolve effective description: prefer spell.desc, fall back to local DB if it yields no damage
   const localEntry = !hasAoe ? lookupSpell(spell.name) : null;
   const effectiveDesc = spell.desc || localEntry?.desc || '';
@@ -434,7 +437,6 @@ const SpellsPanel: React.FC<{
   const searchResults = useMemo(() => {
     if (spellSearch.trim().length < 2) return [];
     // Include AoE spells (for Cast), placeable spells (range > 0, no aoeType), and named exceptions
-    const PLACEABLE_EXCEPTIONS = ['Light'];
     return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell =>
       (spell.aoeType && spell.aoeSize) ||
       (!spell.aoeType && spell.range != null && spell.range > 0) ||

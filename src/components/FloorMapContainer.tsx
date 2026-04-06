@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { MapView } from './MapView';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scenario, Token, Floor, Combatant, Monster, MapNote, WallSegment, Portal, GridResolution, Viewpoint, TransitionZone } from '../types';
+import { Scenario, Token, Floor, Combatant, Monster, MapNote, WallSegment, Portal, GridResolution, Viewpoint, TransitionZone, UVTTLight } from '../types';
 import type { SaveResult } from './MapView';
 
 /**
@@ -30,7 +30,7 @@ interface FloorMapContainerProps {
   onMapChange: (mapImage: string) => void;
   onMapNotesChange: (notes: MapNote[]) => void;
   onViewpointsChange?: (viewpoints: Viewpoint[]) => void;
-  onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution) => void;
+  onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution, lights?: UVTTLight[]) => void;
   onPortalToggle?: (portalId: string) => void;
   onPortalTypeChange?: (portalId: string, type: 'door' | 'window') => void;
   onDragStatusChange?: (isDragging: boolean) => void;
@@ -165,6 +165,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     objectWalls: floor.objectWalls,
     portals: floor.portals,
     gridResolution: floor.gridResolution,
+    lights: floor.lights ?? [],
     onWallDataChange: isPrimary ? props.onWallDataChange : undefined,
     onPortalToggle: props.onPortalToggle,
     onPortalTypeChange: isPrimary ? props.onPortalTypeChange : undefined,

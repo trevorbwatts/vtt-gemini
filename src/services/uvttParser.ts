@@ -1,8 +1,15 @@
-import { WallPoint, WallSegment, Portal, GridResolution } from '../types';
+import { WallPoint, WallSegment, Portal, GridResolution, UVTTLight } from '../types';
 
 interface RawUVTTPoint {
   x: number;
   y: number;
+}
+
+interface RawUVTTLight {
+  position: { x: number; y: number };
+  range?: number;     // feet
+  intensity?: number; // 0–1
+  color?: string;     // hex color string
 }
 
 interface RawUVTTPortal {
@@ -27,7 +34,7 @@ interface RawUVTTFile {
     baked_lighting?: boolean;
     ambient_light?: string;
   };
-  lights?: unknown[];
+  lights?: RawUVTTLight[];
   image: string;
 }
 
@@ -37,6 +44,7 @@ export interface UVTTParseResult {
   objectWalls: WallSegment[];
   portals: Portal[];
   gridResolution: GridResolution;
+  lights: UVTTLight[];
 }
 
 export function parseUVTTFile(jsonString: string): UVTTParseResult {
@@ -92,8 +100,18 @@ export function parseUVTTFile(jsonString: string): UVTTParseResult {
     pixelsPerGrid: pixels_per_grid,
   };
 
+  // Parse light sources — convert grid coords to pixels and feet to pixels
+  const lights: UVTTLight[] = (data.lights ?? []).map((l, i) => ({
+    id: `light-${i}`,
+    x: (l.position.x - map_origin.x) * pixels_per_grid,
+    y: (l.position.y - map_origin.y) * pixels_per_grid,
+    radiusPx: ((l.range ?? 20) / 5) * pixels_per_grid,
+    color: l.color,
+    intensity: l.intensity,
+  }));
+
   // The image field is raw base64 PNG without the data URL prefix
   const mapImage = `data:image/png;base64,${data.image}`;
 
-  return { mapImage, walls, objectWalls, portals, gridResolution };
+  return { mapImage, walls, objectWalls, portals, gridResolution, lights };
 }

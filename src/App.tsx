@@ -7,7 +7,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
-import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone } from './types';
+import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
 import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -554,9 +554,10 @@ export function DMScreen() {
     walls: WallSegment[],
     objectWalls: WallSegment[],
     portals: Portal[],
-    gridResolution: GridResolution
+    gridResolution: GridResolution,
+    lights?: UVTTLight[]
   ) => {
-    updateActiveFloor(f => ({ ...f, walls, objectWalls, portals, gridResolution }));
+    updateActiveFloor(f => ({ ...f, walls, objectWalls, portals, gridResolution, lights: lights ?? [] }));
   }, [updateActiveFloor]);
 
   const updateDarknessLevel = useCallback((level: 'daylight' | 'dark') => {
