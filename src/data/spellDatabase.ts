@@ -13,6 +13,11 @@ export interface SpellEntry {
   saveAbility?: string;
   halfDamageOnSave?: boolean;
   source?: '2014' | '2024';
+  // --- wall-shape spells (Wall of Sand, etc.) ---
+  shapeType?: 'wall';
+  maxLength?: number;
+  maxThickness?: number;
+  blocksVision?: boolean;
 }
 
 const allSpells: SpellEntry[] = [
@@ -50,6 +55,10 @@ export function resolveSpells(spellNames: string[]): {
   range?: number;
   saveAbility?: string;
   halfDamageOnSave?: boolean;
+  shapeType?: 'wall';
+  maxLength?: number;
+  maxThickness?: number;
+  blocksVision?: boolean;
 }[] {
   const results: ReturnType<typeof resolveSpells> = [];
   const seen = new Set<string>();
@@ -76,6 +85,10 @@ export function resolveSpells(spellNames: string[]): {
         ...(entry.range != null ? { range: entry.range } : {}),
         ...(entry.saveAbility ? { saveAbility: entry.saveAbility } : {}),
         ...(entry.halfDamageOnSave ? { halfDamageOnSave: entry.halfDamageOnSave } : {}),
+        ...(entry.shapeType ? { shapeType: entry.shapeType } : {}),
+        ...(entry.maxLength != null ? { maxLength: entry.maxLength } : {}),
+        ...(entry.maxThickness != null ? { maxThickness: entry.maxThickness } : {}),
+        ...(entry.blocksVision ? { blocksVision: entry.blocksVision } : {}),
       });
     } else {
       // Spell not in database — include with minimal info

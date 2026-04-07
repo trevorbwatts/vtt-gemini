@@ -57,7 +57,7 @@ interface MapViewProps {
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can trigger spell marker placement */
-  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>;
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so players can enter ruler/measure mode */
@@ -121,20 +121,81 @@ const SCHOOL_COLORS: Record<string, string> = {
   Transmutation: '#f97316',
 };
 
-// SVG path data for school icons (simplified from lucide, scaled to 24x24 viewbox centered at 0,0)
-const SCHOOL_ICON_PATHS: Record<string, string> = {
-  Abjuration:    'M-9 3.6L0-8.4L9 3.6L9 3.6L0 8.4L-9 3.6Z',                    // Shield
-  Conjuration:   'M0-7L1.5-2L7-2L2.5 1.5L4 7L0 3.5L-4 7L-2.5 1.5L-7-2L-1.5-2Z', // Star
-  Divination:    'M0 0m-7 0a7 7 0 1 0 14 0a7 7 0 1 0-14 0M0 0m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0', // Eye
-  Enchantment:   'M0-6C-3-6-6-3-6 0C-6 5 0 8 0 8S6 5 6 0C6-3 3-6 0-6Z',         // Brain/heart
-  Evocation:     'M-2-8L0 0L2-8M0 0L0 8',                                         // Zap
-  Illusion:      'M0-7A7 7 0 0 1 0 7A7 7 0 0 0 0-7',                              // Moon
-  Necromancy:    'M0-5A5 5 0 0 1 0 5A5 5 0 0 1 0-5M-2-2L-2-1M2-2L2-1M-3 2Q0 5 3 2', // Skull
-  Transmutation: 'M-4-3Q0-7 4-3M-5 0Q0-2 5 0M-4 3Q0 7 4 3',                      // Wind
+// Per-spell color overrides (take priority over school color)
+const SPELL_COLOR_OVERRIDES: Record<string, string> = {
+  'Mage Hand': '#1d4ed8', // dark blue
 };
+
+// Lucide icon SVG inner content (24x24 viewbox) for each spell school.
+// Rendered as stroke="white" images on a colored circle background.
+const SCHOOL_ICON_SVGS: Record<string, string> = {
+  Abjuration:    `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>`,
+  Conjuration:   `<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>`,
+  Divination:    `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>`,
+  Enchantment:   `<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>`,
+  Evocation:     `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>`,
+  Illusion:      `<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>`,
+  Necromancy:    `<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>`,
+  Transmutation: `<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>`,
+};
+
+// Per-spell SVG icon overrides (take priority over school icon)
+const SPELL_ICON_SVGS: Record<string, string> = {
+  'Mage Hand': `<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>`,
+};
+
+// Cache for rendered icon HTMLImageElements keyed by SVG content string
+const iconImageCache = new Map<string, HTMLImageElement>();
+
+function makeIconSvgUrl(svgContent: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgContent}</svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+/** Returns a cached HTMLImageElement for an icon SVG, or null if not yet loaded. onLoad fires when ready. */
+function getIconImage(svgContent: string, onLoad?: () => void): HTMLImageElement | null {
+  if (!svgContent) return null;
+  const cached = iconImageCache.get(svgContent);
+  if (cached) return cached.complete ? cached : null;
+  const img = new window.Image();
+  img.onload = () => onLoad?.();
+  img.src = makeIconSvgUrl(svgContent);
+  iconImageCache.set(svgContent, img);
+  return null;
+}
 
 function getSchoolColor(school: string): string {
   return SCHOOL_COLORS[school] || '#a855f7';
+}
+
+/**
+ * Compute the 4 corner positions (world coordinates) of a wall-shape spell marker.
+ * Order: near-left, near-right, far-right, far-left (clockwise when angle=0).
+ * `length` and `thickness` are in feet; `ppg` is pixels per grid (5 ft).
+ */
+function computeWallCorners(
+  x: number,
+  y: number,
+  lengthFt: number,
+  thicknessFt: number,
+  angleDeg: number,
+  ppg: number,
+): { x: number; y: number }[] {
+  const halfL = (lengthFt / 5) * ppg / 2;
+  const halfT = (thicknessFt / 5) * ppg / 2;
+  const a = angleDeg * Math.PI / 180;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  const rot = (lx: number, ly: number) => ({
+    x: x + lx * c - ly * s,
+    y: y + lx * s + ly * c,
+  });
+  return [
+    rot(-halfL, -halfT),
+    rot( halfL, -halfT),
+    rot( halfL,  halfT),
+    rot(-halfL,  halfT),
+  ];
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
@@ -638,9 +699,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
     school: string;
     effectRadius?: number;
     casterId?: string;
+    shapeType?: 'point' | 'wall';
+    maxLength?: number;
+    maxThickness?: number;
+    blocksVision?: boolean;
   } | null>(null);
   const [pendingMarkerPos, setPendingMarkerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+  // Editing/preview state for wall-shape spells (Wall of Sand, etc.) — before confirmation
+  const [editingWall, setEditingWall] = useState<{
+    x: number;
+    y: number;
+    length: number;      // feet
+    thickness: number;   // feet
+    angle: number;       // degrees
+    maxLength: number;
+    maxThickness: number;
+    spellName: string;
+    school: string;
+    casterId?: string;
+    blocksVision: boolean;
+  } | null>(null);
 
   // Remote AoE: placed by the other screen (DM sees player's AoE, player sees DM's AoE)
   const [remoteAoe, setRemoteAoe] = useState<typeof placedAoe>(null);
@@ -696,6 +775,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [livePlayerPos, setLivePlayerPos] = useState<Record<string, { x: number; y: number }>>({});
   // Live drag positions for spell markers (Light cantrip) — drives real-time fog recomputation
   const [liveMarkerPos, setLiveMarkerPos] = useState<Record<string, { x: number; y: number }>>({});
+  // Double-tap dismiss bubble for spell markers (player view)
+  const [dismissMarkerBubble, setDismissMarkerBubble] = useState<{ markerId: string; screenX: number; screenY: number } | null>(null);
+  const lastMarkerTapRef = useRef<{ markerId: string; time: number } | null>(null);
+  // Increments when icon images finish loading, triggering a re-render so KonvaImage nodes appear
+  const [iconVersion, setIconVersion] = useState(0);
 
   // Wall collision — prevents tokens from passing through walls during drag
   const [wallCollisionEnabled, setWallCollisionEnabled] = useState(true);
@@ -834,9 +918,62 @@ const MapViewInner: React.FC<MapViewProps> = ({
   if (startPlacingRef) {
     startPlacingRef.current = (spell, combatantId) => {
       const entry = lookupSpell(spell.name);
+      const shapeType = spell.shapeType ?? entry?.shapeType;
+      const school = spell.school || entry?.school || 'Evocation';
+
+      // Wall-shape spell (Wall of Sand, etc.): open editing preview immediately
+      if (shapeType === 'wall') {
+        const maxLength = spell.maxLength ?? entry?.maxLength ?? 30;
+        const maxThickness = spell.maxThickness ?? entry?.maxThickness ?? 10;
+        const blocksVision = spell.blocksVision ?? entry?.blocksVision ?? true;
+
+        // Anchor at caster token center if available; else viewport center
+        let anchorX: number;
+        let anchorY: number;
+        const casterToken = tokens.find(t => t.combatantId === combatantId);
+        if (casterToken) {
+          anchorX = casterToken.x;
+          anchorY = casterToken.y;
+        } else {
+          const rect = containerRef.current?.getBoundingClientRect();
+          const cx = (rect ? rect.width / 2 : 400);
+          const cy = (rect ? rect.height / 2 : 300);
+          anchorX = (cx - stagePos.x) / stageScale;
+          anchorY = (cy - stagePos.y) / stageScale;
+        }
+
+        setEditingWall({
+          x: anchorX,
+          y: anchorY,
+          length: maxLength,
+          thickness: maxThickness,
+          angle: 0,
+          maxLength,
+          maxThickness,
+          spellName: spell.name,
+          school,
+          casterId: combatantId,
+          blocksVision,
+        });
+        setPlacingSpell({
+          name: spell.name,
+          school,
+          casterId: combatantId,
+          shapeType: 'wall',
+          maxLength,
+          maxThickness,
+          blocksVision,
+        });
+        setPendingMarkerPos(null);
+        setSelectedTokenIds([]);
+        setSelectedTokenId(null);
+        return;
+      }
+
+      // Default: point-marker placement flow (Light, Darkness, etc.)
       setPlacingSpell({
         name: spell.name,
-        school: spell.school || entry?.school || 'Evocation',
+        school,
         effectRadius: spell.effectRadius ?? entry?.effectRadius,
         casterId: combatantId,
       });
@@ -851,6 +988,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setPlacedAoe(null);
       setCastingSpell(null);
       setCastingMousePos(null);
+      setEditingWall(null);
+      setPlacingSpell(null);
       onCastingDismissed?.();
       onAoeHighlightsChange?.(null);
     };
@@ -984,8 +1123,67 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // Confirm Cast: roll saves for affected monsters
   const handleConfirmCast = () => {
+    // Wall-shape placement (Wall of Sand, etc.) — create a persistent rotated-rectangle marker
+    if (editingWall) {
+      const marker: SpellMarker = {
+        id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        spellName: editingWall.spellName,
+        school: editingWall.school,
+        casterId: editingWall.casterId,
+        x: editingWall.x,
+        y: editingWall.y,
+        visibleToPlayers: true,
+        floorId: activeFloorId || undefined,
+        shapeType: 'wall',
+        length: editingWall.length,
+        thickness: editingWall.thickness,
+        angle: editingWall.angle,
+        blocksVision: editingWall.blocksVision,
+      };
+      const updated = [...spellMarkers, marker];
+      onSpellMarkersChange?.(updated);
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+        } else {
+          window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+        }
+      } catch (_e) { /* IPC not available */ }
+      setEditingWall(null);
+      setPlacingSpell(null);
+      onCastingDismissed?.();
+      return;
+    }
+
     const aoe = placedAoe; // Only the caster's screen can confirm
-    if (!aoe?.saveAbility || !aoe?.saveDc) return;
+    if (!aoe) return;
+
+    // No save roll needed (e.g. Darkness) — place as a persistent spell marker
+    if (!aoe.saveAbility || !aoe.saveDc) {
+      const entry = lookupSpell(aoe.name);
+      const marker: SpellMarker = {
+        id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        spellName: aoe.name,
+        school: entry?.school || 'Illusion',
+        x: aoe.x,
+        y: aoe.y,
+        effectRadius: aoe.aoeSize,
+        visibleToPlayers: true,
+        floorId: activeFloorId || undefined,
+      };
+      const updated = [...spellMarkers, marker];
+      onSpellMarkersChange?.(updated);
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+        } else {
+          window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+        }
+      } catch (_e) { /* IPC not available */ }
+      setPlacedAoe(null);
+      onCastingDismissed?.();
+      return;
+    }
 
     const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const results: Record<string, SaveResult> = {};
@@ -1059,9 +1257,50 @@ const MapViewInner: React.FC<MapViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [inCombat, isPlayerView, selectedTokenIds, movementPaths, tokens]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Preload all spell marker icons so KonvaImage nodes render on first paint
+  useEffect(() => {
+    let pending = 0;
+    const onLoad = () => {
+      pending--;
+      if (pending <= 0) setIconVersion(v => v + 1);
+    };
+    const allSvgs = [...Object.values(SCHOOL_ICON_SVGS), ...Object.values(SPELL_ICON_SVGS)];
+    for (const svg of allSvgs) {
+      const cached = iconImageCache.get(svg);
+      if (!cached || !cached.complete) {
+        pending++;
+        getIconImage(svg, onLoad);
+      }
+    }
+    if (pending === 0) setIconVersion(v => v + 1);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ppgForBlocking = gridResolution?.pixelsPerGrid || 40;
   const blockingSegments = useMemo(
-    () => extractBlockingSegments(walls || [], objectWalls || [], portals || []),
-    [walls, objectWalls, portals]
+    () => {
+      const base = extractBlockingSegments(walls || [], objectWalls || [], portals || []);
+      // Inject 4 segments per vision-blocking wall-shape spell marker on the active floor
+      const wallMarkerSegs = (spellMarkers || [])
+        .filter(m => m.shapeType === 'wall' && m.blocksVision)
+        .filter(m => !m.floorId || m.floorId === activeFloorId)
+        .flatMap(m => {
+          const corners = computeWallCorners(
+            m.x, m.y,
+            m.length ?? 30,
+            m.thickness ?? 10,
+            m.angle ?? 0,
+            ppgForBlocking,
+          );
+          return [
+            { a: corners[0], b: corners[1] },
+            { a: corners[1], b: corners[2] },
+            { a: corners[2], b: corners[3] },
+            { a: corners[3], b: corners[0] },
+          ];
+        });
+      return [...base, ...wallMarkerSegs];
+    },
+    [walls, objectWalls, portals, spellMarkers, activeFloorId, ppgForBlocking]
   );
 
   // Base player token positions from committed state.
@@ -2164,6 +2403,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchEnd = (e: any) => {
+    // Wall-shape spells use their own preview — skip tap-to-place
+    if (placingSpell && placingSpell.shapeType === 'wall') {
+      return;
+    }
     // Spell marker placement on touch (player view)
     if (placingSpell && e.evt.changedTouches.length === 1) {
       const stage = e.target.getStage();
@@ -2264,6 +2507,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     // Spell marker placement: click to place
+    // Wall-shape spells use a dedicated preview (editingWall) and should ignore the click-to-place flow
+    if (placingSpell && placingSpell.shapeType === 'wall') {
+      return;
+    }
     if (placingSpell && e.evt.button === 0) {
       const pos = getCanvasPos(e.target.getStage());
       if (isPlayerView) {
@@ -3716,6 +3963,148 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── Wall-shape spell preview (Wall of Sand, etc.) ── */}
+          {editingWall && (() => {
+            const corners = computeWallCorners(
+              editingWall.x,
+              editingWall.y,
+              editingWall.length,
+              editingWall.thickness,
+              editingWall.angle,
+              ppg,
+            );
+            const pointsFlat = corners.flatMap(c => [c.x, c.y]);
+            const aRad = editingWall.angle * Math.PI / 180;
+            const cosA = Math.cos(aRad);
+            const sinA = Math.sin(aRad);
+            const halfL = (editingWall.length / 5) * ppg / 2;
+            const halfT = (editingWall.thickness / 5) * ppg / 2;
+            // Handle positions (world coords) — symmetric about center
+            const lenHandleA = { x: editingWall.x + cosA * halfL, y: editingWall.y + sinA * halfL };
+            const lenHandleB = { x: editingWall.x - cosA * halfL, y: editingWall.y - sinA * halfL };
+            const thkHandleA = { x: editingWall.x - sinA * halfT, y: editingWall.y + cosA * halfT };
+            const thkHandleB = { x: editingWall.x + sinA * halfT, y: editingWall.y - cosA * halfT };
+            const handleR = 7 / stageScale;
+            const handleStroke = 1.5 / stageScale;
+            const minFeet = 5;
+
+            const onBodyDragMove = (e: any) => {
+              const dx = e.target.x();
+              const dy = e.target.y();
+              setEditingWall(w => w ? { ...w, x: w.x + dx, y: w.y + dy } : null);
+              e.target.position({ x: 0, y: 0 });
+            };
+
+            const onLengthDrag = (e: any) => {
+              const px = e.target.x();
+              const py = e.target.y();
+              setEditingWall(w => {
+                if (!w) return null;
+                const dx = px - w.x;
+                const dy = py - w.y;
+                const dist = Math.hypot(dx, dy);
+                const newAngleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+                const newLengthFt = Math.min(
+                  w.maxLength,
+                  Math.max(minFeet, (dist * 2 / ppg) * 5)
+                );
+                return { ...w, angle: newAngleDeg, length: newLengthFt };
+              });
+            };
+
+            const onThicknessDrag = (e: any) => {
+              const px = e.target.x();
+              const py = e.target.y();
+              setEditingWall(w => {
+                if (!w) return null;
+                const rad = w.angle * Math.PI / 180;
+                const perpX = -Math.sin(rad);
+                const perpY = Math.cos(rad);
+                const proj = (px - w.x) * perpX + (py - w.y) * perpY;
+                const newThicknessFt = Math.min(
+                  w.maxThickness,
+                  Math.max(minFeet, (Math.abs(proj) * 2 / ppg) * 5)
+                );
+                return { ...w, thickness: newThicknessFt };
+              });
+            };
+
+            const labelFontSize = 14 / stageScale;
+            const labelOffset = (halfT + 22 / stageScale);
+            const labelX = editingWall.x - sinA * -labelOffset;
+            const labelY = editingWall.y + cosA * -labelOffset;
+
+            return (
+              <Layer>
+                {/* Wall body — draggable to translate the whole wall */}
+                <Line
+                  points={pointsFlat}
+                  closed
+                  fill="rgba(212,165,116,0.35)"
+                  stroke="#d4a574"
+                  strokeWidth={2 / stageScale}
+                  dash={[8 / stageScale, 4 / stageScale]}
+                  draggable
+                  onDragMove={onBodyDragMove}
+                />
+                {/* Length handles (both ends of long axis) — rotate + resize length */}
+                <Circle
+                  x={lenHandleA.x}
+                  y={lenHandleA.y}
+                  radius={handleR}
+                  fill="white"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onLengthDrag}
+                />
+                <Circle
+                  x={lenHandleB.x}
+                  y={lenHandleB.y}
+                  radius={handleR}
+                  fill="white"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onLengthDrag}
+                />
+                {/* Thickness handles — resize thickness along perpendicular axis */}
+                <Circle
+                  x={thkHandleA.x}
+                  y={thkHandleA.y}
+                  radius={handleR}
+                  fill="#ffe6b3"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onThicknessDrag}
+                />
+                <Circle
+                  x={thkHandleB.x}
+                  y={thkHandleB.y}
+                  radius={handleR}
+                  fill="#ffe6b3"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onThicknessDrag}
+                />
+                {/* Live dimensions readout */}
+                <Text
+                  x={labelX - 40 / stageScale}
+                  y={labelY - labelFontSize / 2}
+                  text={`${Math.round(editingWall.length)} \u00d7 ${Math.round(editingWall.thickness)} ft`}
+                  fontSize={labelFontSize}
+                  fill="#ffd9a6"
+                  fontStyle="bold"
+                  align="center"
+                  width={80 / stageScale}
+                  listening={false}
+                />
+              </Layer>
+            );
+          })()}
+
           {/* ── Measure / Ruler ── */}
           {isMeasuringActive && measureStart && measureEnd && (() => {
             const ppg = gridResolution?.pixelsPerGrid || 40;
@@ -3994,6 +4383,31 @@ const MapViewInner: React.FC<MapViewProps> = ({
               />
             </Layer>
           )}
+          {/* Darkness spell circles — rendered above fog but below tokens */}
+          {spellMarkers.some(m => m.spellName === 'Darkness' && (!m.floorId || m.floorId === activeFloorId) && (!isPlayerView || m.visibleToPlayers)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.spellName === 'Darkness' && (!m.floorId || m.floorId === activeFloorId) && (!isPlayerView || m.visibleToPlayers))
+                .map(marker => {
+                  const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
+                  if (effectPx <= 0) return null;
+                  const live = liveMarkerPos[marker.id];
+                  return (
+                    <Circle
+                      key={marker.id}
+                      x={live?.x ?? marker.x}
+                      y={live?.y ?? marker.y}
+                      radius={effectPx}
+                      fill="black"
+                      opacity={0.92}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
           {/* ── Player tokens above fog (player view only) ── */}
           {isPlayerView && (
             <Layer>
@@ -4096,7 +4510,65 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 .filter(m => !isPlayerView || m.visibleToPlayers)
                 .filter(m => !m.floorId || m.floorId === activeFloorId)
                 .map(marker => {
-                  const color = getSchoolColor(marker.school);
+                  // Wall-shape marker (Wall of Sand, etc.) — rotated rectangle, locked after placement
+                  if (marker.shapeType === 'wall') {
+                    const wallCorners = computeWallCorners(
+                      marker.x, marker.y,
+                      marker.length ?? 30,
+                      marker.thickness ?? 10,
+                      marker.angle ?? 0,
+                      ppg,
+                    );
+                    const wallPts = wallCorners.flatMap(c => [c.x, c.y]);
+                    return (
+                      <Line
+                        key={marker.id}
+                        points={wallPts}
+                        closed
+                        fill="rgba(212,165,116,0.55)"
+                        stroke="#8b5a2b"
+                        strokeWidth={1.5 / stageScale}
+                        onTap={(e) => {
+                          if (!isPlayerView) return;
+                          e.cancelBubble = true;
+                          const now = Date.now();
+                          const last = lastMarkerTapRef.current;
+                          if (last && last.markerId === marker.id && now - last.time < 400) {
+                            lastMarkerTapRef.current = null;
+                            const rect = containerRef.current?.getBoundingClientRect();
+                            setDismissMarkerBubble({
+                              markerId: marker.id,
+                              screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
+                              screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
+                            });
+                          } else {
+                            lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                            setDismissMarkerBubble(null);
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          if (isPlayerView) return;
+                          e.evt.preventDefault();
+                          e.cancelBubble = true;
+                          const pos = e.target.getStage()?.getPointerPosition();
+                          setContextMenu({
+                            x: marker.x,
+                            y: marker.y,
+                            stageX: pos?.x ?? e.evt.clientX,
+                            stageY: pos?.y ?? e.evt.clientY,
+                            view: 'spell-marker',
+                            markerId: marker.id,
+                          });
+                        }}
+                        onMouseDown={(e) => { e.cancelBubble = true; }}
+                      />
+                    );
+                  }
+                  const color = SPELL_COLOR_OVERRIDES[marker.spellName] ?? getSchoolColor(marker.school);
+                  const iconSvg = SPELL_ICON_SVGS[marker.spellName] ?? SCHOOL_ICON_SVGS[marker.school] ?? '';
+                  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+                  iconVersion; // depend on iconVersion so we re-render when images load
+                  const iconImg = iconSvg ? getIconImage(iconSvg) : null;
                   const markerRadius = tokenRadius * 0.5;
                   const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
                   return (
@@ -4106,7 +4578,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       y={marker.y}
                       draggable={true}
                       onDragMove={(e) => {
-                        if (marker.spellName === 'Light') {
+                        setDismissMarkerBubble(null);
+                        if (marker.spellName === 'Light' || marker.spellName === 'Darkness') {
                           setLiveMarkerPos(prev => ({
                             ...prev,
                             [marker.id]: { x: e.target.x(), y: e.target.y() },
@@ -4128,6 +4601,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
                         }
                       }}
+                      onTap={(e) => {
+                        if (!isPlayerView) return;
+                        e.cancelBubble = true;
+                        const now = Date.now();
+                        const last = lastMarkerTapRef.current;
+                        if (last && last.markerId === marker.id && now - last.time < 400) {
+                          lastMarkerTapRef.current = null;
+                          const rect = containerRef.current?.getBoundingClientRect();
+                          setDismissMarkerBubble({
+                            markerId: marker.id,
+                            screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
+                            screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
+                          });
+                        } else {
+                          lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                          setDismissMarkerBubble(null);
+                        }
+                      }}
                       onMouseEnter={() => setHoveredMarkerId(marker.id)}
                       onMouseLeave={() => setHoveredMarkerId(null)}
                       onContextMenu={(e) => {
@@ -4146,9 +4637,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       }}
                       onMouseDown={(e) => { e.cancelBubble = true; }}
                     >
-                      {/* Effect radius overlay — hidden for Light (fog removal is the visual feedback).
-                          listening=false so the large circle doesn't capture drag events. */}
-                      {effectPx > 0 && marker.spellName !== 'Light' && (
+                      {/* Effect radius overlay — hidden for Light (fog removal is the visual) and
+                          Darkness (rendered in its own layer below tokens). listening=false so
+                          the large circle doesn't capture drag events. */}
+                      {effectPx > 0 && marker.spellName !== 'Light' && marker.spellName !== 'Darkness' && (
                         <Circle
                           radius={effectPx}
                           fill={color}
@@ -4167,14 +4659,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         stroke={hoveredMarkerId === marker.id ? 'white' : 'rgba(0,0,0,0.5)'}
                         strokeWidth={hoveredMarkerId === marker.id ? 2 : 1}
                       />
-                      {/* School icon */}
-                      {SCHOOL_ICON_PATHS[marker.school] && (
-                        <Path
-                          data={SCHOOL_ICON_PATHS[marker.school]}
-                          fill="white"
+                      {/* School icon — rendered as a Lucide SVG image so stroke-based icons display correctly */}
+                      {iconImg && (
+                        <KonvaImage
+                          image={iconImg}
+                          width={markerRadius * 1.5}
+                          height={markerRadius * 1.5}
+                          offsetX={markerRadius * 0.75}
+                          offsetY={markerRadius * 0.75}
                           opacity={0.9}
-                          scaleX={markerRadius / 14}
-                          scaleY={markerRadius / 14}
+                          listening={false}
                         />
                       )}
                       {/* Hidden indicator for DM */}
@@ -4233,6 +4727,37 @@ const MapViewInner: React.FC<MapViewProps> = ({
           )}
         </Stage>
 
+        {/* Spell marker dismiss bubble — player view double-tap */}
+        {isPlayerView && dismissMarkerBubble && (
+          <>
+            {/* Backdrop to dismiss on tap-outside */}
+            <div
+              className="absolute inset-0 z-40"
+              onClick={() => setDismissMarkerBubble(null)}
+            />
+            <div
+              className="absolute z-50 pointer-events-auto -translate-x-1/2 -translate-y-full"
+              style={{ left: dismissMarkerBubble.screenX, top: dismissMarkerBubble.screenY - 12 }}
+            >
+              <div className="bg-black/80 border border-red-500/40 rounded-lg px-3 py-2 shadow-xl flex items-center gap-2 animate-in zoom-in-95 duration-150">
+                <button
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    const updated = spellMarkers.filter(m => m.id !== dismissMarkerBubble.markerId);
+                    onSpellMarkersChange?.(updated);
+                    try { window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
+                    setDismissMarkerBubble(null);
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-red-400"
+                >
+                  <Trash2 size={12} />
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Placing spell indicator */}
         {placingSpell && !pendingMarkerPos && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
@@ -4243,10 +4768,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
               }}
             >
               <span className="text-xs font-bold" style={{ color: getSchoolColor(placingSpell.school) }}>
-                Placing: {placingSpell.name}
+                {placingSpell.shapeType === 'wall'
+                  ? `Editing: ${placingSpell.name} — drag body to move, handles to rotate & resize`
+                  : `Placing: ${placingSpell.name}`}
               </span>
+              {placingSpell.shapeType === 'wall' && editingWall && (
+                <button
+                  onClick={handleConfirmCast}
+                  className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
+                >
+                  Confirm Placement
+                </button>
+              )}
               <button
-                onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); }}
+                onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); setEditingWall(null); onCastingDismissed?.(); }}
                 className="text-white/40 hover:text-white/80 transition-colors"
               >
                 <X size={14} />

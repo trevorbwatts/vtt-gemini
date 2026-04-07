@@ -247,11 +247,18 @@ export interface SpellMarker {
   spellName: string;
   school: string;
   casterId?: string;
-  x: number;
+  x: number;                 // for walls: center of the rectangle
   y: number;
-  effectRadius?: number;    // feet — rendered as translucent circle
+  effectRadius?: number;     // feet — rendered as translucent circle
   visibleToPlayers: boolean;
   floorId?: string;
+
+  // --- wall-shape fields (Wall of Sand, etc.) ---
+  shapeType?: 'point' | 'wall';   // default behavior is 'point'
+  length?: number;                // feet — long axis
+  thickness?: number;             // feet — short axis
+  angle?: number;                 // degrees — rotation of long axis
+  blocksVision?: boolean;         // true for Wall of Sand — fog-of-war integration
 }
 
 export interface Viewpoint {

@@ -13,7 +13,7 @@ import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
 
 // Spells with range 0 (touch) that should still appear as placeable map markers
-const PLACEABLE_EXCEPTIONS = ['Light'];
+const PLACEABLE_EXCEPTIONS = ['Light', 'Wall of Sand'];
 
 // ─── Sign-in spot types ───
 type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -197,8 +197,8 @@ const ActionRing: React.FC<{
 }> = ({ anchorX, anchorY, edge, onSpells, onConditions, onMeasure, onEndTurn, onToggleTorch, isTorchLit, onClose, isPlayersTurn }) => {
   const contentRotate = edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
   const allItems = [
-    { label: 'Spells &\nAbils', icon: BookOpen, color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
-    { label: 'Conditions', icon: Zap,      color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
+    { label: 'Spells &\nAbilities', icon: BookOpen, color: 'bg-[#1a0d2e] border-purple-500/40 text-purple-400', onClick: onSpells },
+    // { label: 'Conditions', icon: Zap,      color: 'bg-[#1a1500] border-yellow-500/40 text-yellow-300', onClick: onConditions },
     {
       label: isTorchLit ? 'Douse' : 'Torch',
       icon: Flame,
@@ -207,7 +207,7 @@ const ActionRing: React.FC<{
         : 'bg-[#1a0e00] border-orange-500/40 text-orange-400',
       onClick: onToggleTorch,
     },
-    { label: 'Measure', icon: Ruler, color: 'bg-[#0a001a] border-indigo-500/40 text-indigo-400', onClick: onMeasure },
+    { label: 'Measure', icon: Ruler, color: 'bg-[#1a1400] border-yellow-500/40 text-yellow-400', onClick: onMeasure },
   ];
   if (isPlayersTurn) {
     allItems.push(
@@ -976,7 +976,7 @@ export function PlayerScreen() {
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
-  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>(null);
+  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
@@ -1441,13 +1441,13 @@ export function PlayerScreen() {
               <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
               <span className="text-sm font-bold text-orange-400">Casting {activeCasting.spellName}</span>
               {!aoeHighlights?.saveResults && <span className="text-xs text-white/40">Drag to place</span>}
-              {!aoeHighlights?.saveResults && activeCasting.saveAbility && (
+              {!aoeHighlights?.saveResults && (
                 <button
                   onClick={() => confirmCastRef.current?.()}
                   onPointerDown={(e) => e.preventDefault()}
                   className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
                 >
-                  Confirm Cast
+                  {activeCasting.saveAbility ? 'Confirm Cast' : 'Place'}
                 </button>
               )}
               {aoeHighlights?.saveResults && (
@@ -1478,11 +1478,11 @@ export function PlayerScreen() {
           : 'bottom-4 left-1/2 -translate-x-1/2';
         return (
           <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
-            <div className="bg-black/80 border border-indigo-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-indigo-500/10">
-              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+            <div className="bg-black/80 border border-yellow-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-yellow-500/10">
+              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
               {measureDistanceFeet != null
-                ? <span className="text-sm font-bold text-indigo-300">{measureDistanceFeet} ft</span>
-                : <span className="text-sm font-bold text-indigo-400">Measuring</span>
+                ? <span className="text-sm font-bold text-yellow-300">{measureDistanceFeet} ft</span>
+                : <span className="text-sm font-bold text-yellow-400">Measuring</span>
               }
               <span className="text-xs text-white/40">Touch &amp; drag to measure</span>
               <button
@@ -1510,7 +1510,8 @@ export function PlayerScreen() {
             anchorY={actionRing.y}
             edge={config.edge}
             onSpells={() => setOpenPanel('spells')}
-            onConditions={() => setOpenPanel('conditions')}
+            // onConditions={() => setOpenPanel('conditions')}
+            onConditions={() => {}}
             onMeasure={() => {
               const spotId = actionRing.spotId;
               const edge = spotConfigs[spotId].edge;
@@ -1561,8 +1562,8 @@ export function PlayerScreen() {
         );
       })()}
 
-      {/* Conditions Panel */}
-      {actionRing && openPanel === 'conditions' && (() => {
+      {/* Conditions Panel — commented out, may restore later */}
+      {/* {actionRing && openPanel === 'conditions' && (() => {
         const player = getPlayerForSpot(actionRing.spotId);
         if (!player) return null;
         const config = spotConfigs[actionRing.spotId];
@@ -1576,7 +1577,7 @@ export function PlayerScreen() {
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
           />
         );
-      })()}
+      })()} */}
 
       {/* Initiative Strip */}
       {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} />}

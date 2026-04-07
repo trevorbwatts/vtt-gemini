@@ -61,7 +61,7 @@ interface BottomPanelProps {
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
 
   // Spell marker placement from detail panel
-  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number }, combatantId: string) => void) | null>;
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
 
   // Targeting
   targetedCombatantIds?: Set<string>;
