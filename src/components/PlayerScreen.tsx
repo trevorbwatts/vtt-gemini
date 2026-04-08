@@ -1212,7 +1212,26 @@ export function PlayerScreen() {
     if (!player) return;
     setActionRing(null);
     setOpenPanel(null);
-    startPlacingRef.current?.(spell, player.id);
+    // Detect wall-shape spell (fallback to spell DB lookup if the spell object
+    // passed in doesn't carry shapeType)
+    const dbEntry = lookupSpell(spell?.name || '');
+    const isWallSpell = spell?.shapeType === 'wall' || dbEntry?.shapeType === 'wall';
+    // Merge in DB metadata so MapView gets maxLength/maxThickness/blocksVision/shapeType
+    const enrichedSpell = isWallSpell
+      ? {
+          ...spell,
+          shapeType: 'wall' as const,
+          maxLength: spell?.maxLength ?? dbEntry?.maxLength,
+          maxThickness: spell?.maxThickness ?? dbEntry?.maxThickness,
+          blocksVision: spell?.blocksVision ?? dbEntry?.blocksVision,
+        }
+      : spell;
+    startPlacingRef.current?.(enrichedSpell, player.id);
+    // Wall-shape placements (e.g. Wall of Sand) get the same bottom casting banner
+    // as other cast spells, so the player can Confirm/Cancel from their drawer edge.
+    if (isWallSpell) {
+      setActiveCasting({ spotId, spellName: spell.name, saveAbility: undefined });
+    }
   }, [actionRing, signedInSpots, campaign]);
 
   const handleConditionToggle = useCallback((spotId: SpotId, condition: string) => {

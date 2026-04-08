@@ -927,13 +927,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
         const maxThickness = spell.maxThickness ?? entry?.maxThickness ?? 10;
         const blocksVision = spell.blocksVision ?? entry?.blocksVision ?? true;
 
-        // Anchor at caster token center if available; else viewport center
+        // Anchor above the caster token (so the wall sits in front of them, not on top)
+        // else viewport center
         let anchorX: number;
         let anchorY: number;
         const casterToken = tokens.find(t => t.combatantId === combatantId);
         if (casterToken) {
+          const ppgLocal = gridResolution?.pixelsPerGrid || 40;
+          const halfThicknessPx = (maxThickness / 5) * ppgLocal / 2;
+          // Place center of wall one token-diameter + half-thickness above the token
           anchorX = casterToken.x;
-          anchorY = casterToken.y;
+          anchorY = casterToken.y - tokenRadius * 2 - halfThicknessPx;
         } else {
           const rect = containerRef.current?.getBoundingClientRect();
           const cx = (rect ? rect.width / 2 : 400);
@@ -3965,20 +3969,19 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
           {/* ── Wall-shape spell preview (Wall of Sand, etc.) ── */}
           {editingWall && (() => {
-            const corners = computeWallCorners(
-              editingWall.x,
-              editingWall.y,
-              editingWall.length,
-              editingWall.thickness,
-              editingWall.angle,
-              ppg,
-            );
-            const pointsFlat = corners.flatMap(c => [c.x, c.y]);
             const aRad = editingWall.angle * Math.PI / 180;
             const cosA = Math.cos(aRad);
             const sinA = Math.sin(aRad);
             const halfL = (editingWall.length / 5) * ppg / 2;
             const halfT = (editingWall.thickness / 5) * ppg / 2;
+            // Local corners (relative to wall center at 0,0) — Line is positioned via x/y
+            const localCorners = [
+              { x: -halfL * cosA - -halfT * sinA, y: -halfL * sinA + -halfT * cosA },
+              { x:  halfL * cosA - -halfT * sinA, y:  halfL * sinA + -halfT * cosA },
+              { x:  halfL * cosA -  halfT * sinA, y:  halfL * sinA +  halfT * cosA },
+              { x: -halfL * cosA -  halfT * sinA, y: -halfL * sinA +  halfT * cosA },
+            ];
+            const pointsFlat = localCorners.flatMap(c => [c.x, c.y]);
             // Handle positions (world coords) — symmetric about center
             const lenHandleA = { x: editingWall.x + cosA * halfL, y: editingWall.y + sinA * halfL };
             const lenHandleB = { x: editingWall.x - cosA * halfL, y: editingWall.y - sinA * halfL };
@@ -3989,10 +3992,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const minFeet = 5;
 
             const onBodyDragMove = (e: any) => {
-              const dx = e.target.x();
-              const dy = e.target.y();
-              setEditingWall(w => w ? { ...w, x: w.x + dx, y: w.y + dy } : null);
-              e.target.position({ x: 0, y: 0 });
+              const nx = e.target.x();
+              const ny = e.target.y();
+              setEditingWall(w => w ? { ...w, x: nx, y: ny } : null);
             };
 
             const onLengthDrag = (e: any) => {
@@ -4038,6 +4040,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <Layer>
                 {/* Wall body — draggable to translate the whole wall */}
                 <Line
+                  x={editingWall.x}
+                  y={editingWall.y}
                   points={pointsFlat}
                   closed
                   fill="rgba(212,165,116,0.35)"
@@ -4046,6 +4050,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   dash={[8 / stageScale, 4 / stageScale]}
                   draggable
                   onDragMove={onBodyDragMove}
+                  onDragEnd={onBodyDragMove}
                 />
                 {/* Length handles (both ends of long axis) — rotate + resize length */}
                 <Circle
@@ -4758,8 +4763,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </>
         )}
 
-        {/* Placing spell indicator */}
-        {placingSpell && !pendingMarkerPos && (
+        {/* Placing spell indicator — hidden for wall-shape spells, which use the
+            player-drawer-anchored Casting Banner in PlayerScreen instead. */}
+        {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
             <div className="flex items-center gap-3 px-4 py-2 rounded-xl shadow-2xl border"
               style={{
