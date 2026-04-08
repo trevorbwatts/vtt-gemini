@@ -224,15 +224,62 @@ function getSpellSaveDc(data: any): number | undefined {
   return 8 + prof + bestMod;
 }
 
+// DDB marks innate racial spells as at-will when they have no limitedUse
+// AND they don't consume a spell slot (usesSpellSlot === false).
+// Class spells typically don't have limitedUse either but DO use spell slots,
+// so we can't use limitedUse alone as the marker.
+function isAtWillInnate(spell: any): boolean {
+  if (spell.limitedUse != null) return false;
+  if (spell.usesSpellSlot === true) return false;
+  return true;
+}
+
+function getAtWillSpells(data: any): NonNullable<Combatant['atWillSpells']> {
+  const atWill: NonNullable<Combatant['atWillSpells']> = [];
+  const seen = new Set<string>();
+
+  // Only racial/innate sources — class spells are never at-will
+  const sources: Array<{ spells: any[]; source: string }> = [
+    { spells: data.spells?.race   || [], source: 'Racial Trait' },
+    { spells: data.spells?.innate || [], source: 'Innate Spellcasting' },
+  ];
+
+  for (const { spells, source } of sources) {
+    for (const spell of spells) {
+      if (!isAtWillInnate(spell)) continue;
+      const def = spell.definition || spell;
+      if (!def?.name || seen.has(def.name)) continue;
+      if (def.isHomebrew === true) continue;
+      seen.add(def.name);
+      atWill.push({ spellName: def.name, source });
+    }
+  }
+
+  return atWill;
+}
+
 function getSpells(data: any): NonNullable<Combatant['spells']> {
   const spells: NonNullable<Combatant['spells']> = [];
   const seen = new Set<string>();
+
+  // Pre-compute the set of at-will racial/innate spell names so we can skip
+  // them here (they're surfaced via atWillSpells instead, to avoid duplication).
+  const atWillNames = new Set<string>();
+  for (const arr of [data.spells?.race || [], data.spells?.innate || []]) {
+    for (const spell of arr) {
+      if (isAtWillInnate(spell)) {
+        const name = (spell.definition || spell)?.name;
+        if (name) atWillNames.add(name);
+      }
+    }
+  }
 
   const addSpell = (spell: any) => {
     const def = spell.definition || spell;
     if (!def?.name || seen.has(def.name)) return;
     if (spell.isAssigned === false) return;
     if (def.isHomebrew === true) return;
+    if (atWillNames.has(def.name)) return;
     seen.add(def.name);
 
     const aoeType = normalizeAoeType(def.range?.aoeType);
@@ -337,6 +384,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
     },
     spellSaveDc: getSpellSaveDc(data),
     spells: getSpells(data),
+    atWillSpells: getAtWillSpells(data),
     actions: getPlayerActions(data),
     avatar: data.decorations?.avatarUrl || undefined,
   };
