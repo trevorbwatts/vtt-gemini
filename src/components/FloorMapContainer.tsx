@@ -43,6 +43,7 @@ interface FloorMapContainerProps {
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   startCastingRef?: React.MutableRefObject<((spell: any, combatantId: string) => void) | null>;
   startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
+  addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
@@ -196,6 +197,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       onSelectedTokenIdsChange: props.onSelectedTokenIdsChange,
       startCastingRef: props.startCastingRef,
       startPlacingRef: props.startPlacingRef,
+      addMarkersDirectlyRef: props.addMarkersDirectlyRef,
       cancelCastingRef: props.cancelCastingRef,
       confirmCastRef: props.confirmCastRef,
       onCastingDismissed: props.onCastingDismissed,

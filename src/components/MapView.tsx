@@ -57,7 +57,7 @@ interface MapViewProps {
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can trigger spell marker placement */
-  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; aoeType?: string; aoeSize?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can add spell markers directly (no interactive placement) */
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
@@ -291,7 +291,7 @@ function getTokensInAoe(
           const localPerp = -dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
           hit = localFwd > -tr && localFwd < sizePx + tr && Math.abs(localPerp) < sizePx / 2 + tr;
         } else {
-          hit = Math.abs(tx - aoe.x) < sizePx + tr && Math.abs(ty - aoe.y) < sizePx + tr;
+          hit = Math.abs(tx - aoe.x) < sizePx / 2 + tr && Math.abs(ty - aoe.y) < sizePx / 2 + tr;
         }
         break;
       }
@@ -709,6 +709,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
     name: string;
     school: string;
     effectRadius?: number;
+    aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+    aoeSize?: number;
     casterId?: string;
     shapeType?: 'point' | 'wall';
     maxLength?: number;
@@ -995,6 +997,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         school,
         effectRadius: spell.effectRadius ?? entry?.effectRadius,
         casterId: combatantId,
+        aoeType: (spell.aoeType ?? entry?.aoeType) as any,
+        aoeSize: spell.aoeSize ?? entry?.aoeSize,
       });
       setPendingMarkerPos(null);
       setSelectedTokenIds([]);
@@ -1204,6 +1208,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         casterId: aoe.casterId,
         x: aoe.x,
         y: aoe.y,
+        aoeType: aoe.aoeType,
+        aoeSize: aoe.aoeSize,
         visibleToPlayers: true,
         floorId: activeFloorId || undefined,
       };
@@ -1239,6 +1245,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
         // Place persistent marker (cast-and-place)
         if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
+        // No monsters hit — skip modal
+        if (Object.keys(results).length === 0) {
+          setPlacedAoe(null);
+          onCastingDismissed?.();
+          return;
+        }
         setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
         return;
       }
@@ -1295,6 +1307,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     // For cast-and-place spells (Grease, etc.), also drop a persistent marker
     if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
+
+    // No monsters hit — skip modal
+    if (Object.keys(results).length === 0) {
+      setPlacedAoe(null);
+      onCastingDismissed?.();
+      return;
+    }
 
     setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
   };
@@ -2506,6 +2525,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         x: pos.x,
         y: pos.y,
         effectRadius: placingSpell.effectRadius,
+        aoeType: placingSpell.aoeType,
+        aoeSize: placingSpell.aoeSize,
         visibleToPlayers: true,
         floorId: activeFloorId || undefined,
       };
@@ -2614,6 +2635,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
           x: pos.x,
           y: pos.y,
           effectRadius: placingSpell.effectRadius,
+          aoeType: placingSpell.aoeType,
+          aoeSize: placingSpell.aoeSize,
           visibleToPlayers: true,
           floorId: activeFloorId || undefined,
         };
@@ -3753,7 +3776,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     ];
                     return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                   }
-                  return <Rect x={targetX - sizePx} y={targetY - sizePx} width={sizePx * 2} height={sizePx * 2}
+                  return <Rect x={targetX - sizePx / 2} y={targetY - sizePx / 2} width={sizePx} height={sizePx}
                     fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                 })()}
                 {castingSpell.aoeType === 'cone' && (() => {
@@ -3977,10 +4000,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   // Free-positioned cube (non-self spells)
                   return (
                     <Rect
-                      x={placedAoe.x - sizePx}
-                      y={placedAoe.y - sizePx}
-                      width={sizePx * 2}
-                      height={sizePx * 2}
+                      x={placedAoe.x - sizePx / 2}
+                      y={placedAoe.y - sizePx / 2}
+                      width={sizePx}
+                      height={sizePx}
                       fill={fillColor}
                       stroke={strokeColor}
                       strokeWidth={strokeW}
@@ -4284,14 +4307,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 )}
                 {remoteAoe.aoeType === 'cube' && (() => {
                   if (remoteAoe.selfOrigin) {
-                    const perpX = Math.cos(aRad + Math.PI / 2) * sizePx;
-                    const perpY = Math.sin(aRad + Math.PI / 2) * sizePx;
-                    const fwdX = Math.cos(aRad) * sizePx * 2;
-                    const fwdY = Math.sin(aRad) * sizePx * 2;
+                    const perpX = Math.cos(aRad + Math.PI / 2) * sizePx / 2;
+                    const perpY = Math.sin(aRad + Math.PI / 2) * sizePx / 2;
+                    const fwdX = Math.cos(aRad) * sizePx;
+                    const fwdY = Math.sin(aRad) * sizePx;
                     const points = [-perpX, -perpY, perpX, perpY, perpX + fwdX, perpY + fwdY, -perpX + fwdX, -perpY + fwdY];
                     return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                   }
-                  return <Rect x={remoteAoe.x - sizePx} y={remoteAoe.y - sizePx} width={sizePx * 2} height={sizePx * 2}
+                  return <Rect x={remoteAoe.x - sizePx / 2} y={remoteAoe.y - sizePx / 2} width={sizePx} height={sizePx}
                     fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                 })()}
                 {remoteAoe.aoeType === 'cone' && (() => {
@@ -4745,20 +4768,59 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       }}
                       onMouseDown={(e) => { e.cancelBubble = true; }}
                     >
-                      {/* Effect radius overlay — hidden for Light (fog removal is the visual) and
-                          Darkness (rendered in its own layer below tokens). listening=false so
-                          the large circle doesn't capture drag events. */}
-                      {effectPx > 0 && marker.spellName !== 'Light' && marker.spellName !== 'Darkness' && (
-                        <Circle
-                          radius={effectPx}
-                          fill={color}
-                          opacity={0.1}
-                          stroke={color}
-                          strokeWidth={1}
-                          dash={[6, 4]}
-                          listening={false}
-                        />
-                      )}
+                      {/* AoE shape overlay — hidden for Light and Darkness.
+                          Renders the spell's actual area (cube/sphere/etc.) if aoeType is set,
+                          otherwise falls back to effectRadius circle. listening=false so the
+                          large shape doesn't capture drag events. */}
+                      {marker.spellName !== 'Light' && marker.spellName !== 'Darkness' && (() => {
+                        if (marker.aoeType && marker.aoeSize) {
+                          const aoePx = (marker.aoeSize / 5) * ppg;
+                          if (marker.aoeType === 'cube') {
+                            return (
+                              <Rect
+                                x={-aoePx / 2}
+                                y={-aoePx / 2}
+                                width={aoePx}
+                                height={aoePx}
+                                fill={color}
+                                opacity={0.12}
+                                stroke={color}
+                                strokeWidth={1}
+                                dash={[6, 4]}
+                                listening={false}
+                              />
+                            );
+                          }
+                          if (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') {
+                            return (
+                              <Circle
+                                radius={aoePx}
+                                fill={color}
+                                opacity={0.12}
+                                stroke={color}
+                                strokeWidth={1}
+                                dash={[6, 4]}
+                                listening={false}
+                              />
+                            );
+                          }
+                        }
+                        // Fall back to effectRadius circle
+                        if (effectPx > 0) {
+                          return (
+                            <Circle
+                              radius={effectPx}
+                              fill={color}
+                              opacity={0.1}
+                              stroke={color}
+                              strokeWidth={1}
+                              dash={[6, 4]}
+                              listening={false}
+                            />
+                          );
+                        }
+                        return null;
+                      })()}
                       {/* Icon background circle */}
                       <Circle
                         radius={markerRadius}
@@ -4877,18 +4939,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
               }}
             >
               <span className="text-xs font-bold" style={{ color: getSchoolColor(placingSpell.school) }}>
-                {placingSpell.shapeType === 'wall'
-                  ? `Editing: ${placingSpell.name} — drag body to move, handles to rotate & resize`
-                  : `Placing: ${placingSpell.name}`}
+                {`Placing: ${placingSpell.name}`}
               </span>
-              {placingSpell.shapeType === 'wall' && editingWall && (
-                <button
-                  onClick={handleConfirmCast}
-                  className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
-                >
-                  Confirm Placement
-                </button>
-              )}
               <button
                 onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); setEditingWall(null); onCastingDismissed?.(); }}
                 className="text-white/40 hover:text-white/80 transition-colors"
@@ -4920,6 +4972,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     x: pendingMarkerPos.x,
                     y: pendingMarkerPos.y,
                     effectRadius: placingSpell.effectRadius,
+                    aoeType: placingSpell.aoeType,
+                    aoeSize: placingSpell.aoeSize,
                     visibleToPlayers: true,
                     floorId: activeFloorId || undefined,
                   };
@@ -4943,6 +4997,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     x: pendingMarkerPos.x,
                     y: pendingMarkerPos.y,
                     effectRadius: placingSpell.effectRadius,
+                    aoeType: placingSpell.aoeType,
+                    aoeSize: placingSpell.aoeSize,
                     visibleToPlayers: false,
                     floorId: activeFloorId || undefined,
                   };

@@ -256,7 +256,9 @@ export interface SpellMarker {
   casterId?: string;
   x: number;                 // for walls: center of the rectangle
   y: number;
-  effectRadius?: number;     // feet — rendered as translucent circle
+  effectRadius?: number;     // feet — rendered as translucent circle (used when no aoeType)
+  aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder'; // renders the matching shape on the placed marker
+  aoeSize?: number;          // feet — side/radius for the placed marker shape
   visibleToPlayers: boolean;
   floorId?: string;
 
