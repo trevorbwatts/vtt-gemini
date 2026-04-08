@@ -178,6 +178,9 @@ export interface Combatant {
     halfDamageOnSave?: boolean;
     atWill?: boolean;    // granted by a feat/feature, always available
     source?: string;     // e.g. 'Magic Initiate (Wizard)', 'Evocation Savant'
+    mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none';
+    saveEffect?: 'damage-save' | 'damage-auto' | 'condition';
+    condition?: string;
   }[];
   /** Spells granted at will by feats or class features — looked up automatically from the spell DB */
   atWillSpells?: { spellName: string; source: string; }[];

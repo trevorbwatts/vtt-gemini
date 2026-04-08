@@ -46,6 +46,8 @@ interface BottomPanelProps {
     saveResults: Record<string, { roll: number; modifier: number; total: number; success: boolean; name: string }> | null;
     spellName?: string;
     spellDesc?: string;
+    saveEffect?: string;
+    condition?: string;
   } | null;
 
   // Token selection
@@ -58,7 +60,7 @@ interface BottomPanelProps {
   onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
 
   // Spell casting from detail panel
-  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
+  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
 
   // Spell marker placement from detail panel
   startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
@@ -905,8 +907,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         startPlacingRef?.current?.(spell, detailSourceId);
                       };
 
-                      const isPlaceable = (spell: { aoeType?: string; aoeSize?: number; range?: number }) =>
-                        !spell.aoeType && spell.range != null && spell.range > 0;
+                      const getSpellMi = (spell: { aoeType?: string; aoeSize?: number; mapInteraction?: string }) => {
+                        if (spell.mapInteraction) return spell.mapInteraction;
+                        if (spell.aoeType && spell.aoeSize) return 'cast';
+                        return 'none';
+                      };
+                      const isPlaceable = (spell: { aoeType?: string; aoeSize?: number; range?: number; mapInteraction?: string }) =>
+                        getSpellMi(spell) === 'place';
 
                       // Compute spell attack bonus from spellSaveDc (DC = 8 + prof + mod, attack = prof + mod)
                       const spellAtkBonus = detailSource.spellSaveDc ? detailSource.spellSaveDc - 8 : 0;
@@ -933,7 +940,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             rangeBadge={makeRangeBadge(spell.range)}
                             aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                             saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
-                            onCast={spell.aoeType ? () => startCasting(spell) : undefined}
+                            onCast={(getSpellMi(spell) === 'cast' || getSpellMi(spell) === 'cast-and-place') ? () => startCasting(spell) : undefined}
                             onPlace={isPlaceable(spell) ? () => startPlacing(spell) : undefined}
                             onRoll={!hasAoe ? makeSpellRoll(spell.desc, spell.name) : undefined} />
                           );
@@ -972,7 +979,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                   rangeBadge={makeRangeBadge(spell.range)}
                                   aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                                   saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE${parsed.saveDc ? ` ${parsed.saveDc}` : ''}` : undefined}
-                                  onCast={spell.aoeType ? () => startCasting(spellWithDc) : undefined}
+                                  onCast={(getSpellMi(spell) === 'cast' || getSpellMi(spell) === 'cast-and-place') ? () => startCasting(spellWithDc) : undefined}
                                   onPlace={isPlaceable(spell) ? () => startPlacing(spell) : undefined}
                                   onRoll={rollHandler} />
                                 );

@@ -55,9 +55,11 @@ interface MapViewProps {
   darknessLevel?: 'daylight' | 'dark';
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
-  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>;
+  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can trigger spell marker placement */
   startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
+  /** Ref that MapView populates so external code can add spell markers directly (no interactive placement) */
+  addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so players can enter ruler/measure mode */
@@ -73,7 +75,7 @@ interface MapViewProps {
   /** Ref that MapView populates so external code (e.g. DM apply-damage) can immediately clear the remote AoE */
   clearRemoteAoeRef?: React.MutableRefObject<(() => void) | null>;
   /** Called when tokens in AoE changes — passes combatant IDs of affected tokens */
-  onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null) => void;
+  onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string; saveEffect?: string; condition?: string } | null) => void;
   /** Ref that MapView populates so external code (e.g. CombatView "Next Turn") can clear movement paths */
   clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so external code can undo a specific token's movement */
@@ -234,6 +236,10 @@ type AoeState = {
   spellDesc?: string;
   damageType?: string;
   saveResults?: Record<string, SaveResult>;
+  mapInteraction?: string;
+  saveEffect?: string;
+  condition?: string;
+  casterId?: string;
 };
 
 /** Determine which tokens overlap a placed AoE shape */
@@ -586,6 +592,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onDarknessLevelChange,
   startCastingRef,
   startPlacingRef,
+  addMarkersDirectlyRef,
   cancelCastingRef,
   confirmCastRef,
   onCastingDismissed,
@@ -683,6 +690,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     halfDamageOnSave?: boolean;
     spellDesc?: string;
     damageType?: string;
+    mapInteraction?: string;
+    saveEffect?: string;
+    condition?: string;
+    casterId?: string;
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<AoeState | null>(null);
@@ -906,6 +917,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         halfDamageOnSave: spell.halfDamageOnSave,
         spellDesc: spell.desc,
         damageType: parseDamageType(spell.desc || ''),
+        mapInteraction: spell.mapInteraction,
+        saveEffect: spell.saveEffect,
+        condition: spell.condition,
+        casterId: combatantId,
       });
       setCastingMousePos(null);
       // Deselect token so the monster panel dismisses
@@ -984,6 +999,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setPendingMarkerPos(null);
       setSelectedTokenIds([]);
       setSelectedTokenId(null);
+    };
+  }
+
+  // Expose direct marker placement (no interactive flow) for multi-token spells like Dancing Lights
+  if (addMarkersDirectlyRef) {
+    addMarkersDirectlyRef.current = (newMarkers) => {
+      const updated = [...spellMarkers, ...newMarkers];
+      onSpellMarkersChange?.(updated);
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+        } else {
+          window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+        }
+      } catch (_e) { /* IPC not available */ }
     };
   }
 
@@ -1122,6 +1152,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
       saveDc: activeAoe?.saveDc,
       halfDamageOnSave: activeAoe?.halfDamageOnSave,
       spellDesc: activeAoe?.spellDesc,
+      saveEffect: activeAoe?.saveEffect,
+      condition: activeAoe?.condition,
     });
   }, [tokensInAoe, activeAoe?.saveResults]);
 
@@ -1162,8 +1194,56 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const aoe = placedAoe; // Only the caster's screen can confirm
     if (!aoe) return;
 
+    /** Helper: place a persistent spell marker at the AoE position */
+    const placePersistentMarker = () => {
+      const entry = lookupSpell(aoe.name);
+      const marker: SpellMarker = {
+        id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        spellName: aoe.name,
+        school: entry?.school || 'Conjuration',
+        casterId: aoe.casterId,
+        x: aoe.x,
+        y: aoe.y,
+        visibleToPlayers: true,
+        floorId: activeFloorId || undefined,
+      };
+      const updated = [...spellMarkers, marker];
+      onSpellMarkersChange?.(updated);
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+        } else {
+          window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+        }
+      } catch (_e) { /* IPC not available */ }
+    };
+
     // No save roll needed (e.g. Darkness) — place as a persistent spell marker
     if (!aoe.saveAbility || !aoe.saveDc) {
+      // damage-auto: all tokens in AoE auto-fail — trigger damage modal via save results
+      if (aoe.saveEffect === 'damage-auto') {
+        const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+        const results: Record<string, SaveResult> = {};
+        for (const tokenId of tokensInAoe) {
+          const token = tokens.find(t => t.id === tokenId);
+          if (!token?.combatantId) continue;
+          const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
+          if (!combatant || combatant.type === 'player') continue;
+          results[combatant.sourceCombatantId || combatant.id] = {
+            roll: 0,
+            modifier: 0,
+            total: 0,
+            success: false, // all auto-fail
+            name: combatant.name,
+          };
+        }
+        // Place persistent marker (cast-and-place)
+        if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
+        setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
+        return;
+      }
+
+      // Regular no-save spell (Darkness, etc.) — place as a persistent spell marker
       const entry = lookupSpell(aoe.name);
       const marker: SpellMarker = {
         id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1212,6 +1292,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
         name: combatant.name,
       };
     }
+
+    // For cast-and-place spells (Grease, etc.), also drop a persistent marker
+    if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
 
     setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
   };
@@ -2463,6 +2546,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         halfDamageOnSave: castingSpell.halfDamageOnSave,
         spellDesc: castingSpell.spellDesc,
         damageType: castingSpell.damageType,
+        mapInteraction: castingSpell.mapInteraction,
+        saveEffect: castingSpell.saveEffect,
+        condition: castingSpell.condition,
+        casterId: castingSpell.casterId,
       });
       setCastingSpell(null);
       setCastingMousePos(null);
@@ -2564,6 +2651,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
           halfDamageOnSave: castingSpell.halfDamageOnSave,
           spellDesc: castingSpell.spellDesc,
           damageType: castingSpell.damageType,
+          mapInteraction: castingSpell.mapInteraction,
+          saveEffect: castingSpell.saveEffect,
+          condition: castingSpell.condition,
+          casterId: castingSpell.casterId,
         });
         setCastingSpell(null);
         setCastingMousePos(null);

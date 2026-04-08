@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
 import { SpellDamageModal } from './components/SpellDamageModal';
+import { SpellConditionModal } from './components/SpellConditionModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
 
@@ -122,11 +123,12 @@ export function DMScreen() {
   const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
 
   // AoE highlights from MapView (for BottomPanel display)
-  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
+  const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string; saveEffect?: string; condition?: string } | null>(null);
   const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any> } | null>(null);
+  const [spellConditionModal, setSpellConditionModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; condition: string; saveResults: Record<string, any> } | null>(null);
   const prevSaveResultsRef = useRef<Record<string, any> | null>(null);
 
-  // Auto-open damage input modal when player confirms an AoE cast
+  // Auto-open damage or condition modal when player confirms an AoE cast
   useEffect(() => {
     const prev = prevSaveResultsRef.current;
     const curr = aoeHighlights?.saveResults;
@@ -134,24 +136,37 @@ export function DMScreen() {
 
     // Only trigger when transitioning from no results to results
     if (prev || !curr) return;
-    if (!aoeHighlights?.spellName || !aoeHighlights?.saveAbility || !aoeHighlights?.saveDc) return;
+    if (!aoeHighlights?.spellName) return;
 
-    // Check if this spell deals damage at all (vs. condition-only)
-    const hasDamage = !!parseSpellDamage(aoeHighlights.spellDesc || '');
-
-    if (!hasDamage) {
-      // Condition-only spell — auto-dismiss AoE on both screens
-      window.electronAPI?.sendDismissPlayerAoe?.();
-      setAoeHighlights(null);
+    // Condition spell (e.g. Grease) — open condition modal
+    if (aoeHighlights.saveEffect === 'condition') {
+      if (!aoeHighlights.saveAbility || !aoeHighlights.saveDc || !aoeHighlights.condition) return;
+      setSpellConditionModal({
+        spellName: aoeHighlights.spellName,
+        saveAbility: aoeHighlights.saveAbility,
+        saveDc: aoeHighlights.saveDc,
+        condition: aoeHighlights.condition,
+        saveResults: curr,
+      });
       return;
     }
 
-    // Open modal so DM can enter the damage the player physically rolled
+    // damage-auto (e.g. Cloud of Daggers) or damage-save — open damage modal
+    if (!aoeHighlights.saveAbility || !aoeHighlights.saveDc) {
+      // No save info and not a condition spell — check desc for damage
+      const hasDamage = !!parseSpellDamage(aoeHighlights.spellDesc || '');
+      if (!hasDamage) {
+        window.electronAPI?.sendDismissPlayerAoe?.();
+        setAoeHighlights(null);
+        return;
+      }
+    }
+
     setSpellDamageModal({
       spellName: aoeHighlights.spellName,
-      saveAbility: aoeHighlights.saveAbility,
-      saveDc: aoeHighlights.saveDc,
-      halfDamageOnSave: aoeHighlights.halfDamageOnSave || false,
+      saveAbility: aoeHighlights.saveAbility || '',
+      saveDc: aoeHighlights.saveDc || 0,
+      halfDamageOnSave: aoeHighlights.saveEffect === 'damage-auto' ? false : (aoeHighlights.halfDamageOnSave || false),
       saveResults: curr,
     });
   }, [aoeHighlights?.saveResults]);
@@ -722,6 +737,39 @@ export function DMScreen() {
     window.electronAPI?.sendDismissPlayerAoe?.();
     setAoeHighlights(null);
     setSpellDamageModal(null);
+  };
+
+  const handleApplySpellCondition = (applyToIds: string[]) => {
+    // Apply the condition to the selected combatants
+    for (const combatantId of applyToIds) {
+      const condition = spellConditionModal?.condition;
+      if (!condition) continue;
+      setCampaign(prev => {
+        if (!prev) return prev;
+        const applyToList = (list: Combatant[]) =>
+          list.map(c => {
+            if (c.id !== combatantId && c.sourceCombatantId !== combatantId) return c;
+            const current = new Set(c.conditions || []);
+            current.add(condition);
+            return { ...c, conditions: Array.from(current) };
+          });
+        return {
+          ...prev,
+          players: applyToList(prev.players),
+          npcs: applyToList(prev.npcs),
+          persistentEnemies: applyToList(prev.persistentEnemies),
+          scenarios: prev.scenarios.map(s => ({
+            ...s,
+            activeCombatants: applyToList(s.activeCombatants || []),
+          })),
+        };
+      });
+    }
+    cancelCastingRef.current?.();
+    clearRemoteAoeRef.current?.();
+    window.electronAPI?.sendDismissPlayerAoe?.();
+    setAoeHighlights(null);
+    setSpellConditionModal(null);
   };
 
   const startCombat = (tokenIds: string[]) => {
@@ -1488,6 +1536,24 @@ export function DMScreen() {
             window.electronAPI?.sendDismissPlayerAoe?.();
             setAoeHighlights(null);
             setSpellDamageModal(null);
+          }}
+        />
+
+        {/* Spell Condition Modal — opens for condition-applying spells (Grease, etc.) */}
+        <SpellConditionModal
+          isOpen={!!spellConditionModal}
+          spellName={spellConditionModal?.spellName || ''}
+          saveAbility={spellConditionModal?.saveAbility || ''}
+          saveDc={spellConditionModal?.saveDc || 0}
+          condition={spellConditionModal?.condition || ''}
+          saveResults={spellConditionModal?.saveResults || {}}
+          onApply={handleApplySpellCondition}
+          onClose={() => {
+            cancelCastingRef.current?.();
+            clearRemoteAoeRef.current?.();
+            window.electronAPI?.sendDismissPlayerAoe?.();
+            setAoeHighlights(null);
+            setSpellConditionModal(null);
           }}
         />
 

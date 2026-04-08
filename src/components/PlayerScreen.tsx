@@ -12,8 +12,14 @@ import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, Acti
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
 
-// Spells with range 0 (touch) that should still appear as placeable map markers
-const PLACEABLE_EXCEPTIONS = ['Light', 'Wall of Sand'];
+/** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
+function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none' {
+  const mi = spell.mapInteraction ?? dbEntry?.mapInteraction;
+  if (mi) return mi;
+  // Default: has aoeType + aoeSize → cast; otherwise → none
+  if ((spell.aoeType ?? dbEntry?.aoeType) && (spell.aoeSize ?? dbEntry?.aoeSize)) return 'cast';
+  return 'none';
+}
 
 // ─── Sign-in spot types ───
 type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -261,11 +267,12 @@ const SpellRow: React.FC<{
   onPlace?: () => void;
   disabled?: boolean;
 }> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, disabled }) => {
-  const hasAoe = !!(spell.aoeType && spell.aoeSize);
-  const isPlaceable = !hasAoe && (PLACEABLE_EXCEPTIONS.includes(spell.name) || (spell.range != null && spell.range > 0));
-  // Resolve effective description: prefer spell.desc, fall back to local DB if it yields no damage
-  const localEntry = !hasAoe ? lookupSpell(spell.name) : null;
-  const effectiveDesc = spell.desc || localEntry?.desc || '';
+  const mi = spell.mapInteraction as string | undefined;
+  const isCast = mi === 'cast' || mi === 'cast-and-place';
+  const isPlace = mi === 'place' || mi === 'exception';
+  const isActive = (isCast || isPlace) && !disabled;
+  // Resolve effective description for damage type badge
+  const effectiveDesc = spell.desc || (isCast ? null : lookupSpell(spell.name)?.desc) || '';
   const damageType = effectiveDesc ? parseDamageType(effectiveDesc) : null;
   return (
     <div className="flex items-center gap-2 py-2">
@@ -278,7 +285,7 @@ const SpellRow: React.FC<{
       <div className="flex-1 min-w-0">
         <span className={cn(
           'font-bold text-xs block truncate',
-          hasAoe && !disabled ? 'text-purple-400' : isPlaceable && !disabled && onPlace ? 'text-purple-400' : 'text-white/40'
+          isActive ? 'text-purple-400' : 'text-white/40'
         )}>{spell.name}</span>
         {spell.source && (
           <span className="text-[9px] text-white/20 truncate block">{spell.source}</span>
@@ -302,7 +309,7 @@ const SpellRow: React.FC<{
         <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
           {spell.level === 0 ? 'C' : spell.level}
         </span>
-        {hasAoe && !disabled && (
+        {isCast && !disabled && (
           <button
             onPointerDown={(e) => { e.stopPropagation(); onPress(); }}
             className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40 active:bg-[var(--accent)]/40 transition-colors"
@@ -310,7 +317,7 @@ const SpellRow: React.FC<{
             Cast
           </button>
         )}
-        {isPlaceable && !disabled && onPlace && (
+        {isPlace && !disabled && onPlace && (
           <button
             onPointerDown={(e) => { e.stopPropagation(); onPlace(); }}
             className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/40 active:bg-purple-500/40 transition-colors"
@@ -360,15 +367,26 @@ const SpellsPanel: React.FC<{
   preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
 }> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
   const spells = useMemo(() => {
-    const base = player.spells || [];
+    const enrich = (spell: any) => {
+      const db = lookupSpell(spell.name);
+      return {
+        ...spell,
+        aoeType: spell.aoeType ?? db?.aoeType,
+        aoeSize: spell.aoeSize ?? db?.aoeSize,
+        mapInteraction: getMapInteraction(spell, db),
+        saveEffect: spell.saveEffect ?? db?.saveEffect,
+        condition: spell.condition ?? db?.condition,
+      };
+    };
+    const base = (player.spells || []).map(enrich);
     const atWill = (player.atWillSpells || []).flatMap(({ spellName, source }) => {
       const found = lookupSpell(spellName);
       if (!found) return [];
-      return [{ ...found, atWill: true as const, source }];
+      return [enrich({ ...found, atWill: true as const, source })];
     });
     // At-will spells appear at the top; skip any that are already in the manual list
-    const manualNames = new Set(base.map(s => s.name.toLowerCase()));
-    return [...atWill.filter(s => !manualNames.has(s.name.toLowerCase())), ...base];
+    const manualNames = new Set(base.map((s: any) => s.name.toLowerCase()));
+    return [...atWill.filter((s: any) => !manualNames.has(s.name.toLowerCase())), ...base];
   }, [player.spells, player.atWillSpells]);
 
   const spellSaveDc = useMemo(() => {
@@ -441,7 +459,7 @@ const SpellsPanel: React.FC<{
 
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'abilities' | 'lookup'>('my');
-  const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2014', '2024']));
+  const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
 
@@ -457,12 +475,10 @@ const SpellsPanel: React.FC<{
 
   const searchResults = useMemo(() => {
     if (spellSearch.trim().length < 2) return [];
-    // Include AoE spells (for Cast), placeable spells (range > 0, no aoeType), and named exceptions
-    return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell =>
-      (spell.aoeType && spell.aoeSize) ||
-      (!spell.aoeType && spell.range != null && spell.range > 0) ||
-      PLACEABLE_EXCEPTIONS.includes(spell.name)
-    ).slice(0, 20);
+    return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell => {
+      const mi = getMapInteraction(spell);
+      return mi !== 'none';
+    }).slice(0, 20);
   }, [spellSearch, enabledSources]);
 
   const toggleSource = (src: '2014' | '2024') => {
@@ -475,8 +491,13 @@ const SpellsPanel: React.FC<{
   };
 
   const handleSpellTap = (spell: any) => {
-    const halfDamageOnSave = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
-    onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave });
+    const mi = getMapInteraction(spell);
+    if (mi === 'cast' || mi === 'cast-and-place') {
+      const halfDamageOnSave = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
+      onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave });
+    } else if (mi === 'place' || mi === 'exception') {
+      onPlace(spell);
+    }
     setRecentSpells(prev => [spell, ...prev.filter(s => s.name !== spell.name)].slice(0, 5));
     setSpellSearch('');
     setShowKeyboard(false);
@@ -577,7 +598,8 @@ const SpellsPanel: React.FC<{
                 spellAttackBonus={spellAttackBonus}
                 disabled={!ready}
                 onPress={() => {
-                  if (!(spell.aoeType && spell.aoeSize)) return;
+                  const mi = spell.mapInteraction as string | undefined;
+                  if (mi !== 'cast' && mi !== 'cast-and-place') return;
                   const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
                   onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
                 }}
@@ -994,8 +1016,9 @@ export function PlayerScreen() {
   const [openPanel, setOpenPanel] = useState<'spells' | 'conditions' | null>(null);
 
   // Ref for spell casting from drawers
-  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
+  const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>(null);
   const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>(null);
+  const addMarkersDirectlyRef = useRef<((markers: import('../types').SpellMarker[]) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
@@ -1218,7 +1241,14 @@ export function PlayerScreen() {
     if (!player) return;
     setActionRing(null);
     setOpenPanel(null);
-    startCastingRef.current?.(spell, player.id);
+    // Pass mapInteraction, saveEffect, condition through so MapView knows post-cast behavior
+    const enriched = {
+      ...spell,
+      mapInteraction: spell.mapInteraction,
+      saveEffect: spell.saveEffect,
+      condition: spell.condition,
+    };
+    startCastingRef.current?.(enriched, player.id);
     setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility });
   }, [actionRing, signedInSpots, campaign]);
 
@@ -1231,6 +1261,34 @@ export function PlayerScreen() {
     if (!player) return;
     setActionRing(null);
     setOpenPanel(null);
+
+    // Dancing Lights exception: place 4 tokens immediately near the player's token
+    if (spell?.name === 'Dancing Lights') {
+      const token = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
+      const baseX = token?.x ?? window.innerWidth / 2;
+      const baseY = token?.y ?? window.innerHeight / 2;
+      const offset = 30; // pixels apart in a 2x2 cluster
+      const positions = [
+        { x: baseX - offset, y: baseY - offset },
+        { x: baseX + offset, y: baseY - offset },
+        { x: baseX - offset, y: baseY + offset },
+        { x: baseX + offset, y: baseY + offset },
+      ];
+      const dbEntry = lookupSpell('Dancing Lights');
+      const markers: import('../types').SpellMarker[] = positions.map((pos, i) => ({
+        id: `sm-dl-${Date.now()}-${i}`,
+        spellName: 'Dancing Lights',
+        school: dbEntry?.school || 'Illusion',
+        casterId: player.id,
+        x: pos.x,
+        y: pos.y,
+        effectRadius: 10,
+        visibleToPlayers: true,
+      }));
+      addMarkersDirectlyRef.current?.(markers);
+      return;
+    }
+
     // Detect wall-shape spell (fallback to spell DB lookup if the spell object
     // passed in doesn't carry shapeType)
     const dbEntry = lookupSpell(spell?.name || '');
@@ -1435,6 +1493,7 @@ export function PlayerScreen() {
           viewportCenter={viewportCenter}
           startCastingRef={startCastingRef}
           startPlacingRef={startPlacingRef}
+          addMarkersDirectlyRef={addMarkersDirectlyRef}
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}
           onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}

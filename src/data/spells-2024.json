@@ -6,7 +6,9 @@
     "desc": "You create an acidic bubble at a point within range, where it explodes in a 5-foot-radius Sphere. Each creature in that Sphere must succeed on a Dexterity saving throw or take 1d6 Acid damage.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "aoeType": "sphere",
+    "aoeSize": 5
   },
   {
     "name": "Blade Ward",
@@ -31,7 +33,8 @@
     "desc": "You create up to four torch-size lights within range, making them appear as torches, lanterns, or glowing orbs that hover for the duration. Alternatively, you combine the four lights into one glowing Medium form that is vaguely humanlike. Whichever form you choose, each light sheds Dim in a 10-foot radius.\n\nAs a Bonus, you can move the lights up to 60 feet to a space within range. A light must be within 20 feet of another light created by this spell, and a light vanishes if it exceeds the spell's range.",
     "range": 120,
     "source": "2024",
-    "effectRadius": 10
+    "effectRadius": 10,
+    "mapInteraction": "exception"
   },
   {
     "name": "Druidcraft",
@@ -98,7 +101,8 @@
     "school": "Conjuration",
     "desc": "A spectral, floating hand appears at a point you choose within range. The hand lasts for the duration. The hand vanishes if it is ever more than 30 feet away from you or if you cast this spell again.\n\nWhen you cast the spell, you can use the hand to manipulate an object, open an unlocked door or container, stow or retrieve an item from an open container, or pour the contents out of a vial.\n\nAs a Magic action on your later turns, you can control the hand thus again. As part of that action, you can move the hand up to 30 feet.\n\nThe hand can't attack, activate magic items, or carry more than 10 pounds.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "place"
   },
   {
     "name": "Mending",
@@ -132,7 +136,8 @@
     "desc": "You create a sound or an image of an object within range that lasts for the duration. See the descriptions below for the effects of each. The illusion ends if you cast this spell again.\n\nIf a creature takes a Study action to examine the sound or image, the creature can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the illusion becomes faint to the creature.\n\n**Sound.** If you create a sound, its volume can range from a whisper to a scream. It can be your voice, someone else's voice, a lion's roar, a beating of drums, or any other sound you choose. The sound continues unabated throughout the duration, or you can make discrete sounds at different times before the spell ends.\n\n**Image.** If you create an image of an object—such as a chair, muddy footprints, or a small chest—it must be no larger than a 5-foot Cube. The image can't create sound, light, smell, or any other sensory effect. Physical interaction with the image reveals it to be an illusion, since things can pass through it.",
     "range": 30,
     "source": "2024",
-    "effectRadius": 5
+    "effectRadius": 5,
+    "mapInteraction": "place"
   },
   {
     "name": "Poison Spray",
@@ -440,7 +445,8 @@
     "range": 30,
     "source": "2024",
     "aoeType": "sphere",
-    "aoeSize": 30
+    "aoeSize": 30,
+    "mapInteraction": "exception"
   },
   {
     "name": "Detect Poison and Disease",
@@ -576,7 +582,11 @@
     "range": 60,
     "source": "2024",
     "aoeType": "cube",
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "aoeSize": 10,
+    "mapInteraction": "cast-and-place",
+    "saveEffect": "condition",
+    "condition": "prone"
   },
   {
     "name": "Guiding Bolt",
@@ -773,7 +783,8 @@
     "desc": "You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 15-foot Cube. The image appears at a spot within range and lasts for the duration. The image is purely visual; it isn't accompanied by sound, smell, or other sensory effects.\n\nAs a Magic action, you can cause the image to move to any spot within range. As the image changes location, you can alter its appearance so that its movements appear natural for the image. For example, if you create an image of a creature and move it, you can alter the image so that it appears to be walking.\n\nPhysical interaction with the image reveals it to be an illusion, since things can pass through it. A creature that takes a Study action to examine the image can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the creature can see through the image.",
     "range": 60,
     "source": "2024",
-    "effectRadius": 15
+    "effectRadius": 15,
+    "mapInteraction": "place"
   },
   {
     "name": "Sleep",
@@ -957,7 +968,10 @@
     "desc": "You conjure spinning daggers in a 5-foot Cube centered on a point within range. Each creature in that area takes 4d4 Slashing damage. A creature also takes this damage if it enters the Cube or ends its turn there or if the Cube moves into its space. A creature takes this damage only once per turn.\n\nOn your later turns, you can take a Magic action to teleport the Cube up to 30 feet.",
     "range": 60,
     "source": "2024",
-    "aoeType": "cone"
+    "aoeType": "cube",
+    "aoeSize": 5,
+    "mapInteraction": "cast-and-place",
+    "saveEffect": "damage-auto"
   },
   {
     "name": "Continual Flame",
@@ -1131,7 +1145,8 @@
     "school": "Illusion",
     "desc": "A creature you touch has the Invisible condition until the spell ends. The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell.",
     "range": 0,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "exception"
   },
   {
     "name": "Knock",

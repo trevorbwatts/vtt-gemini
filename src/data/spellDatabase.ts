@@ -18,6 +18,13 @@ export interface SpellEntry {
   maxLength?: number;
   maxThickness?: number;
   blocksVision?: boolean;
+  // --- map interaction ---
+  /** How the spell behaves on the map. Defaults to 'cast' if aoeType+aoeSize present, else 'none'. */
+  mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none';
+  /** What happens when the cast is confirmed. 'damage-save': existing damage modal. 'damage-auto': all fail, damage modal. 'condition': condition modal. */
+  saveEffect?: 'damage-save' | 'damage-auto' | 'condition';
+  /** Condition to apply on failed save (used with saveEffect: 'condition'). */
+  condition?: string;
 }
 
 const allSpells: SpellEntry[] = [
@@ -59,6 +66,9 @@ export function resolveSpells(spellNames: string[]): {
   maxLength?: number;
   maxThickness?: number;
   blocksVision?: boolean;
+  mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none';
+  saveEffect?: 'damage-save' | 'damage-auto' | 'condition';
+  condition?: string;
 }[] {
   const results: ReturnType<typeof resolveSpells> = [];
   const seen = new Set<string>();
@@ -89,6 +99,9 @@ export function resolveSpells(spellNames: string[]): {
         ...(entry.maxLength != null ? { maxLength: entry.maxLength } : {}),
         ...(entry.maxThickness != null ? { maxThickness: entry.maxThickness } : {}),
         ...(entry.blocksVision ? { blocksVision: entry.blocksVision } : {}),
+        ...(entry.mapInteraction ? { mapInteraction: entry.mapInteraction } : {}),
+        ...(entry.saveEffect ? { saveEffect: entry.saveEffect } : {}),
+        ...(entry.condition ? { condition: entry.condition } : {}),
       });
     } else {
       // Spell not in database — include with minimal info

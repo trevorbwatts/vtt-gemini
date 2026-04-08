@@ -274,6 +274,14 @@ function getSpells(data: any): NonNullable<Combatant['spells']> {
     }
   }
 
+  // Every spell-source bucket that DDB exposes. We must iterate ALL of them
+  // (not just race + class), otherwise spells granted by feats (e.g. Magic
+  // Initiate → Mage Hand), items, or backgrounds get silently dropped on
+  // import. This was the cause of two players seemingly having "the same"
+  // Mage Hand but only one importing — one had it from their class, the
+  // other from a feat that we weren't reading.
+  const SPELL_SOURCE_KEYS = ['race', 'class', 'feat', 'item', 'background', 'condition'] as const;
+
   const addSpell = (spell: any) => {
     const def = spell.definition || spell;
     if (!def?.name || seen.has(def.name)) return;
@@ -306,8 +314,9 @@ function getSpells(data: any): NonNullable<Combatant['spells']> {
 
   (data.classSpells || []).forEach((cs: any) => (cs.spells || []).forEach(addSpell));
   if (data.spells) {
-    (data.spells.race  || []).forEach(addSpell);
-    (data.spells.class || []).forEach(addSpell);
+    for (const key of SPELL_SOURCE_KEYS) {
+      (data.spells[key] || []).forEach(addSpell);
+    }
   }
 
   return spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
