@@ -365,7 +365,8 @@ const SpellsPanel: React.FC<{
   onClose: () => void;
   onDarkvisionChange: (newValue: number) => void;
   preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
+  onTremorsenseChange?: (data: { playerId: string; rangeFt: number } | null) => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -444,6 +445,9 @@ const SpellsPanel: React.FC<{
         delete preAbilityDarkvisionRef.current[entry.id];
         onDarkvisionChange(original);
       }
+      if (entry.behavior === 'tremorsense') {
+        onTremorsenseChange?.(null);
+      }
     } else {
       next.add(entry.id);
       if (entry.behavior === 'darkvision' && entry.darkvisionBonus != null) {
@@ -452,6 +456,8 @@ const SpellsPanel: React.FC<{
       } else if (entry.behavior === 'darkvisionSet' && entry.darkvisionValue != null) {
         preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
         onDarkvisionChange(entry.darkvisionValue);
+      } else if (entry.behavior === 'tremorsense' && entry.tremorsenseRange != null) {
+        onTremorsenseChange?.({ playerId: player.id, rangeFt: entry.tremorsenseRange });
       }
     }
     setActiveAbilities(next);
@@ -623,7 +629,7 @@ const SpellsPanel: React.FC<{
         <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="divide-y divide-white/10">
             {abilities.flatMap(entry => {
-              const isInteractive = entry.behavior === 'toggle' || entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet';
+              const isInteractive = entry.behavior === 'toggle' || entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet' || entry.behavior === 'tremorsense';
               if (isInteractive) {
                 const isActive = activeAbilities.has(entry.id);
                 return [(
@@ -896,9 +902,10 @@ interface AbilityEntry {
   levelRequired: number;
   actionType: string;
   description: string;
-  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'display' | 'wip';
+  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'display' | 'wip';
   darkvisionBonus?: number;
   darkvisionValue?: number;
+  tremorsenseRange?: number;
   variants?: Array<{ label: string; aoeType: string; aoeSize: number }>;
 }
 
@@ -1037,6 +1044,8 @@ export function PlayerScreen() {
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   // Player targeting — combatant IDs of monsters players have targeted
   const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
+  // Tremorsense — active when a player toggles Stonecunning (or similar tremorsense ability)
+  const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
 
   // ── IPC ──
   useEffect(() => {
@@ -1519,6 +1528,7 @@ export function PlayerScreen() {
               };
             });
           }}
+          tremorsenseData={tremorsenseData}
         />
       </div>
 
@@ -1659,6 +1669,7 @@ export function PlayerScreen() {
               });
             }}
             preAbilityDarkvisionRef={preAbilityDarkvisionRef}
+            onTremorsenseChange={setTremorsenseData}
           />
         );
       })()}

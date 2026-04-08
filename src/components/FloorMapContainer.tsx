@@ -65,6 +65,7 @@ interface FloorMapContainerProps {
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
   spellMarkers?: import('../types').SpellMarker[];
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
+  tremorsenseData?: { playerId: string; rangeFt: number } | null;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -185,6 +186,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
     onToggleTarget: props.onToggleTarget,
     onClearTargets: props.onClearTargets,
+    tremorsenseData: props.tremorsenseData,
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
       onAddScenario: props.onAddScenario,

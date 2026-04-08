@@ -110,6 +110,8 @@ interface MapViewProps {
   spellMarkers?: import('../types').SpellMarker[];
   /** Callback to update spell markers */
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
+  /** Tremorsense data — when active, reveals nearby enemy/NPC tokens as grey circles above fog */
+  tremorsenseData?: { playerId: string; rangeFt: number } | null;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -624,6 +626,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   isPrimary = true,
   spellMarkers = [],
   onSpellMarkersChange,
+  tremorsenseData,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -4588,6 +4591,81 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 })}
             </Layer>
           )}
+
+          {/* ── Tremorsense circles above fog (player view only) ── */}
+          {isPlayerView && tremorsenseData && (() => {
+            // Find the caster's token
+            const casterToken = tokens.find(t => t.combatantId === tremorsenseData.playerId);
+            if (!casterToken) return null;
+            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
+            const rangePx = gridResolution
+              ? (tremorsenseData.rangeFt / 5) * gridResolution.pixelsPerGrid
+              : tremorsenseData.rangeFt * 4;
+
+            // Point-in-polygon test (ray casting algorithm)
+            const pointInPolygon = (px: number, py: number, poly: WallPoint[]): boolean => {
+              let inside = false;
+              for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                const xi = poly[i].x, yi = poly[i].y;
+                const xj = poly[j].x, yj = poly[j].y;
+                if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+                  inside = !inside;
+                }
+              }
+              return inside;
+            };
+
+            // Check if a point is visible in ANY of the combined vision polygons
+            // (playerVisionData already accounts for darkvision + wall raycasting)
+            const isVisibleToPlayers = (px: number, py: number): boolean => {
+              // Check direct player vision (darkvision-limited LOS)
+              for (const poly of playerVisionData) {
+                if (poly.length >= 3 && pointInPolygon(px, py, poly)) return true;
+              }
+              // Check light-illuminated areas visible through player LOS
+              // A point is visible via light if it's inside a light polygon AND
+              // inside at least one player's full (unclipped) LOS polygon
+              for (const lightPoly of lightPolygons) {
+                if (lightPoly.length < 3 || !pointInPolygon(px, py, lightPoly)) continue;
+                for (const losPoly of playerFullLOSPolygons) {
+                  if (losPoly.length >= 3 && pointInPolygon(px, py, losPoly)) return true;
+                }
+              }
+              return false;
+            };
+
+            // Find enemy/NPC tokens within range that are NOT visible
+            const sensedTokens = tokens.filter(t => {
+              if (t.type === 'player') return false;
+              const pos = livePlayerPos[t.id] ?? t;
+              const dx = pos.x - casterPos.x;
+              const dy = pos.y - casterPos.y;
+              if (Math.sqrt(dx * dx + dy * dy) > rangePx) return false;
+              // Only show tremorsense circle if the token is NOT already visible
+              return !isVisibleToPlayers(pos.x, pos.y);
+            });
+            if (sensedTokens.length === 0) return null;
+            return (
+              <Layer listening={false}>
+                {sensedTokens.map(token => {
+                  const r = tokenRadius * getTokenSizeMultiplier(token.size);
+                  const pos = livePlayerPos[token.id] ?? token;
+                  return (
+                    <Group key={`tremor-${token.id}`} x={pos.x} y={pos.y}>
+                      <Circle
+                        radius={r}
+                        fill="#6b7280"
+                        stroke="#4b5563"
+                        strokeWidth={2 * tokenScale}
+                        opacity={0.85}
+                        perfectDrawEnabled={false}
+                      />
+                    </Group>
+                  );
+                })}
+              </Layer>
+            );
+          })()}
 
           {/* ── Player tokens above fog (player view only) ── */}
           {isPlayerView && (
