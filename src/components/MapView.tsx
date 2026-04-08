@@ -447,33 +447,33 @@ const TargetRing: React.FC<{ radius: number; tokenScale: number }> = ({ radius, 
 
 /** Animated countdown ring for abilities with a duration */
 const CountdownRing: React.FC<{ radius: number; tokenScale: number; startTime: number; durationMs: number; color?: string }> = ({ radius, tokenScale, startTime, durationMs, color }) => {
-  const [angle, setAngle] = useState(() => {
+  const [remainingRatio, setRemainingRatio] = useState(() => {
     const elapsed = Date.now() - startTime;
-    return Math.max(0, 360 * (1 - elapsed / durationMs));
+    return Math.max(0, 1 - elapsed / durationMs);
   });
 
   useEffect(() => {
     let frameId: number;
     const animate = () => {
       const elapsed = Date.now() - startTime;
-      const remainingRatio = 1 - elapsed / durationMs;
-      if (remainingRatio <= 0) {
-        setAngle(0);
+      const ratio = 1 - elapsed / durationMs;
+      if (ratio <= 0) {
+        setRemainingRatio(0);
         return;
       }
-      setAngle(360 * remainingRatio);
+      setRemainingRatio(ratio);
       frameId = requestAnimationFrame(animate);
     };
     frameId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameId);
   }, [startTime, durationMs]);
 
-  if (angle <= 0) return null;
+  if (remainingRatio <= 0) return null;
 
   return (
     <Arc
-      angle={angle}
-      rotation={-90} /* Start clock at the top */
+      angle={360 * remainingRatio}
+      rotation={-90 + 360 * (1 - remainingRatio)} /* Move starting angle clockwise as time drains */
       innerRadius={radius + 4 * tokenScale}
       outerRadius={radius + 8 * tokenScale}
       fill={color || '#fcd34d'}
