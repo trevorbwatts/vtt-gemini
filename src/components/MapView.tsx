@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
@@ -112,6 +112,8 @@ interface MapViewProps {
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
   /** Tremorsense data — when active, reveals nearby enemy/NPC tokens as grey circles above fog */
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
+  /** Active timers for tokens to display countdown rings */
+  activeTimers?: import('../types').TokenTimer[];
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -443,6 +445,45 @@ const TargetRing: React.FC<{ radius: number; tokenScale: number }> = ({ radius, 
   );
 };
 
+/** Animated countdown ring for abilities with a duration */
+const CountdownRing: React.FC<{ radius: number; tokenScale: number; startTime: number; durationMs: number; color?: string }> = ({ radius, tokenScale, startTime, durationMs, color }) => {
+  const [angle, setAngle] = useState(() => {
+    const elapsed = Date.now() - startTime;
+    return Math.max(0, 360 * (1 - elapsed / durationMs));
+  });
+
+  useEffect(() => {
+    let frameId: number;
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const remainingRatio = 1 - elapsed / durationMs;
+      if (remainingRatio <= 0) {
+        setAngle(0);
+        return;
+      }
+      setAngle(360 * remainingRatio);
+      frameId = requestAnimationFrame(animate);
+    };
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [startTime, durationMs]);
+
+  if (angle <= 0) return null;
+
+  return (
+    <Arc
+      angle={angle}
+      rotation={-90} /* Start clock at the top */
+      innerRadius={radius + 4 * tokenScale}
+      outerRadius={radius + 8 * tokenScale}
+      fill={color || '#fcd34d'}
+      opacity={0.8}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  );
+};
+
 /**
  * Animated 4-chevron turn indicator that zooms in and fades out over 3 seconds.
  * Each chevron points inward from one of the 4 cardinal directions.
@@ -627,6 +668,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   spellMarkers = [],
   onSpellMarkersChange,
   tremorsenseData,
+  activeTimers = [],
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -4722,6 +4764,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     }
                   }}
                 >
+                  {/* Countdown Timers */}
+                  {(activeTimers || []).filter(t => t.playerId === token.combatantId).map((timer, i) => (
+                    <CountdownRing
+                      key={`timer-${timer.playerId}-${timer.abilityId}-${i}`}
+                      radius={r + (i * 5 * tokenScale)}
+                      tokenScale={tokenScale}
+                      startTime={timer.startTime}
+                      durationMs={timer.durationMs}
+                      color={timer.color}
+                    />
+                  ))}
                   <Circle
                     radius={r}
                     fill={token.avatar ? 'transparent' : token.color}

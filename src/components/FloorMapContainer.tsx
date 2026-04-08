@@ -66,6 +66,7 @@ interface FloorMapContainerProps {
   spellMarkers?: import('../types').SpellMarker[];
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
+  activeTimers?: import('../types').TokenTimer[];
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -187,6 +188,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onToggleTarget: props.onToggleTarget,
     onClearTargets: props.onClearTargets,
     tremorsenseData: props.tremorsenseData,
+    activeTimers: props.activeTimers,
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
       onAddScenario: props.onAddScenario,

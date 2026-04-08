@@ -93,6 +93,14 @@ export interface MovementPath {
   segments: MovementPathSegment[];
 }
 
+export interface TokenTimer {
+  playerId: string;
+  abilityId: string;
+  startTime: number;
+  durationMs: number;
+  color?: string;
+}
+
 export interface ClassDefinition {
   name: string;
   level: number;

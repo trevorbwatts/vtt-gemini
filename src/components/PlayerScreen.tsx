@@ -366,7 +366,9 @@ const SpellsPanel: React.FC<{
   onDarkvisionChange: (newValue: number) => void;
   preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
   onTremorsenseChange?: (data: { playerId: string; rangeFt: number } | null) => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange }) => {
+  activeAbilities: Set<string>;
+  onToggleAbility: (entry: AbilityEntry) => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -433,34 +435,8 @@ const SpellsPanel: React.FC<{
     ) ?? false;
   }), [player]);
 
-  const [activeAbilities, setActiveAbilities] = useState<Set<string>>(new Set());
-
   const handleToggleAbility = (entry: AbilityEntry) => {
-    const isOn = activeAbilities.has(entry.id);
-    const next = new Set(activeAbilities);
-    if (isOn) {
-      next.delete(entry.id);
-      if (entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet') {
-        const original = preAbilityDarkvisionRef.current[entry.id] ?? (player.darkvision ?? 0);
-        delete preAbilityDarkvisionRef.current[entry.id];
-        onDarkvisionChange(original);
-      }
-      if (entry.behavior === 'tremorsense') {
-        onTremorsenseChange?.(null);
-      }
-    } else {
-      next.add(entry.id);
-      if (entry.behavior === 'darkvision' && entry.darkvisionBonus != null) {
-        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
-        onDarkvisionChange((player.darkvision ?? 0) + entry.darkvisionBonus);
-      } else if (entry.behavior === 'darkvisionSet' && entry.darkvisionValue != null) {
-        preAbilityDarkvisionRef.current[entry.id] = player.darkvision ?? 0;
-        onDarkvisionChange(entry.darkvisionValue);
-      } else if (entry.behavior === 'tremorsense' && entry.tremorsenseRange != null) {
-        onTremorsenseChange?.({ playerId: player.id, rangeFt: entry.tremorsenseRange });
-      }
-    }
-    setActiveAbilities(next);
+    onToggleAbility(entry);
   };
 
   const [showKeyboard, setShowKeyboard] = useState(false);
@@ -906,6 +882,7 @@ interface AbilityEntry {
   darkvisionBonus?: number;
   darkvisionValue?: number;
   tremorsenseRange?: number;
+  durationMs?: number;
   variants?: Array<{ label: string; aoeType: string; aoeSize: number }>;
 }
 
@@ -1046,6 +1023,57 @@ export function PlayerScreen() {
   const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
   // Tremorsense — active when a player toggles Stonecunning (or similar tremorsense ability)
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
+
+  // Lifted abilities state (playerId -> set of ability IDs)
+  const [playerActiveAbilities, setPlayerActiveAbilities] = useState<Record<string, Set<string>>>({});
+  // Active timers for abilities with durationMs (Array mapping mapped by playerId)
+  const [activeTimers, setActiveTimers] = useState<import('../types').TokenTimer[]>([]);
+
+  const handleTogglePlayerAbility = (playerId: string, entry: AbilityEntry, onDarkvisionChange: (val: number) => void) => {
+    setPlayerActiveAbilities(prev => {
+      const current = prev[playerId] || new Set();
+      const next = new Set(current);
+      const isOn = next.has(entry.id);
+      let timers = [...activeTimers];
+      
+      if (isOn) {
+        next.delete(entry.id);
+        timers = timers.filter(t => !(t.playerId === playerId && t.abilityId === entry.id));
+        if (entry.behavior === 'darkvision' || entry.behavior === 'darkvisionSet') {
+          const original = preAbilityDarkvisionRef.current[entry.id] ?? 0;
+          delete preAbilityDarkvisionRef.current[entry.id];
+          onDarkvisionChange(original);
+        }
+        if (entry.behavior === 'tremorsense') {
+          setTremorsenseData(null);
+        }
+      } else {
+        next.add(entry.id);
+        if (entry.durationMs) {
+          timers.push({
+            playerId,
+            abilityId: entry.id,
+            startTime: Date.now(),
+            durationMs: entry.durationMs,
+            color: '#fbbf24' // default gold timer color
+          });
+        }
+        if (entry.behavior === 'darkvision' && entry.darkvisionBonus != null) {
+          const player = campaign?.players.find(p => p.id === playerId);
+          preAbilityDarkvisionRef.current[entry.id] = player?.darkvision ?? 0;
+          onDarkvisionChange((player?.darkvision ?? 0) + entry.darkvisionBonus);
+        } else if (entry.behavior === 'darkvisionSet' && entry.darkvisionValue != null) {
+          const player = campaign?.players.find(p => p.id === playerId);
+          preAbilityDarkvisionRef.current[entry.id] = player?.darkvision ?? 0;
+          onDarkvisionChange(entry.darkvisionValue);
+        } else if (entry.behavior === 'tremorsense' && entry.tremorsenseRange != null) {
+          setTremorsenseData({ playerId, rangeFt: entry.tremorsenseRange });
+        }
+      }
+      setActiveTimers(timers);
+      return { ...prev, [playerId]: next };
+    });
+  };
 
   // ── IPC ──
   useEffect(() => {
@@ -1529,6 +1557,7 @@ export function PlayerScreen() {
             });
           }}
           tremorsenseData={tremorsenseData}
+          activeTimers={activeTimers}
         />
       </div>
 
@@ -1650,6 +1679,17 @@ export function PlayerScreen() {
         const player = getPlayerForSpot(actionRing.spotId);
         if (!player) return null;
         const config = spotConfigs[actionRing.spotId];
+        
+        const handleDarkvisionChange = (newValue: number) => {
+          const playerId = signedInSpots[actionRing.spotId];
+          if (!playerId) return;
+          window.electronAPI?.sendPlayerDarkvisionUpdate?.(playerId, newValue);
+          setCampaign(prev => {
+            if (!prev) return prev;
+            return { ...prev, players: prev.players.map(p => p.id === playerId ? { ...p, darkvision: newValue } : p) };
+          });
+        };
+
         return (
           <SpellsPanel
             player={player}
@@ -1659,17 +1699,11 @@ export function PlayerScreen() {
             onCast={handleCastSpell}
             onPlace={handlePlaceSpell}
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
-            onDarkvisionChange={(newValue) => {
-              const playerId = signedInSpots[actionRing.spotId];
-              if (!playerId) return;
-              window.electronAPI?.sendPlayerDarkvisionUpdate?.(playerId, newValue);
-              setCampaign(prev => {
-                if (!prev) return prev;
-                return { ...prev, players: prev.players.map(p => p.id === playerId ? { ...p, darkvision: newValue } : p) };
-              });
-            }}
+            onDarkvisionChange={handleDarkvisionChange}
             preAbilityDarkvisionRef={preAbilityDarkvisionRef}
             onTremorsenseChange={setTremorsenseData}
+            activeAbilities={playerActiveAbilities[player.id] || new Set()}
+            onToggleAbility={(entry) => handleTogglePlayerAbility(player.id, entry, handleDarkvisionChange)}
           />
         );
       })()}
