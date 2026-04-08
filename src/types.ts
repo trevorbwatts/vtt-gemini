@@ -176,7 +176,11 @@ export interface Combatant {
     range?: number;      // cast range in feet (0 = self, -1 = touch)
     saveAbility?: string; // 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
     halfDamageOnSave?: boolean;
+    atWill?: boolean;    // granted by a feat/feature, always available
+    source?: string;     // e.g. 'Magic Initiate (Wizard)', 'Evocation Savant'
   }[];
+  /** Spells granted at will by feats or class features — looked up automatically from the spell DB */
+  atWillSpells?: { spellName: string; source: string; }[];
   conditions?: string[];
   avatar?: string;
   color?: string;

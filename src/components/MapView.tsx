@@ -4000,35 +4000,47 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const onLengthDrag = (e: any) => {
               const px = e.target.x();
               const py = e.target.y();
-              setEditingWall(w => {
-                if (!w) return null;
-                const dx = px - w.x;
-                const dy = py - w.y;
-                const dist = Math.hypot(dx, dy);
-                const newAngleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
-                const newLengthFt = Math.min(
-                  w.maxLength,
-                  Math.max(minFeet, (dist * 2 / ppg) * 5)
-                );
-                return { ...w, angle: newAngleDeg, length: newLengthFt };
+              const dx = px - editingWall.x;
+              const dy = py - editingWall.y;
+              const dist = Math.hypot(dx, dy);
+              const rawLengthFt = (dist * 2 / ppg) * 5;
+              const clampedLengthFt = Math.min(
+                editingWall.maxLength,
+                Math.max(minFeet, rawLengthFt)
+              );
+              // Direction from center to drag point (preserves the dragged handle's side)
+              const dirX = dist > 0 ? dx / dist : 1;
+              const dirY = dist > 0 ? dy / dist : 0;
+              const newAngleDeg = Math.atan2(dirY, dirX) * 180 / Math.PI;
+              // Snap the handle visually to the clamped position so it never overshoots
+              const halfLClampedPx = (clampedLengthFt / 5) * ppg / 2;
+              e.target.position({
+                x: editingWall.x + dirX * halfLClampedPx,
+                y: editingWall.y + dirY * halfLClampedPx,
               });
+              setEditingWall(w => w ? { ...w, angle: newAngleDeg, length: clampedLengthFt } : null);
             };
 
             const onThicknessDrag = (e: any) => {
               const px = e.target.x();
               const py = e.target.y();
-              setEditingWall(w => {
-                if (!w) return null;
-                const rad = w.angle * Math.PI / 180;
-                const perpX = -Math.sin(rad);
-                const perpY = Math.cos(rad);
-                const proj = (px - w.x) * perpX + (py - w.y) * perpY;
-                const newThicknessFt = Math.min(
-                  w.maxThickness,
-                  Math.max(minFeet, (Math.abs(proj) * 2 / ppg) * 5)
-                );
-                return { ...w, thickness: newThicknessFt };
+              const rad = editingWall.angle * Math.PI / 180;
+              const perpX = -Math.sin(rad);
+              const perpY = Math.cos(rad);
+              const proj = (px - editingWall.x) * perpX + (py - editingWall.y) * perpY;
+              const sign = proj < 0 ? -1 : 1;
+              const rawThicknessFt = (Math.abs(proj) * 2 / ppg) * 5;
+              const clampedThicknessFt = Math.min(
+                editingWall.maxThickness,
+                Math.max(minFeet, rawThicknessFt)
+              );
+              // Snap the handle to the perpendicular axis at the clamped distance
+              const halfTClampedPx = (clampedThicknessFt / 5) * ppg / 2;
+              e.target.position({
+                x: editingWall.x + perpX * sign * halfTClampedPx,
+                y: editingWall.y + perpY * sign * halfTClampedPx,
               });
+              setEditingWall(w => w ? { ...w, thickness: clampedThicknessFt } : null);
             };
 
             const labelFontSize = 14 / stageScale;

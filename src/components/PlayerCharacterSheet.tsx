@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Shield, Heart, Zap, Footprints, Eye, MoreVertical, Trash2, Sparkles, RefreshCw, ChevronDown } from '../icons';
 import { Combatant, cn } from '../types';
+import { lookupSpell } from '../data/spellDatabase';
 
 interface PlayerCharacterSheetProps {
   player: Combatant | null;
@@ -230,26 +231,36 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
               <Sparkles size={14} className="text-purple-400" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Spells</span>
             </div>
-            {player.spells && player.spells.length > 0 ? (
-              <div className="space-y-1.5">
-                {player.spells.map((s, i) => {
-                  const levelBadge = s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
-                  const aoeBadge = s.aoeType
-                    ? `${s.aoeSize ? `${s.aoeSize}ft ` : ''}${AOE_LABELS[s.aoeType]}`
-                    : undefined;
-                  const saveBadge = s.saveAbility
-                    ? `${s.saveAbility.toUpperCase()} SAVE`
-                    : undefined;
-                  return (
-                    <AccordionCard key={i} name={s.name} desc={s.desc}
-                      badge={levelBadge} aoeBadge={aoeBadge} saveBadge={saveBadge}
-                      nameClass="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/10" />
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm opacity-30 italic py-4 text-center">No spells listed.</p>
-            )}
+            {(() => {
+              const manualSpells = player.spells || [];
+              const manualNames = new Set(manualSpells.map(s => s.name.toLowerCase()));
+              const atWillEntries = (player.atWillSpells || []).flatMap(({ spellName, source }) => {
+                const found = lookupSpell(spellName);
+                if (!found) return [];
+                return [{ ...found, atWill: true as const, source }];
+              }).filter(s => !manualNames.has(s.name.toLowerCase()));
+              const allSpells = [...atWillEntries, ...manualSpells];
+              if (allSpells.length === 0) return <p className="text-sm opacity-30 italic py-4 text-center">No spells listed.</p>;
+              return (
+                <div className="space-y-1.5">
+                  {allSpells.map((s, i) => {
+                    const levelBadge = s.atWill ? 'At Will' : s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
+                    const aoeBadge = s.aoeType
+                      ? `${s.aoeSize ? `${s.aoeSize}ft ` : ''}${AOE_LABELS[s.aoeType]}`
+                      : undefined;
+                    const saveBadge = s.saveAbility
+                      ? `${s.saveAbility.toUpperCase()} SAVE`
+                      : undefined;
+                    return (
+                      <AccordionCard key={i} name={s.name} desc={s.desc}
+                        badge={levelBadge} aoeBadge={aoeBadge} saveBadge={saveBadge}
+                        sourceBadge={s.source}
+                        nameClass="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/10" />
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </motion.div>
       </div>
@@ -263,13 +274,14 @@ interface AccordionCardProps {
   badge?: string;
   aoeBadge?: string;
   saveBadge?: string;
+  sourceBadge?: string;
   nameClass?: string;
   bg: string;
   border: string;
 }
 
 const AccordionCard: React.FC<AccordionCardProps> = ({
-  name, desc, badge, aoeBadge, saveBadge, nameClass = 'text-white', bg, border,
+  name, desc, badge, aoeBadge, saveBadge, sourceBadge, nameClass = 'text-white', bg, border,
 }) => {
   const [open, setOpen] = useState(false);
   const hasDesc = !!desc;
@@ -278,7 +290,10 @@ const AccordionCard: React.FC<AccordionCardProps> = ({
       <button onClick={() => hasDesc && setOpen(o => !o)}
         className={cn('w-full flex items-center gap-2 px-3 py-2.5 text-left',
           hasDesc ? 'cursor-pointer hover:bg-white/5 transition-colors' : 'cursor-default')}>
-        <span className={`font-bold flex-1 min-w-0 truncate ${nameClass}`}>{name}</span>
+        <div className="flex-1 min-w-0">
+          <span className={`font-bold block truncate ${nameClass}`}>{name}</span>
+          {sourceBadge && <span className="text-[10px] opacity-40 block truncate">{sourceBadge}</span>}
+        </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {saveBadge && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">

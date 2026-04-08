@@ -269,10 +269,21 @@ const SpellRow: React.FC<{
   const damageType = effectiveDesc ? parseDamageType(effectiveDesc) : null;
   return (
     <div className="flex items-center gap-2 py-2">
-      <span className={cn(
-        'font-bold flex-1 min-w-0 truncate text-xs',
-        hasAoe && !disabled ? 'text-purple-400' : isPlaceable && !disabled && onPlace ? 'text-purple-400' : 'text-white/40'
-      )}>{spell.name}</span>
+      {spell.atWill && (
+        <div className="flex flex-col items-center shrink-0 mr-0.5">
+          <span className="text-[8px] font-black uppercase tracking-widest text-white/30 leading-none">AT</span>
+          <span className="text-[8px] font-black uppercase tracking-widest text-white/30 leading-none">WILL</span>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <span className={cn(
+          'font-bold text-xs block truncate',
+          hasAoe && !disabled ? 'text-purple-400' : isPlaceable && !disabled && onPlace ? 'text-purple-400' : 'text-white/40'
+        )}>{spell.name}</span>
+        {spell.source && (
+          <span className="text-[9px] text-white/20 truncate block">{spell.source}</span>
+        )}
+      </div>
       <div className="flex items-center gap-1.5 shrink-0">
         <DamageTypeBadge damageType={damageType} />
         {spell.saveAbility && (
@@ -348,7 +359,17 @@ const SpellsPanel: React.FC<{
   onDarkvisionChange: (newValue: number) => void;
   preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
 }> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef }) => {
-  const spells = player.spells || [];
+  const spells = useMemo(() => {
+    const base = player.spells || [];
+    const atWill = (player.atWillSpells || []).flatMap(({ spellName, source }) => {
+      const found = lookupSpell(spellName);
+      if (!found) return [];
+      return [{ ...found, atWill: true as const, source }];
+    });
+    // At-will spells appear at the top; skip any that are already in the manual list
+    const manualNames = new Set(base.map(s => s.name.toLowerCase()));
+    return [...atWill.filter(s => !manualNames.has(s.name.toLowerCase())), ...base];
+  }, [player.spells, player.atWillSpells]);
 
   const spellSaveDc = useMemo(() => {
     if (player.spellSaveDc) return player.spellSaveDc;
@@ -470,7 +491,6 @@ const SpellsPanel: React.FC<{
         left: hCenter,
         top: 8,
         transform: 'rotate(180deg)',
-        transformOrigin: 'center top',
       };
     }
     if (isLeft) {
@@ -769,7 +789,6 @@ const ConditionsPanel: React.FC<{
         left: hCenter,
         top: 8,
         transform: 'rotate(180deg)',
-        transformOrigin: 'center top',
       };
     }
     if (isLeft) {
