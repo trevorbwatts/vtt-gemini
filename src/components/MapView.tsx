@@ -221,7 +221,7 @@ export interface SaveResult {
 
 type AoeState = {
   name: string;
-  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | 'emanation';
   aoeSize: number;
   x: number;
   y: number;
@@ -264,14 +264,19 @@ function getTokensInAoe(
     const ty = token.y;
     let hit = false;
 
-    // Exclude the caster's own token for self-origin spells and cones/lines (which always emanate from caster)
-    const isAnchoredToCaster = aoe.selfOrigin || aoe.aoeType === 'cone' || aoe.aoeType === 'line';
+    // Exclude the caster's own token for self-origin spells, cones/lines, and emanations
+    const isAnchoredToCaster = aoe.selfOrigin || aoe.aoeType === 'cone' || aoe.aoeType === 'line' || aoe.aoeType === 'emanation';
     if (isAnchoredToCaster) {
       const distToOrigin = Math.sqrt((tx - aoe.originX) ** 2 + (ty - aoe.originY) ** 2);
       if (distToOrigin < aoe.casterRadiusPx + 2) continue;
     }
 
     switch (aoe.aoeType) {
+      case 'emanation': {
+        // Sphere centered on caster — radius measured from caster's edge
+        hit = Math.sqrt((tx - aoe.originX) ** 2 + (ty - aoe.originY) ** 2) < sizePx + aoe.casterRadiusPx + tr;
+        break;
+      }
       case 'sphere':
       case 'cylinder': {
         const cx = aoe.selfOrigin
@@ -679,7 +684,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // ── AoE Casting State ──
   const [castingSpell, setCastingSpell] = useState<{
     name: string;
-    aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+    aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | 'emanation';
     aoeSize: number; // feet
     originX: number; // caster token center world coords
     originY: number;
@@ -709,7 +714,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     name: string;
     school: string;
     effectRadius?: number;
-    aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
+    aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | 'emanation';
     aoeSize?: number;
     casterId?: string;
     shapeType?: 'point' | 'wall';
@@ -904,6 +909,36 @@ const MapViewInner: React.FC<MapViewProps> = ({
       if (!token) return;
       const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token.size);
       const isSelfOrigin = spell.range === 0 || spell.range === undefined;
+
+      // Emanation: skip mouse-follow — immediately place AoE locked to caster position
+      if (spell.aoeType === 'emanation') {
+        setPlacedAoe({
+          name: spell.name,
+          aoeType: 'emanation',
+          aoeSize: spell.aoeSize,
+          x: token.x,
+          y: token.y,
+          originX: token.x,
+          originY: token.y,
+          angle: 0,
+          casterRadiusPx,
+          saveAbility: spell.saveAbility,
+          saveDc: spell.saveDc,
+          halfDamageOnSave: spell.halfDamageOnSave,
+          spellDesc: spell.desc,
+          damageType: parseDamageType(spell.desc || ''),
+          mapInteraction: spell.mapInteraction,
+          saveEffect: spell.saveEffect,
+          condition: spell.condition,
+          casterId: combatantId,
+        });
+        setCastingSpell(null);
+        setCastingMousePos(null);
+        setSelectedTokenIds([]);
+        setSelectedTokenId(null);
+        return;
+      }
+
       // Enter mouse-follow casting mode
       setPlacedAoe(null);
       setCastingSpell({
@@ -3938,6 +3973,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       listening={false}
                     />
                   </>
+                )}
+
+                {/* Emanation — non-draggable circle locked to caster origin */}
+                {placedAoe.aoeType === 'emanation' && (
+                  <Circle
+                    x={placedAoe.originX}
+                    y={placedAoe.originY}
+                    radius={sizePx + placedAoe.casterRadiusPx}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={strokeW}
+                    dash={[6 / stageScale, 4 / stageScale]}
+                    draggable={false}
+                    listening={false}
+                  />
                 )}
 
                 {/* Sphere / Cylinder — circle at target position */}

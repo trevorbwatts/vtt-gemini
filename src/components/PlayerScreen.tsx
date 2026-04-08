@@ -1025,7 +1025,7 @@ export function PlayerScreen() {
   const cancelMeasuringRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
-  const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string } | null>(null);
+  const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string; aoeType?: string } | null>(null);
   // Track active measuring (for banner positioning)
   const [activeMeasuring, setActiveMeasuring] = useState<{ spotId: SpotId } | null>(null);
   const [measureDistanceFeet, setMeasureDistanceFeet] = useState<number | null>(null);
@@ -1249,7 +1249,7 @@ export function PlayerScreen() {
       condition: spell.condition,
     };
     startCastingRef.current?.(enriched, player.id);
-    setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility });
+    setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility, aoeType: spell.aoeType });
   }, [actionRing, signedInSpots, campaign]);
 
   const handlePlaceSpell = useCallback((spell: any) => {
@@ -1537,7 +1537,11 @@ export function PlayerScreen() {
             <div className="bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10">
               <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
               <span className="text-sm font-bold text-orange-400">Casting {activeCasting.spellName}</span>
-              {!aoeHighlights?.saveResults && <span className="text-xs text-white/40">Drag to place</span>}
+              {!aoeHighlights?.saveResults && (
+                <span className="text-xs text-white/40">
+                  {activeCasting.aoeType === 'emanation' ? 'Centered on you' : 'Drag to place'}
+                </span>
+              )}
               {!aoeHighlights?.saveResults && (
                 <button
                   onClick={() => confirmCastRef.current?.()}

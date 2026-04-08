@@ -250,10 +250,12 @@
     "level": 0,
     "school": "Evocation",
     "desc": "Each creature in a 5-foot Emanation originating from you must succeed on a Constitution saving throw or take 1d6 Thunder damage. The spell's thunderous sound can be heard up to 100 feet away.",
-    "range": 5,
+    "range": 0,
     "source": "2024",
-    "aoeType": "sphere",
-    "saveAbility": "con"
+    "aoeType": "emanation",
+    "aoeSize": 5,
+    "saveAbility": "con",
+    "saveEffect": "damage-save"
   },
   {
     "name": "Toll the Dead",

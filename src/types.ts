@@ -170,8 +170,8 @@ export interface Combatant {
     level: number;       // 0 = cantrip
     desc: string;
     school?: string;     // e.g. 'Illusion', 'Conjuration'
-    aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder';
-    aoeSize?: number;    // feet: radius for sphere/cylinder, length for cone/line, side for cube
+    aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | 'emanation';
+    aoeSize?: number;    // feet: radius for sphere/cylinder/emanation, length for cone/line, side for cube
     effectRadius?: number; // feet — for non-AoE spells with an area (Light, Alarm, etc.)
     range?: number;      // cast range in feet (0 = self, -1 = touch)
     saveAbility?: string; // 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
@@ -257,7 +257,7 @@ export interface SpellMarker {
   x: number;                 // for walls: center of the rectangle
   y: number;
   effectRadius?: number;     // feet — rendered as translucent circle (used when no aoeType)
-  aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder'; // renders the matching shape on the placed marker
+  aoeType?: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | 'emanation'; // renders the matching shape on the placed marker
   aoeSize?: number;          // feet — side/radius for the placed marker shape
   visibleToPlayers: boolean;
   floorId?: string;
