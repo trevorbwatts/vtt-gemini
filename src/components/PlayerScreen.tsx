@@ -1341,6 +1341,7 @@ export function PlayerScreen() {
         y: pos.y,
         effectRadius: 10,
         visibleToPlayers: true,
+        lightSource: true,
       }));
       addMarkersDirectlyRef.current?.(markers);
       return;

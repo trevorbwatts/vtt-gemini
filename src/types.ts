@@ -269,6 +269,8 @@ export interface SpellMarker {
   aoeSize?: number;          // feet — side/radius for the placed marker shape
   visibleToPlayers: boolean;
   floorId?: string;
+  /** When true, this marker acts as a dynamic light source that reveals fog of war within effectRadius feet. */
+  lightSource?: boolean;
 
   // --- wall-shape fields (Wall of Sand, etc.) ---
   shapeType?: 'point' | 'wall';   // default behavior is 'point'

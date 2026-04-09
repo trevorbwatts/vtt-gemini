@@ -1578,10 +1578,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
       ));
     }
 
-    // Placed Light cantrip markers — treated as dynamic light sources.
+    // Placed light-source markers (Light, Dancing Lights, etc.) — treated as dynamic light sources.
     // Use live drag position if currently being dragged for real-time fog update.
     for (const marker of spellMarkers) {
-      if (marker.spellName !== 'Light' || !marker.effectRadius) continue;
+      if (!marker.lightSource || !marker.effectRadius) continue;
       if (marker.floorId && marker.floorId !== activeFloorId) continue;
       const live = liveMarkerPos[marker.id];
       const radiusPx = (marker.effectRadius / 5) * ppg;
@@ -2616,6 +2616,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         aoeSize: placingSpell.aoeSize,
         visibleToPlayers: true,
         floorId: activeFloorId || undefined,
+        // Pure light sources have effectRadius but no AoE shape
+        lightSource: !!placingSpell.effectRadius && !placingSpell.aoeType,
       };
       const updated = [...spellMarkers, marker];
       onSpellMarkersChange?.(updated);
@@ -2726,6 +2728,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           aoeSize: placingSpell.aoeSize,
           visibleToPlayers: true,
           floorId: activeFloorId || undefined,
+          lightSource: !!placingSpell.effectRadius && !placingSpell.aoeType,
         };
         const updated = [...spellMarkers, marker];
         onSpellMarkersChange?.(updated);
@@ -5164,6 +5167,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     aoeSize: placingSpell.aoeSize,
                     visibleToPlayers: true,
                     floorId: activeFloorId || undefined,
+                    lightSource: !!placingSpell.effectRadius && !placingSpell.aoeType,
                   };
                   const updated = [...spellMarkers, marker];
                   onSpellMarkersChange?.(updated);
@@ -5189,6 +5193,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     aoeSize: placingSpell.aoeSize,
                     visibleToPlayers: false,
                     floorId: activeFloorId || undefined,
+                    lightSource: !!placingSpell.effectRadius && !placingSpell.aoeType,
                   };
                   const updated = [...spellMarkers, marker];
                   onSpellMarkersChange?.(updated);
