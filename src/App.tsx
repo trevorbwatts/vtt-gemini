@@ -369,6 +369,58 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerTargetUpdateListener?.(); };
   }, []);
 
+  // Wild Shape state (playerId -> original avatar, for reverting on DM side)
+  const [wildShapeState, setWildShapeState] = useState<Record<string, { creatureName: string; originalAvatar?: string }>>({});
+
+  // Listen for Wild Shape updates from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerWildShape) return;
+    window.electronAPI.onPlayerWildShape((data) => {
+      if (data === null) {
+        // Revert all wild shapes (simple approach)
+        setWildShapeState(prev => {
+          const next = { ...prev };
+          // Restore avatars for all wild-shaped players
+          setCampaign(prevCamp => {
+            if (!prevCamp) return prevCamp;
+            let players = prevCamp.players;
+            let scenarios = prevCamp.scenarios;
+            for (const [pid, ws] of Object.entries(next)) {
+              players = players.map(p => p.id === pid ? { ...p, avatar: ws.originalAvatar } : p);
+              scenarios = scenarios.map(s => ({
+                ...s,
+                tokens: s.tokens.map(t => t.combatantId === pid ? { ...t, avatar: ws.originalAvatar } : t),
+              }));
+            }
+            return { ...prevCamp, players, scenarios };
+          });
+          return {};
+        });
+        return;
+      }
+
+      const { playerId, creatureName, creatureAvatar } = data;
+      setCampaign(prev => {
+        if (!prev) return prev;
+        const player = prev.players.find(p => p.id === playerId);
+        // Store original avatar before overwriting
+        setWildShapeState(ws => ({
+          ...ws,
+          [playerId]: { creatureName, originalAvatar: player?.avatar },
+        }));
+        return {
+          ...prev,
+          players: prev.players.map(p => p.id === playerId ? { ...p, avatar: creatureAvatar } : p),
+          scenarios: prev.scenarios.map(s => ({
+            ...s,
+            tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: creatureAvatar } : t),
+          })),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerWildShapeListener?.(); };
+  }, []);
+
   const handleCreateCampaign = (name: string) => {
     const scenarioId = `s-${Date.now()}`;
     const defaultFloorId = `floor-${scenarioId}-0`;
@@ -1435,6 +1487,7 @@ export function DMScreen() {
               startCastingRef={startCastingRef}
               startPlacingRef={startPlacingRef}
               targetedCombatantIds={targetedCombatantIds}
+              wildShapeState={wildShapeState}
             />
           )}
         </div>

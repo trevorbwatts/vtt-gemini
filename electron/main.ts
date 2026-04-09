@@ -274,6 +274,13 @@ ipcMain.on('player-spell-marker-update', (_event, markers) => {
   }
 });
 
+// Player Wild Shape updates: proxy to DM window
+ipcMain.on('player-wild-shape', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-wild-shape', data);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

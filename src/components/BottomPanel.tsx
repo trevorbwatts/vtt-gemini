@@ -67,6 +67,9 @@ interface BottomPanelProps {
 
   // Targeting
   targetedCombatantIds?: Set<string>;
+
+  // Wild Shape state — maps playerId to creature name for beast stat display
+  wildShapeState?: Record<string, { creatureName: string; originalAvatar?: string }>;
 }
 
 export const BottomPanel: React.FC<BottomPanelProps> = ({
@@ -90,6 +93,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   startCastingRef,
   startPlacingRef,
   targetedCombatantIds,
+  wildShapeState,
 }) => {
   // ── Panel height (resizable) ──
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -228,7 +232,30 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
     // If a single token is selected on the map, show that one
     if (selectedTokenIds.length === 1) {
       const token = tokens.find(t => t.id === selectedTokenIds[0]);
-      if (token?.type === 'player') return null; // players use Character Sheet modal
+      // Wild-shaped players show beast stats in the monster panel
+      if (token?.type === 'player') {
+        const ws = token.combatantId && wildShapeState?.[token.combatantId];
+        if (!ws) return null; // normal players use Character Sheet modal
+        // Build a virtual combatant from the beast data
+        const beast = BESTIARY.find(m => m.name === ws.creatureName && m.source === '2024')
+          || BESTIARY.find(m => m.name === ws.creatureName);
+        if (!beast) return null;
+        const player = allSourceCombatants.find(c => c.id === token.combatantId);
+        const virtualCombatant: Combatant = {
+          id: token.combatantId || token.id,
+          name: beast.name,
+          initiative: 0,
+          hp: beast.hp,
+          maxHp: beast.hp,
+          ac: beast.ac,
+          type: 'enemy',
+          stats: beast.stats,
+          actions: beast.actions,
+          speed: beast.speed ? parseInt(beast.speed) || 30 : 30,
+          color: player?.color,
+        };
+        return { combatant: virtualCombatant, token, sourceCombatantId: token.combatantId };
+      }
       const sourceCombatantId = token?.combatantId;
       const source = allSourceCombatants.find(c => c.id === sourceCombatantId);
       const active = activeCombatants.find(ac => ac.sourceCombatantId === sourceCombatantId);
@@ -245,7 +272,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
       }
     }
     return null;
-  }, [selectedTokenIds, tokens, allSourceCombatants, activeCombatants, combatActive, activeCombatantId, sortedCombatants]);
+  }, [selectedTokenIds, tokens, allSourceCombatants, activeCombatants, combatActive, activeCombatantId, sortedCombatants, wildShapeState]);
 
   const detailToken = detailCombatant?.token;
   const detailSourceId = detailCombatant?.sourceCombatantId;
@@ -277,10 +304,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   }, [detailCombatant]);
 
   // ── Visibility ──
-  // Show panel if: combat is active, OR a non-player token is selected
+  // Show panel if: combat is active, OR a non-player token is selected, OR a wild-shaped player is selected
   const showPanel = combatActive || (selectedTokenIds.length === 1 && (() => {
     const token = tokens.find(t => t.id === selectedTokenIds[0]);
-    return token && token.type !== 'player';
+    if (!token) return false;
+    if (token.type !== 'player') return true;
+    // Show panel for wild-shaped players
+    return !!(token.combatantId && wildShapeState?.[token.combatantId]);
   })());
 
   // Show the Roll Initiative floating button when tokens are selected but combat hasn't started

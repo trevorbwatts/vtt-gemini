@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { MapView } from './MapView';
 import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
-import { Campaign, Token, Combatant, cn } from '../types';
+import { Campaign, Token, Combatant, Monster, cn } from '../types';
 import { searchSpells } from '../data/spellDatabase';
 import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, Flame, Ruler } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,6 +11,7 @@ import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
+import { searchBeasts } from '../data/bestiary';
 
 /** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
 function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none' {
@@ -373,7 +374,10 @@ const SpellsPanel: React.FC<{
   onMeasure: () => void;
   isPlayersTurn: boolean;
   onEndTurn: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn }) => {
+  onWildShape?: (creature: Monster) => void;
+  isWildShaped?: boolean;
+  onRevertWildShape?: () => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -445,10 +449,13 @@ const SpellsPanel: React.FC<{
   };
 
   const [showKeyboard, setShowKeyboard] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'abilities' | 'lookup'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'abilities' | 'lookup' | 'wildshape'>(isWildShaped ? 'wildshape' : 'my');
   const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
+  const [beastSearch, setBeastSearch] = useState('');
+
+  const hasWildShape = abilities.some(a => a.behavior === 'wildshape');
 
   const ready = true;
 
@@ -459,6 +466,11 @@ const SpellsPanel: React.FC<{
       return mi !== 'none';
     }).slice(0, 20);
   }, [spellSearch, enabledSources]);
+
+  const beastResults = useMemo(() => {
+    if (beastSearch.trim().length < 2) return [];
+    return searchBeasts(beastSearch, 20, { sources: enabledSources });
+  }, [beastSearch, enabledSources]);
 
   const toggleSource = (src: '2014' | '2024') => {
     setEnabledSources(prev => {
@@ -587,6 +599,15 @@ const SpellsPanel: React.FC<{
         >
           Spell Lookup
         </button>
+        {hasWildShape && (
+          <button
+            onClick={() => { setActiveTab('wildshape'); setShowKeyboard(true); }}
+            className={cn('flex-1 pb-1.5 text-[10px] uppercase tracking-widest font-bold transition-colors border-b-2 -mb-px',
+              activeTab === 'wildshape' ? 'text-emerald-400 border-emerald-500' : 'text-white/25 border-transparent hover:text-white/40')}
+          >
+            Wild Shape
+          </button>
+        )}
       </div>
 
       {/* My Spells */}
@@ -646,6 +667,23 @@ const SpellsPanel: React.FC<{
                       )}
                     >
                       {isActive ? 'On' : 'Off'}
+                    </button>
+                  </div>
+                )];
+              }
+
+              // Wild Shape: show a button that switches to the Wild Shape tab
+              if (entry.behavior === 'wildshape') {
+                return [(
+                  <div key={entry.id} className="flex items-center gap-2 py-2">
+                    <span className="font-bold flex-1 min-w-0 truncate text-xs text-emerald-400">
+                      {entry.name}
+                    </span>
+                    <button
+                      onPointerDown={(e) => { e.stopPropagation(); setActiveTab('wildshape'); setShowKeyboard(true); }}
+                      className="shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 active:bg-emerald-500/40 transition-colors"
+                    >
+                      {isWildShaped ? 'Change Form' : 'Cast'}
                     </button>
                   </div>
                 )];
@@ -783,6 +821,84 @@ const SpellsPanel: React.FC<{
               onKeyPress={(ch) => setSpellSearch(prev => prev + ch)}
               onBackspace={() => setSpellSearch(prev => prev.slice(0, -1))}
               onClear={() => setSpellSearch('')}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Wild Shape */}
+      {activeTab === 'wildshape' && (
+        <div>
+          {isWildShaped && onRevertWildShape && (
+            <button
+              onPointerDown={(e) => { e.stopPropagation(); onRevertWildShape(); onClose(); }}
+              className="w-full mb-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 active:bg-red-500/40 transition-colors"
+            >
+              Revert Wild Shape
+            </button>
+          )}
+          <div className="flex items-center gap-1 mb-2">
+            {(['2014', '2024'] as const).map(src => (
+              <button
+                key={src}
+                onClick={() => toggleSource(src)}
+                className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
+                  enabledSources.has(src) ? 'bg-emerald-500/25 text-emerald-300' : 'bg-white/5 text-white/20')}
+              >
+                {src}
+              </button>
+            ))}
+          </div>
+          {beastResults.length > 0 && (
+            <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
+              {beastResults.map((beast, i) => (
+                <div key={`b-${i}`} className="flex items-center gap-2 py-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-xs block truncate text-emerald-400">{beast.name}</span>
+                    <span className="text-[9px] text-white/20 truncate block">{beast.type}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
+                      CR {beast.cr}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
+                      HP {beast.hp}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                      AC {beast.ac}
+                    </span>
+                    {onWildShape && (
+                      <button
+                        onPointerDown={(e) => { e.stopPropagation(); onWildShape(beast); setBeastSearch(''); setShowKeyboard(false); onClose(); }}
+                        className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 active:bg-emerald-500/40 transition-colors"
+                      >
+                        Shift
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div
+            className={cn('relative mb-2 cursor-pointer', showKeyboard && 'ring-1 ring-emerald-500/30 rounded-lg')}
+            onClick={() => setShowKeyboard(true)}
+          >
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/25" />
+            <div className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-8 py-1.5 text-xs text-white min-h-[30px] flex items-center">
+              {beastSearch || <span className="text-white/25">Tap to search beasts...</span>}
+            </div>
+            {beastSearch && (
+              <button onClick={(e) => { e.stopPropagation(); setBeastSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
+                <X size={12} className="text-white/30" />
+              </button>
+            )}
+          </div>
+          {showKeyboard && (
+            <OnScreenKeyboard
+              onKeyPress={(ch) => setBeastSearch(prev => prev + ch)}
+              onBackspace={() => setBeastSearch(prev => prev.slice(0, -1))}
+              onClear={() => setBeastSearch('')}
             />
           )}
         </div>
@@ -925,7 +1041,7 @@ interface AbilityEntry {
   levelRequired: number;
   actionType: string;
   description: string;
-  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'display' | 'wip' | 'cast';
+  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'display' | 'wip' | 'cast' | 'wildshape';
   darkvisionBonus?: number;
   darkvisionValue?: number;
   tremorsenseRange?: number;
@@ -1096,6 +1212,10 @@ export function PlayerScreen() {
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
   // Detect Magic — active when a player casts Detect Magic
   const [detectMagicData, setDetectMagicData] = useState<{ playerId: string; rangeFt: number } | null>(null);
+
+  // Wild Shape — tracks which players are currently wild-shaped
+  // Map of playerId -> { creatureName, originalAvatar, creatureAvatar }
+  const [wildShapeData, setWildShapeData] = useState<Record<string, { creatureName: string; originalAvatar?: string; creatureAvatar: string; creatureHp: number; creatureAc: number; creatureSpeed?: string }>>({});
 
   // Lifted abilities state (playerId -> set of ability IDs)
   const [playerActiveAbilities, setPlayerActiveAbilities] = useState<Record<string, Set<string>>>({});
@@ -1462,6 +1582,86 @@ export function PlayerScreen() {
     }
   }, [actionRing, signedInSpots, campaign]);
 
+  const handleWildShape = useCallback((spotId: SpotId, creature: Monster) => {
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+    const player = campaign.players.find(p => p.id === playerId);
+    if (!player) return;
+    setActionRing(null);
+    setOpenPanel(null);
+
+    // Store wild shape state locally
+    setWildShapeData(prev => ({
+      ...prev,
+      [playerId]: {
+        creatureName: creature.name,
+        originalAvatar: player.avatar,
+        creatureAvatar: creature.avatar || `/tokens/${creature.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}.jpg`,
+        creatureHp: creature.hp,
+        creatureAc: creature.ac,
+        creatureSpeed: creature.speed,
+      },
+    }));
+
+    // Update local campaign so token avatar changes immediately
+    const creatureAvatar = creature.avatar || `/tokens/${creature.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}.jpg`;
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        players: prev.players.map(p => p.id === playerId ? { ...p, avatar: creatureAvatar } : p),
+        scenarios: prev.scenarios.map(s => ({
+          ...s,
+          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: creatureAvatar } : t),
+        })),
+      };
+    });
+
+    // Notify DM
+    window.electronAPI?.sendPlayerWildShape?.({
+      playerId,
+      creatureName: creature.name,
+      creatureAvatar,
+      creatureHp: creature.hp,
+      creatureAc: creature.ac,
+      creatureSpeed: creature.speed,
+    });
+  }, [signedInSpots, campaign]);
+
+  const handleRevertWildShape = useCallback((spotId: SpotId) => {
+    const playerId = signedInSpots[spotId];
+    if (!playerId) return;
+    const wsData = wildShapeData[playerId];
+    if (!wsData) return;
+    setActionRing(null);
+    setOpenPanel(null);
+
+    const originalAvatar = wsData.originalAvatar;
+
+    // Clear wild shape state
+    setWildShapeData(prev => {
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
+    });
+
+    // Restore original avatar locally
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        players: prev.players.map(p => p.id === playerId ? { ...p, avatar: originalAvatar } : p),
+        scenarios: prev.scenarios.map(s => ({
+          ...s,
+          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: originalAvatar } : t),
+        })),
+      };
+    });
+
+    // Notify DM (null = revert)
+    window.electronAPI?.sendPlayerWildShape?.(null);
+  }, [signedInSpots, wildShapeData]);
+
   const handleConditionToggle = useCallback((spotId: SpotId, condition: string) => {
     const playerId = signedInSpots[spotId];
     if (!playerId || !campaign) return;
@@ -1801,6 +2001,9 @@ export function PlayerScreen() {
             }}
             isPlayersTurn={isPlayersTurn}
             onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); setOpenPanel(null); }}
+            onWildShape={(creature) => handleWildShape(actionRing.spotId, creature)}
+            isWildShaped={!!(playerId && wildShapeData[playerId])}
+            onRevertWildShape={() => handleRevertWildShape(actionRing.spotId)}
           />
         );
       })()}

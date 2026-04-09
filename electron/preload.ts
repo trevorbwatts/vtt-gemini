@@ -123,4 +123,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerSpellMarkerUpdateListener: () => {
     ipcRenderer.removeAllListeners('player-spell-marker-update');
   },
+  sendPlayerWildShape: (data: any) => ipcRenderer.send('player-wild-shape', data),
+  onPlayerWildShape: (callback: (data: any) => void) => {
+    ipcRenderer.on('player-wild-shape', (_event, data) => callback(data));
+  },
+  removePlayerWildShapeListener: () => {
+    ipcRenderer.removeAllListeners('player-wild-shape');
+  },
 });

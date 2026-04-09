@@ -57,6 +57,9 @@ declare global {
       toggleFullscreen?: () => void;
       onFullscreenStatus?: (callback: (isFs: boolean) => void) => void;
       removeFullscreenStatusListener?: () => void;
+      sendPlayerWildShape?: (data: { playerId: string; creatureName: string; creatureAvatar: string; creatureHp: number; creatureAc: number; creatureSpeed?: string } | null) => void;
+      onPlayerWildShape?: (callback: (data: { playerId: string; creatureName: string; creatureAvatar: string; creatureHp: number; creatureAc: number; creatureSpeed?: string } | null) => void) => void;
+      removePlayerWildShapeListener?: () => void;
     }
   }
 }
