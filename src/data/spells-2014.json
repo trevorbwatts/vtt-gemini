@@ -150,7 +150,8 @@
     "range": 0,
     "source": "2014",
     "saveAbility": "dex",
-    "effectRadius": 40
+    "effectRadius": 40,
+    "mapInteraction": "exception"
   },
   {
     "name": "Lightning Lure",

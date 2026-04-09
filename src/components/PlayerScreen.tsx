@@ -894,6 +894,8 @@ interface StripEntry {
   type: 'player' | 'enemy' | 'npc';
   count: number;
   isActive: boolean;
+  color?: string;
+  avatar?: string;
 }
 
 const InitiativeStrip: React.FC<{
@@ -924,12 +926,15 @@ const InitiativeStrip: React.FC<{
           continue;
         }
       }
-      result.push({ key: c.id, name: c.name, type: c.type, count: 1, isActive });
+      result.push({ key: c.id, name: c.name, type: c.type, count: 1, isActive, color: c.color, avatar: c.avatar });
     }
     return result;
   }, [sorted, activeCombatantId]);
 
-  const typeColor = (type: string) => {
+  const typeColor = (type: string, color?: string) => {
+    if (type === 'player' && color) {
+      return { bg: `${color}14`, text: color, border: `${color}33` };
+    }
     if (type === 'player') return { bg: 'rgba(34,197,94,0.08)', text: '#22c55e', border: 'rgba(34,197,94,0.2)' };
     if (type === 'enemy') return { bg: 'rgba(239,68,68,0.08)', text: '#ef4444', border: 'rgba(239,68,68,0.2)' };
     return { bg: 'rgba(96,165,250,0.08)', text: '#60a5fa', border: 'rgba(96,165,250,0.2)' };
@@ -938,24 +943,39 @@ const InitiativeStrip: React.FC<{
   return (
     <div className="absolute top-0 right-0 bottom-0 w-12 bg-black/80 border-l border-white/10 flex flex-col z-20 backdrop-blur-sm">
       {entries.map((entry) => {
-        const colors = typeColor(entry.type);
+        const colors = typeColor(entry.type, entry.color);
         return (
           <div
             key={entry.key}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
+              'flex-1 flex flex-col items-center justify-center gap-1 border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
               entry.isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
             )}
             style={{ backgroundColor: entry.isActive ? undefined : colors.bg, borderLeft: `2px solid ${entry.isActive ? '#fbbf24' : colors.border}` }}
           >
+            {(entry.avatar || entry.type === 'player') && (
+              <div
+                className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
+                style={{
+                  background: entry.avatar ? 'transparent' : (entry.color || colors.text),
+                  boxShadow: `0 0 0 1.5px #111, 0 0 0 3px ${entry.isActive ? '#fbbf24' : (entry.color || colors.text)}`,
+                  transform: 'rotate(90deg)',
+                }}
+              >
+                {entry.avatar
+                  ? <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
+                  : entry.name[0]?.toUpperCase()
+                }
+              </div>
+            )}
             <span
               className={cn(
                 'text-[11px] font-bold tracking-wider whitespace-nowrap',
                 entry.isActive && 'text-amber-300'
               )}
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : colors.text }}
+              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : colors.text, marginTop: (entry.avatar || entry.type === 'player') ? '6px' : undefined }}
             >
-              {entry.name}
+              {entry.name}{entry.count > 1 ? ` ×${entry.count}` : ''}
             </span>
           </div>
         );

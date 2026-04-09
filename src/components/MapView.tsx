@@ -949,32 +949,39 @@ const MapViewInner: React.FC<MapViewProps> = ({
   tokensRef.current = tokens;
   if (startCastingRef) {
     startCastingRef.current = (spell, combatantId) => {
-      if (!spell.aoeType || !spell.aoeSize) return;
+      // Always consult the DB — campaign data may have a stale aoeType (e.g. 'sphere' instead
+      // of 'emanation' if the spell was added before the DB was updated).
+      const dbEntry = lookupSpell(spell.name);
+      const resolvedAoeType = dbEntry?.aoeType ?? spell.aoeType;
+      const resolvedAoeSize = spell.aoeSize ?? dbEntry?.aoeSize;
+      const resolvedSaveAbility = spell.saveAbility ?? dbEntry?.saveAbility;
+      const resolvedSaveDc = spell.saveDc;
+      if (!resolvedAoeType || !resolvedAoeSize) return;
       const token = tokensRef.current.find(t => t.combatantId === combatantId);
       if (!token) return;
       const casterRadiusPx = tokenRadius * getTokenSizeMultiplier(token.size);
-      const isSelfOrigin = spell.range === 0 || spell.range === undefined;
+      const isSelfOrigin = spell.range === 0 || (spell.range === undefined && dbEntry?.range === 0);
 
       // Emanation: skip mouse-follow — immediately place AoE locked to caster position
-      if (spell.aoeType === 'emanation') {
+      if (resolvedAoeType === 'emanation') {
         setPlacedAoe({
           name: spell.name,
           aoeType: 'emanation',
-          aoeSize: spell.aoeSize,
+          aoeSize: resolvedAoeSize,
           x: token.x,
           y: token.y,
           originX: token.x,
           originY: token.y,
           angle: 0,
           casterRadiusPx,
-          saveAbility: spell.saveAbility,
-          saveDc: spell.saveDc,
-          halfDamageOnSave: spell.halfDamageOnSave,
-          spellDesc: spell.desc,
-          damageType: parseDamageType(spell.desc || ''),
+          saveAbility: resolvedSaveAbility,
+          saveDc: resolvedSaveDc,
+          halfDamageOnSave: spell.halfDamageOnSave ?? dbEntry?.halfDamageOnSave,
+          spellDesc: spell.desc || dbEntry?.desc,
+          damageType: parseDamageType(spell.desc || dbEntry?.desc || ''),
           mapInteraction: spell.mapInteraction,
-          saveEffect: spell.saveEffect,
-          condition: spell.condition,
+          saveEffect: spell.saveEffect ?? dbEntry?.saveEffect,
+          condition: spell.condition ?? dbEntry?.condition,
           casterId: combatantId,
         });
         setCastingSpell(null);
@@ -988,20 +995,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setPlacedAoe(null);
       setCastingSpell({
         name: spell.name,
-        aoeType: spell.aoeType as 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder',
-        aoeSize: spell.aoeSize,
+        aoeType: resolvedAoeType as 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder',
+        aoeSize: resolvedAoeSize,
         originX: token.x,
         originY: token.y,
         casterRadiusPx,
         selfOrigin: isSelfOrigin,
-        saveAbility: spell.saveAbility,
-        saveDc: spell.saveDc,
-        halfDamageOnSave: spell.halfDamageOnSave,
-        spellDesc: spell.desc,
-        damageType: parseDamageType(spell.desc || ''),
+        saveAbility: resolvedSaveAbility,
+        saveDc: resolvedSaveDc,
+        halfDamageOnSave: spell.halfDamageOnSave ?? dbEntry?.halfDamageOnSave,
+        spellDesc: spell.desc || dbEntry?.desc,
+        damageType: parseDamageType(spell.desc || dbEntry?.desc || ''),
         mapInteraction: spell.mapInteraction,
-        saveEffect: spell.saveEffect,
-        condition: spell.condition,
+        saveEffect: spell.saveEffect ?? dbEntry?.saveEffect,
+        condition: spell.condition ?? dbEntry?.condition,
         casterId: combatantId,
       });
       setCastingMousePos(null);
