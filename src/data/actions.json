@@ -31,7 +31,11 @@
     "levelRequired": 2,
     "actionType": "magic action",
     "description": "As a Magic action, you present your Holy Symbol and censure Undead creatures. Each Undead of your choice within 30 feet of you must make a Wisdom saving throw. If the creature fails its save, it has the Frightened and Incapacitated conditions for 1 minute. For that duration, it tries to move as far from you as it can on its turns. This effect ends early on the creature if it takes any damage, if you have the Incapacitated condition, or if you die.",
-    "behavior": "display"
+    "behavior": "cast",
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "saveAbility": "wis",
+    "halfDamageOnSave": false
   },
   {
     "id": "cleric-light-radiance-of-the-dawn",
@@ -42,7 +46,11 @@
     "levelRequired": 3,
     "actionType": "magic action",
     "description": "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to emit a flash of light in a 30-foot Emanation originating from yourself. Any magical Darkness in that area is dispelled. Additionally, each creature of your choice in that area must make a Constitution saving throw, taking Radiant damage equal to 2d10 plus your Cleric level on a failed save or half as much damage on a successful one.",
-    "behavior": "display"
+    "behavior": "cast",
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "saveAbility": "con",
+    "halfDamageOnSave": true
   },
   {
     "id": "cleric-light-corona-of-light",

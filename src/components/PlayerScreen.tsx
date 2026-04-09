@@ -450,15 +450,7 @@ const SpellsPanel: React.FC<{
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
 
-  // Prevent accidental taps: spells are not tappable for 400ms after the panel opens
-  // Block spell taps until the pointer that opened the panel has been fully released.
-  // This prevents "pass-through" taps where the finger used to tap "Spells" also triggers a spell.
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const onUp = () => setReady(true);
-    window.addEventListener('pointerup', onUp, { once: true });
-    return () => window.removeEventListener('pointerup', onUp);
-  }, []);
+  const ready = true;
 
   const searchResults = useMemo(() => {
     if (spellSearch.trim().length < 2) return [];
@@ -687,7 +679,31 @@ const SpellsPanel: React.FC<{
                 });
               }
 
-              // Standard single-AoE castable ability
+              // Explicit castable ability (behavior === 'cast') — uses fields from actions.json directly
+              if (entry.behavior === 'cast') {
+                const saveDc = spellSaveDc ?? computeActionSaveDc(player);
+                const asSpell = {
+                  name: entry.name,
+                  desc: entry.description,
+                  aoeType: entry.aoeType,
+                  aoeSize: entry.aoeSize,
+                  range: 0,
+                  saveAbility: entry.saveAbility,
+                  mapInteraction: 'cast' as const,
+                  level: 0,
+                };
+                return [(
+                  <SpellRow
+                    key={entry.id}
+                    spell={asSpell}
+                    spellSaveDc={saveDc}
+                    disabled={!ready}
+                    onPress={() => onCast({ ...asSpell, saveDc, halfDamageOnSave: entry.halfDamageOnSave ?? false })}
+                  />
+                )];
+              }
+
+              // Standard single-AoE castable ability (parsed from description)
               const aoe = parseActionAoe(entry.description);
               const saveDc = aoe?.saveDc ?? computeActionSaveDc(player);
               const asSpell = {
@@ -909,12 +925,16 @@ interface AbilityEntry {
   levelRequired: number;
   actionType: string;
   description: string;
-  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'display' | 'wip';
+  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'display' | 'wip' | 'cast';
   darkvisionBonus?: number;
   darkvisionValue?: number;
   tremorsenseRange?: number;
   durationMs?: number;
   variants?: Array<{ label: string; aoeType: string; aoeSize: number }>;
+  aoeType?: string;
+  aoeSize?: number;
+  saveAbility?: string;
+  halfDamageOnSave?: boolean;
 }
 
 // ─── Initiative Strip ───
@@ -1074,11 +1094,34 @@ export function PlayerScreen() {
   const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
   // Tremorsense — active when a player toggles Stonecunning (or similar tremorsense ability)
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
+  // Detect Magic — active when a player casts Detect Magic
+  const [detectMagicData, setDetectMagicData] = useState<{ playerId: string; rangeFt: number } | null>(null);
 
   // Lifted abilities state (playerId -> set of ability IDs)
   const [playerActiveAbilities, setPlayerActiveAbilities] = useState<Record<string, Set<string>>>({});
   // Active timers for abilities with durationMs (Array mapping mapped by playerId)
   const [activeTimers, setActiveTimers] = useState<import('../types').TokenTimer[]>([]);
+
+  // Clear detect magic when its timer expires
+  useEffect(() => {
+    if (!detectMagicData) return;
+    const timer = activeTimers.find(t => t.playerId === detectMagicData.playerId && t.abilityId === 'detect-magic');
+    if (!timer) {
+      setDetectMagicData(null);
+      return;
+    }
+    const remaining = timer.durationMs - (Date.now() - timer.startTime);
+    if (remaining <= 0) {
+      setDetectMagicData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === detectMagicData.playerId && t.abilityId === 'detect-magic')));
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setDetectMagicData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === detectMagicData.playerId && t.abilityId === 'detect-magic')));
+    }, remaining);
+    return () => clearTimeout(timeout);
+  }, [detectMagicData, activeTimers]);
 
   const handleTogglePlayerAbility = (playerId: string, entry: AbilityEntry, onDarkvisionChange: (val: number) => void) => {
     setPlayerActiveAbilities(prev => {
@@ -1327,6 +1370,25 @@ export function PlayerScreen() {
     if (!playerId || !campaign) return;
     const player = campaign.players.find(p => p.id === playerId);
     if (!player) return;
+
+    // Detect Magic exception: activate detect magic emanation + start 10-minute timer
+    if (spell?.name === 'Detect Magic') {
+      setActionRing(null);
+      setOpenPanel(null);
+      setDetectMagicData({ playerId: player.id, rangeFt: 30 });
+      setActiveTimers(prev => [
+        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'detect-magic')),
+        {
+          playerId: player.id,
+          abilityId: 'detect-magic',
+          startTime: Date.now(),
+          durationMs: 600000, // 10 minutes
+          color: '#22d3ee',   // cyan to match magic note color
+        }
+      ]);
+      return;
+    }
+
     setActionRing(null);
     setOpenPanel(null);
     // Pass mapInteraction, saveEffect, condition through so MapView knows post-cast behavior
@@ -1609,6 +1671,7 @@ export function PlayerScreen() {
             });
           }}
           tremorsenseData={tremorsenseData}
+          detectMagicData={detectMagicData}
           activeTimers={activeTimers}
         />
       </div>

@@ -6,6 +6,7 @@ import {
   TriangleAlert,
   Eye,
   Search,
+  Sparkles,
   Trash2,
   Edit2,
   FileText,
@@ -30,6 +31,7 @@ export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteTyp
     case 'warning': return <TriangleAlert size={size} className={`text-red-400 ${className}`} />;
     case 'secret': return <Eye size={size} className={`text-purple-400 ${className}`} />;
     case 'clue': return <Search size={size} className={`text-emerald-500 ${className}`} />;
+    case 'magic': return <Sparkles size={size} className={`text-cyan-400 ${className}`} />;
     default: return null;
   }
 };

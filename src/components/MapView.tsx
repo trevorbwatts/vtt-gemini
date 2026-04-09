@@ -112,6 +112,8 @@ interface MapViewProps {
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
   /** Tremorsense data — when active, reveals nearby enemy/NPC tokens as grey circles above fog */
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
+  /** Detect Magic data — when active, reveals 'magic' type map notes within range below fog */
+  detectMagicData?: { playerId: string; rangeFt: number } | null;
   /** Active timers for tokens to display countdown rings */
   activeTimers?: import('../types').TokenTimer[];
 }
@@ -668,6 +670,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   spellMarkers = [],
   onSpellMarkersChange,
   tremorsenseData,
+  detectMagicData,
   activeTimers = [],
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
@@ -1631,6 +1634,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       case 'warning': return '#ef4444';
       case 'secret': return '#a855f7';
       case 'clue': return '#059669';
+      case 'magic': return '#22d3ee';
       default: return '#ffffff';
     }
   };
@@ -1682,6 +1686,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
             <Group>
               <Path data="m21 21-4.34-4.34" {...sp} />
               <Circle x={11} y={11} radius={8} {...sp} />
+            </Group>
+          );
+        case 'magic':
+          return (
+            <Group>
+              <Path data="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" {...sp} />
+              <Path data="M20 3v4" {...sp} />
+              <Path data="M22 5h-4" {...sp} />
+              <Path data="M4 17v2" {...sp} />
+              <Path data="M5 18H3" {...sp} />
             </Group>
           );
         default:
@@ -4607,6 +4621,43 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
+          {/* ── Detect Magic: magic item notes below fog (player view only) ── */}
+          {isPlayerView && detectMagicData && (() => {
+            const casterToken = tokens.find(t => t.combatantId === detectMagicData.playerId);
+            if (!casterToken) return null;
+            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
+            const rangePx = gridResolution
+              ? (detectMagicData.rangeFt / 5) * gridResolution.pixelsPerGrid
+              : detectMagicData.rangeFt * 4;
+
+            // Filter magic notes within range of caster
+            const magicNotes = mapNotes.filter(note => {
+              if (note.type !== 'magic') return false;
+              const dx = note.x - casterPos.x;
+              const dy = note.y - casterPos.y;
+              return Math.sqrt(dx * dx + dy * dy) <= rangePx;
+            });
+            if (magicNotes.length === 0) return null;
+            const noteR = tokenRadius * 0.6;
+            return (
+              <Layer listening={false}>
+                {magicNotes.map(note => (
+                  <Group key={`magic-${note.id}`} x={note.x} y={note.y}>
+                    <Circle
+                      radius={noteR}
+                      fill={getNoteColor('magic')}
+                      stroke="rgba(34,211,238,0.6)"
+                      strokeWidth={2 * tokenScale}
+                      opacity={0.85}
+                      perfectDrawEnabled={false}
+                    />
+                    <NoteMapIcon type="magic" />
+                  </Group>
+                ))}
+              </Layer>
+            );
+          })()}
+
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
@@ -5626,7 +5677,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
 
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
-                  {(['treasure', 'quote', 'warning', 'secret', 'clue'] as MapNoteType[]).map(type => (
+                  {(['treasure', 'quote', 'warning', 'secret', 'clue', 'magic'] as MapNoteType[]).map(type => (
                     <button
                       key={type}
                       onClick={() => setNoteDraft(prev => ({ ...prev, type }))}
