@@ -368,7 +368,12 @@ const SpellsPanel: React.FC<{
   onTremorsenseChange?: (data: { playerId: string; rangeFt: number } | null) => void;
   activeAbilities: Set<string>;
   onToggleAbility: (entry: AbilityEntry) => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility }) => {
+  isTorchLit: boolean;
+  onToggleTorch: () => void;
+  onMeasure: () => void;
+  isPlayersTurn: boolean;
+  onEndTurn: () => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -525,18 +530,44 @@ const SpellsPanel: React.FC<{
     <>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <div
             className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 overflow-hidden"
             style={{ background: player.avatar ? 'transparent' : (player.color || '#cd7f32') }}
           >
             {player.avatar ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" /> : player.name[0]?.toUpperCase()}
           </div>
-          <span className="text-white font-bold text-xs tracking-wide">{player.name}</span>
+          <span className="text-white font-bold text-xs tracking-wide truncate">{player.name}</span>
         </div>
-        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded transition-colors">
-          <X size={14} className="text-white/40" />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0 ml-2">
+          {isPlayersTurn && (
+            <button
+              onPointerDown={(e) => { e.stopPropagation(); onEndTurn(); }}
+              title="End Turn"
+              className="p-1.5 rounded hover:bg-green-500/20 transition-colors"
+            >
+              <ChevronRight size={14} className="text-green-400" />
+            </button>
+          )}
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onToggleTorch(); }}
+            title={isTorchLit ? 'Douse torch' : 'Light torch'}
+            className={cn('p-1.5 rounded transition-colors', isTorchLit ? 'bg-orange-500/20 hover:bg-orange-500/30' : 'hover:bg-white/10')}
+          >
+            <Flame size={14} className={isTorchLit ? 'text-orange-300' : 'text-orange-500/50'} />
+          </button>
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onMeasure(); }}
+            title="Measure distance"
+            className="p-1.5 rounded hover:bg-white/10 transition-colors"
+          >
+            <Ruler size={14} className="text-yellow-500/60" />
+          </button>
+          <div className="w-px h-4 bg-white/10 mx-0.5" />
+          <button onPointerDown={(e) => { e.stopPropagation(); onClose(); }} className="p-1.5 hover:bg-white/10 rounded transition-colors">
+            <X size={14} className="text-white/40" />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1431,9 +1462,9 @@ export function PlayerScreen() {
       return;
     }
     const spotId = spotEntry[0] as SpotId;
-    console.log('[PlayerScreen] Opening action ring for spot:', spotId, 'at', screenX, screenY);
+    console.log('[PlayerScreen] Opening spells panel for spot:', spotId, 'at', screenX, screenY);
     setActionRing({ tokenId, spotId, x: screenX, y: screenY });
-    setOpenPanel(null);
+    setOpenPanel('spells');
   }, [signedInSpots, currentScenario]);
 
   // ── Helper: get player combatant for a spot ──
@@ -1658,51 +1689,17 @@ export function PlayerScreen() {
         );
       })()}
 
-      {/* Action Ring */}
-      {actionRing && openPanel === null && (() => {
+      {/* Spells Panel — opens directly on double-tap, no action ring step */}
+      {actionRing && openPanel === 'spells' && (() => {
+        const player = getPlayerForSpot(actionRing.spotId);
+        if (!player) return null;
         const config = spotConfigs[actionRing.spotId];
         const playerId = signedInSpots[actionRing.spotId];
         const activeEntry = activeCombatants.find(c => c.id === activeCombatantId);
         const isPlayersTurn = !!(activeEntry && activeEntry.sourceCombatantId === playerId);
         const isTorchLit = !!(playerId && torchLitPlayerIds.has(playerId));
-        return (
-          <ActionRing
-            anchorX={actionRing.x}
-            anchorY={actionRing.y}
-            edge={config.edge}
-            onSpells={() => setOpenPanel('spells')}
-            // onConditions={() => setOpenPanel('conditions')}
-            onConditions={() => {}}
-            onMeasure={() => {
-              const spotId = actionRing.spotId;
-              const edge = spotConfigs[spotId].edge;
-              setActionRing(null);
-              setOpenPanel(null);
-              startMeasuringRef.current?.(edge);
-              setActiveMeasuring({ spotId });
-              setMeasureDistanceFeet(null);
-            }}
-            onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); }}
-            onToggleTorch={() => {
-              if (isTorchLit) handleDouseTorch(actionRing.spotId);
-              else handleLightTorch(actionRing.spotId);
-              setActionRing(null);
-            }}
-            isTorchLit={isTorchLit}
-            onClose={() => setActionRing(null)}
-            isPlayersTurn={isPlayersTurn}
-          />
-        );
-      })()}
 
-      {/* Spells Panel */}
-      {actionRing && openPanel === 'spells' && (() => {
-        const player = getPlayerForSpot(actionRing.spotId);
-        if (!player) return null;
-        const config = spotConfigs[actionRing.spotId];
-        
         const handleDarkvisionChange = (newValue: number) => {
-          const playerId = signedInSpots[actionRing.spotId];
           if (!playerId) return;
           window.electronAPI?.sendPlayerDarkvisionUpdate?.(playerId, newValue);
           setCampaign(prev => {
@@ -1725,6 +1722,22 @@ export function PlayerScreen() {
             onTremorsenseChange={setTremorsenseData}
             activeAbilities={playerActiveAbilities[player.id] || new Set()}
             onToggleAbility={(entry) => handleTogglePlayerAbility(player.id, entry, handleDarkvisionChange)}
+            isTorchLit={isTorchLit}
+            onToggleTorch={() => {
+              if (isTorchLit) handleDouseTorch(actionRing.spotId);
+              else handleLightTorch(actionRing.spotId);
+            }}
+            onMeasure={() => {
+              const spotId = actionRing.spotId;
+              const edge = spotConfigs[spotId].edge;
+              setActionRing(null);
+              setOpenPanel(null);
+              startMeasuringRef.current?.(edge);
+              setActiveMeasuring({ spotId });
+              setMeasureDistanceFeet(null);
+            }}
+            isPlayersTurn={isPlayersTurn}
+            onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); setOpenPanel(null); }}
           />
         );
       })()}

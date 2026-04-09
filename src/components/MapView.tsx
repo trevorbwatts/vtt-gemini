@@ -4901,7 +4901,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       draggable={true}
                       onDragMove={(e) => {
                         setDismissMarkerBubble(null);
-                        if (marker.spellName === 'Light' || marker.spellName === 'Darkness') {
+                        if (marker.lightSource || marker.spellName === 'Darkness') {
                           setLiveMarkerPos(prev => ({
                             ...prev,
                             [marker.id]: { x: e.target.x(), y: e.target.y() },
