@@ -116,6 +116,8 @@ interface MapViewProps {
   detectMagicData?: { playerId: string; rangeFt: number } | null;
   /** Spirit Guardians data — persistent emanation ring that follows the caster */
   spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
+  /** Whether any player has See Invisibility active (player view only) */
+  seeInvisibility?: boolean;
   /** Active timers for tokens to display countdown rings */
   activeTimers?: import('../types').TokenTimer[];
 }
@@ -674,6 +676,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   tremorsenseData,
   detectMagicData,
   spiritGuardiansData,
+  seeInvisibility,
   activeTimers = [],
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
@@ -2354,6 +2357,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setTokenContextMenu(null);
   };
 
+  const toggleTokenInvisible = (tokenId: string) => {
+    onTokensChange(tokens.map(t =>
+      t.id === tokenId ? { ...t, invisible: !t.invisible } : t
+    ));
+    setTokenContextMenu(null);
+  };
+
   const deleteToken = (tokenId: string) => {
     onTokensChange(tokens.filter(t => t.id !== tokenId));
     setSelectedTokenIds(selectedTokenIds.filter(id => id !== tokenId));
@@ -3522,7 +3532,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
               />
             ))}
 
-            {tokens.filter(t => !(isPlayerView && t.type === 'player')).map(token => {
+            {tokens.filter(t => {
+              if (isPlayerView && t.type === 'player') return false;
+              // In player view, hide invisible non-player tokens unless See Invisibility is active
+              if (isPlayerView && t.invisible && !seeInvisibility) return false;
+              return true;
+            }).map(token => {
               const r = tokenRadius * getTokenSizeMultiplier(token.size);
               return (
               <Group
@@ -3613,7 +3628,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   fill={token.avatar ? "transparent" : token.color}
                   stroke={token.color}
                   strokeWidth={2 * tokenScale}
-                  opacity={token.hidden ? 0.4 : 1}
+                  opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                  dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
                   perfectDrawEnabled={false}
                 />
                 {/* Engaged range ring — shown when within 5ft of an opposing token during combat */}
@@ -3684,7 +3700,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <TargetRing radius={r} tokenScale={tokenScale} />
                 )}
                 {token.avatar && (
-                  <Group opacity={token.hidden ? 0.4 : 1} listening={false}>
+                  <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
                     <TokenAvatar
                       url={token.avatar}
                       radius={r - tokenScale}
@@ -3812,7 +3828,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     x={-tokenRadius * 2.5}
                     fontStyle="bold"
                     fontFamily="Inter"
-                    opacity={token.hidden ? 0.6 : 1}
+                    opacity={token.invisible ? 0.5 : token.hidden ? 0.6 : 1}
                     listening={false}
                     perfectDrawEnabled={false}
                   />
@@ -4735,6 +4751,54 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── See Invisibility: reveal invisible enemies below fog (player view only) ── */}
+          {/* Rendered below fog so only creatures within the player's vision are visible */}
+          {isPlayerView && seeInvisibility && (() => {
+            const invisibleEnemies = tokens.filter(t => t.type !== 'player' && t.invisible);
+            if (invisibleEnemies.length === 0) return null;
+            return (
+              <Layer listening={false}>
+                {invisibleEnemies.map(token => {
+                  const r = tokenRadius * getTokenSizeMultiplier(token.size);
+                  const pos = livePlayerPos[token.id] ?? token;
+                  return (
+                    <Group key={`see-invis-${token.id}`} x={pos.x} y={pos.y}>
+                      <Circle
+                        radius={r}
+                        fill={token.avatar ? 'transparent' : token.color}
+                        stroke={token.color}
+                        strokeWidth={2 * tokenScale}
+                        opacity={0.5}
+                        dash={[6 * tokenScale, 4 * tokenScale]}
+                        perfectDrawEnabled={false}
+                      />
+                      {token.avatar && (
+                        <Group opacity={0.5} listening={false}>
+                          <TokenAvatar url={token.avatar} radius={r - tokenScale} />
+                        </Group>
+                      )}
+                      {!token.avatar && (
+                        <Text
+                          text={token.name?.[0] || '?'}
+                          x={-r}
+                          y={-r}
+                          width={r * 2}
+                          height={r * 2}
+                          align="center"
+                          verticalAlign="middle"
+                          fontSize={r * 0.8}
+                          fill="white"
+                          opacity={0.5}
+                          listening={false}
+                        />
+                      )}
+                    </Group>
+                  );
+                })}
+              </Layer>
+            );
+          })()}
+
           {(isPlayerView || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
@@ -4953,7 +5017,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     fill={token.avatar ? 'transparent' : token.color}
                     stroke={token.color}
                     strokeWidth={2 * tokenScale}
-                    opacity={token.hidden ? 0.4 : 1}
+                    opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                    dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
                     perfectDrawEnabled={false}
                   />
                   {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
@@ -4978,7 +5043,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
                   })()}
                   {token.avatar && (
-                    <Group opacity={token.hidden ? 0.4 : 1} listening={false}>
+                    <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
                       <TokenAvatar url={token.avatar} radius={r - tokenScale} />
                     </Group>
                   )}
@@ -5134,7 +5199,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           Renders the spell's actual area (cube/sphere/etc.) if aoeType is set,
                           otherwise falls back to effectRadius circle. listening=false so the
                           large shape doesn't capture drag events. */}
-                      {marker.spellName !== 'Light' && marker.spellName !== 'Darkness' && marker.spellName !== 'Fog Cloud' && (() => {
+                      {marker.spellName !== 'Light' && marker.spellName !== 'Daylight' && marker.spellName !== 'Darkness' && marker.spellName !== 'Fog Cloud' && (() => {
                         if (marker.aoeType && marker.aoeSize) {
                           const aoePx = (marker.aoeSize / 5) * ppg;
                           if (marker.aoeType === 'cube') {
@@ -6221,6 +6286,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <><EyeOff size={14} /> Hide Token</>
               )}
             </button>
+            {!isPlayerView && (() => {
+              const ctxToken = tokens.find(t => t.id === tokenContextMenu.tokenId);
+              if (!ctxToken || ctxToken.type === 'player') return null;
+              return (
+                <button
+                  onClick={() => toggleTokenInvisible(tokenContextMenu.tokenId)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
+                >
+                  {ctxToken.invisible ? (
+                    <><Eye size={14} /> Remove Invisibility</>
+                  ) : (
+                    <><EyeOff size={14} /> Toggle Invisible</>
+                  )}
+                </button>
+              );
+            })()}
             {floors && floors.length > 1 && (() => {
               const token = tokens.find(t => t.id === tokenContextMenu.tokenId);
               const tokenFloorId = token?.floorId || floors[0]?.id;

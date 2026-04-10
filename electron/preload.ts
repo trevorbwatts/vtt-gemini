@@ -130,4 +130,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerWildShapeListener: () => {
     ipcRenderer.removeAllListeners('player-wild-shape');
   },
+  sendPlayerInvisibleToggle: (tokenId: string) => ipcRenderer.send('player-invisible-toggle', tokenId),
+  onPlayerInvisibleToggle: (callback: (tokenId: string) => void) => {
+    ipcRenderer.on('player-invisible-toggle', (_event, tokenId) => callback(tokenId));
+  },
+  removePlayerInvisibleToggleListener: () => {
+    ipcRenderer.removeAllListeners('player-invisible-toggle');
+  },
 });

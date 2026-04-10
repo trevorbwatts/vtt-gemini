@@ -312,7 +312,7 @@ const SpellRow: React.FC<{
         <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
           {spell.level === 0 ? 'C' : spell.level}
         </span>
-        {isCast && !disabled && isDismissable && onDismiss && (
+        {(isCast || (isPlace && mi === 'exception')) && !disabled && isDismissable && onDismiss && (
           <button
             onPointerDown={(e) => { e.stopPropagation(); onDismiss(); }}
             className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 active:bg-red-500/40 transition-colors"
@@ -328,12 +328,12 @@ const SpellRow: React.FC<{
             Cast
           </button>
         )}
-        {isPlace && !disabled && onPlace && (
+        {isPlace && !disabled && onPlace && !(mi === 'exception' && isDismissable) && (
           <button
             onPointerDown={(e) => { e.stopPropagation(); onPlace(); }}
             className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/40 active:bg-purple-500/40 transition-colors"
           >
-            Place
+            {mi === 'exception' ? 'Cast' : 'Place'}
           </button>
         )}
       </div>
@@ -389,7 +389,11 @@ const SpellsPanel: React.FC<{
   onRevertWildShape?: () => void;
   spiritGuardiansActive?: boolean;
   onDismissSpiritGuardians?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, spiritGuardiansActive, onDismissSpiritGuardians }) => {
+  invisibilityActive?: boolean;
+  onDismissInvisibility?: () => void;
+  seeInvisibilityActive?: boolean;
+  onDismissSeeInvisibility?: () => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, spiritGuardiansActive, onDismissSpiritGuardians, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -635,8 +639,17 @@ const SpellsPanel: React.FC<{
                 spellSaveDc={spellSaveDc}
                 spellAttackBonus={spellAttackBonus}
                 disabled={!ready}
-                isDismissable={spell.name === 'Spirit Guardians' && !!spiritGuardiansActive}
-                onDismiss={spell.name === 'Spirit Guardians' ? onDismissSpiritGuardians : undefined}
+                isDismissable={
+                  (spell.name === 'Spirit Guardians' && !!spiritGuardiansActive) ||
+                  (spell.name === 'Invisibility' && !!invisibilityActive) ||
+                  (spell.name === 'See Invisibility' && !!seeInvisibilityActive)
+                }
+                onDismiss={
+                  spell.name === 'Spirit Guardians' ? onDismissSpiritGuardians :
+                  spell.name === 'Invisibility' ? onDismissInvisibility :
+                  spell.name === 'See Invisibility' ? onDismissSeeInvisibility :
+                  undefined
+                }
                 onPress={() => {
                   const mi = spell.mapInteraction as string | undefined;
                   if (mi !== 'cast' && mi !== 'cast-and-place') return;
@@ -1229,6 +1242,11 @@ export function PlayerScreen() {
   // Spirit Guardians — persistent emanation following the caster
   const [spiritGuardiansData, setSpiritGuardiansData] = useState<{ playerId: string; rangeFt: number } | null>(null);
 
+  // Invisibility — tracks which players have cast Invisibility on themselves
+  const [invisiblePlayerIds, setInvisiblePlayerIds] = useState<Set<string>>(new Set());
+  // See Invisibility — reveals invisible tokens on the player screen
+  const [seeInvisibilityPlayerIds, setSeeInvisibilityPlayerIds] = useState<Set<string>>(new Set());
+
   // Wild Shape — tracks which players are currently wild-shaped
   // Map of playerId -> { creatureName, originalAvatar, creatureAvatar }
   const [wildShapeData, setWildShapeData] = useState<Record<string, { creatureName: string; originalAvatar?: string; creatureAvatar: string; creatureHp: number; creatureAc: number; creatureSpeed?: string }>>({});
@@ -1582,6 +1600,38 @@ export function PlayerScreen() {
     setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'spirit-guardians')));
   }, []);
 
+  const handleDismissInvisibility = useCallback((playerId: string) => {
+    const token = campaign?.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === playerId);
+    if (token) {
+      window.electronAPI?.sendPlayerInvisibleToggle?.(token.id);
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s => ({
+            ...s,
+            tokens: s.tokens.map(t => t.id === token.id ? { ...t, invisible: false } : t),
+          })),
+        };
+      });
+    }
+    setInvisiblePlayerIds(prev => {
+      const next = new Set(prev);
+      next.delete(playerId);
+      return next;
+    });
+    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'invisibility')));
+  }, [campaign]);
+
+  const handleDismissSeeInvisibility = useCallback((playerId: string) => {
+    setSeeInvisibilityPlayerIds(prev => {
+      const next = new Set(prev);
+      next.delete(playerId);
+      return next;
+    });
+    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'see-invisibility')));
+  }, []);
+
   const handlePlaceSpell = useCallback((spell: any) => {
     if (!actionRing) return;
     const { spotId } = actionRing;
@@ -1617,6 +1667,46 @@ export function PlayerScreen() {
         lightSource: true,
       }));
       addMarkersDirectlyRef.current?.(markers);
+      return;
+    }
+
+    // Invisibility exception: make the caster's token invisible + start 1hr timer
+    if (spell?.name === 'Invisibility') {
+      const token = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
+      if (token) {
+        window.electronAPI?.sendPlayerInvisibleToggle?.(token.id);
+        setCampaign(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            scenarios: prev.scenarios.map(s => ({
+              ...s,
+              tokens: s.tokens.map(t => t.id === token.id ? { ...t, invisible: true } : t),
+            })),
+          };
+        });
+        setInvisiblePlayerIds(prev => new Set(prev).add(player.id));
+        setActiveTimers(prev => [...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'invisibility')), {
+          playerId: player.id,
+          abilityId: 'invisibility',
+          startTime: Date.now(),
+          durationMs: 3600000, // 1 hour
+          color: '#a855f7', // purple
+        }]);
+      }
+      return;
+    }
+
+    // See Invisibility exception: reveal all invisible tokens on the player screen + start 1hr timer
+    if (spell?.name === 'See Invisibility') {
+      setSeeInvisibilityPlayerIds(prev => new Set(prev).add(player.id));
+      setActiveTimers(prev => [...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'see-invisibility')), {
+        playerId: player.id,
+        abilityId: 'see-invisibility',
+        startTime: Date.now(),
+        durationMs: 3600000, // 1 hour
+        color: '#a855f7', // purple
+      }]);
       return;
     }
 
@@ -1703,11 +1793,16 @@ export function PlayerScreen() {
     if (!playerId) return;
     const wsData = wildShapeData[playerId];
     if (!wsData) return;
-    setActionRing(null);
-    setOpenPanel(null);
 
     const originalAvatar = wsData.originalAvatar;
     const originalSize = (wsData as any).originalSize as Token['size'] || 'Medium';
+
+    // Notify DM FIRST so the IPC is dispatched before any local state changes
+    console.log('[Player] Sending wild shape revert for', playerId, { originalAvatar, originalSize });
+    window.electronAPI?.sendPlayerWildShape?.({ playerId, revert: true, originalAvatar, originalSize });
+
+    setActionRing(null);
+    setOpenPanel(null);
 
     // Clear wild shape state
     setWildShapeData(prev => {
@@ -1728,9 +1823,6 @@ export function PlayerScreen() {
         })),
       };
     });
-
-    // Notify DM with playerId so it knows exactly who reverted
-    window.electronAPI?.sendPlayerWildShape?.({ playerId, revert: true, originalAvatar, originalSize });
   }, [signedInSpots, wildShapeData]);
 
   const handleConditionToggle = useCallback((spotId: SpotId, condition: string) => {
@@ -1944,6 +2036,7 @@ export function PlayerScreen() {
           tremorsenseData={tremorsenseData}
           detectMagicData={detectMagicData}
           spiritGuardiansData={spiritGuardiansData}
+          seeInvisibility={seeInvisibilityPlayerIds.size > 0}
           activeTimers={activeTimers}
         />
       </div>
@@ -2078,6 +2171,10 @@ export function PlayerScreen() {
             onRevertWildShape={() => handleRevertWildShape(actionRing.spotId)}
             spiritGuardiansActive={!!(playerId && spiritGuardiansData?.playerId === playerId)}
             onDismissSpiritGuardians={() => playerId && handleDismissSpiritGuardians(playerId)}
+            invisibilityActive={!!(playerId && invisiblePlayerIds.has(playerId))}
+            onDismissInvisibility={() => playerId && handleDismissInvisibility(playerId)}
+            seeInvisibilityActive={!!(playerId && seeInvisibilityPlayerIds.has(playerId))}
+            onDismissSeeInvisibility={() => playerId && handleDismissSeeInvisibility(playerId)}
           />
         );
       })()}

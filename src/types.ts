@@ -60,6 +60,9 @@ declare global {
       sendPlayerWildShape?: (data: { playerId: string; creatureName: string; creatureAvatar: string; originalAvatar?: string; creatureHp: number; creatureAc: number; creatureSpeed?: string; creatureSize?: string; originalSize?: string } | { playerId: string; revert: true; originalAvatar?: string; originalSize?: string }) => void;
       onPlayerWildShape?: (callback: (data: { playerId: string; creatureName: string; creatureAvatar: string; originalAvatar?: string; creatureHp: number; creatureAc: number; creatureSpeed?: string; creatureSize?: string; originalSize?: string } | { playerId: string; revert: true; originalAvatar?: string; originalSize?: string }) => void) => void;
       removePlayerWildShapeListener?: () => void;
+      sendPlayerInvisibleToggle?: (tokenId: string) => void;
+      onPlayerInvisibleToggle?: (callback: (tokenId: string) => void) => void;
+      removePlayerInvisibleToggleListener?: () => void;
     }
   }
 }
@@ -80,6 +83,7 @@ export interface Token {
   avatar?: string;
   size?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
   floorId?: string;
+  invisible?: boolean;
 }
 
 export interface MovementPathSegment {

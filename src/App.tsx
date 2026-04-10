@@ -379,9 +379,11 @@ export function DMScreen() {
       if (!data) return;
 
       const { playerId, revert, originalAvatar, originalSize, creatureName, creatureAvatar, creatureSize } = data as any;
+      console.log('[DM] Received wild shape IPC:', { playerId, revert, originalAvatar, originalSize, creatureName, creatureAvatar, creatureSize });
 
       if (revert) {
         // Revert this specific player back to their original avatar and size
+        console.log('[DM] Processing wild shape REVERT for', playerId);
         setWildShapeState(prev => {
           const next = { ...prev };
           delete next[playerId];
@@ -419,6 +421,24 @@ export function DMScreen() {
       });
     });
     return () => { window.electronAPI?.removePlayerWildShapeListener?.(); };
+  }, []);
+
+  // Listen for Invisible toggle from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerInvisibleToggle) return;
+    window.electronAPI.onPlayerInvisibleToggle((tokenId: string) => {
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s => ({
+            ...s,
+            tokens: s.tokens.map(t => t.id === tokenId ? { ...t, invisible: !t.invisible } : t),
+          })),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerInvisibleToggleListener?.(); };
   }, []);
 
   const handleCreateCampaign = (name: string) => {

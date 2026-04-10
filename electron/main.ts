@@ -281,6 +281,13 @@ ipcMain.on('player-wild-shape', (_event, data) => {
   }
 });
 
+// Player Invisible toggle: proxy to DM window
+ipcMain.on('player-invisible-toggle', (_event, tokenId) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-invisible-toggle', tokenId);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

@@ -68,6 +68,7 @@ interface FloorMapContainerProps {
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
   spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
+  seeInvisibility?: boolean;
   activeTimers?: import('../types').TokenTimer[];
 }
 
@@ -192,6 +193,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     tremorsenseData: props.tremorsenseData,
     detectMagicData: props.detectMagicData,
     spiritGuardiansData: props.spiritGuardiansData,
+    seeInvisibility: props.seeInvisibility,
     activeTimers: props.activeTimers,
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
