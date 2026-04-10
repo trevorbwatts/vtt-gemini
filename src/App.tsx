@@ -1049,11 +1049,22 @@ export function DMScreen() {
               </div>
               <div className="space-y-2">
                 {campaign.npcs.map((n) => (
-                  <div key={n.id} className="flex items-center gap-5 px-1 py-1 rounded-lg transition-all group">
-                    <div className="w-8 h-8 rounded-full bg-black/20 border border-[var(--line)]/30 flex items-center justify-center text-[13px] font-bold text-white shrink-0">
-                      {n.name[0]}
+                  <div key={n.id} className="flex items-center gap-3 px-1 py-1 rounded-lg transition-all group">
+                    <div className="flex items-center gap-5 flex-1 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-black/20 border border-[var(--line)]/30 flex items-center justify-center text-[13px] font-bold text-white shrink-0">
+                        {n.name[0]}
+                      </div>
+                      <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{n.name}</span>
                     </div>
-                    <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{n.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCampaign(prev => prev ? ({ ...prev, npcs: prev.npcs.filter(npc => npc.id !== n.id) }) : prev);
+                      }}
+                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-2 text-white transition-opacity shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>
