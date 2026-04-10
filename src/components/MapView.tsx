@@ -116,6 +116,8 @@ interface MapViewProps {
   detectMagicData?: { playerId: string; rangeFt: number } | null;
   /** Spirit Guardians data — persistent emanation ring that follows the caster */
   spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
+  /** Shield of Faith data — persistent emanation ring that follows the caster */
+  shieldOfFaithData?: { playerId: string; rangeFt: number } | null;
   /** Whether any player has See Invisibility active (player view only) */
   seeInvisibility?: boolean;
   /** Active timers for tokens to display countdown rings */
@@ -676,6 +678,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   tremorsenseData,
   detectMagicData,
   spiritGuardiansData,
+  shieldOfFaithData,
   seeInvisibility,
   activeTimers = [],
 }) => {
@@ -3534,6 +3537,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
             {tokens.filter(t => {
               if (isPlayerView && t.type === 'player') return false;
+              // In player view, hide tokens marked as hidden by the DM
+              if (isPlayerView && t.hidden) return false;
               // In player view, hide invisible non-player tokens unless See Invisibility is active
               if (isPlayerView && t.invisible && !seeInvisibility) return false;
               return true;
@@ -4293,160 +4298,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
-          {/* ── Wall-shape spell preview (Wall of Sand, etc.) ── */}
-          {editingWall && (() => {
-            const aRad = editingWall.angle * Math.PI / 180;
-            const cosA = Math.cos(aRad);
-            const sinA = Math.sin(aRad);
-            const halfL = (editingWall.length / 5) * ppg / 2;
-            const halfT = (editingWall.thickness / 5) * ppg / 2;
-            // Local corners (relative to wall center at 0,0) — Line is positioned via x/y
-            const localCorners = [
-              { x: -halfL * cosA - -halfT * sinA, y: -halfL * sinA + -halfT * cosA },
-              { x:  halfL * cosA - -halfT * sinA, y:  halfL * sinA + -halfT * cosA },
-              { x:  halfL * cosA -  halfT * sinA, y:  halfL * sinA +  halfT * cosA },
-              { x: -halfL * cosA -  halfT * sinA, y: -halfL * sinA +  halfT * cosA },
-            ];
-            const pointsFlat = localCorners.flatMap(c => [c.x, c.y]);
-            // Handle positions (world coords) — symmetric about center
-            const lenHandleA = { x: editingWall.x + cosA * halfL, y: editingWall.y + sinA * halfL };
-            const lenHandleB = { x: editingWall.x - cosA * halfL, y: editingWall.y - sinA * halfL };
-            const thkHandleA = { x: editingWall.x - sinA * halfT, y: editingWall.y + cosA * halfT };
-            const thkHandleB = { x: editingWall.x + sinA * halfT, y: editingWall.y - cosA * halfT };
-            const handleR = 7 / stageScale;
-            const handleStroke = 1.5 / stageScale;
-            const minFeet = 5;
-
-            const onBodyDragMove = (e: any) => {
-              const nx = e.target.x();
-              const ny = e.target.y();
-              setEditingWall(w => w ? { ...w, x: nx, y: ny } : null);
-            };
-
-            const onLengthDrag = (e: any) => {
-              const px = e.target.x();
-              const py = e.target.y();
-              const dx = px - editingWall.x;
-              const dy = py - editingWall.y;
-              const dist = Math.hypot(dx, dy);
-              const rawLengthFt = (dist * 2 / ppg) * 5;
-              const clampedLengthFt = Math.min(
-                editingWall.maxLength,
-                Math.max(minFeet, rawLengthFt)
-              );
-              // Direction from center to drag point (preserves the dragged handle's side)
-              const dirX = dist > 0 ? dx / dist : 1;
-              const dirY = dist > 0 ? dy / dist : 0;
-              const newAngleDeg = Math.atan2(dirY, dirX) * 180 / Math.PI;
-              // Snap the handle visually to the clamped position so it never overshoots
-              const halfLClampedPx = (clampedLengthFt / 5) * ppg / 2;
-              e.target.position({
-                x: editingWall.x + dirX * halfLClampedPx,
-                y: editingWall.y + dirY * halfLClampedPx,
-              });
-              setEditingWall(w => w ? { ...w, angle: newAngleDeg, length: clampedLengthFt } : null);
-            };
-
-            const onThicknessDrag = (e: any) => {
-              const px = e.target.x();
-              const py = e.target.y();
-              const rad = editingWall.angle * Math.PI / 180;
-              const perpX = -Math.sin(rad);
-              const perpY = Math.cos(rad);
-              const proj = (px - editingWall.x) * perpX + (py - editingWall.y) * perpY;
-              const sign = proj < 0 ? -1 : 1;
-              const rawThicknessFt = (Math.abs(proj) * 2 / ppg) * 5;
-              const clampedThicknessFt = Math.min(
-                editingWall.maxThickness,
-                Math.max(minFeet, rawThicknessFt)
-              );
-              // Snap the handle to the perpendicular axis at the clamped distance
-              const halfTClampedPx = (clampedThicknessFt / 5) * ppg / 2;
-              e.target.position({
-                x: editingWall.x + perpX * sign * halfTClampedPx,
-                y: editingWall.y + perpY * sign * halfTClampedPx,
-              });
-              setEditingWall(w => w ? { ...w, thickness: clampedThicknessFt } : null);
-            };
-
-            const labelFontSize = 14 / stageScale;
-            const labelOffset = (halfT + 22 / stageScale);
-            const labelX = editingWall.x - sinA * -labelOffset;
-            const labelY = editingWall.y + cosA * -labelOffset;
-
-            return (
-              <Layer>
-                {/* Wall body — draggable to translate the whole wall */}
-                <Line
-                  x={editingWall.x}
-                  y={editingWall.y}
-                  points={pointsFlat}
-                  closed
-                  fill="rgba(212,165,116,0.35)"
-                  stroke="#d4a574"
-                  strokeWidth={2 / stageScale}
-                  dash={[8 / stageScale, 4 / stageScale]}
-                  draggable
-                  onDragMove={onBodyDragMove}
-                  onDragEnd={onBodyDragMove}
-                />
-                {/* Length handles (both ends of long axis) — rotate + resize length */}
-                <Circle
-                  x={lenHandleA.x}
-                  y={lenHandleA.y}
-                  radius={handleR}
-                  fill="white"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onLengthDrag}
-                />
-                <Circle
-                  x={lenHandleB.x}
-                  y={lenHandleB.y}
-                  radius={handleR}
-                  fill="white"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onLengthDrag}
-                />
-                {/* Thickness handles — resize thickness along perpendicular axis */}
-                <Circle
-                  x={thkHandleA.x}
-                  y={thkHandleA.y}
-                  radius={handleR}
-                  fill="#ffe6b3"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onThicknessDrag}
-                />
-                <Circle
-                  x={thkHandleB.x}
-                  y={thkHandleB.y}
-                  radius={handleR}
-                  fill="#ffe6b3"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onThicknessDrag}
-                />
-                {/* Live dimensions readout */}
-                <Text
-                  x={labelX - 40 / stageScale}
-                  y={labelY - labelFontSize / 2}
-                  text={`${Math.round(editingWall.length)} \u00d7 ${Math.round(editingWall.thickness)} ft`}
-                  fontSize={labelFontSize}
-                  fill="#ffd9a6"
-                  fontStyle="bold"
-                  align="center"
-                  width={80 / stageScale}
-                  listening={false}
-                />
-              </Layer>
-            );
-          })()}
 
           {/* ── Measure / Ruler ── */}
           {isMeasuringActive && measureStart && measureEnd && (() => {
@@ -4946,6 +4797,40 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── Shield of Faith persistent emanation ring (player view only) ── */}
+          {isPlayerView && shieldOfFaithData && (() => {
+            const casterToken = tokens.find(t => t.combatantId === shieldOfFaithData.playerId);
+            if (!casterToken) return null;
+            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
+            const rangePx = gridResolution
+              ? (shieldOfFaithData.rangeFt / 5) * gridResolution.pixelsPerGrid
+              : shieldOfFaithData.rangeFt * 4;
+            return (
+              <Layer listening={false}>
+                {/* Outer glow ring */}
+                <Circle
+                  x={casterPos.x}
+                  y={casterPos.y}
+                  radius={rangePx}
+                  fill="rgba(96,165,250,0.08)"
+                  stroke="rgba(96,165,250,0.7)"
+                  strokeWidth={3 * tokenScale}
+                  perfectDrawEnabled={false}
+                />
+                {/* Inner soft glow */}
+                <Circle
+                  x={casterPos.x}
+                  y={casterPos.y}
+                  radius={rangePx * 0.88}
+                  fill="rgba(96,165,250,0.05)"
+                  stroke="rgba(96,165,250,0.25)"
+                  strokeWidth={1.5 * tokenScale}
+                  perfectDrawEnabled={false}
+                />
+              </Layer>
+            );
+          })()}
+
           {/* ── Player tokens above fog (player view only) ── */}
           {isPlayerView && (
             <Layer>
@@ -5329,6 +5214,162 @@ const MapViewInner: React.FC<MapViewProps> = ({
               ))}
             </Layer>
           )}
+
+          {/* ── Wall-shape spell preview (Wall of Sand, Wall of Fire, etc.) ── */}
+          {/* Rendered last so handles are always on top of all other layers */}
+          {editingWall && (() => {
+            const aRad = editingWall.angle * Math.PI / 180;
+            const cosA = Math.cos(aRad);
+            const sinA = Math.sin(aRad);
+            const halfL = (editingWall.length / 5) * ppg / 2;
+            const halfT = (editingWall.thickness / 5) * ppg / 2;
+            // Local corners (relative to wall center at 0,0) — Line is positioned via x/y
+            const localCorners = [
+              { x: -halfL * cosA - -halfT * sinA, y: -halfL * sinA + -halfT * cosA },
+              { x:  halfL * cosA - -halfT * sinA, y:  halfL * sinA + -halfT * cosA },
+              { x:  halfL * cosA -  halfT * sinA, y:  halfL * sinA +  halfT * cosA },
+              { x: -halfL * cosA -  halfT * sinA, y: -halfL * sinA +  halfT * cosA },
+            ];
+            const pointsFlat = localCorners.flatMap(c => [c.x, c.y]);
+            // Handle positions (world coords) — symmetric about center
+            const lenHandleA = { x: editingWall.x + cosA * halfL, y: editingWall.y + sinA * halfL };
+            const lenHandleB = { x: editingWall.x - cosA * halfL, y: editingWall.y - sinA * halfL };
+            const thkHandleA = { x: editingWall.x - sinA * halfT, y: editingWall.y + cosA * halfT };
+            const thkHandleB = { x: editingWall.x + sinA * halfT, y: editingWall.y - cosA * halfT };
+            const handleR = 7 / stageScale;
+            const handleStroke = 1.5 / stageScale;
+            const minFeet = 5;
+
+            const onBodyDragMove = (e: any) => {
+              const nx = e.target.x();
+              const ny = e.target.y();
+              setEditingWall(w => w ? { ...w, x: nx, y: ny } : null);
+            };
+
+            const onLengthDrag = (e: any) => {
+              const px = e.target.x();
+              const py = e.target.y();
+              const dx = px - editingWall.x;
+              const dy = py - editingWall.y;
+              const dist = Math.hypot(dx, dy);
+              const rawLengthFt = (dist * 2 / ppg) * 5;
+              const clampedLengthFt = Math.min(
+                editingWall.maxLength,
+                Math.max(minFeet, rawLengthFt)
+              );
+              // Direction from center to drag point (preserves the dragged handle's side)
+              const dirX = dist > 0 ? dx / dist : 1;
+              const dirY = dist > 0 ? dy / dist : 0;
+              const newAngleDeg = Math.atan2(dirY, dirX) * 180 / Math.PI;
+              // Snap the handle visually to the clamped position so it never overshoots
+              const halfLClampedPx = (clampedLengthFt / 5) * ppg / 2;
+              e.target.position({
+                x: editingWall.x + dirX * halfLClampedPx,
+                y: editingWall.y + dirY * halfLClampedPx,
+              });
+              setEditingWall(w => w ? { ...w, angle: newAngleDeg, length: clampedLengthFt } : null);
+            };
+
+            const onThicknessDrag = (e: any) => {
+              const px = e.target.x();
+              const py = e.target.y();
+              const rad = editingWall.angle * Math.PI / 180;
+              const perpX = -Math.sin(rad);
+              const perpY = Math.cos(rad);
+              const proj = (px - editingWall.x) * perpX + (py - editingWall.y) * perpY;
+              const sign = proj < 0 ? -1 : 1;
+              const rawThicknessFt = (Math.abs(proj) * 2 / ppg) * 5;
+              const clampedThicknessFt = Math.min(
+                editingWall.maxThickness,
+                Math.max(minFeet, rawThicknessFt)
+              );
+              // Snap the handle to the perpendicular axis at the clamped distance
+              const halfTClampedPx = (clampedThicknessFt / 5) * ppg / 2;
+              e.target.position({
+                x: editingWall.x + perpX * sign * halfTClampedPx,
+                y: editingWall.y + perpY * sign * halfTClampedPx,
+              });
+              setEditingWall(w => w ? { ...w, thickness: clampedThicknessFt } : null);
+            };
+
+            const labelFontSize = 14 / stageScale;
+            const labelOffset = (halfT + 22 / stageScale);
+            const labelX = editingWall.x - sinA * -labelOffset;
+            const labelY = editingWall.y + cosA * -labelOffset;
+
+            return (
+              <Layer>
+                {/* Wall body — draggable to translate the whole wall */}
+                <Line
+                  x={editingWall.x}
+                  y={editingWall.y}
+                  points={pointsFlat}
+                  closed
+                  fill="rgba(212,165,116,0.35)"
+                  stroke="#d4a574"
+                  strokeWidth={2 / stageScale}
+                  dash={[8 / stageScale, 4 / stageScale]}
+                  draggable
+                  onDragMove={onBodyDragMove}
+                  onDragEnd={onBodyDragMove}
+                />
+                {/* Length handles (both ends of long axis) — rotate + resize length */}
+                <Circle
+                  x={lenHandleA.x}
+                  y={lenHandleA.y}
+                  radius={handleR}
+                  fill="white"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onLengthDrag}
+                />
+                <Circle
+                  x={lenHandleB.x}
+                  y={lenHandleB.y}
+                  radius={handleR}
+                  fill="white"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onLengthDrag}
+                />
+                {/* Thickness handles — resize thickness along perpendicular axis */}
+                <Circle
+                  x={thkHandleA.x}
+                  y={thkHandleA.y}
+                  radius={handleR}
+                  fill="#ffe6b3"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onThicknessDrag}
+                />
+                <Circle
+                  x={thkHandleB.x}
+                  y={thkHandleB.y}
+                  radius={handleR}
+                  fill="#ffe6b3"
+                  stroke="#8b5a2b"
+                  strokeWidth={handleStroke}
+                  draggable
+                  onDragMove={onThicknessDrag}
+                />
+                {/* Live dimensions readout */}
+                <Text
+                  x={labelX - 40 / stageScale}
+                  y={labelY - labelFontSize / 2}
+                  text={`${Math.round(editingWall.length)} \u00d7 ${Math.round(editingWall.thickness)} ft`}
+                  fontSize={labelFontSize}
+                  fill="#ffd9a6"
+                  fontStyle="bold"
+                  align="center"
+                  width={80 / stageScale}
+                  listening={false}
+                />
+              </Layer>
+            );
+          })()}
         </Stage>
 
         {/* Spell marker dismiss bubble — player view double-tap */}

@@ -42,7 +42,7 @@ interface FloorMapContainerProps {
   onSelectedTokenIdsChange?: (ids: string[]) => void;
   onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
   startCastingRef?: React.MutableRefObject<((spell: any, combatantId: string) => void) | null>;
-  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>;
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
@@ -68,6 +68,7 @@ interface FloorMapContainerProps {
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
   spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
+  shieldOfFaithData?: { playerId: string; rangeFt: number } | null;
   seeInvisibility?: boolean;
   activeTimers?: import('../types').TokenTimer[];
 }
@@ -193,6 +194,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     tremorsenseData: props.tremorsenseData,
     detectMagicData: props.detectMagicData,
     spiritGuardiansData: props.spiritGuardiansData,
+    shieldOfFaithData: props.shieldOfFaithData,
     seeInvisibility: props.seeInvisibility,
     activeTimers: props.activeTimers,
     ...(isPrimary ? {

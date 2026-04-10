@@ -389,11 +389,13 @@ const SpellsPanel: React.FC<{
   onRevertWildShape?: () => void;
   spiritGuardiansActive?: boolean;
   onDismissSpiritGuardians?: () => void;
+  shieldOfFaithActive?: boolean;
+  onDismissShieldOfFaith?: () => void;
   invisibilityActive?: boolean;
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, spiritGuardiansActive, onDismissSpiritGuardians, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, spiritGuardiansActive, onDismissSpiritGuardians, shieldOfFaithActive, onDismissShieldOfFaith, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -641,11 +643,13 @@ const SpellsPanel: React.FC<{
                 disabled={!ready}
                 isDismissable={
                   (spell.name === 'Spirit Guardians' && !!spiritGuardiansActive) ||
+                  (spell.name === 'Shield of Faith' && !!shieldOfFaithActive) ||
                   (spell.name === 'Invisibility' && !!invisibilityActive) ||
                   (spell.name === 'See Invisibility' && !!seeInvisibilityActive)
                 }
                 onDismiss={
                   spell.name === 'Spirit Guardians' ? onDismissSpiritGuardians :
+                  spell.name === 'Shield of Faith' ? onDismissShieldOfFaith :
                   spell.name === 'Invisibility' ? onDismissInvisibility :
                   spell.name === 'See Invisibility' ? onDismissSeeInvisibility :
                   undefined
@@ -1215,7 +1219,7 @@ export function PlayerScreen() {
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>(null);
-  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>(null);
+  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>(null);
   const addMarkersDirectlyRef = useRef<((markers: import('../types').SpellMarker[]) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
@@ -1231,6 +1235,9 @@ export function PlayerScreen() {
   // AoE highlights received from MapView
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
 
+  // Wall of Fire variant picker — shown when player casts Wall of Fire before choosing Wall vs Ring
+  const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
+
   // Active combatant turn (received from DM via IPC)
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   // Player targeting — combatant IDs of monsters players have targeted
@@ -1241,6 +1248,8 @@ export function PlayerScreen() {
   const [detectMagicData, setDetectMagicData] = useState<{ playerId: string; rangeFt: number } | null>(null);
   // Spirit Guardians — persistent emanation following the caster
   const [spiritGuardiansData, setSpiritGuardiansData] = useState<{ playerId: string; rangeFt: number } | null>(null);
+  // Shield of Faith — persistent emanation following the caster
+  const [shieldOfFaithData, setShieldOfFaithData] = useState<{ playerId: string; rangeFt: number } | null>(null);
 
   // Invisibility — tracks which players have cast Invisibility on themselves
   const [invisiblePlayerIds, setInvisiblePlayerIds] = useState<Set<string>>(new Set());
@@ -1297,6 +1306,27 @@ export function PlayerScreen() {
     }, remaining);
     return () => clearTimeout(timeout);
   }, [spiritGuardiansData, activeTimers]);
+
+  // Clear shield of faith when its timer expires
+  useEffect(() => {
+    if (!shieldOfFaithData) return;
+    const timer = activeTimers.find(t => t.playerId === shieldOfFaithData.playerId && t.abilityId === 'shield-of-faith');
+    if (!timer) {
+      setShieldOfFaithData(null);
+      return;
+    }
+    const remaining = timer.durationMs - (Date.now() - timer.startTime);
+    if (remaining <= 0) {
+      setShieldOfFaithData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === shieldOfFaithData.playerId && t.abilityId === 'shield-of-faith')));
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setShieldOfFaithData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === shieldOfFaithData.playerId && t.abilityId === 'shield-of-faith')));
+    }, remaining);
+    return () => clearTimeout(timeout);
+  }, [shieldOfFaithData, activeTimers]);
 
   const handleTogglePlayerAbility = (playerId: string, entry: AbilityEntry, onDarkvisionChange: (val: number) => void) => {
     setPlayerActiveAbilities(prev => {
@@ -1582,6 +1612,24 @@ export function PlayerScreen() {
       return;
     }
 
+    // Shield of Faith: persistent emanation that follows the caster, concentration 10 min
+    if (spell?.name === 'Shield of Faith') {
+      setActionRing(null);
+      setOpenPanel(null);
+      setShieldOfFaithData({ playerId: player.id, rangeFt: spell.aoeSize ?? 5 });
+      setActiveTimers(prev => [
+        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'shield-of-faith')),
+        {
+          playerId: player.id,
+          abilityId: 'shield-of-faith',
+          startTime: Date.now(),
+          durationMs: 600000, // 10 minutes concentration
+          color: '#60a5fa',   // blue to match abjuration theme
+        }
+      ]);
+      return;
+    }
+
     setActionRing(null);
     setOpenPanel(null);
     // Pass mapInteraction, saveEffect, condition through so MapView knows post-cast behavior
@@ -1598,6 +1646,11 @@ export function PlayerScreen() {
   const handleDismissSpiritGuardians = useCallback((playerId: string) => {
     setSpiritGuardiansData(null);
     setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'spirit-guardians')));
+  }, []);
+
+  const handleDismissShieldOfFaith = useCallback((playerId: string) => {
+    setShieldOfFaithData(null);
+    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'shield-of-faith')));
   }, []);
 
   const handleDismissInvisibility = useCallback((playerId: string) => {
@@ -1667,6 +1720,14 @@ export function PlayerScreen() {
         lightSource: true,
       }));
       addMarkersDirectlyRef.current?.(markers);
+      return;
+    }
+
+    // Wall of Fire exception: show variant picker (Wall vs Ring) before placement
+    if (spell?.name === 'Wall of Fire') {
+      setWallOfFirePicker({ spotId, playerId });
+      setOpenPanel(null);
+      setActionRing(null);
       return;
     }
 
@@ -2036,6 +2097,7 @@ export function PlayerScreen() {
           tremorsenseData={tremorsenseData}
           detectMagicData={detectMagicData}
           spiritGuardiansData={spiritGuardiansData}
+          shieldOfFaithData={shieldOfFaithData}
           seeInvisibility={seeInvisibilityPlayerIds.size > 0}
           activeTimers={activeTimers}
         />
@@ -2171,11 +2233,63 @@ export function PlayerScreen() {
             onRevertWildShape={() => handleRevertWildShape(actionRing.spotId)}
             spiritGuardiansActive={!!(playerId && spiritGuardiansData?.playerId === playerId)}
             onDismissSpiritGuardians={() => playerId && handleDismissSpiritGuardians(playerId)}
+            shieldOfFaithActive={!!(playerId && shieldOfFaithData?.playerId === playerId)}
+            onDismissShieldOfFaith={() => playerId && handleDismissShieldOfFaith(playerId)}
             invisibilityActive={!!(playerId && invisiblePlayerIds.has(playerId))}
             onDismissInvisibility={() => playerId && handleDismissInvisibility(playerId)}
             seeInvisibilityActive={!!(playerId && seeInvisibilityPlayerIds.has(playerId))}
             onDismissSeeInvisibility={() => playerId && handleDismissSeeInvisibility(playerId)}
           />
+        );
+      })()}
+
+      {/* Wall of Fire variant picker */}
+      {wallOfFirePicker && (() => {
+        const { spotId, playerId } = wallOfFirePicker;
+        const handleVariant = (variant: 'wall' | 'ring') => {
+          setWallOfFirePicker(null);
+          if (variant === 'wall') {
+            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', shapeType: 'wall', maxLength: 60, maxThickness: 1, blocksVision: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Fire', saveAbility: 'dex' });
+          } else {
+            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', aoeType: 'sphere', aoeSize: 10 }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Fire (Ring)', saveAbility: 'dex', aoeType: 'sphere' });
+          }
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-orange-500/40 rounded-2xl p-6 shadow-2xl shadow-orange-500/10 flex flex-col items-center gap-4 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <span className="text-orange-400 text-lg">🔥</span>
+                <span className="text-white font-bold text-sm tracking-wide">Wall of Fire</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a shape</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('wall')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/40 active:bg-orange-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬜</span>
+                  Wall
+                  <span className="text-[9px] text-white/30 normal-case font-normal">60 ft long</span>
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('ring')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/40 active:bg-orange-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⭕</span>
+                  Ring
+                  <span className="text-[9px] text-white/30 normal-case font-normal">20 ft diameter</span>
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setWallOfFirePicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         );
       })()}
 
