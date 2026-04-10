@@ -847,6 +847,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // Double-tap dismiss bubble for spell markers (player view)
   const [dismissMarkerBubble, setDismissMarkerBubble] = useState<{ markerId: string; screenX: number; screenY: number } | null>(null);
   const lastMarkerTapRef = useRef<{ markerId: string; time: number } | null>(null);
+  // Tracks whether a marker drag is in progress to suppress onTap after drag
+  const markerDraggingRef = useRef(false);
   // Increments when icon images finish loading, triggering a re-render so KonvaImage nodes appear
   const [iconVersion, setIconVersion] = useState(0);
 
@@ -5059,8 +5061,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       x={marker.x}
                       y={marker.y}
                       draggable={true}
-                      onDragMove={(e) => {
+                      onDragStart={(e) => {
+                        e.cancelBubble = true;
+                        markerDraggingRef.current = true;
+                        // Clear the dismiss bubble once at drag start — not on every move frame
                         setDismissMarkerBubble(null);
+                      }}
+                      onDragMove={(e) => {
                         if (marker.lightSource || marker.spellName === 'Darkness') {
                           setLiveMarkerPos(prev => ({
                             ...prev,
@@ -5069,6 +5076,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         }
                       }}
                       onDragEnd={(e) => {
+                        markerDraggingRef.current = false;
                         // Clear live position override
                         setLiveMarkerPos(prev => {
                           const next = { ...prev };
@@ -5085,6 +5093,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       }}
                       onTap={(e) => {
                         if (!isPlayerView) return;
+                        // Suppress tap if a drag just completed
+                        if (markerDraggingRef.current) return;
                         e.cancelBubble = true;
                         const now = Date.now();
                         const last = lastMarkerTapRef.current;

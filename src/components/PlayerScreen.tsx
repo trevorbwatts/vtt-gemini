@@ -266,8 +266,10 @@ const SpellRow: React.FC<{
   spellAttackBonus?: number;
   onPress: () => void;
   onPlace?: () => void;
+  onDismiss?: () => void;
+  isDismissable?: boolean;
   disabled?: boolean;
-}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, disabled }) => {
+}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, onDismiss, isDismissable, disabled }) => {
   const mi = spell.mapInteraction as string | undefined;
   const isCast = mi === 'cast' || mi === 'cast-and-place';
   const isPlace = mi === 'place' || mi === 'exception';
@@ -310,7 +312,15 @@ const SpellRow: React.FC<{
         <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
           {spell.level === 0 ? 'C' : spell.level}
         </span>
-        {isCast && !disabled && (
+        {isCast && !disabled && isDismissable && onDismiss && (
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onDismiss(); }}
+            className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 active:bg-red-500/40 transition-colors"
+          >
+            Dismiss
+          </button>
+        )}
+        {isCast && !disabled && !isDismissable && (
           <button
             onPointerDown={(e) => { e.stopPropagation(); onPress(); }}
             className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40 active:bg-[var(--accent)]/40 transition-colors"
@@ -377,7 +387,9 @@ const SpellsPanel: React.FC<{
   onWildShape?: (creature: Monster) => void;
   isWildShaped?: boolean;
   onRevertWildShape?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape }) => {
+  spiritGuardiansActive?: boolean;
+  onDismissSpiritGuardians?: () => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, spiritGuardiansActive, onDismissSpiritGuardians }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -623,6 +635,8 @@ const SpellsPanel: React.FC<{
                 spellSaveDc={spellSaveDc}
                 spellAttackBonus={spellAttackBonus}
                 disabled={!ready}
+                isDismissable={spell.name === 'Spirit Guardians' && !!spiritGuardiansActive}
+                onDismiss={spell.name === 'Spirit Guardians' ? onDismissSpiritGuardians : undefined}
                 onPress={() => {
                   const mi = spell.mapInteraction as string | undefined;
                   if (mi !== 'cast' && mi !== 'cast-and-place') return;
@@ -1563,6 +1577,11 @@ export function PlayerScreen() {
     setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility, aoeType: spell.aoeType });
   }, [actionRing, signedInSpots, campaign]);
 
+  const handleDismissSpiritGuardians = useCallback((playerId: string) => {
+    setSpiritGuardiansData(null);
+    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'spirit-guardians')));
+  }, []);
+
   const handlePlaceSpell = useCallback((spell: any) => {
     if (!actionRing) return;
     const { spotId } = actionRing;
@@ -2046,6 +2065,8 @@ export function PlayerScreen() {
             onWildShape={(creature) => handleWildShape(actionRing.spotId, creature)}
             isWildShaped={!!(playerId && wildShapeData[playerId])}
             onRevertWildShape={() => handleRevertWildShape(actionRing.spotId)}
+            spiritGuardiansActive={!!(playerId && spiritGuardiansData?.playerId === playerId)}
+            onDismissSpiritGuardians={() => playerId && handleDismissSpiritGuardians(playerId)}
           />
         );
       })()}
