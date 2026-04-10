@@ -482,7 +482,10 @@ const SpellsPanel: React.FC<{
     return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell => {
       const mi = getMapInteraction(spell);
       return mi !== 'none';
-    }).slice(0, 20);
+    }).slice(0, 20).map(spell => ({
+      ...spell,
+      mapInteraction: spell.mapInteraction ?? getMapInteraction(spell),
+    }));
   }, [spellSearch, enabledSources]);
 
   const beastResults = useMemo(() => {
