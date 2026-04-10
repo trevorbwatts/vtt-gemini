@@ -11,6 +11,7 @@
  */
 
 import { Combatant, ClassDefinition, MonsterAction } from '../types';
+import { lookupSpell } from '../data/spellDatabase';
 
 // Stat IDs used by D&D Beyond
 const STAT_IDS = { STR: 1, DEX: 2, CON: 3, INT: 4, WIS: 5, CHA: 6 } as const;
@@ -316,6 +317,44 @@ function getSpells(data: any): NonNullable<Combatant['spells']> {
   if (data.spells) {
     for (const key of SPELL_SOURCE_KEYS) {
       (data.spells[key] || []).forEach(addSpell);
+    }
+  }
+
+  // Domain/subclass spells aren't included in classSpells by DDB — they only
+  // appear as an HTML table inside the subclass feature description.  Parse
+  // them out and resolve via our local spell database.
+  const level = getLevel(data);
+  for (const cls of (data.classes || [])) {
+    for (const feat of (cls.subclassDefinition?.classFeatures || [])) {
+      if (!feat.name?.toLowerCase().includes('spell')) continue;
+      const desc: string = feat.description || '';
+      // Match table rows: <td>level</td><td>spell list</td>
+      const rowRe = /<tr>\s*<td>(\d+)<\/td>\s*<td>([^<]+)<\/td>\s*<\/tr>/gi;
+      let match: RegExpExecArray | null;
+      while ((match = rowRe.exec(desc)) !== null) {
+        const reqLevel = parseInt(match[1], 10);
+        if (reqLevel > level) continue;
+        const names = match[2].split(',').map(s => s.trim()).filter(Boolean);
+        for (const name of names) {
+          if (seen.has(name)) continue;
+          seen.add(name);
+          const entry = lookupSpell(name);
+          if (entry) {
+            spells.push({
+              name: entry.name,
+              level: entry.level,
+              desc: entry.desc,
+              ...(entry.aoeType    ? { aoeType: entry.aoeType }    : {}),
+              ...(entry.aoeSize    ? { aoeSize: entry.aoeSize }    : {}),
+              ...(entry.range != null ? { range: entry.range }     : {}),
+              ...(entry.saveAbility ? { saveAbility: entry.saveAbility } : {}),
+              ...(entry.halfDamageOnSave ? { halfDamageOnSave: entry.halfDamageOnSave } : {}),
+            });
+          } else {
+            spells.push({ name, level: 0, desc: '' });
+          }
+        }
+      }
     }
   }
 
