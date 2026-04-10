@@ -406,8 +406,9 @@
     "desc": "You set an alarm against unwanted intrusion. Choose a door, a window, or an area within range that is no larger than a 20-foot cube. Until the spell ends, an alarm alerts you whenever a Tiny or larger creature touches or enters the warded area. When you cast the spell, you can designate creatures that won't set off the alarm. You also choose whether the alarm is mental or audible.\n\nA mental alarm alerts you with a ping in your mind if you are within 1 mile of the warded area. This ping awakens you if you are sleeping.\n\nAn audible alarm produces the sound of a hand bell for 10 seconds within 60 feet.",
     "range": 30,
     "source": "2014",
-    "aoeType": "cone",
-    "effectRadius": 20
+    "mapInteraction": "place",
+    "aoeType": "cube",
+    "aoeSize": 20
   },
   {
     "name": "Animal Friendship",
@@ -711,6 +712,7 @@
     "desc": "You create a 20-foot-radius sphere of fog centered on a point within range. The sphere spreads around corners, and its area is Vision and Light. It lasts for the duration or until a wind of moderate or greater speed (at least 10 miles per hour) disperses it.",
     "range": 120,
     "source": "2014",
+    "mapInteraction": "place",
     "aoeType": "sphere",
     "aoeSize": 20,
     "effectRadius": 20

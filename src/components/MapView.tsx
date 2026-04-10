@@ -4747,23 +4747,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
               />
             </Layer>
           )}
-          {/* Darkness spell circles — rendered above fog but below tokens */}
-          {spellMarkers.some(m => m.spellName === 'Darkness' && (!m.floorId || m.floorId === activeFloorId) && (!isPlayerView || m.visibleToPlayers)) && (
+          {/* Darkness + Fog Cloud circles — rendered above fog but below tokens */}
+          {spellMarkers.some(m => (m.spellName === 'Darkness' || m.spellName === 'Fog Cloud') && (!m.floorId || m.floorId === activeFloorId) && (!isPlayerView || m.visibleToPlayers)) && (
             <Layer listening={false}>
               {spellMarkers
-                .filter(m => m.spellName === 'Darkness' && (!m.floorId || m.floorId === activeFloorId) && (!isPlayerView || m.visibleToPlayers))
+                .filter(m => (m.spellName === 'Darkness' || m.spellName === 'Fog Cloud') && (!m.floorId || m.floorId === activeFloorId) && (!isPlayerView || m.visibleToPlayers))
                 .map(marker => {
                   const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
                   if (effectPx <= 0) return null;
                   const live = liveMarkerPos[marker.id];
+                  const isFog = marker.spellName === 'Fog Cloud';
                   return (
                     <Circle
                       key={marker.id}
                       x={live?.x ?? marker.x}
                       y={live?.y ?? marker.y}
                       radius={effectPx}
-                      fill="black"
-                      opacity={0.92}
+                      fill={isFog ? 'rgb(160,160,160)' : 'black'}
+                      opacity={isFog ? 0.72 : 0.92}
                       listening={false}
                       perfectDrawEnabled={false}
                     />
@@ -5068,7 +5069,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         setDismissMarkerBubble(null);
                       }}
                       onDragMove={(e) => {
-                        if (marker.lightSource || marker.spellName === 'Darkness') {
+                        if (marker.lightSource || marker.spellName === 'Darkness' || marker.spellName === 'Fog Cloud') {
                           setLiveMarkerPos(prev => ({
                             ...prev,
                             [marker.id]: { x: e.target.x(), y: e.target.y() },
@@ -5133,7 +5134,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           Renders the spell's actual area (cube/sphere/etc.) if aoeType is set,
                           otherwise falls back to effectRadius circle. listening=false so the
                           large shape doesn't capture drag events. */}
-                      {marker.spellName !== 'Light' && marker.spellName !== 'Darkness' && (() => {
+                      {marker.spellName !== 'Light' && marker.spellName !== 'Darkness' && marker.spellName !== 'Fog Cloud' && (() => {
                         if (marker.aoeType && marker.aoeSize) {
                           const aoePx = (marker.aoeSize / 5) * ppg;
                           if (marker.aoeType === 'cube') {
@@ -5182,6 +5183,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         }
                         return null;
                       })()}
+                      {/* Invisible expanded hit area so the marker is easy to grab/drag on touch */}
+                      <Circle
+                        radius={Math.max(markerRadius * 3, effectPx > 0 ? Math.min(effectPx, markerRadius * 5) : markerRadius * 3)}
+                        fill="rgba(0,0,0,0.001)"
+                        perfectDrawEnabled={false}
+                      />
                       {/* Icon background circle */}
                       <Circle
                         radius={markerRadius}

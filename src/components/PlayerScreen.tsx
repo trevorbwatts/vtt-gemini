@@ -1650,6 +1650,12 @@ export function PlayerScreen() {
     setActionRing(null);
     setOpenPanel(null);
 
+    // Resolve creature size (e.g. "Small/Medium" → "Small")
+    const creatureSize = (creature.size?.split('/')[0]?.trim() as Token['size']) || 'Medium';
+    // Find the player's current token to save original size for revert
+    const playerToken = campaign.scenarios.flatMap(s => s.tokens).find(t => t.combatantId === playerId);
+    const originalSize = playerToken?.size || 'Medium';
+
     // Store wild shape state locally
     setWildShapeData(prev => ({
       ...prev,
@@ -1660,10 +1666,11 @@ export function PlayerScreen() {
         creatureHp: creature.hp,
         creatureAc: creature.ac,
         creatureSpeed: creature.speed,
+        originalSize,
       },
     }));
 
-    // Update local campaign so token avatar changes immediately
+    // Update local campaign so token avatar and size change immediately
     const creatureAvatar = creature.avatar || `/tokens/${creature.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}.jpg`;
     setCampaign(prev => {
       if (!prev) return prev;
@@ -1672,19 +1679,22 @@ export function PlayerScreen() {
         players: prev.players.map(p => p.id === playerId ? { ...p, avatar: creatureAvatar } : p),
         scenarios: prev.scenarios.map(s => ({
           ...s,
-          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: creatureAvatar } : t),
+          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: creatureAvatar, size: creatureSize } : t),
         })),
       };
     });
 
-    // Notify DM
+    // Notify DM (include originalAvatar/originalSize so DM can revert correctly)
     window.electronAPI?.sendPlayerWildShape?.({
       playerId,
       creatureName: creature.name,
       creatureAvatar,
+      originalAvatar: player.avatar,
       creatureHp: creature.hp,
       creatureAc: creature.ac,
       creatureSpeed: creature.speed,
+      creatureSize,
+      originalSize,
     });
   }, [signedInSpots, campaign]);
 
@@ -1697,6 +1707,7 @@ export function PlayerScreen() {
     setOpenPanel(null);
 
     const originalAvatar = wsData.originalAvatar;
+    const originalSize = (wsData as any).originalSize as Token['size'] || 'Medium';
 
     // Clear wild shape state
     setWildShapeData(prev => {
@@ -1705,7 +1716,7 @@ export function PlayerScreen() {
       return next;
     });
 
-    // Restore original avatar locally
+    // Restore original avatar and size locally
     setCampaign(prev => {
       if (!prev) return prev;
       return {
@@ -1713,13 +1724,13 @@ export function PlayerScreen() {
         players: prev.players.map(p => p.id === playerId ? { ...p, avatar: originalAvatar } : p),
         scenarios: prev.scenarios.map(s => ({
           ...s,
-          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: originalAvatar } : t),
+          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: originalAvatar, size: originalSize } : t),
         })),
       };
     });
 
-    // Notify DM (null = revert)
-    window.electronAPI?.sendPlayerWildShape?.(null);
+    // Notify DM with playerId so it knows exactly who reverted
+    window.electronAPI?.sendPlayerWildShape?.({ playerId, revert: true, originalAvatar, originalSize });
   }, [signedInSpots, wildShapeData]);
 
   const handleConditionToggle = useCallback((spotId: SpotId, condition: string) => {

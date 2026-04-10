@@ -12,17 +12,17 @@ export const OnScreenKeyboard: React.FC<{
   onBackspace: () => void;
   onClear: () => void;
 }> = ({ onKeyPress, onBackspace, onClear }) => {
-  const keyClass = 'flex items-center justify-center rounded bg-white/10 text-white/70 text-xs font-bold active:bg-purple-500/30 active:text-purple-300 transition-colors select-none';
+  const keyClass = 'flex items-center justify-center rounded bg-white/10 text-white/70 text-sm font-bold active:bg-purple-500/30 active:text-purple-300 transition-colors select-none';
 
   return (
-    <div className="flex flex-col gap-1 py-2">
+    <div className="flex flex-col gap-1.5 py-2">
       {ROWS.map((row, ri) => (
-        <div key={ri} className="flex gap-1 justify-center">
+        <div key={ri} className="flex gap-1.5 justify-center">
           {row.map(ch => (
             <button
               key={ch}
               onPointerDown={(e) => { e.preventDefault(); onKeyPress(ch.toLowerCase()); }}
-              className={cn(keyClass, 'w-[26px] h-[36px]')}
+              className={cn(keyClass, 'w-[38px] h-[44px]')}
             >
               {ch}
             </button>
@@ -30,22 +30,22 @@ export const OnScreenKeyboard: React.FC<{
         </div>
       ))}
       {/* Bottom row: Clear, Space, Backspace */}
-      <div className="flex gap-1 justify-center">
+      <div className="flex gap-1.5 justify-center">
         <button
           onPointerDown={(e) => { e.preventDefault(); onClear(); }}
-          className={cn(keyClass, 'px-2 h-[36px] text-[10px] text-red-400/70')}
+          className={cn(keyClass, 'px-4 h-[44px] text-xs text-red-400/70')}
         >
           CLR
         </button>
         <button
           onPointerDown={(e) => { e.preventDefault(); onKeyPress(' '); }}
-          className={cn(keyClass, 'flex-1 h-[36px] max-w-[140px]')}
+          className={cn(keyClass, 'flex-1 h-[44px] max-w-[180px]')}
         >
           space
         </button>
         <button
           onPointerDown={(e) => { e.preventDefault(); onBackspace(); }}
-          className={cn(keyClass, 'px-2 h-[36px] text-[10px]')}
+          className={cn(keyClass, 'px-4 h-[44px] text-xs')}
         >
           &#9003;
         </button>

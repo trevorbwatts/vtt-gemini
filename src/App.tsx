@@ -376,44 +376,44 @@ export function DMScreen() {
   useEffect(() => {
     if (!window.electronAPI?.onPlayerWildShape) return;
     window.electronAPI.onPlayerWildShape((data) => {
-      if (data === null) {
-        // Revert all wild shapes (simple approach)
+      if (!data) return;
+
+      const { playerId, revert, originalAvatar, originalSize, creatureName, creatureAvatar, creatureSize } = data as any;
+
+      if (revert) {
+        // Revert this specific player back to their original avatar and size
         setWildShapeState(prev => {
           const next = { ...prev };
-          // Restore avatars for all wild-shaped players
-          setCampaign(prevCamp => {
-            if (!prevCamp) return prevCamp;
-            let players = prevCamp.players;
-            let scenarios = prevCamp.scenarios;
-            for (const [pid, ws] of Object.entries(next)) {
-              players = players.map(p => p.id === pid ? { ...p, avatar: ws.originalAvatar } : p);
-              scenarios = scenarios.map(s => ({
-                ...s,
-                tokens: s.tokens.map(t => t.combatantId === pid ? { ...t, avatar: ws.originalAvatar } : t),
-              }));
-            }
-            return { ...prevCamp, players, scenarios };
-          });
-          return {};
+          delete next[playerId];
+          return next;
+        });
+        setCampaign(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            players: prev.players.map(p => p.id === playerId ? { ...p, avatar: originalAvatar } : p),
+            scenarios: prev.scenarios.map(s => ({
+              ...s,
+              tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: originalAvatar, size: originalSize || 'Medium' } : t),
+            })),
+          };
         });
         return;
       }
 
-      const { playerId, creatureName, creatureAvatar } = data;
+      // Transform — store the originalAvatar sent from the player screen (not captured from campaign state)
+      setWildShapeState(prev => ({
+        ...prev,
+        [playerId]: { creatureName, originalAvatar },
+      }));
       setCampaign(prev => {
         if (!prev) return prev;
-        const player = prev.players.find(p => p.id === playerId);
-        // Store original avatar before overwriting
-        setWildShapeState(ws => ({
-          ...ws,
-          [playerId]: { creatureName, originalAvatar: player?.avatar },
-        }));
         return {
           ...prev,
           players: prev.players.map(p => p.id === playerId ? { ...p, avatar: creatureAvatar } : p),
           scenarios: prev.scenarios.map(s => ({
             ...s,
-            tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: creatureAvatar } : t),
+            tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: creatureAvatar, size: creatureSize || 'Medium' } : t),
           })),
         };
       });
