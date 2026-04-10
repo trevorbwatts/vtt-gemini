@@ -2129,7 +2129,7 @@ export function PlayerScreen() {
                   onPointerDown={(e) => e.preventDefault()}
                   className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
                 >
-                  {activeCasting.saveAbility ? 'Confirm Cast' : 'Place'}
+                  {(activeCasting.saveAbility || activeCasting.aoeType === 'emanation') ? 'Confirm Cast' : 'Place'}
                 </button>
               )}
               {aoeHighlights?.saveResults && (

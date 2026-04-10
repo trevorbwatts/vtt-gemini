@@ -1340,6 +1340,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
       } catch (_e) { /* IPC not available */ }
     };
 
+    // cast-confirm spells (e.g. Prayer of Healing) — show AoE preview then just dismiss
+    if (aoe.mapInteraction === 'cast-confirm') {
+      setPlacedAoe(null);
+      onCastingDismissed?.();
+      return;
+    }
+
     // No save roll needed (e.g. Darkness) — place as a persistent spell marker
     if (!aoe.saveAbility || !aoe.saveDc) {
       // damage-auto: all tokens in AoE auto-fail — trigger damage modal via save results
