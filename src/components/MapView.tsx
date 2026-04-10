@@ -114,6 +114,8 @@ interface MapViewProps {
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   /** Detect Magic data — when active, reveals 'magic' type map notes within range below fog */
   detectMagicData?: { playerId: string; rangeFt: number } | null;
+  /** Spirit Guardians data — persistent emanation ring that follows the caster */
+  spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
   /** Active timers for tokens to display countdown rings */
   activeTimers?: import('../types').TokenTimer[];
 }
@@ -671,6 +673,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onSpellMarkersChange,
   tremorsenseData,
   detectMagicData,
+  spiritGuardiansData,
   activeTimers = [],
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
@@ -1221,6 +1224,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
       if (!token.combatantId) continue;
       const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
       if (combatant && combatant.maxHp > 0 && combatant.hp <= combatant.maxHp / 2 && combatant.hp > 0) {
+        set.add(token.id);
+      }
+    }
+    return set;
+  }, [tokens, activeCombatants, players, npcs, persistentEnemies, scenarioCombatants]);
+
+  // Dead tokens: enemy/npc tokens at 0 HP
+  const deadTokenIds = useMemo(() => {
+    const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const set = new Set<string>();
+    for (const token of tokens) {
+      if (token.type === 'player') continue;
+      if (!token.combatantId) continue;
+      const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
+      if (combatant && combatant.hp <= 0) {
         set.add(token.id);
       }
     }
@@ -3671,6 +3689,63 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   </Group>
                 )}
+                {/* Dead overlay — black tint + skull when at 0 HP */}
+                {deadTokenIds.has(token.id) && (() => {
+                  const s = r / 28;
+                  const ox = -12 * s;
+                  const oy = -12 * s;
+                  return (
+                    <Group listening={false}>
+                      <Circle
+                        radius={r - tokenScale}
+                        fill="rgba(0, 0, 0, 0.72)"
+                        perfectDrawEnabled={false}
+                      />
+                      {/* Skull body + jaw */}
+                      <Path
+                        data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"
+                        stroke="rgba(255,255,255,0.9)"
+                        strokeWidth={1.5}
+                        fill="rgba(255,255,255,0.18)"
+                        lineCap="round"
+                        lineJoin="round"
+                        scale={{ x: s, y: s }}
+                        x={ox}
+                        y={oy}
+                        perfectDrawEnabled={false}
+                      />
+                      {/* Nose */}
+                      <Path
+                        data="m12.5 17-.5-1-.5 1h1z"
+                        stroke="rgba(255,255,255,0.9)"
+                        strokeWidth={1.5}
+                        fill="rgba(255,255,255,0.9)"
+                        lineCap="round"
+                        lineJoin="round"
+                        scale={{ x: s, y: s }}
+                        x={ox}
+                        y={oy}
+                        perfectDrawEnabled={false}
+                      />
+                      {/* Left eye */}
+                      <Circle
+                        x={9 * s + ox}
+                        y={12 * s + oy}
+                        radius={s}
+                        fill="rgba(255,255,255,0.9)"
+                        perfectDrawEnabled={false}
+                      />
+                      {/* Right eye */}
+                      <Circle
+                        x={15 * s + ox}
+                        y={12 * s + oy}
+                        radius={s}
+                        fill="rgba(255,255,255,0.9)"
+                        perfectDrawEnabled={false}
+                      />
+                    </Group>
+                  );
+                })()}
                 {/* Bloodied overlay — red tint when at or below half HP */}
                 {bloodiedTokenIds.has(token.id) && (
                   <Circle
@@ -4770,6 +4845,40 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── Spirit Guardians persistent emanation ring (player view only) ── */}
+          {isPlayerView && spiritGuardiansData && (() => {
+            const casterToken = tokens.find(t => t.combatantId === spiritGuardiansData.playerId);
+            if (!casterToken) return null;
+            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
+            const rangePx = gridResolution
+              ? (spiritGuardiansData.rangeFt / 5) * gridResolution.pixelsPerGrid
+              : spiritGuardiansData.rangeFt * 4;
+            return (
+              <Layer listening={false}>
+                {/* Outer glow ring */}
+                <Circle
+                  x={casterPos.x}
+                  y={casterPos.y}
+                  radius={rangePx}
+                  fill="rgba(251,191,36,0.08)"
+                  stroke="rgba(251,191,36,0.7)"
+                  strokeWidth={3 * tokenScale}
+                  perfectDrawEnabled={false}
+                />
+                {/* Inner soft glow */}
+                <Circle
+                  x={casterPos.x}
+                  y={casterPos.y}
+                  radius={rangePx * 0.88}
+                  fill="rgba(251,191,36,0.05)"
+                  stroke="rgba(251,191,36,0.25)"
+                  strokeWidth={1.5 * tokenScale}
+                  perfectDrawEnabled={false}
+                />
+              </Layer>
+            );
+          })()}
+
           {/* ── Player tokens above fog (player view only) ── */}
           {isPlayerView && (
             <Layer>
@@ -5092,19 +5201,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           y={-markerRadius * 0.9}
                         />
                       )}
-                      {/* Hover label */}
-                      {hoveredMarkerId === marker.id && (
-                        <Text
-                          text={marker.spellName}
-                          y={markerRadius + 4}
-                          fontSize={12}
-                          fill="white"
-                          align="center"
-                          offsetX={0}
-                          width={120}
-                          x={-60}
-                        />
-                      )}
+                      {/* Spell name label — always visible below the marker */}
+                      <Text
+                        text={marker.spellName}
+                        y={markerRadius + 4}
+                        fontSize={11 / stageScale}
+                        fill="white"
+                        align="center"
+                        width={120 / stageScale}
+                        x={-60 / stageScale}
+                        shadowColor="black"
+                        shadowBlur={3}
+                        shadowOpacity={0.9}
+                        listening={false}
+                      />
                     </Group>
                   );
                 })}

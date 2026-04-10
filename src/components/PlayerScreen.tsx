@@ -1212,6 +1212,8 @@ export function PlayerScreen() {
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
   // Detect Magic — active when a player casts Detect Magic
   const [detectMagicData, setDetectMagicData] = useState<{ playerId: string; rangeFt: number } | null>(null);
+  // Spirit Guardians — persistent emanation following the caster
+  const [spiritGuardiansData, setSpiritGuardiansData] = useState<{ playerId: string; rangeFt: number } | null>(null);
 
   // Wild Shape — tracks which players are currently wild-shaped
   // Map of playerId -> { creatureName, originalAvatar, creatureAvatar }
@@ -1242,6 +1244,27 @@ export function PlayerScreen() {
     }, remaining);
     return () => clearTimeout(timeout);
   }, [detectMagicData, activeTimers]);
+
+  // Clear spirit guardians when its timer expires
+  useEffect(() => {
+    if (!spiritGuardiansData) return;
+    const timer = activeTimers.find(t => t.playerId === spiritGuardiansData.playerId && t.abilityId === 'spirit-guardians');
+    if (!timer) {
+      setSpiritGuardiansData(null);
+      return;
+    }
+    const remaining = timer.durationMs - (Date.now() - timer.startTime);
+    if (remaining <= 0) {
+      setSpiritGuardiansData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === spiritGuardiansData.playerId && t.abilityId === 'spirit-guardians')));
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setSpiritGuardiansData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === spiritGuardiansData.playerId && t.abilityId === 'spirit-guardians')));
+    }, remaining);
+    return () => clearTimeout(timeout);
+  }, [spiritGuardiansData, activeTimers]);
 
   const handleTogglePlayerAbility = (playerId: string, entry: AbilityEntry, onDarkvisionChange: (val: number) => void) => {
     setPlayerActiveAbilities(prev => {
@@ -1504,6 +1527,24 @@ export function PlayerScreen() {
           startTime: Date.now(),
           durationMs: 600000, // 10 minutes
           color: '#22d3ee',   // cyan to match magic note color
+        }
+      ]);
+      return;
+    }
+
+    // Spirit Guardians: persistent emanation that follows the caster, concentration 10 min
+    if (spell?.name === 'Spirit Guardians') {
+      setActionRing(null);
+      setOpenPanel(null);
+      setSpiritGuardiansData({ playerId: player.id, rangeFt: spell.aoeSize ?? 15 });
+      setActiveTimers(prev => [
+        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'spirit-guardians')),
+        {
+          playerId: player.id,
+          abilityId: 'spirit-guardians',
+          startTime: Date.now(),
+          durationMs: 600000, // 10 minutes concentration
+          color: '#fbbf24',   // amber/gold to match spirit theme
         }
       ]);
       return;
@@ -1872,6 +1913,7 @@ export function PlayerScreen() {
           }}
           tremorsenseData={tremorsenseData}
           detectMagicData={detectMagicData}
+          spiritGuardiansData={spiritGuardiansData}
           activeTimers={activeTimers}
         />
       </div>

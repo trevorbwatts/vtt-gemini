@@ -67,6 +67,7 @@ interface FloorMapContainerProps {
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
+  spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
   activeTimers?: import('../types').TokenTimer[];
 }
 
@@ -190,6 +191,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onClearTargets: props.onClearTargets,
     tremorsenseData: props.tremorsenseData,
     detectMagicData: props.detectMagicData,
+    spiritGuardiansData: props.spiritGuardiansData,
     activeTimers: props.activeTimers,
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
