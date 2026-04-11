@@ -28,6 +28,30 @@ const getClassSummary = (classes?: ClassDefinition[]) => {
   return classes.map(c => `${c.name} ${c.level}`).join(' / ');
 };
 
+const InitiativeInput: React.FC<{ value: number; onCommit: (value: number) => void }> = ({ value, onCommit }) => {
+  const [draft, setDraft] = useState<string>(String(value));
+
+  // Keep draft in sync when the committed value changes externally (e.g. initial roll)
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="number"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const parsed = parseInt(draft, 10);
+        const committed = isNaN(parsed) ? 0 : parsed;
+        setDraft(String(committed));
+        onCommit(committed);
+      }}
+      className="w-7 h-6 rounded text-[12px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] hover:border-white/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
+  );
+};
+
 interface BottomPanelProps {
   // Combat / initiative
   activeCombatants: Combatant[];
@@ -170,11 +194,19 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
     onClearMovementPaths?.();
     const currentIndex = sortedCombatants.findIndex(c => c.id === activeCombatantId);
     if (currentIndex === -1) {
-      setActiveCombatantId(sortedCombatants[0].id);
+      const first = sortedCombatants.find(c => c.hp > 0);
+      if (first) setActiveCombatantId(first.id);
       return;
     }
-    const nextIndex = (currentIndex + 1) % sortedCombatants.length;
-    setActiveCombatantId(sortedCombatants[nextIndex].id);
+    // Skip dead combatants
+    for (let i = 1; i <= sortedCombatants.length; i++) {
+      const candidate = sortedCombatants[(currentIndex + i) % sortedCombatants.length];
+      if (candidate.hp > 0) {
+        setActiveCombatantId(candidate.id);
+        return;
+      }
+    }
+    // All combatants are dead — don't advance
   };
 
   const nextTurnRef = useRef(nextTurn);
@@ -319,7 +351,12 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
     && selectedTokens.length >= 2
     && selectedTokens.some(t => t!.type === 'player');
 
-  if (!showPanel && !showRollButton) return null;
+  // Show Add to Initiative button when combat is active and selected token(s) aren't already in it
+  const showAddButton = combatActive
+    && selectedTokens.length >= 1
+    && selectedTokens.some(t => !activeCombatants.some(c => c.id === `combat-${t!.id}`));
+
+  if (!showPanel && !showRollButton && !showAddButton) return null;
 
   // ── Detail panel HP controls ──
   const applyPanelHpDelta = (sign: 1 | -1) => {
@@ -368,6 +405,21 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
           >
             <Swords size={14} />
             Roll Initiative ({selectedTokenCount})
+          </button>
+        </div>
+      )}
+
+      {showAddButton && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+          style={{ bottom: rollButtonBottom }}
+        >
+          <button
+            onClick={() => onStartCombat?.(selectedTokenIds)}
+            className="btn-filled px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
+          >
+            <Swords size={14} />
+            Add to Initiative
           </button>
         </div>
       )}
@@ -442,6 +494,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     const isPlayer = c.type === 'player';
                     const isAoeAffected = affectedSet.has(c.sourceCombatantId || c.id);
                     const isTargeted = targetedCombatantIds?.has(c.sourceCombatantId || c.id) ?? false;
+                    const isDead = c.hp <= 0;
 
                     return (
                       <div
@@ -472,11 +525,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <div className="flex items-center gap-2.5">
                           {/* Initiative input */}
                           <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="number"
+                            <InitiativeInput
                               value={c.initiative}
-                              onChange={(e) => updateInitiative(c.id, parseInt(e.target.value) || 0)}
-                              className="w-7 h-6 rounded text-[12px] text-center font-bold bg-black border border-white/10 text-white focus:outline-none focus:border-[var(--accent)] hover:border-white/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              onCommit={(val) => updateInitiative(c.id, val)}
                             />
                           </div>
 
@@ -485,10 +536,15 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             const tokenColor = c.color || (isEnemy ? '#ef4444' : isPlayer ? '#3b82f6' : '#059669');
                             return c.avatar ? (
                               <div
-                                className="w-9 h-9 rounded-full overflow-hidden border-2 shrink-0"
+                                className="relative w-9 h-9 rounded-full overflow-hidden border-2 shrink-0"
                                 style={{ borderColor: tokenColor }}
                               >
                                 <img src={c.avatar} alt="" className="w-full h-full object-cover" />
+                                {isDead && (
+                                  <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
+                                    <Skull size={16} className="text-white/70" />
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div
@@ -500,7 +556,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             );
                           })()}
 
-                          {/* Center: name + targeting badge */}
+                          {/* Center: name + targeting badge + hp bar */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-[13px] truncate font-serif text-white tracking-wide">{c.name}</span>
@@ -510,6 +566,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                                 </span>
                               )}
                             </div>
+                            {!isPlayer && c.maxHp > 0 && (
+                              <div className="mt-1 h-1 w-full bg-black/50 rounded-full overflow-hidden shadow-inner">
+                                <div
+                                  className="h-full bg-[var(--accent)] transition-all shadow-[0_0_4px_rgba(205,127,50,0.4)]"
+                                  style={{ width: `${Math.max(0, Math.min(100, (c.hp / c.maxHp) * 100))}%` }}
+                                />
+                              </div>
+                            )}
                           </div>
 
                           {/* Delete */}
