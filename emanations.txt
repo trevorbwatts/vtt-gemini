@@ -1,0 +1,38 @@
+Arms of Hadar - Cast
+
+Antilife Shell - Cast & Persist - Dismiss Button
+
+Antimagic Field - Cast & Persist - Dismiss Button
+
+Aura of Life - Cast & Persist - Dismiss Button + Timer (10 minutes)
+
+Aura of Purity - Cast & Persist - Dismiss Button + Timer (10 minutes)
+
+Aura of Vitality - Cast & Persist - Dismiss Button
+
+Circle of Power - Cast & Persist - Dismiss Button + Timer (10 minutes)
+
+Conjure Minor Elementals - Cast & Persist - Dismiss Button + Timer (10 minutes)
+
+Conjure Woodland Beings - Cast & Persist - Dismiss Button + Timer (10 minutes)
+
+Crusader’s Mantle - Cast & Persist - Dismiss Button
+
+Destructive Wave - Cast
+
+Detect Evil and Good - Cast & Persist - Dismiss Button
+
+Detect Poison 
+
+Globe of Invulnerability - Cast & Persist - Dismiss Button
+
+Holy Aura - Cast & Persist - Dismiss Button
+
+Leomund’s Tiny Hut - Place
+
+Pass without Trace - Cast & Persist - Dismiss Button
+
+
+Word of Radiance - Cast
+
+Yolande's Regal Presence - Cast & Persist - Dismiss Button
