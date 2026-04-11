@@ -1540,7 +1540,7 @@ export function PlayerScreen() {
     return currentScenario.floors.find(f => f.id === currentScenario.activeFloorId) || currentScenario.floors[0] || null;
   }, [currentScenario]);
   const activeCombatants = currentScenario?.activeCombatants || [];
-  const hasInitiative = activeCombatants.length > 0;
+  const hasInitiative = activeCombatants.length > 0 && activeCombatantId !== null;
 
   // ── Sign-in handlers ──
   const handleSignIn = useCallback((spotId: SpotId, playerId: string) => {
