@@ -80,6 +80,8 @@ interface MapViewProps {
   clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref that MapView populates so external code can undo a specific token's movement */
   undoMovementRef?: React.MutableRefObject<((tokenId: string) => void) | null>;
+  /** Called when a cast-and-emanate spell is confirmed — parent should create the persistent emanation */
+  onEmanationCast?: (spellName: string, casterId: string) => void;
   /** Called when the set of tokens with completed movement paths changes */
   onMovementPathTokensChange?: (tokenIds: Set<string>) => void;
   /** ID of the currently active combatant (for turn indicator) */
@@ -661,6 +663,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   cancelMeasuringRef,
   onMeasureDistanceChange,
   onAoeHighlightsChange,
+  onEmanationCast,
   clearMovementPathsRef,
   clearRemoteAoeRef,
   undoMovementRef,
@@ -1372,6 +1375,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
         // Place persistent marker (cast-and-place)
         if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
+        // Activate emanation (cast-and-emanate)
+        if (aoe.mapInteraction === 'cast-and-emanate' && aoe.casterId) onEmanationCast?.(aoe.name, aoe.casterId);
         // No monsters hit — skip modal
         if (Object.keys(results).length === 0) {
           setPlacedAoe(null);
@@ -1379,6 +1384,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
           return;
         }
         setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
+        return;
+      }
+
+      // cast-and-emanate with no save (Shield of Faith, etc.) — activate emanation and dismiss
+      if (aoe.mapInteraction === 'cast-and-emanate' && aoe.casterId) {
+        onEmanationCast?.(aoe.name, aoe.casterId);
+        setPlacedAoe(null);
+        onCastingDismissed?.();
         return;
       }
 
@@ -1434,6 +1447,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     // For cast-and-place spells (Grease, etc.), also drop a persistent marker
     if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
+    // Activate emanation (cast-and-emanate)
+    if (aoe.mapInteraction === 'cast-and-emanate' && aoe.casterId) onEmanationCast?.(aoe.name, aoe.casterId);
 
     // No monsters hit — skip modal
     if (Object.keys(results).length === 0) {

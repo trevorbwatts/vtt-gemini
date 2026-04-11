@@ -1591,40 +1591,6 @@ export function PlayerScreen() {
       return;
     }
 
-    // Cast & Emanate: persistent emanation ring that follows the caster
-    const resolvedMi = spell.mapInteraction ?? lookupSpell(spell?.name)?.mapInteraction;
-    if (resolvedMi === 'cast-and-emanate') {
-      const cfg = EMANATION_CONFIG[spell.name];
-      const color = cfg?.color ?? '#a78bfa';
-      const rangeFt = spell.aoeSize ?? lookupSpell(spell.name)?.aoeSize ?? 10;
-      const abilityId = spell.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-      setActionRing(null);
-      setOpenPanel(null);
-
-      // Concentration: dismiss any existing emanation from this player
-      setActiveEmanations(prev => {
-        const dismissed = prev.filter(e => e.playerId === player.id);
-        // Also clear their timers
-        if (dismissed.length > 0) {
-          setActiveTimers(at => at.filter(t => !dismissed.some(d => t.playerId === d.playerId && t.abilityId === d.spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-'))));
-        }
-        return [
-          ...prev.filter(e => e.playerId !== player.id),
-          { id: `${abilityId}-${player.id}`, spellName: spell.name, playerId: player.id, rangeFt, color },
-        ];
-      });
-
-      // Add timer if spell has a duration
-      if (cfg?.durationMs) {
-        setActiveTimers(prev => [
-          ...prev.filter(t => !(t.playerId === player.id && t.abilityId === abilityId)),
-          { playerId: player.id, abilityId, startTime: Date.now(), durationMs: cfg.durationMs!, color },
-        ]);
-      }
-      return;
-    }
-
     setActionRing(null);
     setOpenPanel(null);
     // Pass mapInteraction, saveEffect, condition through so MapView knows post-cast behavior
@@ -1642,6 +1608,34 @@ export function PlayerScreen() {
     setActiveEmanations(prev => prev.filter(e => !(e.playerId === playerId && e.spellName === spellName)));
     const abilityId = spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === abilityId)));
+  }, []);
+
+  // Called by MapView after a cast-and-emanate spell is confirmed
+  const handleEmanationCast = useCallback((spellName: string, casterId: string) => {
+    const cfg = EMANATION_CONFIG[spellName];
+    const color = cfg?.color ?? '#a78bfa';
+    const rangeFt = lookupSpell(spellName)?.aoeSize ?? 10;
+    const abilityId = spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    // Concentration: dismiss any existing emanation from this player
+    setActiveEmanations(prev => {
+      const dismissed = prev.filter(e => e.playerId === casterId);
+      if (dismissed.length > 0) {
+        setActiveTimers(at => at.filter(t => !dismissed.some(d => t.playerId === d.playerId && t.abilityId === d.spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-'))));
+      }
+      return [
+        ...prev.filter(e => e.playerId !== casterId),
+        { id: `${abilityId}-${casterId}`, spellName, playerId: casterId, rangeFt, color },
+      ];
+    });
+
+    // Add timer if spell has a duration
+    if (cfg?.durationMs) {
+      setActiveTimers(prev => [
+        ...prev.filter(t => !(t.playerId === casterId && t.abilityId === abilityId)),
+        { playerId: casterId, abilityId, startTime: Date.now(), durationMs: cfg.durationMs!, color },
+      ]);
+    }
   }, []);
 
   const handleDismissInvisibility = useCallback((playerId: string) => {
@@ -2063,6 +2057,7 @@ export function PlayerScreen() {
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}
           onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}
+          onEmanationCast={handleEmanationCast}
           startMeasuringRef={startMeasuringRef}
           cancelMeasuringRef={cancelMeasuringRef}
           onMeasureDistanceChange={(feet) => setMeasureDistanceFeet(feet)}

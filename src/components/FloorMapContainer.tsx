@@ -47,6 +47,7 @@ interface FloorMapContainerProps {
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
+  onEmanationCast?: (spellName: string, casterId: string) => void;
   startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
   cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
   onMeasureDistanceChange?: (feet: number | null) => void;
@@ -211,6 +212,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       cancelCastingRef: props.cancelCastingRef,
       confirmCastRef: props.confirmCastRef,
       onCastingDismissed: props.onCastingDismissed,
+      onEmanationCast: props.onEmanationCast,
       startMeasuringRef: props.startMeasuringRef,
       cancelMeasuringRef: props.cancelMeasuringRef,
       onMeasureDistanceChange: props.onMeasureDistanceChange,
