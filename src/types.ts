@@ -108,6 +108,15 @@ export interface TokenTimer {
   color?: string;
 }
 
+/** A persistent emanation ring that follows a caster on the map. */
+export interface ActiveEmanation {
+  id: string;          // unique key, e.g. 'spirit-guardians-{playerId}'
+  spellName: string;   // e.g. 'Spirit Guardians'
+  playerId: string;    // caster's combatant ID
+  rangeFt: number;     // radius in feet
+  color: string;       // hex color for timer badge & map ring, e.g. '#fbbf24'
+}
+
 export interface ClassDefinition {
   name: string;
   level: number;
@@ -193,7 +202,7 @@ export interface Combatant {
     halfDamageOnSave?: boolean;
     atWill?: boolean;    // granted by a feat/feature, always available
     source?: string;     // e.g. 'Magic Initiate (Wizard)', 'Evocation Savant'
-    mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none';
+    mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none';
     saveEffect?: 'damage-save' | 'damage-auto' | 'condition';
     condition?: string;
   }[];

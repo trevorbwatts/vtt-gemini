@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { MapView } from './MapView';
 import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
-import { Campaign, Token, Combatant, Monster, cn } from '../types';
+import { Campaign, Token, Combatant, Monster, cn, ActiveEmanation } from '../types';
 import { searchSpells } from '../data/spellDatabase';
 import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, Flame, Ruler } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
@@ -14,7 +14,7 @@ import { lookupSpell } from '../data/spellDatabase';
 import { searchBeasts } from '../data/bestiary';
 
 /** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
-function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'exception' | 'none' {
+function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none' {
   const mi = spell.mapInteraction ?? dbEntry?.mapInteraction;
   if (mi) return mi;
   // Default: has aoeType + aoeSize → cast; otherwise → none
@@ -34,6 +34,26 @@ const PLAYER_COLORS = [
   '#3b82f6', '#059669', '#f59e0b', '#8b5cf6',
   '#ec4899', '#f97316', '#06b6d4', '#84cc16', '#6366f1',
 ];
+
+// ─── Emanation spell config (color + optional timer duration) ───
+const EMANATION_CONFIG: Record<string, { color: string; durationMs?: number }> = {
+  'Spirit Guardians':         { color: '#fbbf24', durationMs: 600000 },
+  'Shield of Faith':          { color: '#60a5fa', durationMs: 600000 },
+  'Antilife Shell':           { color: '#f87171' },
+  'Antimagic Field':          { color: '#9ca3af' },
+  'Aura of Life':             { color: '#fbbf24', durationMs: 600000 },
+  'Aura of Purity':           { color: '#c4b5fd', durationMs: 600000 },
+  'Aura of Vitality':         { color: '#4ade80' },
+  'Circle of Power':          { color: '#fde047', durationMs: 600000 },
+  'Conjure Minor Elementals': { color: '#2dd4bf', durationMs: 600000 },
+  'Conjure Woodland Beings':  { color: '#86efac', durationMs: 600000 },
+  "Crusader's Mantle":        { color: '#f87171' },
+  'Detect Evil and Good':     { color: '#fde047' },
+  'Globe of Invulnerability': { color: '#67e8f9' },
+  'Holy Aura':                { color: '#fde047' },
+  'Pass without Trace':       { color: '#94a3b8' },
+  "Yolande's Regal Presence": { color: '#a78bfa' },
+};
 
 // ─── Sign-in Button ───
 const SignInSpot: React.FC<{
@@ -271,7 +291,7 @@ const SpellRow: React.FC<{
   disabled?: boolean;
 }> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, onDismiss, isDismissable, disabled }) => {
   const mi = spell.mapInteraction as string | undefined;
-  const isCast = mi === 'cast' || mi === 'cast-and-place';
+  const isCast = mi === 'cast' || mi === 'cast-and-place' || mi === 'cast-and-emanate';
   const isPlace = mi === 'place' || mi === 'exception';
   const isActive = (isCast || isPlace) && !disabled;
   // Resolve effective description for damage type badge
@@ -387,15 +407,13 @@ const SpellsPanel: React.FC<{
   onWildShape?: (creature: Monster) => void;
   isWildShaped?: boolean;
   onRevertWildShape?: () => void;
-  spiritGuardiansActive?: boolean;
-  onDismissSpiritGuardians?: () => void;
-  shieldOfFaithActive?: boolean;
-  onDismissShieldOfFaith?: () => void;
+  activeEmanations?: ActiveEmanation[];
+  onDismissEmanation?: (spellName: string) => void;
   invisibilityActive?: boolean;
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, spiritGuardiansActive, onDismissSpiritGuardians, shieldOfFaithActive, onDismissShieldOfFaith, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -504,7 +522,7 @@ const SpellsPanel: React.FC<{
 
   const handleSpellTap = (spell: any) => {
     const mi = getMapInteraction(spell);
-    if (mi === 'cast' || mi === 'cast-and-place') {
+    if (mi === 'cast' || mi === 'cast-and-place' || mi === 'cast-and-emanate') {
       const halfDamageOnSave = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
       onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave });
     } else if (mi === 'place' || mi === 'exception') {
@@ -645,21 +663,19 @@ const SpellsPanel: React.FC<{
                 spellAttackBonus={spellAttackBonus}
                 disabled={!ready}
                 isDismissable={
-                  (spell.name === 'Spirit Guardians' && !!spiritGuardiansActive) ||
-                  (spell.name === 'Shield of Faith' && !!shieldOfFaithActive) ||
+                  !!(activeEmanations?.some(e => e.spellName === spell.name)) ||
                   (spell.name === 'Invisibility' && !!invisibilityActive) ||
                   (spell.name === 'See Invisibility' && !!seeInvisibilityActive)
                 }
                 onDismiss={
-                  spell.name === 'Spirit Guardians' ? onDismissSpiritGuardians :
-                  spell.name === 'Shield of Faith' ? onDismissShieldOfFaith :
+                  activeEmanations?.some(e => e.spellName === spell.name) ? () => onDismissEmanation?.(spell.name) :
                   spell.name === 'Invisibility' ? onDismissInvisibility :
                   spell.name === 'See Invisibility' ? onDismissSeeInvisibility :
                   undefined
                 }
                 onPress={() => {
                   const mi = spell.mapInteraction as string | undefined;
-                  if (mi !== 'cast' && mi !== 'cast-and-place') return;
+                  if (mi !== 'cast' && mi !== 'cast-and-place' && mi !== 'cast-and-emanate') return;
                   const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
                   onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
                 }}
@@ -1249,10 +1265,8 @@ export function PlayerScreen() {
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
   // Detect Magic — active when a player casts Detect Magic
   const [detectMagicData, setDetectMagicData] = useState<{ playerId: string; rangeFt: number } | null>(null);
-  // Spirit Guardians — persistent emanation following the caster
-  const [spiritGuardiansData, setSpiritGuardiansData] = useState<{ playerId: string; rangeFt: number } | null>(null);
-  // Shield of Faith — persistent emanation following the caster
-  const [shieldOfFaithData, setShieldOfFaithData] = useState<{ playerId: string; rangeFt: number } | null>(null);
+  // Generic active emanations — persistent rings following their casters
+  const [activeEmanations, setActiveEmanations] = useState<ActiveEmanation[]>([]);
 
   // Invisibility — tracks which players have cast Invisibility on themselves
   const [invisiblePlayerIds, setInvisiblePlayerIds] = useState<Set<string>>(new Set());
@@ -1289,47 +1303,27 @@ export function PlayerScreen() {
     return () => clearTimeout(timeout);
   }, [detectMagicData, activeTimers]);
 
-  // Clear spirit guardians when its timer expires
+  // Clear emanations when their timers expire
   useEffect(() => {
-    if (!spiritGuardiansData) return;
-    const timer = activeTimers.find(t => t.playerId === spiritGuardiansData.playerId && t.abilityId === 'spirit-guardians');
-    if (!timer) {
-      setSpiritGuardiansData(null);
-      return;
+    if (activeEmanations.length === 0) return;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    for (const em of activeEmanations) {
+      const abilityId = em.spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const timer = activeTimers.find(t => t.playerId === em.playerId && t.abilityId === abilityId);
+      if (!timer) continue; // no timer = dismiss-only, no auto-expire
+      const remaining = timer.durationMs - (Date.now() - timer.startTime);
+      if (remaining <= 0) {
+        setActiveEmanations(prev => prev.filter(e => e.id !== em.id));
+        setActiveTimers(prev => prev.filter(t => !(t.playerId === em.playerId && t.abilityId === abilityId)));
+      } else {
+        timeouts.push(setTimeout(() => {
+          setActiveEmanations(prev => prev.filter(e => e.id !== em.id));
+          setActiveTimers(prev => prev.filter(t => !(t.playerId === em.playerId && t.abilityId === abilityId)));
+        }, remaining));
+      }
     }
-    const remaining = timer.durationMs - (Date.now() - timer.startTime);
-    if (remaining <= 0) {
-      setSpiritGuardiansData(null);
-      setActiveTimers(prev => prev.filter(t => !(t.playerId === spiritGuardiansData.playerId && t.abilityId === 'spirit-guardians')));
-      return;
-    }
-    const timeout = setTimeout(() => {
-      setSpiritGuardiansData(null);
-      setActiveTimers(prev => prev.filter(t => !(t.playerId === spiritGuardiansData.playerId && t.abilityId === 'spirit-guardians')));
-    }, remaining);
-    return () => clearTimeout(timeout);
-  }, [spiritGuardiansData, activeTimers]);
-
-  // Clear shield of faith when its timer expires
-  useEffect(() => {
-    if (!shieldOfFaithData) return;
-    const timer = activeTimers.find(t => t.playerId === shieldOfFaithData.playerId && t.abilityId === 'shield-of-faith');
-    if (!timer) {
-      setShieldOfFaithData(null);
-      return;
-    }
-    const remaining = timer.durationMs - (Date.now() - timer.startTime);
-    if (remaining <= 0) {
-      setShieldOfFaithData(null);
-      setActiveTimers(prev => prev.filter(t => !(t.playerId === shieldOfFaithData.playerId && t.abilityId === 'shield-of-faith')));
-      return;
-    }
-    const timeout = setTimeout(() => {
-      setShieldOfFaithData(null);
-      setActiveTimers(prev => prev.filter(t => !(t.playerId === shieldOfFaithData.playerId && t.abilityId === 'shield-of-faith')));
-    }, remaining);
-    return () => clearTimeout(timeout);
-  }, [shieldOfFaithData, activeTimers]);
+    return () => timeouts.forEach(clearTimeout);
+  }, [activeEmanations, activeTimers]);
 
   const handleTogglePlayerAbility = (playerId: string, entry: AbilityEntry, onDarkvisionChange: (val: number) => void) => {
     setPlayerActiveAbilities(prev => {
@@ -1597,39 +1591,37 @@ export function PlayerScreen() {
       return;
     }
 
-    // Spirit Guardians: persistent emanation that follows the caster, concentration 10 min
-    if (spell?.name === 'Spirit Guardians') {
-      setActionRing(null);
-      setOpenPanel(null);
-      setSpiritGuardiansData({ playerId: player.id, rangeFt: spell.aoeSize ?? 15 });
-      setActiveTimers(prev => [
-        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'spirit-guardians')),
-        {
-          playerId: player.id,
-          abilityId: 'spirit-guardians',
-          startTime: Date.now(),
-          durationMs: 600000, // 10 minutes concentration
-          color: '#fbbf24',   // amber/gold to match spirit theme
-        }
-      ]);
-      return;
-    }
+    // Cast & Emanate: persistent emanation ring that follows the caster
+    const resolvedMi = spell.mapInteraction ?? lookupSpell(spell?.name)?.mapInteraction;
+    if (resolvedMi === 'cast-and-emanate') {
+      const cfg = EMANATION_CONFIG[spell.name];
+      const color = cfg?.color ?? '#a78bfa';
+      const rangeFt = spell.aoeSize ?? lookupSpell(spell.name)?.aoeSize ?? 10;
+      const abilityId = spell.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    // Shield of Faith: persistent emanation that follows the caster, concentration 10 min
-    if (spell?.name === 'Shield of Faith') {
       setActionRing(null);
       setOpenPanel(null);
-      setShieldOfFaithData({ playerId: player.id, rangeFt: spell.aoeSize ?? 5 });
-      setActiveTimers(prev => [
-        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'shield-of-faith')),
-        {
-          playerId: player.id,
-          abilityId: 'shield-of-faith',
-          startTime: Date.now(),
-          durationMs: 600000, // 10 minutes concentration
-          color: '#60a5fa',   // blue to match abjuration theme
+
+      // Concentration: dismiss any existing emanation from this player
+      setActiveEmanations(prev => {
+        const dismissed = prev.filter(e => e.playerId === player.id);
+        // Also clear their timers
+        if (dismissed.length > 0) {
+          setActiveTimers(at => at.filter(t => !dismissed.some(d => t.playerId === d.playerId && t.abilityId === d.spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-'))));
         }
-      ]);
+        return [
+          ...prev.filter(e => e.playerId !== player.id),
+          { id: `${abilityId}-${player.id}`, spellName: spell.name, playerId: player.id, rangeFt, color },
+        ];
+      });
+
+      // Add timer if spell has a duration
+      if (cfg?.durationMs) {
+        setActiveTimers(prev => [
+          ...prev.filter(t => !(t.playerId === player.id && t.abilityId === abilityId)),
+          { playerId: player.id, abilityId, startTime: Date.now(), durationMs: cfg.durationMs!, color },
+        ]);
+      }
       return;
     }
 
@@ -1646,14 +1638,10 @@ export function PlayerScreen() {
     setActiveCasting({ spotId, spellName: spell.name, saveAbility: spell.saveAbility, aoeType: spell.aoeType });
   }, [actionRing, signedInSpots, campaign]);
 
-  const handleDismissSpiritGuardians = useCallback((playerId: string) => {
-    setSpiritGuardiansData(null);
-    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'spirit-guardians')));
-  }, []);
-
-  const handleDismissShieldOfFaith = useCallback((playerId: string) => {
-    setShieldOfFaithData(null);
-    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === 'shield-of-faith')));
+  const handleDismissEmanation = useCallback((playerId: string, spellName: string) => {
+    setActiveEmanations(prev => prev.filter(e => !(e.playerId === playerId && e.spellName === spellName)));
+    const abilityId = spellName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    setActiveTimers(prev => prev.filter(t => !(t.playerId === playerId && t.abilityId === abilityId)));
   }, []);
 
   const handleDismissInvisibility = useCallback((playerId: string) => {
@@ -2099,8 +2087,7 @@ export function PlayerScreen() {
           }}
           tremorsenseData={tremorsenseData}
           detectMagicData={detectMagicData}
-          spiritGuardiansData={spiritGuardiansData}
-          shieldOfFaithData={shieldOfFaithData}
+          activeEmanations={activeEmanations}
           seeInvisibility={seeInvisibilityPlayerIds.size > 0}
           activeTimers={activeTimers}
         />
@@ -2234,10 +2221,8 @@ export function PlayerScreen() {
             onWildShape={(creature) => handleWildShape(actionRing.spotId, creature)}
             isWildShaped={!!(playerId && wildShapeData[playerId])}
             onRevertWildShape={() => handleRevertWildShape(actionRing.spotId)}
-            spiritGuardiansActive={!!(playerId && spiritGuardiansData?.playerId === playerId)}
-            onDismissSpiritGuardians={() => playerId && handleDismissSpiritGuardians(playerId)}
-            shieldOfFaithActive={!!(playerId && shieldOfFaithData?.playerId === playerId)}
-            onDismissShieldOfFaith={() => playerId && handleDismissShieldOfFaith(playerId)}
+            activeEmanations={playerId ? activeEmanations.filter(e => e.playerId === playerId) : []}
+            onDismissEmanation={(spellName) => playerId && handleDismissEmanation(playerId, spellName)}
             invisibilityActive={!!(playerId && invisiblePlayerIds.has(playerId))}
             onDismissInvisibility={() => playerId && handleDismissInvisibility(playerId)}
             seeInvisibilityActive={!!(playerId && seeInvisibilityPlayerIds.has(playerId))}

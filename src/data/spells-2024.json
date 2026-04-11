@@ -292,7 +292,10 @@
     "desc": "Burning radiance erupts from you in a 5-foot Emanation. Each creature of your choice that you can see in it must succeed on a Constitution saving throw or take 1d6 Radiant damage.",
     "range": 5,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "mapInteraction": "cast",
+    "aoeType": "emanation",
+    "aoeSize": 5
   },
   {
     "name": "Alarm",
@@ -329,9 +332,11 @@
     "desc": "Invoking Hadar, you cause tendrils to erupt from yourself. Each creature in a 10-foot Emanation originating from you makes a Strength saving throw. On a failed save, a target takes 2d6 Necrotic damage and can't take Reactions until the start of its next turn. On a successful save, a target takes half as much damage only.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere",
+    "aoeType": "emanation",
     "saveAbility": "str",
-    "halfDamageOnSave": true
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast",
+    "aoeSize": 10
   },
   {
     "name": "Bane",
@@ -442,8 +447,9 @@
     "desc": "For the duration, you sense the location of any Aberration, Celestial, Elemental, Fey, Fiend, or Undead within 30 feet of yourself. You also sense whether the Hallow spell is active there and, if so, where.\n\nThe spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere",
-    "aoeSize": 30
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Detect Magic",
@@ -784,7 +790,7 @@
     "desc": "A shimmering field surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.",
     "range": 60,
     "source": "2024",
-    "mapInteraction": "cast",
+    "mapInteraction": "cast-and-emanate",
     "aoeType": "emanation",
     "aoeSize": 5
   },
@@ -1277,7 +1283,10 @@
     "school": "Abjuration",
     "desc": "You radiate a concealing aura in a 30-foot Emanation for the duration. While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks and leave no tracks.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "cast-and-emanate",
+    "aoeType": "emanation",
+    "aoeSize": 30
   },
   {
     "name": "Phantasmal Force",
@@ -1458,7 +1467,9 @@
     "desc": "An aura radiates from you in a 30-foot Emanation for the duration. When you create the aura and at the start of each of your turns while it persists, you can restore 2d6 Hit to one creature in it.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 30
   },
   {
     "name": "Beacon of Hope",
@@ -1560,7 +1571,9 @@
     "desc": "You radiate a magical aura in a 30-foot Emanation. While in the aura, you and your allies each deal an extra 1d4 Radiant damage when hitting with a weapon or an Unarmed.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 30
   },
   {
     "name": "Daylight",
@@ -1684,7 +1697,9 @@
     "desc": "A 10-foot Emanation springs into existence around you and remains stationary for the duration. The spell fails when you cast it if the Emanation isn't big enough to fully encapsulate all creatures in its area.\n\nCreatures and objects within the Emanation when you cast the spell can move through it freely. All other creatures and objects are barred from passing through it. Spells of level 3 or lower can't be cast through it, and the effects of such spells can't extend into it.\n\nThe atmosphere inside the Emanation is comfortable and dry, regardless of the weather outside. Until the spell ends, you can command the interior to have Dim or Darkness (no action required). The Emanation is opaque from the outside and of any color you choose, but it's transparent from the inside.\n\nThe spell ends early if you leave the Emanation or if you cast it again.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "sphere",
+    "mapInteraction": "place",
+    "aoeSize": 10
   },
   {
     "name": "Lightning Arrow",
@@ -1845,7 +1860,7 @@
     "desc": "Protective spirits flit around you in a 15-foot Emanation for the duration. If you are good or neutral, their spectral form appears angelic or fey (your choice). If you are evil, they appear fiendish.\n\nWhen you cast this spell, you can designate creatures to be unaffected by it. Any other creature's Speed is halved in the Emanation, and whenever the Emanation enters a creature's space and whenever a creature enters the Emanation or ends its turn there, the creature must make a Wisdom saving throw. On a failed save, the creature takes 3d8 Radiant damage (if you are good or neutral) or 3d8 Necrotic damage (if you are evil). On a successful save, the creature takes half as much damage. A creature makes this save only once per turn.",
     "range": 15,
     "source": "2024",
-    "mapInteraction": "cast",
+    "mapInteraction": "cast-and-emanate",
     "aoeType": "emanation",
     "aoeSize": 15,
     "saveAbility": "wis",
@@ -1935,7 +1950,9 @@
     "desc": "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Necrotic damage, and your Hit maximums can't be reduced. If an ally with 0 Hit starts its turn in the aura, that ally regains 1 Hit.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 30
   },
   {
     "name": "Aura of Purity",
@@ -1944,7 +1961,9 @@
     "desc": "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Poison damage and Advantage on saving throws to avoid or end effects that include the Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, or Stunned condition.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 30
   },
   {
     "name": "Banishment",
@@ -2001,7 +2020,9 @@
     "desc": "You conjure spirits from the Elemental Planes that flit around you in a 15-foot Emanation for the duration. Until the spell ends, any attack you make deals an extra 2d8 damage when you hit a creature in the Emanation. This damage is Acid, Cold, Fire, or Lightning (your choice when you make the attack).\n\nIn addition, the ground in the Emanation is Difficult for your enemies.",
     "range": 15,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 15
   },
   {
     "name": "Conjure Woodland Beings",
@@ -2011,7 +2032,10 @@
     "range": 10,
     "source": "2024",
     "saveAbility": "wis",
-    "halfDamageOnSave": true
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast-and-emanate",
+    "aoeType": "emanation",
+    "aoeSize": 10
   },
   {
     "name": "Control Water",
@@ -2304,8 +2328,10 @@
     "desc": "An aura extends from you in a 10-foot Emanation for the duration. The aura prevents creatures other than Constructs and Undead from passing or reaching through it. An affected creature can cast spells or make attacks with Ranged or Reach weapons through the barrier.\n\nIf you move so that an affected creature is forced to pass through the barrier, the spell ends.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere",
-    "effectRadius": 10
+    "aoeType": "emanation",
+    "effectRadius": 10,
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 10
   },
   {
     "name": "Awaken",
@@ -2339,8 +2365,10 @@
     "desc": "An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Advantage on saving throws against spells and other magical effects. When an affected creature makes a saving throw against a spell or magical effect that allows a save to take only half damage, it takes no damage if it succeeds on the save.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere",
-    "halfDamageOnSave": true
+    "aoeType": "emanation",
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 30
   },
   {
     "name": "Cloudkill",
@@ -2436,10 +2464,11 @@
     "desc": "Destructive energy ripples outward from you in a 30-foot Emanation. Each creature you choose in the Emanation makes a Constitution saving throw. On a failed save, a target takes 5d6 Thunder damage and 5d6 Radiant or Necrotic damage (your choice) and has the Prone condition. On a successful save, a target takes half as much damage only.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere",
+    "aoeType": "emanation",
     "aoeSize": 30,
     "saveAbility": "con",
-    "halfDamageOnSave": true
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast"
   },
   {
     "name": "Dispel Evil and Good",
@@ -2725,9 +2754,11 @@
     "desc": "You surround yourself with unearthly majesty in a 10-foot Emanation. Whenever the Emanation enters the space of a creature you can see and whenever a creature you can see enters the Emanation or ends its turn there, you can force that creature to make a Wisdom saving throw. On a failed save, the target takes 4d6 Psychic damage and has the Prone condition, and you can push it up to 10 feet away. On a successful save, the target takes half as much damage only. A creature makes this save only once per turn.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere",
+    "aoeType": "emanation",
     "saveAbility": "wis",
-    "halfDamageOnSave": true
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 10
   },
   {
     "name": "Arcane Gate",
@@ -2851,7 +2882,9 @@
     "desc": "An immobile, shimmering barrier appears in a 10-foot Emanation around you and remains for the duration.\n\nAny spell of level 5 or lower cast from outside the barrier can't affect anything within it. Such a spell can target creatures and objects within the barrier, but the spell has no effect on them. Similarly, the area within the barrier is excluded from areas of effect created by such spells.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 10
   },
   {
     "name": "Guards and Wards",
@@ -3244,7 +3277,9 @@
     "desc": "An aura of antimagic surrounds you in a 10-foot Emanation. No one can cast spells, take Magic actions, or create other magical effects inside the aura, and those things can't target or otherwise affect anything inside it. Magical properties of magic items don't work inside the aura or on anything inside it.\n\nAreas of effect created by spells or other magic can't extend into the aura, and no one can teleport into or out of it or use planar travel there. Portals close temporarily while in the aura.\n\nOngoing spells, except those cast by an Artifact or a deity, are suppressed in the area. While an effect is suppressed, it doesn't function, but the time it spends suppressed counts against its duration.\n\nDispel Magic has no effect on the aura, and the auras created by different Antimagic Field spells don't nullify each other.",
     "range": 10,
     "source": "2024",
-    "aoeType": "sphere"
+    "aoeType": "emanation",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 10
   },
   {
     "name": "Antipathy/Sympathy",
@@ -3325,8 +3360,10 @@
     "desc": "For the duration, you emit an aura in a 30-foot Emanation. While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them. In addition, when a Fiend or an Undead hits an affected creature with a melee attack roll, the attacker must succeed on a Constitution saving throw or have the Blinded condition until the end of its next turn.",
     "range": 30,
     "source": "2024",
-    "aoeType": "sphere",
-    "saveAbility": "con"
+    "aoeType": "emanation",
+    "saveAbility": "con",
+    "mapInteraction": "cast-and-emanate",
+    "aoeSize": 30
   },
   {
     "name": "Incendiary Cloud",

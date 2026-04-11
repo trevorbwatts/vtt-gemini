@@ -114,10 +114,8 @@ interface MapViewProps {
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   /** Detect Magic data — when active, reveals 'magic' type map notes within range below fog */
   detectMagicData?: { playerId: string; rangeFt: number } | null;
-  /** Spirit Guardians data — persistent emanation ring that follows the caster */
-  spiritGuardiansData?: { playerId: string; rangeFt: number } | null;
-  /** Shield of Faith data — persistent emanation ring that follows the caster */
-  shieldOfFaithData?: { playerId: string; rangeFt: number } | null;
+  /** Active emanation rings that follow their casters */
+  activeEmanations?: import('../types').ActiveEmanation[];
   /** Whether any player has See Invisibility active (player view only) */
   seeInvisibility?: boolean;
   /** Active timers for tokens to display countdown rings */
@@ -134,6 +132,13 @@ const SCHOOL_COLORS: Record<string, string> = {
   Necromancy: '#22c55e',
   Transmutation: '#f97316',
 };
+
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r},${g},${b}`;
+}
 
 // Per-spell color overrides (take priority over school color)
 const SPELL_COLOR_OVERRIDES: Record<string, string> = {
@@ -677,8 +682,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onSpellMarkersChange,
   tremorsenseData,
   detectMagicData,
-  spiritGuardiansData,
-  shieldOfFaithData,
+  activeEmanations = [],
   seeInvisibility,
   activeTimers = [],
 }) => {
@@ -4770,23 +4774,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
-          {/* ── Spirit Guardians persistent emanation ring (player view only) ── */}
-          {isPlayerView && spiritGuardiansData && (() => {
-            const casterToken = tokens.find(t => t.combatantId === spiritGuardiansData.playerId);
+          {/* ── Active emanation rings (player view only) ── */}
+          {isPlayerView && activeEmanations.map(em => {
+            const casterToken = tokens.find(t => t.combatantId === em.playerId);
             if (!casterToken) return null;
             const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
             const rangePx = gridResolution
-              ? (spiritGuardiansData.rangeFt / 5) * gridResolution.pixelsPerGrid
-              : spiritGuardiansData.rangeFt * 4;
+              ? (em.rangeFt / 5) * gridResolution.pixelsPerGrid
+              : em.rangeFt * 4;
+            const rgb = hexToRgb(em.color);
             return (
-              <Layer listening={false}>
+              <Layer key={em.id} listening={false}>
                 {/* Outer glow ring */}
                 <Circle
                   x={casterPos.x}
                   y={casterPos.y}
                   radius={rangePx}
-                  fill="rgba(251,191,36,0.08)"
-                  stroke="rgba(251,191,36,0.7)"
+                  fill={`rgba(${rgb},0.08)`}
+                  stroke={`rgba(${rgb},0.7)`}
                   strokeWidth={3 * tokenScale}
                   perfectDrawEnabled={false}
                 />
@@ -4795,48 +4800,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   x={casterPos.x}
                   y={casterPos.y}
                   radius={rangePx * 0.88}
-                  fill="rgba(251,191,36,0.05)"
-                  stroke="rgba(251,191,36,0.25)"
+                  fill={`rgba(${rgb},0.05)`}
+                  stroke={`rgba(${rgb},0.25)`}
                   strokeWidth={1.5 * tokenScale}
                   perfectDrawEnabled={false}
                 />
               </Layer>
             );
-          })()}
-
-          {/* ── Shield of Faith persistent emanation ring (player view only) ── */}
-          {isPlayerView && shieldOfFaithData && (() => {
-            const casterToken = tokens.find(t => t.combatantId === shieldOfFaithData.playerId);
-            if (!casterToken) return null;
-            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
-            const rangePx = gridResolution
-              ? (shieldOfFaithData.rangeFt / 5) * gridResolution.pixelsPerGrid
-              : shieldOfFaithData.rangeFt * 4;
-            return (
-              <Layer listening={false}>
-                {/* Outer glow ring */}
-                <Circle
-                  x={casterPos.x}
-                  y={casterPos.y}
-                  radius={rangePx}
-                  fill="rgba(96,165,250,0.08)"
-                  stroke="rgba(96,165,250,0.7)"
-                  strokeWidth={3 * tokenScale}
-                  perfectDrawEnabled={false}
-                />
-                {/* Inner soft glow */}
-                <Circle
-                  x={casterPos.x}
-                  y={casterPos.y}
-                  radius={rangePx * 0.88}
-                  fill="rgba(96,165,250,0.05)"
-                  stroke="rgba(96,165,250,0.25)"
-                  strokeWidth={1.5 * tokenScale}
-                  perfectDrawEnabled={false}
-                />
-              </Layer>
-            );
-          })()}
+          })}
 
           {/* ── Player tokens above fog (player view only) ── */}
           {isPlayerView && (

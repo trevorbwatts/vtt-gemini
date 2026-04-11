@@ -588,7 +588,10 @@
     "school": "Divination",
     "desc": "For the duration, you know if there is an aberration, celestial, elemental, fey, fiend, or undead within 30 feet of you, as well as where the creature is located. Similarly, you know if there is a place or object within 30 feet of you that has been magically consecrated or desecrated.\n\nThe spell can penetrate most barriers, but it is blocked by 1 foot of stone, 1 inch of common metal, a thin sheet of lead, or 3 feet of wood or dirt.",
     "range": 0,
-    "source": "2014"
+    "source": "2014",
+    "mapInteraction": "cast-and-emanate",
+    "aoeType": "emanation",
+    "aoeSize": 30
   },
   {
     "name": "Detect Magic",
@@ -927,7 +930,7 @@
     "desc": "A shimmering field appears and surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.",
     "range": 60,
     "source": "2014",
-    "mapInteraction": "cast",
+    "mapInteraction": "cast-and-emanate",
     "aoeType": "emanation",
     "aoeSize": 5
   },
@@ -1495,7 +1498,10 @@
     "school": "Abjuration",
     "desc": "A veil of shadows and silence radiates from you, masking you and your companions from detection. For the duration, each creature you choose within 30 feet of you (including you) has a +10 bonus to Dexterity (Stealth) checks and can't be tracked except by magical means. A creature that receives this bonus leaves behind no tracks or other traces of its passage.",
     "range": 0,
-    "source": "2014"
+    "source": "2014",
+    "mapInteraction": "cast-and-emanate",
+    "aoeType": "emanation",
+    "aoeSize": 30
   },
   {
     "name": "Phantasmal Force",
@@ -1724,8 +1730,9 @@
     "desc": "Healing energy radiates from you in an aura with a 30-foot radius. Until the spell ends, the aura moves with you, centered on you. You can use a bonus action to cause one creature in the aura (including you) to regain 2d6 hit points.",
     "range": 30,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 30
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Beacon of Hope",
@@ -1832,8 +1839,9 @@
     "desc": "Holy power radiates from you in an aura with a 30-foot radius, awakening boldness in friendly creatures. Until the spell ends, the aura moves with you, centered on you. While in the aura, each nonhostile creature in the aura (including you) deals an extra 1d4 radiant damage when it hits with a weapon attack.",
     "range": 30,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 30
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Daylight",
@@ -2176,7 +2184,7 @@
     "desc": "You call forth spirits to protect you. They flit around you to a distance of 15 feet for the duration. If you are good or neutral, their spectral form appears angelic or fey (your choice). If you are evil, they appear fiendish.\n\nWhen you cast this spell, you can designate any number of creatures you can see to be unaffected by it. An affected creature's speed is halved in the area, and when the creature enters the area for the first time on a turn or starts its turn there, it must make a Wisdom saving throw. On a failed save, the creature takes 3d8 radiant damage (if you are good or neutral) or 3d8 necrotic damage (if you are evil). On a successful save, the creature takes half as much damage.",
     "range": 15,
     "source": "2014",
-    "mapInteraction": "cast",
+    "mapInteraction": "cast-and-emanate",
     "aoeType": "emanation",
     "aoeSize": 15,
     "saveAbility": "wis",
@@ -2340,8 +2348,9 @@
     "desc": "Life-preserving energy radiates from you in an aura with a 30-foot radius. Until the spell ends, the aura moves with you, centered on you. Each nonhostile creature in the aura (including you) has resistance to necrotic damage, and its hit point maximum can't be reduced. In addition, a nonhostile, living creature regains 1 hit point when it starts its turn in the aura with 0 hit points.",
     "range": 30,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 30
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Aura of Purity",
@@ -2350,8 +2359,9 @@
     "desc": "Purifying energy radiates from you in an aura with a 30-foot radius. Until the spell ends, the aura moves with you, centered on you. Each nonhostile creature in the aura (including you) can't become diseased, has resistance to poison damage, and has advantage on saving throws against effects that cause any of the following conditions: blinded, charmed, deafened, frightened, paralyzed, poisoned, and stunned.",
     "range": 30,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 30
+    "aoeType": "emanation",
+    "aoeSize": 30,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Banishment",
@@ -2775,9 +2785,10 @@
     "desc": "A shimmering barrier extends out from you in a 10-foot radius and moves with you, remaining centered on you and hedging out creatures other than undead and constructs. The barrier lasts for the duration.\n\nThe barrier prevents an affected creature from passing or reaching through. An affected creature can cast spells or make attacks with ranged or reach weapons through the barrier.\n\nIf you move so that an affected creature is forced to pass through the barrier, the spell ends.",
     "range": 10,
     "source": "2014",
-    "aoeType": "sphere",
+    "aoeType": "emanation",
     "aoeSize": 10,
-    "effectRadius": 10
+    "effectRadius": 10,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Awaken",
@@ -2810,9 +2821,10 @@
     "desc": "Divine energy radiates from you, distorting and diffusing magical energy within 30 feet of you. Until the spell ends, the sphere moves with you, centered on you. For the duration, each friendly creature in the area (including you) has advantage on saving throws against spells and other magical effects. Additionally, when an affected creature succeeds on a saving throw made against a spell or magical effect that allows it to make a saving throw to take only half damage, it instead takes no damage if it succeeds on the saving throw.",
     "range": 30,
     "source": "2014",
-    "aoeType": "sphere",
+    "aoeType": "emanation",
     "aoeSize": 30,
-    "halfDamageOnSave": true
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Cloudkill",
@@ -3451,8 +3463,9 @@
     "desc": "An immobile, faintly shimmering barrier springs into existence in a 10-foot radius around you and remains for the duration.\n\nAny spell of 5th level or lower cast from outside the barrier can't affect creatures or objects within it, even if the spell is cast using a higher level spell slot. Such a spell can target creatures and objects within the barrier, but the spell has no effect on them. Similarly, the area within the barrier is excluded from the areas affected by such spells.",
     "range": 10,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 10
+    "aoeType": "emanation",
+    "aoeSize": 10,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Guards and Wards",
@@ -3979,8 +3992,9 @@
     "desc": "A 10-foot-radius invisible sphere of antimagic surrounds you. This area is divorced from the magical energy that suffuses the multiverse. Within the sphere, spells can't be cast, summoned creatures disappear, and even magic items become mundane. Until the spell ends, the sphere moves with you, centered on you.\n\nSpells and other magical effects, except those created by an artifact or a deity, are suppressed in the sphere and can't protrude into it. A slot expended to cast a suppressed spell is consumed. While an effect is suppressed, it doesn't function, but the time it spends suppressed counts against its duration.\n\n**Targeted Effects.** Spells and other magical effects, such as magic missile and charm person, that target a creature or an object in the sphere have no effect on that target.\n\n**Areas of Magic.** The area of another spell or magical effect, such as fireball, can't extend into the sphere. If the sphere overlaps an area of magic, the part of the area that is covered by the sphere is suppressed. For example, the flames created by a wall of fire are suppressed within the sphere, creating a gap in the wall if the overlap is large enough.\n\n**Spells.** Any active spell or other magical effect on a creature or an object in the sphere is suppressed while the creature or object is in it.\n\n**Magic Items.** The properties and powers of magic items are suppressed in the sphere. For example, a +1 longsword in the sphere functions as a nonmagical longsword.\n\nA magic weapon's properties and powers are suppressed if it is used against a target in the sphere or wielded by an attacker in the sphere. If a magic weapon or a piece of magic ammunition fully leaves the sphere (for example, if you fire a magic arrow or throw a magic spear at a target outside the sphere), the magic of the item ceases to be suppressed as soon as it exits.\n\n**Magical Travel.** Teleportation and planar travel fail to work in the sphere, whether the sphere is the destination or the departure point for such magical travel. A portal to another location, world, or plane of existence, as well as an opening to an extradimensional space such as that created by the rope trick spell, temporarily closes while in the sphere.\n\n**Creatures and Objects.** A creature or object summoned or created by magic temporarily winks out of existence in the sphere. Such a creature instantly reappears once the space the creature occupied is no longer within the sphere.\n\n**Dispel Magic.** Spells and magical effects such as dispel magic have no effect on the sphere. Likewise, the spheres created by different antimagic field spells don't nullify each other.",
     "range": 10,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 10
+    "aoeType": "emanation",
+    "aoeSize": 10,
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Antipathy/Sympathy",
@@ -4061,9 +4075,10 @@
     "desc": "Divine light washes out from you and coalesces in a soft radiance in a 30-foot radius around you. Creatures of your choice in that radius when you cast this spell shed dim light in a 5-foot radius and have advantage on all saving throws, and other creatures have disadvantage on attack rolls against them until the spell ends. In addition, when a fiend or an undead hits an affected creature with a melee attack, the aura flashes with brilliant light. The attacker must succeed on a Constitution saving throw or be blinded until the spell ends.",
     "range": 0,
     "source": "2014",
-    "aoeType": "sphere",
+    "aoeType": "emanation",
     "aoeSize": 30,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "mapInteraction": "cast-and-emanate"
   },
   {
     "name": "Illusory Dragon",
