@@ -731,6 +731,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   
   const [showWalls, setShowWalls] = useState(true);
   const [isMapMenuOpen, setIsMapMenuOpen] = useState(false);
+  const [isFloorMenuOpen, setIsFloorMenuOpen] = useState(false);
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectionRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -866,7 +867,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [iconVersion, setIconVersion] = useState(0);
 
   // Wall collision — prevents tokens from passing through walls during drag
-  const [wallCollisionEnabled, setWallCollisionEnabled] = useState(true);
+  const [wallCollisionEnabled, setWallCollisionEnabled] = useState(false);
   const lastValidPosRef = useRef<Record<string, { x: number; y: number }>>({});
   const dragTokenRadiusRef = useRef<Record<string, number>>({});
 
@@ -3086,6 +3087,49 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     : 'Map'}
                 </h3>
               </div>
+              {floors && floors.length > 1 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setIsFloorMenuOpen(!isFloorMenuOpen)}
+                    className="btn-ghost py-1 px-3 flex items-center gap-2"
+                  >
+                    <Layers size={12} />
+                    {floors.find(f => f.id === activeFloorId)?.name ?? 'Floor'}
+                    <ChevronDown size={12} className={cn("transition-transform", isFloorMenuOpen && "rotate-180")} />
+                  </button>
+                  <AnimatePresence>
+                    {isFloorMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsFloorMenuOpen(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="absolute top-full left-0 mt-2 z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden min-w-[160px] flex flex-col items-stretch"
+                        >
+                          {[...floors].sort((a, b) => a.order - b.order).map(floor => (
+                            <button
+                              key={floor.id}
+                              onClick={() => {
+                                onSwitchFloor?.(floor.id);
+                                setIsFloorMenuOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left",
+                                floor.id === activeFloorId && "text-[var(--accent)]"
+                              )}
+                            >
+                              <Layers size={13} />
+                              {floor.name}
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
               <div className="relative">
                 <button
                   onClick={() => setIsMapMenuOpen(!isMapMenuOpen)}
