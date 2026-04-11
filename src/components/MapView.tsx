@@ -708,7 +708,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' | 'secret' } | null>(null);
-  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'treasure', content: '' });
+  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'quote', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
   const [activeViewpointId, setActiveViewpointId] = useState<string | null>(null);
@@ -1682,12 +1682,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const getNoteColor = (type: MapNoteType) => {
     switch (type) {
-      case 'treasure': return '#CD7F32';
       case 'quote': return '#60a5fa';
+      case 'treasure': return '#CD7F32';
       case 'warning': return '#ef4444';
-      case 'secret': return '#a855f7';
-      case 'clue': return '#059669';
       case 'magic': return '#22d3ee';
+      case 'poison': return '#4ade80';
       default: return '#ffffff';
     }
   };
@@ -1727,18 +1726,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <Circle x={12} y={17} radius={0.5} fill="white" stroke="white" strokeWidth={1} />
             </Group>
           );
-        case 'secret':
+        case 'poison':
           return (
             <Group>
-              <Path data="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" {...sp} />
-              <Circle x={12} y={12} radius={3} {...sp} />
-            </Group>
-          );
-        case 'clue':
-          return (
-            <Group>
-              <Path data="m21 21-4.34-4.34" {...sp} />
-              <Circle x={11} y={11} radius={8} {...sp} />
+              <Path data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 7 20v1a1 1 0 0 0 1 1z" {...{ ...sp, stroke: '#4ade80', fill: '' }} />
+              <Path data="m12.5 17-.5-1-.5 1h1z" {...{ ...sp, stroke: '#4ade80', fill: '#4ade80' }} />
+              <Path data="M9.5 14.5 9 15" {...{ ...sp, stroke: '#4ade80' }} />
+              <Path data="m14.5 14.5.5.5" {...{ ...sp, stroke: '#4ade80' }} />
             </Group>
           );
         case 'magic':
@@ -3369,14 +3363,38 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         onTransitionZonesChange?.(updated);
                       }}
                     />
-                    <Text
-                      x={zone.rect.x + 4}
-                      y={zone.rect.y + 4}
-                      text={`${zone.pairIndex != null ? `#${zone.pairIndex} ` : ''}↔ ${targetFloor?.name || '?'}${zone.label ? ` (${zone.label})` : ''}`}
-                      fontSize={12}
-                      fill={color}
-                      listening={false}
-                    />
+                    {(() => {
+                      const line1 = targetFloor?.name || '?';
+                      const line2 = zone.label || '';
+                      const labelText = line2 ? `${line1}\n${line2}` : line1;
+                      const maxW = Math.max(40, zone.rect.width - 24);
+                      const bgH = line2 ? 34 : 20;
+                      return (
+                        <>
+                          <Rect
+                            x={zone.rect.x + 4}
+                            y={zone.rect.y + 4}
+                            width={maxW}
+                            height={bgH}
+                            fill="rgba(0,0,0,0.55)"
+                            cornerRadius={4}
+                            listening={false}
+                          />
+                          <Text
+                            x={zone.rect.x + 8}
+                            y={zone.rect.y + 7}
+                            text={labelText}
+                            fontSize={11}
+                            lineHeight={1.4}
+                            fill={color}
+                            fontStyle="bold"
+                            width={maxW - 8}
+                            ellipsis={true}
+                            listening={false}
+                          />
+                        </>
+                      );
+                    })()}
                     {zone.pairIndex != null && (
                       <>
                         <Circle
@@ -5764,7 +5782,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {contextMenu && (
           <div
             className={cn(
-              "absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
+              "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
               contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden" : "w-64"
             )}
             style={
@@ -5947,7 +5965,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
 
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
-                  {(['treasure', 'quote', 'warning', 'secret', 'clue', 'magic'] as MapNoteType[]).map(type => (
+                  {(['quote', 'treasure', 'warning', 'magic', 'poison'] as MapNoteType[]).map(type => (
                     <button
                       key={type}
                       onClick={() => setNoteDraft(prev => ({ ...prev, type }))}

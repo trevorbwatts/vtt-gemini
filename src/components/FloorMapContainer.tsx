@@ -97,13 +97,15 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   const splitFloorIds = useMemo(() => {
     if (!needsSplit) return null;
     const ids = [...occupiedFloorIds];
-    // Prefer showing the active floor first, then the other
-    if (activeFloorId && ids.includes(activeFloorId)) {
-      const other = ids.find(id => id !== activeFloorId) || ids[0];
-      return [activeFloorId, other];
-    }
-    return [ids[0], ids[1]];
-  }, [needsSplit, occupiedFloorIds, activeFloorId]);
+    // Primary: the active (left) floor
+    let primaryId = (activeFloorId && ids.includes(activeFloorId)) ? activeFloorId : ids[0];
+    // Secondary: use the override if valid, otherwise pick the other occupied floor
+    const defaultSecondaryId = ids.find(id => id !== primaryId) || ids[1] || ids[0];
+    const secondaryId = (secondaryFloorOverride && floors.some(f => f.id === secondaryFloorOverride))
+      ? secondaryFloorOverride
+      : defaultSecondaryId;
+    return [primaryId, secondaryId];
+  }, [needsSplit, occupiedFloorIds, activeFloorId, secondaryFloorOverride, floors]);
 
   const activeFloor = floors.find(f => f.id === activeFloorId) || floors[0] || null;
 
@@ -124,6 +126,9 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   }, [allTokens, floors, firstFloorId]);
 
   const getFloorTokens = (floorId: string) => floorTokensMap.get(floorId) ?? [];
+
+  // Independent floor selection for the right (secondary) panel
+  const [secondaryFloorOverride, setSecondaryFloorOverride] = useState<string | null>(null);
 
   const prevSplitRef = useRef(splitFloorIds);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -182,7 +187,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     activeFloorId: floor.id,
     floors: floors,
     onTransitionZonesChange: isPrimary ? props.onTransitionZonesChange : undefined,
-    onSwitchFloor: props.onSwitchFloor,
+    onSwitchFloor: isPrimary ? props.onSwitchFloor : (floorId: string) => setSecondaryFloorOverride(floorId),
     onUpdateFloorById: props.onUpdateFloorById,
     spellMarkers: props.spellMarkers,
     onSpellMarkersChange: isPrimary ? props.onSpellMarkersChange : undefined,

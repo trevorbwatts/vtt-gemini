@@ -263,7 +263,7 @@ export interface UVTTLight {
   intensity?: number; // 0–1
 }
 
-export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'secret' | 'clue' | 'magic';
+export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'magic' | 'poison';
 
 export interface MapNote {
   id: string;

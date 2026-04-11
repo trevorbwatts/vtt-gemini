@@ -4,9 +4,8 @@ import {
   TreasureChest,
   BookOpenText,
   TriangleAlert,
-  Eye,
-  Search,
   Sparkles,
+  Skull,
   Trash2,
   Edit2,
   FileText,
@@ -26,12 +25,11 @@ interface DMNotesProps {
 
 export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteType; size?: number; className?: string }) => {
   switch (type) {
-    case 'treasure': return <TreasureChest size={size} className={`text-[var(--accent)] ${className}`} />;
     case 'quote': return <BookOpenText size={size} className={`text-blue-400 ${className}`} />;
+    case 'treasure': return <TreasureChest size={size} className={`text-[var(--accent)] ${className}`} />;
     case 'warning': return <TriangleAlert size={size} className={`text-red-400 ${className}`} />;
-    case 'secret': return <Eye size={size} className={`text-purple-400 ${className}`} />;
-    case 'clue': return <Search size={size} className={`text-emerald-500 ${className}`} />;
     case 'magic': return <Sparkles size={size} className={`text-cyan-400 ${className}`} />;
+    case 'poison': return <Skull size={size} className={`text-green-400 ${className}`} />;
     default: return null;
   }
 };
