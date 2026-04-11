@@ -93,6 +93,9 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   // Decide if we need split screen
   const needsSplit = occupiedFloorIds.size >= 2;
 
+  // Independent floor selection for the right (secondary) panel
+  const [secondaryFloorOverride, setSecondaryFloorOverride] = useState<string | null>(null);
+
   // Get the two floors to display in split mode
   const splitFloorIds = useMemo(() => {
     if (!needsSplit) return null;
@@ -126,9 +129,6 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   }, [allTokens, floors, firstFloorId]);
 
   const getFloorTokens = (floorId: string) => floorTokensMap.get(floorId) ?? [];
-
-  // Independent floor selection for the right (secondary) panel
-  const [secondaryFloorOverride, setSecondaryFloorOverride] = useState<string | null>(null);
 
   const prevSplitRef = useRef(splitFloorIds);
   const [showOverlay, setShowOverlay] = useState(false);
