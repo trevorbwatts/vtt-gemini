@@ -5847,6 +5847,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   {activeSubmenu === 'player' && (
                     <div className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150">
                       <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest opacity-30 border-b border-[var(--line)] mb-1">Select Player</div>
+                      {players.length > 1 && contextMenu && (
+                        <button
+                          onClick={() => {
+                            const spacing = gridResolution?.pixelsPerGrid || 70;
+                            let idx = 0;
+                            const updated = tokens.map(t => {
+                              if (t.type !== 'player') return t;
+                              const col = idx % 2;
+                              const row = Math.floor(idx / 2);
+                              idx++;
+                              return { ...t, x: contextMenu.x + (col - 0.5) * spacing, y: contextMenu.y + (row - 0.5) * spacing, floorId: activeFloorId || t.floorId };
+                            });
+                            onTokensChange(updated);
+                            setContextMenu(null);
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 border-b border-[var(--line)] mb-1"
+                        >
+                          <Layers size={12} className="opacity-50" />
+                          Move All Players Here
+                        </button>
+                      )}
                       {(() => {
                         const onMap = players.filter(c => tokens.some(t => t.combatantId === c.id));
                         const notOnMap = players.filter(c => !tokens.some(t => t.combatantId === c.id));
@@ -6742,9 +6763,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         let offsetIndex = 0;
                         const updated = tokens.map(t => {
                           if (t.type === 'player') {
-                            const offset = offsetIndex * spacing;
+                            const col = offsetIndex % 2;
+                            const row = Math.floor(offsetIndex / 2);
                             offsetIndex++;
-                            return { ...t, floorId: zone.targetFloorId, x: arrivalX + offset, y: arrivalY };
+                            return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
                           }
                           return t;
                         });
