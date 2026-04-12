@@ -1110,6 +1110,7 @@ interface StripEntry {
   name: string;
   type: 'player' | 'enemy' | 'npc';
   count: number;
+  deadCount: number;
   isActive: boolean;
   color?: string;
   avatar?: string;
@@ -1118,7 +1119,8 @@ interface StripEntry {
 const InitiativeStrip: React.FC<{
   combatants: Combatant[];
   activeCombatantId?: string | null;
-}> = ({ combatants, activeCombatantId }) => {
+  wide?: boolean;
+}> = ({ combatants, activeCombatantId, wide = false }) => {
   // Sort by initiative desc, then name asc
   const sorted = useMemo(() =>
     [...combatants].sort((a, b) => {
@@ -1130,22 +1132,26 @@ const InitiativeStrip: React.FC<{
 
   // Condense consecutive enemies of the same name into one entry.
   // Players and NPCs always get their own entry.
+  // Enemy groups where every member is dead are omitted entirely.
   const entries = useMemo(() => {
     const result: StripEntry[] = [];
     for (const c of sorted) {
       const isActive = c.id === activeCombatantId;
+      const isDead = c.hp <= 0;
 
       if (c.type === 'enemy') {
         const prev = result[result.length - 1];
         if (prev && prev.type === 'enemy' && prev.name === c.name) {
           prev.count += 1;
+          if (isDead) prev.deadCount += 1;
           if (isActive) prev.isActive = true;
           continue;
         }
       }
-      result.push({ key: c.id, name: c.name, type: c.type, count: 1, isActive, color: c.color, avatar: c.avatar });
+      result.push({ key: c.id, name: c.name, type: c.type, count: 1, deadCount: isDead ? 1 : 0, isActive, color: c.color, avatar: c.avatar });
     }
-    return result;
+    // Remove enemy groups where every member is dead
+    return result.filter(e => e.type !== 'enemy' || e.deadCount < e.count);
   }, [sorted, activeCombatantId]);
 
   const typeColor = (type: string, color?: string) => {
@@ -1158,42 +1164,51 @@ const InitiativeStrip: React.FC<{
   };
 
   return (
-    <div className="absolute top-0 right-0 bottom-0 w-12 bg-black/80 border-l border-white/10 flex flex-col z-20 backdrop-blur-sm">
+    <div className={cn("absolute top-0 right-0 bottom-0 bg-black/80 border-l border-white/10 z-20 backdrop-blur-sm", wide ? "w-24 grid grid-cols-2" : "w-12 flex flex-col")}>
       {entries.map((entry) => {
         const colors = typeColor(entry.type, entry.color);
         return (
           <div
             key={entry.key}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 border-b border-white/5 last:border-0 min-h-[40px] transition-all duration-300',
+              'flex-1 flex flex-col items-center justify-center gap-1 border-b border-white/5 last:border-0 transition-all duration-300',
               entry.isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
             )}
             style={{ backgroundColor: entry.isActive ? undefined : colors.bg, borderLeft: `2px solid ${entry.isActive ? '#fbbf24' : colors.border}` }}
           >
-            {(entry.avatar || entry.type === 'player') && (
-              <div
-                className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
-                style={{
-                  background: entry.avatar ? 'transparent' : (entry.color || colors.text),
-                  boxShadow: `0 0 0 1.5px #111, 0 0 0 3px ${entry.isActive ? '#fbbf24' : (entry.color || colors.text)}`,
-                  transform: 'rotate(90deg)',
-                }}
-              >
-                {entry.avatar
-                  ? <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
-                  : entry.name[0]?.toUpperCase()
-                }
+            {(entry.avatar || entry.type !== 'npc') && (
+              <div className="flex flex-col items-center gap-1">
+                <div
+                  className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
+                  style={{
+                    background: entry.avatar ? 'transparent' : (entry.color || colors.text),
+                    boxShadow: `0 0 0 1.5px #111, 0 0 0 3px ${entry.isActive ? '#fbbf24' : (entry.color || colors.text)}`,
+                    transform: 'rotate(90deg)',
+                  }}
+                >
+                  {entry.avatar
+                    ? <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
+                    : entry.name[0]?.toUpperCase()
+                  }
+                </div>
+                {entry.type === 'enemy' && entry.count > 1 && (
+                  <span className="text-[9px] font-bold leading-none" style={{ color: colors.text, writingMode: 'vertical-lr' }}>
+                    ×{entry.count}
+                  </span>
+                )}
               </div>
             )}
-            <span
-              className={cn(
-                'text-[11px] font-bold tracking-wider whitespace-nowrap',
-                entry.isActive && 'text-amber-300'
-              )}
-              style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : colors.text, marginTop: (entry.avatar || entry.type === 'player') ? '6px' : undefined }}
-            >
-              {entry.name}{entry.count > 1 ? ` ×${entry.count}` : ''}
-            </span>
+            {entry.type !== 'enemy' && (
+              <span
+                className={cn(
+                  'text-[11px] font-bold tracking-wider whitespace-nowrap',
+                  entry.isActive && 'text-amber-300'
+                )}
+                style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : colors.text, marginTop: '6px' }}
+              >
+                {entry.name.length > 12 ? entry.name.slice(0, 11) + '…' : entry.name}
+              </span>
+            )}
           </div>
         );
       })}
@@ -1541,6 +1556,7 @@ export function PlayerScreen() {
   }, [currentScenario]);
   const activeCombatants = currentScenario?.activeCombatants || [];
   const hasInitiative = activeCombatants.length > 0 && activeCombatantId !== null;
+  const stripWide = hasInitiative && activeCombatants.length >= 8;
 
   // ── Sign-in handlers ──
   const handleSignIn = useCallback((spotId: SpotId, playerId: string) => {
@@ -2031,7 +2047,7 @@ export function PlayerScreen() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-black relative">
       {/* Map View - leaves room for initiative strip on right if active */}
-      <div className={cn('absolute inset-0', hasInitiative && 'right-12')}>
+      <div className={cn('absolute inset-0', hasInitiative && (stripWide ? 'right-24' : 'right-12'))}>
         <FloorMapContainer
           scenario={currentScenario}
           allTokens={currentScenario.tokens || []}
@@ -2294,7 +2310,7 @@ export function PlayerScreen() {
       })()} */}
 
       {/* Initiative Strip */}
-      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} />}
+      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} wide={stripWide} />}
     </div>
   );
 }

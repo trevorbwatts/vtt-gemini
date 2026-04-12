@@ -64,6 +64,7 @@ interface FloorMapContainerProps {
   onTransitionZonesChange?: (zones: TransitionZone[]) => void;
   onSwitchFloor?: (floorId: string) => void;
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
+  onMoveAllPlayersHere?: (x: number, y: number, floorId: string, spacingPx: number) => void;
   spellMarkers?: import('../types').SpellMarker[];
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
@@ -189,6 +190,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onTransitionZonesChange: isPrimary ? props.onTransitionZonesChange : undefined,
     onSwitchFloor: isPrimary ? props.onSwitchFloor : (floorId: string) => setSecondaryFloorOverride(floorId),
     onUpdateFloorById: props.onUpdateFloorById,
+    onMoveAllPlayersHere: props.onMoveAllPlayersHere,
     spellMarkers: props.spellMarkers,
     onSpellMarkersChange: isPrimary ? props.onSpellMarkersChange : undefined,
     activeCombatantId: props.activeCombatantId,

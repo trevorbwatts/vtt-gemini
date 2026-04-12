@@ -582,6 +582,27 @@ export function DMScreen() {
     updateActiveFloor(f => ({ ...f, viewpoints }));
   }, [updateActiveFloor]);
 
+  const moveAllPlayersHere = useCallback((x: number, y: number, floorId: string, spacingPx: number) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      let idx = 0;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          const updatedTokens = s.tokens.map(t => {
+            if (t.type !== 'player' || t.hidden) return t;
+            const col = idx % 2;
+            const row = Math.floor(idx / 2);
+            idx++;
+            return { ...t, floorId, x: x + (col - 0.5) * spacingPx, y: y + (row - 0.5) * spacingPx };
+          });
+          return { ...s, tokens: updatedTokens };
+        }),
+      };
+    });
+  }, []);
+
   const updateScenarioTokens = useCallback((sourceFloorId: string, floorTokens: Token[]) => {
     setCampaign(prev => {
       if (!prev) return prev;
@@ -1451,6 +1472,7 @@ export function DMScreen() {
                 onTransitionZonesChange={(zones: TransitionZone[]) => updateActiveFloor(f => ({ ...f, transitionZones: zones }))}
                 onSwitchFloor={setActiveFloorId}
                 onUpdateFloorById={updateFloorById}
+                onMoveAllPlayersHere={moveAllPlayersHere}
               />
             )}
           </main>

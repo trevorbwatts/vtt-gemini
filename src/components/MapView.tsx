@@ -106,6 +106,8 @@ interface MapViewProps {
   onSwitchFloor?: (floorId: string) => void;
   /** Update a specific floor by ID (for cross-floor operations) */
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
+  /** Move every player token (across all floors) to a 2×2 grid around the given point */
+  onMoveAllPlayersHere?: (x: number, y: number, floorId: string, spacingPx: number) => void;
   /** Whether this is the primary (left-most) map panel */
   isPrimary?: boolean;
   /** Spell markers placed on the map */
@@ -680,6 +682,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onTransitionZonesChange,
   onSwitchFloor,
   onUpdateFloorById,
+  onMoveAllPlayersHere,
   isPrimary = true,
   spellMarkers = [],
   onSpellMarkersChange,
@@ -5851,15 +5854,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         <button
                           onClick={() => {
                             const spacing = gridResolution?.pixelsPerGrid || 70;
-                            let idx = 0;
-                            const updated = tokens.map(t => {
-                              if (t.type !== 'player') return t;
-                              const col = idx % 2;
-                              const row = Math.floor(idx / 2);
-                              idx++;
-                              return { ...t, x: contextMenu.x + (col - 0.5) * spacing, y: contextMenu.y + (row - 0.5) * spacing, floorId: activeFloorId || t.floorId };
-                            });
-                            onTokensChange(updated);
+                            onMoveAllPlayersHere?.(contextMenu.x, contextMenu.y, activeFloorId || '', spacing);
                             setContextMenu(null);
                           }}
                           className="w-full text-left px-4 py-2 text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2 border-b border-[var(--line)] mb-1"
