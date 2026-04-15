@@ -4,7 +4,7 @@ import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { Campaign, Token, Combatant, Monster, cn, ActiveEmanation } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, Flame, Ruler } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame, Ruler } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import actionsData from '../data/actions.json';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
@@ -490,6 +490,7 @@ const SpellsPanel: React.FC<{
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
   const [beastSearch, setBeastSearch] = useState('');
+  const [unsupportedOpen, setUnsupportedOpen] = useState(false);
 
   const hasWildShape = abilities.some(a => a.behavior === 'wildshape');
 
@@ -650,49 +651,70 @@ const SpellsPanel: React.FC<{
       </div>
 
       {/* My Spells */}
-      {activeTab === 'my' && (
-        <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="divide-y divide-white/10">
-            {spells.length === 0 ? (
-              <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
-            ) : spells.map((spell, i) => (
-              <SpellRow
-                key={i}
-                spell={spell}
-                spellSaveDc={spellSaveDc}
-                spellAttackBonus={spellAttackBonus}
-                disabled={!ready}
-                isDismissable={
-                  !!(activeEmanations?.some(e => e.spellName === spell.name)) ||
-                  (spell.name === 'Invisibility' && !!invisibilityActive) ||
-                  (spell.name === 'See Invisibility' && !!seeInvisibilityActive)
-                }
-                onDismiss={
-                  activeEmanations?.some(e => e.spellName === spell.name) ? () => onDismissEmanation?.(spell.name) :
-                  spell.name === 'Invisibility' ? onDismissInvisibility :
-                  spell.name === 'See Invisibility' ? onDismissSeeInvisibility :
-                  undefined
-                }
-                onPress={() => {
-                  const mi = spell.mapInteraction as string | undefined;
-                  if (mi !== 'cast' && mi !== 'cast-and-place' && mi !== 'cast-and-emanate') return;
-                  const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
-                  onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
-                }}
-                onPlace={() => onPlace(spell)}
-                onRoll={(mode) => {
-                  const localDesc = lookupSpell(spell.name)?.desc || '';
-                  const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
-                  if (!groups) return;
-                  const bonus = spellAttackBonus ?? 0;
-                  const result = rollAction({ attackBonus: bonus, damageGroups: groups }, mode);
-                  setRollModal({ name: spell.name, result });
-                }}
-              />
-            ))}
+      {activeTab === 'my' && (() => {
+        const supportedSpells = spells.filter(s => s.mapInteraction !== 'none');
+        const unsupportedSpells = spells.filter(s => s.mapInteraction === 'none');
+        const renderRow = (spell: any, i: number) => (
+          <SpellRow
+            key={i}
+            spell={spell}
+            spellSaveDc={spellSaveDc}
+            spellAttackBonus={spellAttackBonus}
+            disabled={!ready}
+            isDismissable={
+              !!(activeEmanations?.some(e => e.spellName === spell.name)) ||
+              (spell.name === 'Invisibility' && !!invisibilityActive) ||
+              (spell.name === 'See Invisibility' && !!seeInvisibilityActive)
+            }
+            onDismiss={
+              activeEmanations?.some(e => e.spellName === spell.name) ? () => onDismissEmanation?.(spell.name) :
+              spell.name === 'Invisibility' ? onDismissInvisibility :
+              spell.name === 'See Invisibility' ? onDismissSeeInvisibility :
+              undefined
+            }
+            onPress={() => {
+              const mi = spell.mapInteraction as string | undefined;
+              if (mi !== 'cast' && mi !== 'cast-and-place' && mi !== 'cast-and-emanate') return;
+              const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
+              onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
+            }}
+            onPlace={() => onPlace(spell)}
+            onRoll={(mode) => {
+              const localDesc = lookupSpell(spell.name)?.desc || '';
+              const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
+              if (!groups) return;
+              const bonus = spellAttackBonus ?? 0;
+              const result = rollAction({ attackBonus: bonus, damageGroups: groups }, mode);
+              setRollModal({ name: spell.name, result });
+            }}
+          />
+        );
+        return (
+          <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="divide-y divide-white/10">
+              {spells.length === 0 ? (
+                <div className="text-white/15 text-xs text-center py-3 border border-dashed border-white/10 rounded-lg">No spells</div>
+              ) : supportedSpells.map((spell, i) => renderRow(spell, i))}
+            </div>
+            {unsupportedSpells.length > 0 && (
+              <div className="mt-1 border-t border-white/10">
+                <button
+                  onPointerDown={(e) => { e.stopPropagation(); setUnsupportedOpen(v => !v); }}
+                  className="w-full flex items-center justify-between py-2 text-[10px] font-bold uppercase tracking-widest text-white/20 hover:text-white/30 transition-colors"
+                >
+                  <span>Spells Not Supported ({unsupportedSpells.length})</span>
+                  <ChevronDown size={12} className={cn('transition-transform opacity-50', unsupportedOpen && 'rotate-180')} />
+                </button>
+                {unsupportedOpen && (
+                  <div className="divide-y divide-white/10">
+                    {unsupportedSpells.map((spell, i) => renderRow(spell, supportedSpells.length + i))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Abilities */}
       {activeTab === 'abilities' && (
