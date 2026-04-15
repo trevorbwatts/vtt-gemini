@@ -47,6 +47,9 @@ interface FloorMapContainerProps {
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
+  startSummoningRef?: React.MutableRefObject<((data: { creatureName: string; creatureAvatar?: string; creatureSize?: import('../types').Token['size']; summonSpellName: string; casterId: string; source?: '2014' | '2024' }) => void) | null>;
+  cancelSummoningRef?: React.MutableRefObject<(() => void) | null>;
+  onSummonPlaced?: (data: { casterId: string; creatureName: string; source?: '2014' | '2024'; summonSpellName: string; x: number; y: number; floorId?: string }) => void;
   onEmanationCast?: (spellName: string, casterId: string) => void;
   startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
   cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
@@ -219,6 +222,9 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       cancelCastingRef: props.cancelCastingRef,
       confirmCastRef: props.confirmCastRef,
       onCastingDismissed: props.onCastingDismissed,
+      startSummoningRef: props.startSummoningRef,
+      cancelSummoningRef: props.cancelSummoningRef,
+      onSummonPlaced: props.onSummonPlaced,
       onEmanationCast: props.onEmanationCast,
       startMeasuringRef: props.startMeasuringRef,
       cancelMeasuringRef: props.cancelMeasuringRef,

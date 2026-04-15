@@ -130,6 +130,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerWildShapeListener: () => {
     ipcRenderer.removeAllListeners('player-wild-shape');
   },
+  sendPlayerSummonCreature: (data: any) => ipcRenderer.send('player-summon-creature', data),
+  onPlayerSummonCreature: (callback: (data: any) => void) => {
+    ipcRenderer.on('player-summon-creature', (_event, data) => callback(data));
+  },
+  removePlayerSummonCreatureListener: () => {
+    ipcRenderer.removeAllListeners('player-summon-creature');
+  },
   sendPlayerInvisibleToggle: (tokenId: string) => ipcRenderer.send('player-invisible-toggle', tokenId),
   onPlayerInvisibleToggle: (callback: (tokenId: string) => void) => {
     ipcRenderer.on('player-invisible-toggle', (_event, tokenId) => callback(tokenId));

@@ -416,7 +416,8 @@ const SpellsPanel: React.FC<{
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
+  onTriggerSummon?: (data: { creatureName: string; creatureAvatar?: string; creatureSize?: Token['size']; summonSpellName: string; casterId: string; source?: '2014' | '2024' }) => void;
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility, onTriggerSummon }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -1061,9 +1062,18 @@ const SpellsPanel: React.FC<{
                       <button
                         onPointerDown={(e) => {
                           e.stopPropagation();
-                          // TODO (next slice): enter placement mode with this creature, then create token + send IPC.
-                          console.log('[summon] picked', { spell: summonPickerSpell.name, creature: beast.name });
+                          const spellName = summonPickerSpell.name;
+                          const creatureSize = (beast.size as Token['size']) || 'Small';
+                          onTriggerSummon?.({
+                            creatureName: beast.name,
+                            creatureAvatar: beast.avatar,
+                            creatureSize,
+                            summonSpellName: spellName,
+                            casterId: player.id,
+                            source: beast.source,
+                          });
                           setSummonPickerSpell(null);
+                          onClose();
                         }}
                         className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/40 active:bg-purple-500/40 transition-colors"
                       >
@@ -1353,6 +1363,8 @@ export function PlayerScreen() {
   const confirmCastRef = useRef<(() => void) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
   const cancelMeasuringRef = useRef<(() => void) | null>(null);
+  const startSummoningRef = useRef<((data: { creatureName: string; creatureAvatar?: string; creatureSize?: Token['size']; summonSpellName: string; casterId: string; source?: '2014' | '2024' }) => void) | null>(null);
+  const cancelSummoningRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string; aoeType?: string } | null>(null);
@@ -2170,6 +2182,11 @@ export function PlayerScreen() {
           onEmanationCast={handleEmanationCast}
           startMeasuringRef={startMeasuringRef}
           cancelMeasuringRef={cancelMeasuringRef}
+          startSummoningRef={startSummoningRef}
+          cancelSummoningRef={cancelSummoningRef}
+          onSummonPlaced={(data) => {
+            window.electronAPI?.sendPlayerSummonCreature?.(data);
+          }}
           onMeasureDistanceChange={(feet) => setMeasureDistanceFeet(feet)}
           onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
@@ -2332,6 +2349,11 @@ export function PlayerScreen() {
             onDismissInvisibility={() => playerId && handleDismissInvisibility(playerId)}
             seeInvisibilityActive={!!(playerId && seeInvisibilityPlayerIds.has(playerId))}
             onDismissSeeInvisibility={() => playerId && handleDismissSeeInvisibility(playerId)}
+            onTriggerSummon={(data) => {
+              setActionRing(null);
+              setOpenPanel(null);
+              startSummoningRef.current?.(data);
+            }}
           />
         );
       })()}
