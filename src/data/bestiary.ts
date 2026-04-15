@@ -67,6 +67,18 @@ export const BESTIARY: Monster[] = [
   ...withAvatar(bestiary2024 as Monster[]),
 ];
 
+/** Look up a specific monster by name (case-insensitive). Prefers 2024 source, falls back to 2014. */
+export function lookupBeast(name: string, preferSource: '2014' | '2024' = '2024'): Monster | undefined {
+  const lower = name.toLowerCase().trim();
+  let fallback: Monster | undefined;
+  for (const m of BESTIARY) {
+    if (m.name.toLowerCase() !== lower) continue;
+    if (m.source === preferSource) return m;
+    if (!fallback) fallback = m;
+  }
+  return fallback;
+}
+
 /** Search beasts by name, filtered by source. Returns up to `limit` results sorted by CR then name. */
 export function searchBeasts(
   query: string,

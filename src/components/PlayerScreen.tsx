@@ -11,10 +11,13 @@ import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
-import { searchBeasts } from '../data/bestiary';
+import { searchBeasts, lookupBeast } from '../data/bestiary';
+import { getSummonSpec } from '../data/summons';
 
 /** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
 function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none' {
+  // Summon spells route to the picker via the Cast button.
+  if (getSummonSpec(spell.name)) return 'cast';
   const mi = spell.mapInteraction ?? dbEntry?.mapInteraction;
   if (mi) return mi;
   // Default: has aoeType + aoeSize → cast; otherwise → none
@@ -466,6 +469,7 @@ const SpellsPanel: React.FC<{
   }, [player, spellSaveDc]);
 
   const [rollModal, setRollModal] = useState<{ name: string; result: ActionRollResult } | null>(null);
+  const [summonPickerSpell, setSummonPickerSpell] = useState<any | null>(null);
 
   // ── Abilities (from static actions data) ──
   const abilities = useMemo(() => (actionsData as AbilityEntry[]).filter(entry => {
@@ -673,6 +677,11 @@ const SpellsPanel: React.FC<{
               undefined
             }
             onPress={() => {
+              // Summon spells open the creature picker instead of the normal cast flow.
+              if (getSummonSpec(spell.name)) {
+                setSummonPickerSpell(spell);
+                return;
+              }
               const mi = spell.mapInteraction as string | undefined;
               if (mi !== 'cast' && mi !== 'cast-and-place' && mi !== 'cast-and-emanate') return;
               const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
@@ -1005,6 +1014,69 @@ const SpellsPanel: React.FC<{
         onClose={() => setRollModal(null)}
         edge={edge}
       />
+      {summonPickerSpell && (() => {
+        const spec = getSummonSpec(summonPickerSpell.name);
+        if (!spec || !spec.options) return null;
+        const creatures = spec.options
+          .map(opt => ({ opt, beast: lookupBeast(opt.creatureName, opt.source) }))
+          .filter((c): c is { opt: typeof spec.options[number]; beast: Monster } => !!c.beast);
+        return (
+          <>
+            <div className="fixed inset-0 z-[70] bg-black/70" onPointerDown={() => setSummonPickerSpell(null)} />
+            <div
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[71] w-[380px] max-h-[80vh] bg-black/95 border border-purple-500/40 rounded-lg overflow-hidden flex flex-col"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[9px] uppercase tracking-widest text-purple-400/70 font-bold">Summon</span>
+                  <span className="text-white font-bold text-xs truncate">{summonPickerSpell.name}</span>
+                </div>
+                <button
+                  onPointerDown={(e) => { e.stopPropagation(); setSummonPickerSpell(null); }}
+                  className="p-1.5 hover:bg-white/10 rounded transition-colors shrink-0"
+                >
+                  <X size={14} className="text-white/40" />
+                </button>
+              </div>
+              <div className="divide-y divide-white/10 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {creatures.length === 0 ? (
+                  <div className="text-white/25 text-xs text-center py-6">No creatures available</div>
+                ) : creatures.map(({ opt, beast }, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-xs block truncate text-purple-300">{opt.label ?? beast.name}</span>
+                      <span className="text-[9px] text-white/25 truncate block">{beast.type}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
+                        CR {beast.cr}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
+                        HP {beast.hp}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                        AC {beast.ac}
+                      </span>
+                      <button
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          // TODO (next slice): enter placement mode with this creature, then create token + send IPC.
+                          console.log('[summon] picked', { spell: summonPickerSpell.name, creature: beast.name });
+                          setSummonPickerSpell(null);
+                        }}
+                        className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/40 active:bg-purple-500/40 transition-colors"
+                      >
+                        Summon
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </>
   );
 };

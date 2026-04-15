@@ -84,6 +84,15 @@ export interface Token {
   size?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
   floorId?: string;
   invisible?: boolean;
+  // --- summoned creatures ---
+  /** True if this token was created by a summon spell. */
+  isSummon?: boolean;
+  /** The name of the spell that summoned it (e.g. "Find Familiar"). */
+  summonSpellName?: string;
+  /** combatantId of the caster — used for dismissal and initiative ordering. */
+  summonedBy?: string;
+  /** combatantId of the player who controls this token (summons/pets). */
+  controlledBy?: string;
 }
 
 export interface MovementPathSegment {
