@@ -4390,49 +4390,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
           })()}
 
 
-          {/* ── Measure / Ruler ── */}
-          {isMeasuringActive && measureStart && measureEnd && (() => {
-            const ppg = gridResolution?.pixelsPerGrid || 40;
-            const dx = measureEnd.x - measureStart.x;
-            const dy = measureEnd.y - measureStart.y;
-            const distPx = Math.sqrt(dx * dx + dy * dy);
-            const distFeet = Math.round((distPx / ppg) * 5);
-            const midX = (measureStart.x + measureEnd.x) / 2;
-            const midY = (measureStart.y + measureEnd.y) / 2;
-            const labelFontSize = 14 / stageScale;
-            const dotR = 5 / stageScale;
-            const sw = 2 / stageScale;
-            const textW = 80 / stageScale;
-            const labelRotation = measureEdge === 'top' ? 180 : measureEdge === 'left' ? -90 : 0;
-            return (
-              <Layer listening={false}>
-                <Line
-                  points={[measureStart.x, measureStart.y, measureEnd.x, measureEnd.y]}
-                  stroke="rgba(100, 220, 255, 0.85)"
-                  strokeWidth={sw}
-                  dash={[8 / stageScale, 5 / stageScale]}
-                />
-                <Circle x={measureStart.x} y={measureStart.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
-                <Circle x={measureEnd.x} y={measureEnd.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
-                <Text
-                  x={midX}
-                  y={midY}
-                  width={textW}
-                  offsetX={textW / 2}
-                  offsetY={labelFontSize / 2}
-                  rotation={labelRotation}
-                  text={`${distFeet} ft`}
-                  fontSize={labelFontSize}
-                  fill="rgba(100, 220, 255, 1)"
-                  fontStyle="bold"
-                  fontFamily="Inter"
-                  align="center"
-                  listening={false}
-                />
-              </Layer>
-            );
-          })()}
-
           {/* ── Remote AoE (from the other screen) ── */}
           {remoteAoe && (() => {
             const ppg = gridResolution?.pixelsPerGrid || 40;
@@ -5423,6 +5380,49 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   fontStyle="bold"
                   align="center"
                   width={80 / stageScale}
+                  listening={false}
+                />
+              </Layer>
+            );
+          })()}
+
+          {/* ── Measure / Ruler — above fog of war ── */}
+          {isMeasuringActive && measureStart && measureEnd && (() => {
+            const ppg = gridResolution?.pixelsPerGrid || 40;
+            const dx = measureEnd.x - measureStart.x;
+            const dy = measureEnd.y - measureStart.y;
+            const distPx = Math.sqrt(dx * dx + dy * dy);
+            const distFeet = Math.round((distPx / ppg) * 5);
+            const midX = (measureStart.x + measureEnd.x) / 2;
+            const midY = (measureStart.y + measureEnd.y) / 2;
+            const labelFontSize = 14 / stageScale;
+            const dotR = 5 / stageScale;
+            const sw = 2 / stageScale;
+            const textW = 80 / stageScale;
+            const labelRotation = measureEdge === 'top' ? 180 : measureEdge === 'left' ? -90 : 0;
+            return (
+              <Layer listening={false}>
+                <Line
+                  points={[measureStart.x, measureStart.y, measureEnd.x, measureEnd.y]}
+                  stroke="rgba(100, 220, 255, 0.85)"
+                  strokeWidth={sw}
+                  dash={[8 / stageScale, 5 / stageScale]}
+                />
+                <Circle x={measureStart.x} y={measureStart.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
+                <Circle x={measureEnd.x} y={measureEnd.y} radius={dotR} fill="rgba(100, 220, 255, 0.95)" />
+                <Text
+                  x={midX}
+                  y={midY}
+                  width={textW}
+                  offsetX={textW / 2}
+                  offsetY={labelFontSize / 2}
+                  rotation={labelRotation}
+                  text={`${distFeet} ft`}
+                  fontSize={labelFontSize}
+                  fill="rgba(100, 220, 255, 1)"
+                  fontStyle="bold"
+                  fontFamily="Inter"
+                  align="center"
                   listening={false}
                 />
               </Layer>
