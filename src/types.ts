@@ -60,9 +60,6 @@ declare global {
       sendPlayerWildShape?: (data: { playerId: string; creatureName: string; creatureAvatar: string; originalAvatar?: string; creatureHp: number; creatureAc: number; creatureSpeed?: string; creatureSize?: string; originalSize?: string } | { playerId: string; revert: true; originalAvatar?: string; originalSize?: string }) => void;
       onPlayerWildShape?: (callback: (data: { playerId: string; creatureName: string; creatureAvatar: string; originalAvatar?: string; creatureHp: number; creatureAc: number; creatureSpeed?: string; creatureSize?: string; originalSize?: string } | { playerId: string; revert: true; originalAvatar?: string; originalSize?: string }) => void) => void;
       removePlayerWildShapeListener?: () => void;
-      sendPlayerSummonCreature?: (data: { casterId: string; creatureName: string; source?: '2014' | '2024'; summonSpellName: string; x: number; y: number; floorId?: string }) => void;
-      onPlayerSummonCreature?: (callback: (data: { casterId: string; creatureName: string; source?: '2014' | '2024'; summonSpellName: string; x: number; y: number; floorId?: string }) => void) => void;
-      removePlayerSummonCreatureListener?: () => void;
       sendPlayerInvisibleToggle?: (tokenId: string) => void;
       onPlayerInvisibleToggle?: (callback: (tokenId: string) => void) => void;
       removePlayerInvisibleToggleListener?: () => void;

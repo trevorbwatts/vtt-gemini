@@ -280,12 +280,6 @@ ipcMain.on('player-wild-shape', (_event, data) => {
   }
 });
 
-// Player Summon Creature: proxy to DM window
-ipcMain.on('player-summon-creature', (_event, data) => {
-  if (dmWindow) {
-    dmWindow.webContents.send('player-summon-creature', data);
-  }
-});
 
 // Player Invisible toggle: proxy to DM window
 ipcMain.on('player-invisible-toggle', (_event, tokenId) => {

@@ -163,31 +163,10 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   const affectedSet = useMemo(() => new Set(aoeHighlights?.affectedCombatantIds || []), [aoeHighlights?.affectedCombatantIds]);
 
   const sortedCombatants = useMemo(() => {
-    const nonSummons = activeCombatants.filter(c => !c.summonedBy);
-    const summons = activeCombatants.filter(c => c.summonedBy)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const base = [...nonSummons].sort((a, b) => {
+    return [...activeCombatants].sort((a, b) => {
       if (b.initiative !== a.initiative) return b.initiative - a.initiative;
       return a.name.localeCompare(b.name);
     });
-    // Insert each summon immediately after its caster (summons share the caster's
-    // initiative number but always act right after the caster in the order).
-    for (const summon of summons) {
-      const casterIdx = base.findIndex(
-        c => c.id === summon.summonedBy || c.sourceCombatantId === summon.summonedBy
-      );
-      if (casterIdx >= 0) {
-        let insertAt = casterIdx + 1;
-        // Skip past any summons already queued behind this caster so multiple
-        // summons from the same caster keep a stable order.
-        while (insertAt < base.length && base[insertAt].summonedBy) insertAt++;
-        base.splice(insertAt, 0, summon);
-      } else {
-        // Caster not in combat — fall back to initiative sort at the bottom.
-        base.push(summon);
-      }
-    }
-    return base;
   }, [activeCombatants]);
 
   // ── Initiative logic ──

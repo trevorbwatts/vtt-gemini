@@ -62,12 +62,6 @@ interface MapViewProps {
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
-  /** Ref that MapView populates so external code can start summon placement mode (ghost token follows cursor). */
-  startSummoningRef?: React.MutableRefObject<((data: { creatureName: string; creatureAvatar?: string; creatureSize?: import('../types').Token['size']; summonSpellName: string; casterId: string; source?: '2014' | '2024' }) => void) | null>;
-  /** Ref that MapView populates so external code can cancel summon placement mode. */
-  cancelSummoningRef?: React.MutableRefObject<(() => void) | null>;
-  /** Called when the player confirms a summon placement on the map (click/tap). */
-  onSummonPlaced?: (data: { casterId: string; creatureName: string; source?: '2014' | '2024'; summonSpellName: string; x: number; y: number; floorId?: string }) => void;
   /** Ref that MapView populates so players can enter ruler/measure mode */
   startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
   /** Ref that MapView populates so players can cancel measure mode */
@@ -665,9 +659,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   startPlacingRef,
   addMarkersDirectlyRef,
   cancelCastingRef,
-  startSummoningRef,
-  cancelSummoningRef,
-  onSummonPlaced,
   confirmCastRef,
   onCastingDismissed,
   startMeasuringRef,
@@ -779,17 +770,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [castingMousePos, setCastingMousePos] = useState<{ x: number; y: number } | null>(null);
   const [placedAoe, setPlacedAoe] = useState<AoeState | null>(null);
-
-  // ── Summoning Placement State ──
-  const [summoningState, setSummoningState] = useState<{
-    creatureName: string;
-    creatureAvatar?: string;
-    creatureSize?: Token['size'];
-    summonSpellName: string;
-    casterId: string;
-    source?: '2014' | '2024';
-  } | null>(null);
-  const [summoningMousePos, setSummoningMousePos] = useState<{ x: number; y: number } | null>(null);
 
   // ── Measure / Ruler State ──
   const [isMeasuringActive, setIsMeasuringActive] = useState(false);
@@ -1162,20 +1142,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setPlacingSpell(null);
       onCastingDismissed?.();
       onAoeHighlightsChange?.(null);
-    };
-  }
-
-  if (startSummoningRef) {
-    startSummoningRef.current = (data) => {
-      setSummoningState(data);
-      setSummoningMousePos(null);
-    };
-  }
-
-  if (cancelSummoningRef) {
-    cancelSummoningRef.current = () => {
-      setSummoningState(null);
-      setSummoningMousePos(null);
     };
   }
 
@@ -2585,7 +2551,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       if (e.code === 'Escape') {
         if (placedAoe) { setPlacedAoe(null); onCastingDismissed?.(); return; }
         if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); onCastingDismissed?.(); return; }
-        if (summoningState) { setSummoningState(null); setSummoningMousePos(null); return; }
       }
 
       const tag = (e.target as HTMLElement).tagName;
@@ -2656,15 +2621,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       return;
     }
 
-    // Summoning placement on player view: track ghost position
-    if (summoningState && e.evt.touches.length === 1) {
-      const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
-      setSummoningMousePos(pos);
-      e.evt.preventDefault();
-      return;
-    }
-
     if (e.evt.touches.length === 2) {
       const t1 = e.evt.touches[0];
       const t2 = e.evt.touches[1];
@@ -2684,15 +2640,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const stage = e.target.getStage();
       const pos = getCanvasPos(stage);
       setCastingMousePos(pos);
-      e.evt.preventDefault();
-      return;
-    }
-
-    // Summoning placement on player view: update ghost as finger drags
-    if (summoningState && e.evt.touches.length === 1) {
-      const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
-      setSummoningMousePos(pos);
       e.evt.preventDefault();
       return;
     }
@@ -2754,27 +2701,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
       } catch (_e) { /* IPC not available */ }
       setPlacingSpell(null);
-      e.evt.preventDefault();
-      return;
-    }
-
-    // Summoning placement on player view: confirm position on finger lift
-    // Use getCanvasPos directly (not summoningMousePos state) because on a quick tap
-    // the state from touchStart hasn't been committed yet (React batches).
-    if (summoningState && e.evt.changedTouches.length === 1) {
-      const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
-      onSummonPlaced?.({
-        casterId: summoningState.casterId,
-        creatureName: summoningState.creatureName,
-        source: summoningState.source,
-        summonSpellName: summoningState.summonSpellName,
-        x: pos.x,
-        y: pos.y,
-        floorId: activeFloorId || undefined,
-      });
-      setSummoningState(null);
-      setSummoningMousePos(null);
       e.evt.preventDefault();
       return;
     }
@@ -2950,14 +2876,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const stage = e.target.getStage();
       const pos = getCanvasPos(stage);
       setCastingMousePos(pos);
-      return;
-    }
-
-    // Summoning placement: track cursor for ghost preview
-    if (summoningState) {
-      const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
-      setSummoningMousePos(pos);
       return;
     }
 
@@ -3337,36 +3255,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
           x={stagePos.x}
           y={stagePos.y}
           onMouseDown={isPlayerView ? undefined : handleStageMouseDown}
-          onMouseMove={isPlayerView && !summoningState ? undefined : handleStageMouseMove}
+          onMouseMove={isPlayerView ? undefined : handleStageMouseMove}
           onMouseUp={isPlayerView ? undefined : handleStageMouseUp}
           onMouseLeave={isPlayerView ? undefined : handleStageMouseUp}
           onContextMenu={isPlayerView ? undefined : handleContextMenu}
           onWheel={isPlayerView ? undefined : handleWheel}
-          onTouchStart={isPlayerView && (!activeAoe || castingSpell || summoningState) ? handleTouchStart : undefined}
-          onTouchMove={isPlayerView && (!activeAoe || castingSpell || summoningState) ? handleTouchMove : undefined}
-          onTouchEnd={isPlayerView && (!activeAoe || castingSpell || summoningState) ? handleTouchEnd : undefined}
+          onTouchStart={isPlayerView && (!activeAoe || castingSpell) ? handleTouchStart : undefined}
+          onTouchMove={isPlayerView && (!activeAoe || castingSpell) ? handleTouchMove : undefined}
+          onTouchEnd={isPlayerView && (!activeAoe || castingSpell) ? handleTouchEnd : undefined}
           onClick={(e) => {
             if (isPlayerView) {
-              // Summoning placement: desktop click confirms ghost position
-              // Guard: only place if the user has moved the ghost cursor onto the map first
-              if (summoningState && summoningMousePos) {
-                const stage = e.target.getStage();
-                const pos = getCanvasPos(stage);
-                onSummonPlaced?.({
-                  casterId: summoningState.casterId,
-                  creatureName: summoningState.creatureName,
-                  source: summoningState.source,
-                  summonSpellName: summoningState.summonSpellName,
-                  x: pos.x,
-                  y: pos.y,
-                  floorId: activeFloorId || undefined,
-                });
-                setSummoningState(null);
-                setSummoningMousePos(null);
-                return;
-              }
-              // If summoning is active but no ghost position yet, ignore the stray click
-              if (summoningState) return;
               // Tap on empty space clears all targets
               if (onClearTargets && targetedCombatantIds && targetedCombatantIds.size > 0) {
                 onClearTargets();
@@ -3742,7 +3640,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   key={token.id}
                   x={livePlayerPos[token.id]?.x ?? token.x}
                   y={livePlayerPos[token.id]?.y ?? token.y}
-                  draggable={isPlayerView ? ((token.type === 'player' || !!token.isSummon) && !activeAoe && !isMeasuringActive) : true}
+                  draggable={isPlayerView ? (token.type === 'player' && !activeAoe && !isMeasuringActive) : true}
                   onMouseDown={(e) => {
                     if (castingSpell && !isPlayerView) {
                       // Let stage mousedown fire so the AoE gets placed
@@ -5531,44 +5429,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
-          {/* ── Summon placement ghost — follows cursor until placed ── */}
-          {summoningState && summoningMousePos && (() => {
-            const sizeMult = getTokenSizeMultiplier(summoningState.creatureSize);
-            const r = tokenRadius * sizeMult;
-            return (
-              <Layer listening={false}>
-                <Group x={summoningMousePos.x} y={summoningMousePos.y} opacity={0.75}>
-                  <Circle
-                    radius={r + 4 / stageScale}
-                    stroke="rgba(168, 85, 247, 0.9)"
-                    strokeWidth={2 / stageScale}
-                    dash={[6 / stageScale, 4 / stageScale]}
-                  />
-                  <Circle
-                    radius={r}
-                    fill={summoningState.creatureAvatar ? undefined : "rgba(168, 85, 247, 0.35)"}
-                    stroke="rgba(216, 180, 254, 0.9)"
-                    strokeWidth={1.5 / stageScale}
-                  />
-                  {summoningState.creatureAvatar && (
-                    <TokenAvatar url={summoningState.creatureAvatar} radius={r} />
-                  )}
-                  <Text
-                    y={-r - 18 / stageScale}
-                    width={140 / stageScale}
-                    offsetX={70 / stageScale}
-                    text={summoningState.creatureName}
-                    fontSize={12 / stageScale}
-                    fill="rgba(216, 180, 254, 1)"
-                    fontStyle="bold"
-                    fontFamily="Inter"
-                    align="center"
-                    listening={false}
-                  />
-                </Group>
-              </Layer>
-            );
-          })()}
         </Stage>
 
         {/* Spell marker dismiss bubble — player view double-tap */}

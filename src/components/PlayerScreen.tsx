@@ -11,13 +11,10 @@ import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
-import { searchBeasts, lookupBeast } from '../data/bestiary';
-import { getSummonSpec } from '../data/summons';
+import { searchBeasts } from '../data/bestiary';
 
 /** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
 function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none' {
-  // Summon spells route to the picker via the Cast button.
-  if (getSummonSpec(spell.name)) return 'cast';
   const mi = spell.mapInteraction ?? dbEntry?.mapInteraction;
   if (mi) return mi;
   // Default: has aoeType + aoeSize → cast; otherwise → none
@@ -413,8 +410,7 @@ const SpellsPanel: React.FC<{
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-  onTriggerSummon?: (data: { creatureName: string; creatureAvatar?: string; creatureSize?: Token['size']; summonSpellName: string; casterId: string; source?: '2014' | '2024' }) => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility, onTriggerSummon }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -468,7 +464,6 @@ const SpellsPanel: React.FC<{
   }, [player, spellSaveDc]);
 
   const [rollModal, setRollModal] = useState<{ name: string; result: ActionRollResult } | null>(null);
-  const [summonPickerSpell, setSummonPickerSpell] = useState<any | null>(null);
 
   // ── Abilities (from static actions data) ──
   const abilities = useMemo(() => (actionsData as AbilityEntry[]).filter(entry => {
@@ -676,11 +671,6 @@ const SpellsPanel: React.FC<{
               undefined
             }
             onPress={() => {
-              // Summon spells open the creature picker instead of the normal cast flow.
-              if (getSummonSpec(spell.name)) {
-                setSummonPickerSpell(spell);
-                return;
-              }
               const mi = spell.mapInteraction as string | undefined;
               if (mi !== 'cast' && mi !== 'cast-and-place' && mi !== 'cast-and-emanate') return;
               const half = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
@@ -1013,78 +1003,6 @@ const SpellsPanel: React.FC<{
         onClose={() => setRollModal(null)}
         edge={edge}
       />
-      {summonPickerSpell && (() => {
-        const spec = getSummonSpec(summonPickerSpell.name);
-        if (!spec || !spec.options) return null;
-        const creatures = spec.options
-          .map(opt => ({ opt, beast: lookupBeast(opt.creatureName, opt.source) }))
-          .filter((c): c is { opt: typeof spec.options[number]; beast: Monster } => !!c.beast);
-        return (
-          <>
-            <div className="fixed inset-0 z-[70] bg-black/70" onPointerDown={() => setSummonPickerSpell(null)} />
-            <div
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[71] w-[380px] max-h-[80vh] bg-black/95 border border-purple-500/40 rounded-lg overflow-hidden flex flex-col"
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[9px] uppercase tracking-widest text-purple-400/70 font-bold">Summon</span>
-                  <span className="text-white font-bold text-xs truncate">{summonPickerSpell.name}</span>
-                </div>
-                <button
-                  onPointerDown={(e) => { e.stopPropagation(); setSummonPickerSpell(null); }}
-                  className="p-1.5 hover:bg-white/10 rounded transition-colors shrink-0"
-                >
-                  <X size={14} className="text-white/40" />
-                </button>
-              </div>
-              <div className="divide-y divide-white/10 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {creatures.length === 0 ? (
-                  <div className="text-white/25 text-xs text-center py-6">No creatures available</div>
-                ) : creatures.map(({ opt, beast }, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <span className="font-bold text-xs block truncate text-purple-300">{opt.label ?? beast.name}</span>
-                      <span className="text-[9px] text-white/25 truncate block">{beast.type}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
-                        CR {beast.cr}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
-                        HP {beast.hp}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">
-                        AC {beast.ac}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const spellName = summonPickerSpell.name;
-                          const creatureSize = (beast.size as Token['size']) || 'Small';
-                          onTriggerSummon?.({
-                            creatureName: beast.name,
-                            creatureAvatar: beast.avatar,
-                            creatureSize,
-                            summonSpellName: spellName,
-                            casterId: player.id,
-                            source: beast.source,
-                          });
-                          setSummonPickerSpell(null);
-                          onClose();
-                        }}
-                        className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/40 active:bg-purple-500/40 transition-colors"
-                      >
-                        Summon
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        );
-      })()}
     </>
   );
 };
@@ -1361,13 +1279,9 @@ export function PlayerScreen() {
   const confirmCastRef = useRef<(() => void) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
   const cancelMeasuringRef = useRef<(() => void) | null>(null);
-  const startSummoningRef = useRef<((data: { creatureName: string; creatureAvatar?: string; creatureSize?: Token['size']; summonSpellName: string; casterId: string; source?: '2014' | '2024' }) => void) | null>(null);
-  const cancelSummoningRef = useRef<(() => void) | null>(null);
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string; aoeType?: string } | null>(null);
-  // Track active summon placement (for banner)
-  const [activeSummoning, setActiveSummoning] = useState<{ spotId: SpotId; creatureName: string; spellName: string } | null>(null);
   // Track active measuring (for banner positioning)
   const [activeMeasuring, setActiveMeasuring] = useState<{ spotId: SpotId } | null>(null);
   const [measureDistanceFeet, setMeasureDistanceFeet] = useState<number | null>(null);
@@ -2182,12 +2096,6 @@ export function PlayerScreen() {
           onEmanationCast={handleEmanationCast}
           startMeasuringRef={startMeasuringRef}
           cancelMeasuringRef={cancelMeasuringRef}
-          startSummoningRef={startSummoningRef}
-          cancelSummoningRef={cancelSummoningRef}
-          onSummonPlaced={(data) => {
-            window.electronAPI?.sendPlayerSummonCreature?.(data);
-            setActiveSummoning(null);
-          }}
           onMeasureDistanceChange={(feet) => setMeasureDistanceFeet(feet)}
           onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
@@ -2257,33 +2165,6 @@ export function PlayerScreen() {
                   Cancel
                 </button>
               )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Summoning Banner — shown while waiting for map placement tap */}
-      {activeSummoning && (() => {
-        const config = spotConfigs[activeSummoning.spotId];
-        const edge = config.edge;
-        const posClass = edge === 'top'
-          ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
-          : edge === 'left'
-          ? 'left-4 top-1/2 -translate-y-1/2 origin-left rotate-90'
-          : 'bottom-4 left-1/2 -translate-x-1/2';
-        return (
-          <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
-            <div className="bg-black/80 border border-purple-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-purple-500/10">
-              <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-              <span className="text-sm font-bold text-purple-400">Summoning {activeSummoning.creatureName}</span>
-              <span className="text-xs text-white/40">Tap map to place</span>
-              <button
-                onClick={() => { cancelSummoningRef.current?.(); setActiveSummoning(null); }}
-                onPointerDown={(e) => e.preventDefault()}
-                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-              >
-                Cancel
-              </button>
             </div>
           </div>
         );
@@ -2377,13 +2258,6 @@ export function PlayerScreen() {
             onDismissInvisibility={() => playerId && handleDismissInvisibility(playerId)}
             seeInvisibilityActive={!!(playerId && seeInvisibilityPlayerIds.has(playerId))}
             onDismissSeeInvisibility={() => playerId && handleDismissSeeInvisibility(playerId)}
-            onTriggerSummon={(data) => {
-              const spotId = actionRing.spotId;
-              setActionRing(null);
-              setOpenPanel(null);
-              startSummoningRef.current?.(data);
-              setActiveSummoning({ spotId, creatureName: data.creatureName, spellName: data.summonSpellName });
-            }}
           />
         );
       })()}

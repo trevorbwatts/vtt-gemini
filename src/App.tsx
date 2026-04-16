@@ -16,7 +16,6 @@ import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
-import { lookupBeast } from './data/bestiary';
 
 // Load persisted panel states from localStorage
 function loadPanelStates(): { left: boolean; nav: boolean } {
@@ -442,96 +441,6 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerInvisibleToggleListener?.(); };
   }, []);
 
-  // Listen for Summon Creature from the Player screen
-  useEffect(() => {
-    if (!window.electronAPI?.onPlayerSummonCreature) return;
-    window.electronAPI.onPlayerSummonCreature((data) => {
-      if (!data) return;
-      const { casterId, creatureName, source, summonSpellName, x, y, floorId } = data;
-      const beast = lookupBeast(creatureName, source || '2024');
-      if (!beast) {
-        console.warn('[DM] Summon creature not found in bestiary:', creatureName);
-        return;
-      }
-      const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const combatantId = `sum-${uniqueId}`;
-      const tokenId = `t-sum-${uniqueId}`;
-      const summonCombatant: Combatant = {
-        id: combatantId,
-        name: beast.name,
-        hp: beast.hp,
-        maxHp: beast.hp,
-        ac: beast.ac,
-        initiative: 0,
-        type: 'npc',
-        description: beast.description,
-        stats: beast.stats,
-        actions: beast.actions,
-        avatar: beast.avatar,
-        speedText: beast.speed,
-        cr: beast.cr,
-        specialAbilities: beast.specialAbilities,
-        legendaryActions: beast.legendaryActions,
-        reactions: beast.reactions,
-        saves: beast.saves,
-        skills: beast.skills,
-        immunities: beast.immunities,
-        resistances: beast.resistances,
-        vulnerabilities: beast.vulnerabilities,
-        conditionImmunities: beast.conditionImmunities,
-        senses: beast.senses,
-        languages: beast.languages,
-        creatureType: beast.type,
-        summonedBy: casterId,
-        summonSpellName,
-      };
-      const creatureSize = (beast.size?.split('/')[0]?.trim() as Token['size']) || 'Small';
-      const summonToken: Token = {
-        id: tokenId,
-        combatantId,
-        name: beast.name,
-        type: 'npc',
-        x,
-        y,
-        color: '#a855f7',
-        avatar: beast.avatar,
-        size: creatureSize,
-        floorId: floorId || activeFloorIdRef.current || undefined,
-        isSummon: true,
-        summonSpellName,
-        summonedBy: casterId,
-        controlledBy: casterId,
-      };
-
-      setCampaign(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          scenarios: prev.scenarios.map(s => {
-            if (s.id !== selectedScenarioIdRef.current) return s;
-            const nextCombatants = [...(s.combatants || []), summonCombatant];
-            // If combat is active, insert the summon into activeCombatants at the caster's initiative
-            let nextActive = s.activeCombatants || [];
-            if (nextActive.length > 0) {
-              // Find the caster within activeCombatants (they may be a copy with sourceCombatantId)
-              const caster = nextActive.find(ac => ac.id === casterId || ac.sourceCombatantId === casterId);
-              if (caster) {
-                const activeSummon: Combatant = { ...summonCombatant, initiative: caster.initiative };
-                nextActive = [...nextActive, activeSummon];
-              }
-            }
-            return {
-              ...s,
-              tokens: [...s.tokens, summonToken],
-              combatants: nextCombatants,
-              activeCombatants: nextActive,
-            };
-          }),
-        };
-      });
-    });
-    return () => { window.electronAPI?.removePlayerSummonCreatureListener?.(); };
-  }, []);
 
   const handleCreateCampaign = (name: string) => {
     const scenarioId = `s-${Date.now()}`;
