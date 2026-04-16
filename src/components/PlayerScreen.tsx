@@ -332,9 +332,6 @@ const SpellRow: React.FC<{
         <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/5 text-white/30">
           {spell.range == null ? '' : spell.range === 0 ? 'Self' : spell.range === -1 ? 'Touch' : `${spell.range}ft`}
         </span>
-        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded opacity-40">
-          {spell.level === 0 ? 'C' : spell.level}
-        </span>
         {(isCast || (isPlace && mi === 'exception')) && !disabled && isDismissable && onDismiss && (
           <button
             onPointerDown={(e) => { e.stopPropagation(); onDismiss(); }}
@@ -436,9 +433,10 @@ const SpellsPanel: React.FC<{
       if (!found) return [];
       return [enrich({ ...found, atWill: true as const, source })];
     });
-    // At-will spells appear at the top; skip any that are already in the manual list
+    // Merge and sort alphabetically; skip at-will duplicates already in the manual list
     const manualNames = new Set(base.map((s: any) => s.name.toLowerCase()));
-    return [...atWill.filter((s: any) => !manualNames.has(s.name.toLowerCase())), ...base];
+    return [...atWill.filter((s: any) => !manualNames.has(s.name.toLowerCase())), ...base]
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
   }, [player.spells, player.atWillSpells]);
 
   const spellSaveDc = useMemo(() => {
@@ -1368,6 +1366,8 @@ export function PlayerScreen() {
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string; aoeType?: string } | null>(null);
+  // Track active summon placement (for banner)
+  const [activeSummoning, setActiveSummoning] = useState<{ spotId: SpotId; creatureName: string; spellName: string } | null>(null);
   // Track active measuring (for banner positioning)
   const [activeMeasuring, setActiveMeasuring] = useState<{ spotId: SpotId } | null>(null);
   const [measureDistanceFeet, setMeasureDistanceFeet] = useState<number | null>(null);
@@ -2186,6 +2186,7 @@ export function PlayerScreen() {
           cancelSummoningRef={cancelSummoningRef}
           onSummonPlaced={(data) => {
             window.electronAPI?.sendPlayerSummonCreature?.(data);
+            setActiveSummoning(null);
           }}
           onMeasureDistanceChange={(feet) => setMeasureDistanceFeet(feet)}
           onAoeHighlightsChange={setAoeHighlights}
@@ -2256,6 +2257,33 @@ export function PlayerScreen() {
                   Cancel
                 </button>
               )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Summoning Banner — shown while waiting for map placement tap */}
+      {activeSummoning && (() => {
+        const config = spotConfigs[activeSummoning.spotId];
+        const edge = config.edge;
+        const posClass = edge === 'top'
+          ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
+          : edge === 'left'
+          ? 'left-4 top-1/2 -translate-y-1/2 origin-left rotate-90'
+          : 'bottom-4 left-1/2 -translate-x-1/2';
+        return (
+          <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
+            <div className="bg-black/80 border border-purple-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-purple-500/10">
+              <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+              <span className="text-sm font-bold text-purple-400">Summoning {activeSummoning.creatureName}</span>
+              <span className="text-xs text-white/40">Tap map to place</span>
+              <button
+                onClick={() => { cancelSummoningRef.current?.(); setActiveSummoning(null); }}
+                onPointerDown={(e) => e.preventDefault()}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         );
@@ -2350,9 +2378,11 @@ export function PlayerScreen() {
             seeInvisibilityActive={!!(playerId && seeInvisibilityPlayerIds.has(playerId))}
             onDismissSeeInvisibility={() => playerId && handleDismissSeeInvisibility(playerId)}
             onTriggerSummon={(data) => {
+              const spotId = actionRing.spotId;
               setActionRing(null);
               setOpenPanel(null);
               startSummoningRef.current?.(data);
+              setActiveSummoning({ spotId, creatureName: data.creatureName, spellName: data.summonSpellName });
             }}
           />
         );

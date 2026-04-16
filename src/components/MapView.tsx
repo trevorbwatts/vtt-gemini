@@ -2386,8 +2386,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setContextMenu({
       x: pos.x,
       y: pos.y,
-      stageX: pointerPosition.x,
-      stageY: pointerPosition.y,
+      stageX: e.evt.clientX,
+      stageY: e.evt.clientY,
       view: 'root'
     });
     setMonsterSearch('');
@@ -2759,14 +2759,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     // Summoning placement on player view: confirm position on finger lift
-    if (summoningState && e.evt.changedTouches.length === 1 && summoningMousePos) {
+    // Use getCanvasPos directly (not summoningMousePos state) because on a quick tap
+    // the state from touchStart hasn't been committed yet (React batches).
+    if (summoningState && e.evt.changedTouches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
       onSummonPlaced?.({
         casterId: summoningState.casterId,
         creatureName: summoningState.creatureName,
         source: summoningState.source,
         summonSpellName: summoningState.summonSpellName,
-        x: summoningMousePos.x,
-        y: summoningMousePos.y,
+        x: pos.x,
+        y: pos.y,
         floorId: activeFloorId || undefined,
       });
       setSummoningState(null);
@@ -3344,7 +3348,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
           onClick={(e) => {
             if (isPlayerView) {
               // Summoning placement: desktop click confirms ghost position
-              if (summoningState) {
+              // Guard: only place if the user has moved the ghost cursor onto the map first
+              if (summoningState && summoningMousePos) {
                 const stage = e.target.getStage();
                 const pos = getCanvasPos(stage);
                 onSummonPlaced?.({
@@ -3360,6 +3365,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 setSummoningMousePos(null);
                 return;
               }
+              // If summoning is active but no ghost position yet, ignore the stray click
+              if (summoningState) return;
               // Tap on empty space clears all targets
               if (onClearTargets && targetedCombatantIds && targetedCombatantIds.size > 0) {
                 onClearTargets();
@@ -5539,10 +5546,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   />
                   <Circle
                     radius={r}
-                    fill="rgba(168, 85, 247, 0.35)"
+                    fill={summoningState.creatureAvatar ? undefined : "rgba(168, 85, 247, 0.35)"}
                     stroke="rgba(216, 180, 254, 0.9)"
                     strokeWidth={1.5 / stageScale}
                   />
+                  {summoningState.creatureAvatar && (
+                    <TokenAvatar url={summoningState.creatureAvatar} radius={r} />
+                  )}
                   <Text
                     y={-r - 18 / stageScale}
                     width={140 / stageScale}

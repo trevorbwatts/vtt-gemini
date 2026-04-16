@@ -239,12 +239,11 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
                 if (!found) return [];
                 return [{ ...found, atWill: true as const, source }];
               }).filter(s => !manualNames.has(s.name.toLowerCase()));
-              const allSpells = [...atWillEntries, ...manualSpells];
+              const allSpells = [...atWillEntries, ...manualSpells].sort((a, b) => a.name.localeCompare(b.name));
               if (allSpells.length === 0) return <p className="text-sm opacity-30 italic py-4 text-center">No spells listed.</p>;
               return (
                 <div className="space-y-1.5">
                   {allSpells.map((s, i) => {
-                    const levelBadge = s.atWill ? 'At Will' : s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
                     const aoeBadge = s.aoeType
                       ? `${s.aoeSize ? `${s.aoeSize}ft ` : ''}${AOE_LABELS[s.aoeType]}`
                       : undefined;
@@ -253,7 +252,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
                       : undefined;
                     return (
                       <AccordionCard key={i} name={s.name} desc={s.desc}
-                        badge={levelBadge} aoeBadge={aoeBadge} saveBadge={saveBadge}
+                        aoeBadge={aoeBadge} saveBadge={saveBadge}
                         sourceBadge={s.source}
                         nameClass="text-purple-400" bg="bg-purple-500/5" border="border-purple-500/10" />
                     );
