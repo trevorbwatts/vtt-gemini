@@ -12,9 +12,10 @@ import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, Acti
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
 import { searchBeasts } from '../data/bestiary';
+import { SUMMON_OPTIONS, SummonOption } from '../data/summonData';
 
 /** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
-function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none' {
+function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'summon' | 'exception' | 'none' {
   const mi = spell.mapInteraction ?? dbEntry?.mapInteraction;
   if (mi) return mi;
   // Default: has aoeType + aoeSize → cast; otherwise → none
@@ -286,14 +287,17 @@ const SpellRow: React.FC<{
   spellAttackBonus?: number;
   onPress: () => void;
   onPlace?: () => void;
+  onSummon?: () => void;
+  onRoll?: (mode: import('../utils/actionParser').RollMode) => void;
   onDismiss?: () => void;
   isDismissable?: boolean;
   disabled?: boolean;
-}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, onDismiss, isDismissable, disabled }) => {
+}> = ({ spell, spellSaveDc, spellAttackBonus, onPress, onPlace, onSummon, onRoll, onDismiss, isDismissable, disabled }) => {
   const mi = spell.mapInteraction as string | undefined;
   const isCast = mi === 'cast' || mi === 'cast-and-place' || mi === 'cast-and-emanate';
   const isPlace = mi === 'place' || mi === 'exception';
-  const isActive = (isCast || isPlace) && !disabled;
+  const isSummon = mi === 'summon';
+  const isActive = (isCast || isPlace || isSummon) && !disabled;
   // Resolve effective description for damage type badge
   const effectiveDesc = spell.desc || (isCast ? null : lookupSpell(spell.name)?.desc) || '';
   const damageType = effectiveDesc ? parseDamageType(effectiveDesc) : null;
@@ -353,6 +357,14 @@ const SpellRow: React.FC<{
             {mi === 'exception' ? 'Cast' : 'Place'}
           </button>
         )}
+        {isSummon && !disabled && onSummon && (
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onSummon(); }}
+            className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-teal-500/20 text-teal-400 border border-teal-500/40 active:bg-teal-500/40 transition-colors"
+          >
+            Cast
+          </button>
+        )}
       </div>
     </div>
   );
@@ -390,6 +402,7 @@ const SpellsPanel: React.FC<{
   edge: 'top' | 'bottom' | 'left';
   onCast: (spell: any) => void;
   onPlace: (spell: any) => void;
+  onSummon: (spell: any) => void;
   onClose: () => void;
   onDarkvisionChange: (newValue: number) => void;
   preAbilityDarkvisionRef: React.MutableRefObject<Record<string, number>>;
@@ -410,7 +423,7 @@ const SpellsPanel: React.FC<{
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -521,7 +534,9 @@ const SpellsPanel: React.FC<{
 
   const handleSpellTap = (spell: any) => {
     const mi = getMapInteraction(spell);
-    if (mi === 'cast' || mi === 'cast-and-place' || mi === 'cast-and-emanate') {
+    if (mi === 'summon') {
+      onSummon(spell);
+    } else if (mi === 'cast' || mi === 'cast-and-place' || mi === 'cast-and-emanate') {
       const halfDamageOnSave = spell.halfDamageOnSave ?? /half (as much )?damage|half damage/i.test(spell.desc || '');
       onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave });
     } else if (mi === 'place' || mi === 'exception') {
@@ -677,6 +692,7 @@ const SpellsPanel: React.FC<{
               onCast({ ...spell, saveDc: spellSaveDc, halfDamageOnSave: half });
             }}
             onPlace={() => onPlace(spell)}
+            onSummon={() => onSummon(spell)}
             onRoll={(mode) => {
               const localDesc = lookupSpell(spell.name)?.desc || '';
               const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
@@ -1292,6 +1308,11 @@ export function PlayerScreen() {
   // Wall of Fire variant picker — shown when player casts Wall of Fire before choosing Wall vs Ring
   const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
 
+  // Summon creature picker — shown when player casts a Summon spell (e.g. Summon Aberration)
+  const [summonPicker, setSummonPicker] = useState<{ spotId: SpotId; playerId: string; spell: any; options: SummonOption[] } | null>(null);
+  // Active summoning placement banner — drives the "Summoning X — Tap to Place" banner
+  const [activeSummoning, setActiveSummoning] = useState<{ spotId: SpotId; creatureName: string } | null>(null);
+
   // Active combatant turn (received from DM via IPC)
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   // Player targeting — combatant IDs of monsters players have targeted
@@ -1814,6 +1835,21 @@ export function PlayerScreen() {
     }
   }, [actionRing, signedInSpots, campaign]);
 
+  const handleSummonSpell = useCallback((spell: any) => {
+    if (!actionRing) return;
+    const { spotId } = actionRing;
+    const playerId = signedInSpots[spotId];
+    if (!playerId || !campaign) return;
+
+    // Look up available summon options for this spell
+    const options = SUMMON_OPTIONS[spell.name];
+    if (!options || options.length === 0) return;
+
+    setActionRing(null);
+    setOpenPanel(null);
+    setSummonPicker({ spotId, playerId, spell, options });
+  }, [actionRing, signedInSpots, campaign]);
+
   const handleWildShape = useCallback((spotId: SpotId, creature: Monster) => {
     const playerId = signedInSpots[spotId];
     if (!playerId || !campaign) return;
@@ -2092,7 +2128,7 @@ export function PlayerScreen() {
           addMarkersDirectlyRef={addMarkersDirectlyRef}
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}
-          onCastingDismissed={() => { setActiveCasting(null); setAoeHighlights(null); }}
+          onCastingDismissed={() => { setActiveCasting(null); setActiveSummoning(null); setAoeHighlights(null); }}
           onEmanationCast={handleEmanationCast}
           startMeasuringRef={startMeasuringRef}
           cancelMeasuringRef={cancelMeasuringRef}
@@ -2227,6 +2263,7 @@ export function PlayerScreen() {
             edge={config.edge}
             onCast={handleCastSpell}
             onPlace={handlePlaceSpell}
+            onSummon={handleSummonSpell}
             onClose={() => { setOpenPanel(null); setActionRing(null); }}
             onDarkvisionChange={handleDarkvisionChange}
             preAbilityDarkvisionRef={preAbilityDarkvisionRef}
@@ -2304,6 +2341,93 @@ export function PlayerScreen() {
               <button
                 onPointerDown={() => setWallOfFirePicker(null)}
                 className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+      {/* Summon Creature Picker */}
+      {summonPicker && (() => {
+        const { spotId, playerId, spell, options } = summonPicker;
+        const player = campaign?.players.find(p => p.id === playerId);
+        const handleSummonChoice = (option: SummonOption) => {
+          setSummonPicker(null);
+          setActiveSummoning({ spotId, creatureName: option.name });
+          // Pass summon data through starting placing so MapView knows to create a token instead of a spell marker
+          startPlacingRef.current?.({
+            name: `Summon: ${option.name}`,
+            school: spell.school || 'Conjuration',
+            summonData: {
+              creatureName: option.name,
+              spellName: option.spellName,
+              casterId: playerId,
+              playerColor: player?.color || '#3b82f6',
+              size: option.size,
+            },
+          } as any, playerId);
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-6 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-4 min-w-[280px]">
+              <div className="flex items-center gap-2">
+                <span className="text-teal-400 text-lg">✦</span>
+                <span className="text-white font-bold text-sm tracking-wide">{spell.name}</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a creature to summon</p>
+              <div className="flex flex-col gap-2 w-full">
+                {options.map(option => (
+                  <button
+                    key={option.name}
+                    onPointerDown={() => handleSummonChoice(option)}
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/15 text-teal-300 border border-teal-500/30 active:bg-teal-500/30 transition-colors flex items-center justify-between gap-3"
+                  >
+                    <span className="text-sm normal-case font-semibold">{option.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                        HP {option.hp}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                        AC {option.ac}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300">
+                        Summon
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                onPointerDown={() => setSummonPicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Summoning Banner — positioned near the summoning player's drawer */}
+      {activeSummoning && (() => {
+        const config = spotConfigs[activeSummoning.spotId];
+        const edge = config.edge;
+        const posClass = edge === 'top'
+          ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
+          : edge === 'left'
+          ? 'left-4 top-1/2 -translate-y-1/2 origin-left rotate-90'
+          : 'bottom-4 left-1/2 -translate-x-1/2';
+        return (
+          <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
+            <div className="bg-black/80 border border-teal-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-teal-500/10">
+              <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+              <span className="text-sm font-bold text-teal-400">Summoning {activeSummoning.creatureName}</span>
+              <span className="text-xs text-white/40">Tap to Place</span>
+              <button
+                onClick={() => { cancelCastingRef.current?.(); setActiveSummoning(null); }}
+                onPointerDown={(e) => e.preventDefault()}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
               >
                 Cancel
               </button>

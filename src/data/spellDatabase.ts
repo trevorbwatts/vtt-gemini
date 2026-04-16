@@ -20,7 +20,7 @@ export interface SpellEntry {
   blocksVision?: boolean;
   // --- map interaction ---
   /** How the spell behaves on the map. Defaults to 'cast' if aoeType+aoeSize present, else 'none'. */
-  mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none';
+  mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'summon' | 'exception' | 'none';
   /** What happens when the cast is confirmed. 'damage-save': existing damage modal. 'damage-auto': all fail, damage modal. 'condition': condition modal. */
   saveEffect?: 'damage-save' | 'damage-auto' | 'condition';
   /** Condition to apply on failed save (used with saveEffect: 'condition'). */
@@ -66,7 +66,7 @@ export function resolveSpells(spellNames: string[]): {
   maxLength?: number;
   maxThickness?: number;
   blocksVision?: boolean;
-  mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'exception' | 'none';
+  mapInteraction?: 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'summon' | 'exception' | 'none';
   saveEffect?: 'damage-save' | 'damage-auto' | 'condition';
   condition?: string;
 }[] {

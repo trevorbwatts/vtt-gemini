@@ -789,6 +789,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
     maxLength?: number;
     maxThickness?: number;
     blocksVision?: boolean;
+    // Summon creature data — when present, tap-to-place creates a Token instead of a SpellMarker
+    summonData?: { creatureName: string; spellName: string; casterId: string; playerColor: string; size?: import('../types').Token['size'] };
   } | null>(null);
   const [pendingMarkerPos, setPendingMarkerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
@@ -1103,7 +1105,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         return;
       }
 
-      // Default: point-marker placement flow (Light, Darkness, etc.)
+      // Default: point-marker placement flow (Light, Darkness, etc.) OR summon creature placement
       setPlacingSpell({
         name: spell.name,
         school,
@@ -1111,6 +1113,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         casterId: combatantId,
         aoeType: (spell.aoeType ?? entry?.aoeType) as any,
         aoeSize: spell.aoeSize ?? entry?.aoeSize,
+        summonData: (spell as any).summonData,
       });
       setPendingMarkerPos(null);
       setSelectedTokenIds([]);
@@ -2675,6 +2678,35 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (placingSpell && e.evt.changedTouches.length === 1) {
       const stage = e.target.getStage();
       const pos = getCanvasPos(stage);
+
+      // Summon creature: create a Token instead of a SpellMarker
+      if (placingSpell.summonData) {
+        const sd = placingSpell.summonData;
+        const newToken: Token = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: sd.creatureName,
+          type: 'player',
+          x: pos.x,
+          y: pos.y,
+          color: sd.playerColor,
+          floorId: activeFloorId || undefined,
+          isSummon: true,
+          summonSpellName: sd.spellName,
+          summonedBy: sd.casterId,
+          controlledBy: sd.casterId,
+          size: sd.size,
+        };
+        const updatedTokens = [...tokens, newToken];
+        onTokensChange(updatedTokens);
+        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+          window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
+        }
+        setPlacingSpell(null);
+        onCastingDismissed?.();
+        e.evt.preventDefault();
+        return;
+      }
+
       const marker: SpellMarker = {
         id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         spellName: placingSpell.name,
@@ -2785,6 +2817,36 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
     if (placingSpell && e.evt.button === 0) {
       const pos = getCanvasPos(e.target.getStage());
+
+      // Summon creature: create a Token instead of a SpellMarker
+      if (placingSpell.summonData) {
+        const sd = placingSpell.summonData;
+        const newToken: Token = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: sd.creatureName,
+          type: 'player',
+          x: pos.x,
+          y: pos.y,
+          color: sd.playerColor,
+          floorId: activeFloorId || undefined,
+          isSummon: true,
+          summonSpellName: sd.spellName,
+          summonedBy: sd.casterId,
+          controlledBy: sd.casterId,
+          size: sd.size,
+        };
+        const updatedTokens = [...tokens, newToken];
+        onTokensChange(updatedTokens);
+        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+          window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
+        } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+          window.electronAPI.sendDMTokenUpdate(updatedTokens);
+        }
+        setPlacingSpell(null);
+        onCastingDismissed?.();
+        return;
+      }
+
       if (isPlayerView) {
         // Player: place immediately as visible
         const marker: SpellMarker = {
@@ -5462,9 +5524,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </>
         )}
 
-        {/* Placing spell indicator — hidden for wall-shape spells, which use the
-            player-drawer-anchored Casting Banner in PlayerScreen instead. */}
-        {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && (
+        {/* Placing spell indicator — hidden for wall-shape spells and summon placements in player view
+            (which use their own banners in PlayerScreen instead). */}
+        {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && !(isPlayerView && placingSpell.summonData) && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
             <div className="flex items-center gap-3 px-4 py-2 rounded-xl shadow-2xl border"
               style={{
