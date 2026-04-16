@@ -158,13 +158,13 @@ const SPELL_COLOR_OVERRIDES: Record<string, string> = {
 // Lucide icon SVG inner content (24x24 viewbox) for each spell school.
 // Rendered as stroke="white" images on a colored circle background.
 const SCHOOL_ICON_SVGS: Record<string, string> = {
-  Abjuration:    `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>`,
-  Conjuration:   `<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>`,
-  Divination:    `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>`,
-  Enchantment:   `<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>`,
-  Evocation:     `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>`,
-  Illusion:      `<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>`,
-  Necromancy:    `<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>`,
+  Abjuration: `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>`,
+  Conjuration: `<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>`,
+  Divination: `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>`,
+  Enchantment: `<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>`,
+  Evocation: `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>`,
+  Illusion: `<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>`,
+  Necromancy: `<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>`,
   Transmutation: `<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>`,
 };
 
@@ -221,20 +221,20 @@ function computeWallCorners(
   });
   return [
     rot(-halfL, -halfT),
-    rot( halfL, -halfT),
-    rot( halfL,  halfT),
-    rot(-halfL,  halfT),
+    rot(halfL, -halfT),
+    rot(halfL, halfT),
+    rot(-halfL, halfT),
   ];
 }
 
 function getTokenSizeMultiplier(size?: Token['size']): number {
   switch (size) {
-    case 'Tiny':        return 0.5;
-    case 'Small':       return 1;
-    case 'Large':       return 2;
-    case 'Huge':        return 3;
-    case 'Gargantuan':  return 4;
-    default:            return 1; // Medium / unset
+    case 'Tiny': return 0.5;
+    case 'Small': return 1;
+    case 'Large': return 2;
+    case 'Huge': return 3;
+    case 'Gargantuan': return 4;
+    default: return 1; // Medium / unset
   }
 }
 
@@ -736,11 +736,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [internalSelectedTokenId, setInternalSelectedTokenId] = useState<string | null>(null);
   const selectedTokenId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedTokenId;
   const setSelectedTokenId = externalSelectedId !== undefined && onSelectedTokenIdChange ? onSelectedTokenIdChange : setInternalSelectedTokenId;
-  
+
   const [internalSelectedTokenIds, setInternalSelectedTokenIds] = useState<string[]>([]);
   const selectedTokenIds = externalSelectedTokenIds !== undefined ? externalSelectedTokenIds : internalSelectedTokenIds;
   const setSelectedTokenIds = externalSelectedTokenIds !== undefined && onSelectedTokenIdsChange ? onSelectedTokenIdsChange : setInternalSelectedTokenIds;
-  
+
   const [showWalls, setShowWalls] = useState(true);
   const [isMapMenuOpen, setIsMapMenuOpen] = useState(false);
   const [isFloorMenuOpen, setIsFloorMenuOpen] = useState(false);
@@ -1241,7 +1241,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (!inCombat || !gridResolution) return [] as { key: string; ptId: string; etId: string; px1: number; py1: number; px2: number; py2: number }[];
     const pairs: { key: string; ptId: string; etId: string; px1: number; py1: number; px2: number; py2: number }[] = [];
     const playerTokens = tokens.filter(t => t.type === 'player');
-    const enemyTokens  = tokens.filter(t => t.type === 'enemy' || t.type === 'npc');
+    const enemyTokens = tokens.filter(t => t.type === 'enemy' || t.type === 'npc');
     for (const pt of playerTokens) {
       const r1 = tokenRadius * getTokenSizeMultiplier(pt.size);
       const px1 = livePlayerPos[pt.id]?.x ?? pt.x;
@@ -1651,7 +1651,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     return fogPolygons;
   }, [isPlayerView, loadedImage, darknessLevel, playerTokenPositions, blockingSegments,
-      players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
+    players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
   // Light illumination polygons — UVTT static lights + placed Light spell markers.
   // Each polygon represents the area a light source can illuminate (wall-blocked raycasting
@@ -2219,7 +2219,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
       // Capture the current paths synchronously before the updater enqueues
       const capturedPaths = { ...activePathRef.current };
-      
+
       // Commit final path state
       setMovementPaths(prev => {
         const next = { ...prev };
@@ -2587,10 +2587,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); onCastingDismissed?.(); return; }
         if (summoningState) { setSummoningState(null); setSummoningMousePos(null); return; }
       }
-      
+
       const tag = (e.target as HTMLElement).tagName;
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable;
-      
+
       if ((e.code === 'Backspace' || e.code === 'Delete') && !isInput) {
         if (selectedTokenIds.length > 0) {
           e.preventDefault();
@@ -3217,7 +3217,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   MAP SETTINGS <ChevronDown size={12} className={cn("transition-transform", isMapMenuOpen && "rotate-180")} />
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,.uvtt,.dd2vtt,.df2vtt" />
-                
+
                 <AnimatePresence>
                   {isMapMenuOpen && (
                     <>
@@ -3241,7 +3241,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         >
                           <Upload size={14} /> Change Map
                         </button>
-                        
+
                         {walls && walls.length > 0 && (
                           <button
                             onClick={() => {
@@ -3250,11 +3250,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             }}
                             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
                           >
-                            {showWalls ? <EyeOff size={14} /> : <Eye size={14} />} 
+                            {showWalls ? <EyeOff size={14} /> : <Eye size={14} />}
                             {showWalls ? 'Hide Walls' : 'Show Walls'}
                           </button>
                         )}
-                        
+
                         {hasFogData && (
                           <button
                             onClick={() => {
@@ -3263,11 +3263,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             }}
                             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
                           >
-                            <Footprints size={14} /> 
+                            <Footprints size={14} />
                             {wallCollisionEnabled ? 'Disable Collisions' : 'Enable Collisions'}
                           </button>
                         )}
-                        
+
                         {hasFogData && (
                           <button
                             onClick={() => {
@@ -3738,300 +3738,300 @@ const MapViewInner: React.FC<MapViewProps> = ({
             }).map(token => {
               const r = tokenRadius * getTokenSizeMultiplier(token.size);
               return (
-              <Group
-                key={token.id}
-                x={livePlayerPos[token.id]?.x ?? token.x}
-                y={livePlayerPos[token.id]?.y ?? token.y}
-                draggable={isPlayerView ? ((token.type === 'player' || !!token.isSummon) && !activeAoe && !isMeasuringActive) : true}
-                onMouseDown={(e) => {
-                  if (castingSpell && !isPlayerView) {
-                    // Let stage mousedown fire so the AoE gets placed
-                    aoeJustPlacedRef.current = true;
-                    return;
-                  }
-                  e.cancelBubble = true;
-                }}
-                onDragStart={() => handleDragStart(token.id)}
-                onDragMove={(e) => handleDragMove(token.id, e)}
-                onDragEnd={(e) => handleDragEnd(token.id, e)}
-                onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
-                onClick={(e) => {
-                  e.cancelBubble = true;
-                  // If we just placed an AoE via this mousedown, skip token selection
-                  if (aoeJustPlacedRef.current) {
-                    aoeJustPlacedRef.current = false;
-                    return;
-                  }
-                  if (isPlayerView) tokenTapConsumedRef.current = true;
-                  // Player view: tap enemy/npc token to toggle targeting
-                  if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
-                    onToggleTarget(token.combatantId);
-                    return;
-                  }
-                  // Double-tap detection for player view (touch uses onTap below)
-                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
-                    const now = Date.now();
-                    const last = lastTapRef.current;
-                    if (last && last.tokenId === token.id && now - last.time < 400) {
-                      lastTapRef.current = null;
-                      const rect = containerRef.current?.getBoundingClientRect();
-                      if (rect) {
-                        const screenX = rect.left + token.x * stageScale + stagePos.x;
-                        const screenY = rect.top + token.y * stageScale + stagePos.y;
-                        onPlayerTokenDoubleTap(token.id, screenX, screenY);
-                      }
+                <Group
+                  key={token.id}
+                  x={livePlayerPos[token.id]?.x ?? token.x}
+                  y={livePlayerPos[token.id]?.y ?? token.y}
+                  draggable={isPlayerView ? ((token.type === 'player' || !!token.isSummon) && !activeAoe && !isMeasuringActive) : true}
+                  onMouseDown={(e) => {
+                    if (castingSpell && !isPlayerView) {
+                      // Let stage mousedown fire so the AoE gets placed
+                      aoeJustPlacedRef.current = true;
                       return;
                     }
-                    lastTapRef.current = { tokenId: token.id, time: now };
-                    return;
-                  }
-                  if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey) {
-                    setSelectedTokenIds(
-                      selectedTokenIds.includes(token.id) ? selectedTokenIds.filter(id => id !== token.id) : [...selectedTokenIds, token.id]
-                    );
-                  } else {
-                    setSelectedTokenIds([token.id]);
-                    setSelectedTokenId(token.id);
-                    onSelectedTokenIdChange?.(token.id);
-                  }
-                }}
-                onTap={(e) => {
-                  e.cancelBubble = true;
-                  if (isPlayerView) tokenTapConsumedRef.current = true;
-                  // Player view: tap enemy/npc token to toggle targeting
-                  if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
-                    onToggleTarget(token.combatantId);
-                    return;
-                  }
-                  // Double-tap detection for touch on player view
-                  if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
-                    const now = Date.now();
-                    const last = lastTapRef.current;
-                    if (last && last.tokenId === token.id && now - last.time < 400) {
-                      lastTapRef.current = null;
-                      const rect = containerRef.current?.getBoundingClientRect();
-                      if (rect) {
-                        const screenX = rect.left + token.x * stageScale + stagePos.x;
-                        const screenY = rect.top + token.y * stageScale + stagePos.y;
-                        onPlayerTokenDoubleTap(token.id, screenX, screenY);
-                      }
+                    e.cancelBubble = true;
+                  }}
+                  onDragStart={() => handleDragStart(token.id)}
+                  onDragMove={(e) => handleDragMove(token.id, e)}
+                  onDragEnd={(e) => handleDragEnd(token.id, e)}
+                  onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    // If we just placed an AoE via this mousedown, skip token selection
+                    if (aoeJustPlacedRef.current) {
+                      aoeJustPlacedRef.current = false;
                       return;
                     }
-                    lastTapRef.current = { tokenId: token.id, time: now };
-                  }
-                }}
-              >
-                <Circle
-                  radius={r}
-                  fill={token.avatar ? "transparent" : token.color}
-                  stroke={token.color}
-                  strokeWidth={2 * tokenScale}
-                  opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
-                  dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
-                  perfectDrawEnabled={false}
-                />
-                {/* Engaged range ring — shown when within 5ft of an opposing token during combat */}
-                {engagedTokenIds.has(token.id) && (
+                    if (isPlayerView) tokenTapConsumedRef.current = true;
+                    // Player view: tap enemy/npc token to toggle targeting
+                    if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
+                      onToggleTarget(token.combatantId);
+                      return;
+                    }
+                    // Double-tap detection for player view (touch uses onTap below)
+                    if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
+                      const now = Date.now();
+                      const last = lastTapRef.current;
+                      if (last && last.tokenId === token.id && now - last.time < 400) {
+                        lastTapRef.current = null;
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          const screenX = rect.left + token.x * stageScale + stagePos.x;
+                          const screenY = rect.top + token.y * stageScale + stagePos.y;
+                          onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                        }
+                        return;
+                      }
+                      lastTapRef.current = { tokenId: token.id, time: now };
+                      return;
+                    }
+                    if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey) {
+                      setSelectedTokenIds(
+                        selectedTokenIds.includes(token.id) ? selectedTokenIds.filter(id => id !== token.id) : [...selectedTokenIds, token.id]
+                      );
+                    } else {
+                      setSelectedTokenIds([token.id]);
+                      setSelectedTokenId(token.id);
+                      onSelectedTokenIdChange?.(token.id);
+                    }
+                  }}
+                  onTap={(e) => {
+                    e.cancelBubble = true;
+                    if (isPlayerView) tokenTapConsumedRef.current = true;
+                    // Player view: tap enemy/npc token to toggle targeting
+                    if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
+                      onToggleTarget(token.combatantId);
+                      return;
+                    }
+                    // Double-tap detection for touch on player view
+                    if (isPlayerView && onPlayerTokenDoubleTap && token.type === 'player' && !activeAoe) {
+                      const now = Date.now();
+                      const last = lastTapRef.current;
+                      if (last && last.tokenId === token.id && now - last.time < 400) {
+                        lastTapRef.current = null;
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          const screenX = rect.left + token.x * stageScale + stagePos.x;
+                          const screenY = rect.top + token.y * stageScale + stagePos.y;
+                          onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                        }
+                        return;
+                      }
+                      lastTapRef.current = { tokenId: token.id, time: now };
+                    }
+                  }}
+                >
                   <Circle
-                    radius={r + 5 / stageScale}
-                    fill="transparent"
-                    stroke="#FF4444"
-                    strokeWidth={2 / stageScale}
-                    opacity={0.75}
-                    dash={[6 / stageScale, 4 / stageScale]}
-                    listening={false}
+                    radius={r}
+                    fill={token.avatar ? "transparent" : token.color}
+                    stroke={token.color}
+                    strokeWidth={2 * tokenScale}
+                    opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                    dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
                     perfectDrawEnabled={false}
                   />
-                )}
-                {selectedTokenIds.includes(token.id) && !isPlayerView && (
-                  /* Inner rim — above drop shadow */
-                  <Circle
-                    radius={r + 1.5 * tokenScale}
-                    fill=""
-                    stroke="white"
-                    strokeWidth={tokenScale}
-                    opacity={token.hidden ? 0.4 : 1}
-                    listening={false}
-                    perfectDrawEnabled={false}
-                  />
-                )}
-                {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
-                  const hlRgb = getDamageRgb(activeAoe?.damageType);
-                  return <>
-                  <Circle
-                    radius={r + 4 * tokenScale}
-                    fill=""
-                    stroke={`rgba(${hlRgb}, 0.4)`}
-                    strokeWidth={3 * tokenScale}
-                    listening={false}
-                    perfectDrawEnabled={false}
-                  />
-                  <Circle
-                    radius={r + 3 * tokenScale}
-                    fill=""
-                    stroke={`rgba(${hlRgb}, 0.9)`}
-                    strokeWidth={2.5 * tokenScale}
-                    listening={false}
-                    perfectDrawEnabled={false}
-                  />
-                  </>;
-                })()}
-                {/* Persistent active-turn ring */}
-                {propActiveCombatantId && (() => {
-                  const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
-                  if (!activeComb) return null;
-                  const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
-                  if (!isActiveToken) return null;
-                  const ringColor = '#fbbf24';
-                  return <ActiveTurnRing radius={r} tokenScale={tokenScale} color={ringColor} />;
-                })()}
-                {/* Active turn indicator — 4 chevrons zoom in and fade */}
-                {turnFlashCombatantId && (() => {
-                  const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
-                  if (!activeComb) return null;
-                  const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
-                  if (!isActiveToken) return null;
-                  return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
-                })()}
-                {/* Target ring for targeted monsters */}
-                {targetedCombatantIds && token.combatantId && targetedCombatantIds.has(token.combatantId) && (
-                  <TargetRing radius={r} tokenScale={tokenScale} />
-                )}
-                {token.avatar && (
-                  <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
-                    <TokenAvatar
-                      url={token.avatar}
-                      radius={r - tokenScale}
+                  {/* Engaged range ring — shown when within 5ft of an opposing token during combat */}
+                  {engagedTokenIds.has(token.id) && (
+                    <Circle
+                      radius={r + 5 / stageScale}
+                      fill="transparent"
+                      stroke="#FF4444"
+                      strokeWidth={2 / stageScale}
+                      opacity={0.75}
+                      dash={[6 / stageScale, 4 / stageScale]}
+                      listening={false}
+                      perfectDrawEnabled={false}
                     />
-                  </Group>
-                )}
-                {/* Dead overlay — black tint + skull when at 0 HP */}
-                {deadTokenIds.has(token.id) && (() => {
-                  const s = r / 28;
-                  const ox = -12 * s;
-                  const oy = -12 * s;
-                  return (
-                    <Group listening={false}>
+                  )}
+                  {selectedTokenIds.includes(token.id) && !isPlayerView && (
+                    /* Inner rim — above drop shadow */
+                    <Circle
+                      radius={r + 1.5 * tokenScale}
+                      fill=""
+                      stroke="white"
+                      strokeWidth={tokenScale}
+                      opacity={token.hidden ? 0.4 : 1}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  )}
+                  {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
+                    const hlRgb = getDamageRgb(activeAoe?.damageType);
+                    return <>
                       <Circle
+                        radius={r + 4 * tokenScale}
+                        fill=""
+                        stroke={`rgba(${hlRgb}, 0.4)`}
+                        strokeWidth={3 * tokenScale}
+                        listening={false}
+                        perfectDrawEnabled={false}
+                      />
+                      <Circle
+                        radius={r + 3 * tokenScale}
+                        fill=""
+                        stroke={`rgba(${hlRgb}, 0.9)`}
+                        strokeWidth={2.5 * tokenScale}
+                        listening={false}
+                        perfectDrawEnabled={false}
+                      />
+                    </>;
+                  })()}
+                  {/* Persistent active-turn ring */}
+                  {propActiveCombatantId && (() => {
+                    const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
+                    if (!activeComb) return null;
+                    const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                    if (!isActiveToken) return null;
+                    const ringColor = '#fbbf24';
+                    return <ActiveTurnRing radius={r} tokenScale={tokenScale} color={ringColor} />;
+                  })()}
+                  {/* Active turn indicator — 4 chevrons zoom in and fade */}
+                  {turnFlashCombatantId && (() => {
+                    const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
+                    if (!activeComb) return null;
+                    const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                    if (!isActiveToken) return null;
+                    return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
+                  })()}
+                  {/* Target ring for targeted monsters */}
+                  {targetedCombatantIds && token.combatantId && targetedCombatantIds.has(token.combatantId) && (
+                    <TargetRing radius={r} tokenScale={tokenScale} />
+                  )}
+                  {token.avatar && (
+                    <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
+                      <TokenAvatar
+                        url={token.avatar}
                         radius={r - tokenScale}
-                        fill="rgba(0, 0, 0, 0.72)"
-                        perfectDrawEnabled={false}
-                      />
-                      {/* Skull body + jaw */}
-                      <Path
-                        data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"
-                        stroke="rgba(255,255,255,0.9)"
-                        strokeWidth={1.5}
-                        fill="rgba(255,255,255,0.18)"
-                        lineCap="round"
-                        lineJoin="round"
-                        scale={{ x: s, y: s }}
-                        x={ox}
-                        y={oy}
-                        perfectDrawEnabled={false}
-                      />
-                      {/* Nose */}
-                      <Path
-                        data="m12.5 17-.5-1-.5 1h1z"
-                        stroke="rgba(255,255,255,0.9)"
-                        strokeWidth={1.5}
-                        fill="rgba(255,255,255,0.9)"
-                        lineCap="round"
-                        lineJoin="round"
-                        scale={{ x: s, y: s }}
-                        x={ox}
-                        y={oy}
-                        perfectDrawEnabled={false}
-                      />
-                      {/* Left eye */}
-                      <Circle
-                        x={9 * s + ox}
-                        y={12 * s + oy}
-                        radius={s}
-                        fill="rgba(255,255,255,0.9)"
-                        perfectDrawEnabled={false}
-                      />
-                      {/* Right eye */}
-                      <Circle
-                        x={15 * s + ox}
-                        y={12 * s + oy}
-                        radius={s}
-                        fill="rgba(255,255,255,0.9)"
-                        perfectDrawEnabled={false}
                       />
                     </Group>
-                  );
-                })()}
-                {/* Bloodied overlay — red tint when at or below half HP */}
-                {bloodiedTokenIds.has(token.id) && (
-                  <Circle
-                    radius={r - tokenScale}
-                    fill="rgba(220, 38, 38, 0.35)"
-                    listening={false}
-                    perfectDrawEnabled={false}
-                  />
-                )}
-                {token.hidden && (
-                  <Path
-                    data="M9.88 9.88l-3.29-3.29m7.53 7.53l3.29 3.29M3 3l18 18M10.37 4.37a11 11 0 0 1 10.63 7.63 11 11 0 0 1-7.01 6.14m-3.99-.14A11 11 0 0 1 3 12a11 11 0 0 1 3.17-4.83m2.22 2.22a3 3 0 0 0 4.24 4.24"
-                    stroke="white"
-                    strokeWidth={2}
-                    lineCap="round"
-                    lineJoin="round"
-                    scale={{ x: tokenRadius / 25, y: tokenRadius / 25 }}
-                    x={-12 * (tokenRadius / 25)}
-                    y={-12 * (tokenRadius / 25)}
-                    listening={false}
-                    perfectDrawEnabled={false}
-                  />
-                )}
-                {tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
-                  const combId = token.combatantId || '';
-                  const sr = activeAoe.saveResults![combId];
-                  if (!sr) return null;
-                  const color = sr.success ? 'rgba(34, 197, 94,' : 'rgba(239, 68, 68,';
-                  // Lucide icons are 24x24 viewbox; scale to ~60% of token diameter
-                  const iconScale = (r * 1.2) / 24;
-                  return (
-                    <>
-                      <Circle
-                        radius={r}
-                        fill={`${color} 0.45)`}
-                      />
-                      <Path
-                        data={sr.success
-                          ? 'M20 6L9 17l-5-5' // Lucide "Check"
-                          : 'M18 6L6 18M6 6l12 12' // Lucide "X"
-                        }
-                        stroke="white"
-                        strokeWidth={2.5}
-                        lineCap="round"
-                        lineJoin="round"
-                        fill=""
-                        scale={{ x: iconScale, y: iconScale }}
-                        x={-12 * iconScale}
-                        y={-12 * iconScale}
-                      />
-                    </>
-                  );
-                })()}
-                {!isPlayerView && (
-                  <Text
-                    text={token.name}
-                    fontSize={Math.max(10, tokenRadius * 0.55)}
-                    fill="white"
-                    y={r + 5}
-                    align="center"
-                    width={tokenRadius * 5}
-                    x={-tokenRadius * 2.5}
-                    fontStyle="bold"
-                    fontFamily="Inter"
-                    opacity={token.invisible ? 0.5 : token.hidden ? 0.6 : 1}
-                    listening={false}
-                    perfectDrawEnabled={false}
-                  />
-                )}
-              </Group>
+                  )}
+                  {/* Dead overlay — black tint + skull when at 0 HP */}
+                  {deadTokenIds.has(token.id) && (() => {
+                    const s = r / 28;
+                    const ox = -12 * s;
+                    const oy = -12 * s;
+                    return (
+                      <Group listening={false}>
+                        <Circle
+                          radius={r - tokenScale}
+                          fill="rgba(0, 0, 0, 0.72)"
+                          perfectDrawEnabled={false}
+                        />
+                        {/* Skull body + jaw */}
+                        <Path
+                          data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"
+                          stroke="rgba(255,255,255,0.9)"
+                          strokeWidth={1.5}
+                          fill="rgba(255,255,255,0.18)"
+                          lineCap="round"
+                          lineJoin="round"
+                          scale={{ x: s, y: s }}
+                          x={ox}
+                          y={oy}
+                          perfectDrawEnabled={false}
+                        />
+                        {/* Nose */}
+                        <Path
+                          data="m12.5 17-.5-1-.5 1h1z"
+                          stroke="rgba(255,255,255,0.9)"
+                          strokeWidth={1.5}
+                          fill="rgba(255,255,255,0.9)"
+                          lineCap="round"
+                          lineJoin="round"
+                          scale={{ x: s, y: s }}
+                          x={ox}
+                          y={oy}
+                          perfectDrawEnabled={false}
+                        />
+                        {/* Left eye */}
+                        <Circle
+                          x={9 * s + ox}
+                          y={12 * s + oy}
+                          radius={s}
+                          fill="rgba(255,255,255,0.9)"
+                          perfectDrawEnabled={false}
+                        />
+                        {/* Right eye */}
+                        <Circle
+                          x={15 * s + ox}
+                          y={12 * s + oy}
+                          radius={s}
+                          fill="rgba(255,255,255,0.9)"
+                          perfectDrawEnabled={false}
+                        />
+                      </Group>
+                    );
+                  })()}
+                  {/* Bloodied overlay — red tint when at or below half HP */}
+                  {bloodiedTokenIds.has(token.id) && (
+                    <Circle
+                      radius={r - tokenScale}
+                      fill="rgba(220, 38, 38, 0.35)"
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  )}
+                  {token.hidden && (
+                    <Path
+                      data="M9.88 9.88l-3.29-3.29m7.53 7.53l3.29 3.29M3 3l18 18M10.37 4.37a11 11 0 0 1 10.63 7.63 11 11 0 0 1-7.01 6.14m-3.99-.14A11 11 0 0 1 3 12a11 11 0 0 1 3.17-4.83m2.22 2.22a3 3 0 0 0 4.24 4.24"
+                      stroke="white"
+                      strokeWidth={2}
+                      lineCap="round"
+                      lineJoin="round"
+                      scale={{ x: tokenRadius / 25, y: tokenRadius / 25 }}
+                      x={-12 * (tokenRadius / 25)}
+                      y={-12 * (tokenRadius / 25)}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  )}
+                  {tokensInAoe.has(token.id) && activeAoe?.saveResults && (() => {
+                    const combId = token.combatantId || '';
+                    const sr = activeAoe.saveResults![combId];
+                    if (!sr) return null;
+                    const color = sr.success ? 'rgba(34, 197, 94,' : 'rgba(239, 68, 68,';
+                    // Lucide icons are 24x24 viewbox; scale to ~60% of token diameter
+                    const iconScale = (r * 1.2) / 24;
+                    return (
+                      <>
+                        <Circle
+                          radius={r}
+                          fill={`${color} 0.45)`}
+                        />
+                        <Path
+                          data={sr.success
+                            ? 'M20 6L9 17l-5-5' // Lucide "Check"
+                            : 'M18 6L6 18M6 6l12 12' // Lucide "X"
+                          }
+                          stroke="white"
+                          strokeWidth={2.5}
+                          lineCap="round"
+                          lineJoin="round"
+                          fill=""
+                          scale={{ x: iconScale, y: iconScale }}
+                          x={-12 * iconScale}
+                          y={-12 * iconScale}
+                        />
+                      </>
+                    );
+                  })()}
+                  {!isPlayerView && (
+                    <Text
+                      text={token.name}
+                      fontSize={Math.max(10, tokenRadius * 0.55)}
+                      fill="white"
+                      y={r + 5}
+                      align="center"
+                      width={tokenRadius * 5}
+                      x={-tokenRadius * 2.5}
+                      fontStyle="bold"
+                      fontFamily="Inter"
+                      opacity={token.invisible ? 0.5 : token.hidden ? 0.6 : 1}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  )}
+                </Group>
               );
             })}
           </Layer>
@@ -4954,102 +4954,102 @@ const MapViewInner: React.FC<MapViewProps> = ({
               {tokens.filter(t => t.type === 'player').map(token => {
                 const r = tokenRadius * getTokenSizeMultiplier(token.size);
                 return (
-                <Group
-                  key={token.id}
-                  x={livePlayerPos[token.id]?.x ?? token.x}
-                  y={livePlayerPos[token.id]?.y ?? token.y}
-                  draggable={!activeAoe && !isMeasuringActive}
-                  onMouseDown={(e) => { e.cancelBubble = true; }}
-                  onDragStart={() => handleDragStart(token.id)}
-                  onDragMove={(e) => handleDragMove(token.id, e)}
-                  onDragEnd={(e) => handleDragEnd(token.id, e)}
-                  onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
-                  onClick={(e) => {
-                    e.cancelBubble = true;
-                    tokenTapConsumedRef.current = true;
-                    if (onPlayerTokenDoubleTap && !activeAoe) {
-                      const now = Date.now();
-                      const last = lastTapRef.current;
-                      if (last && last.tokenId === token.id && now - last.time < 400) {
-                        lastTapRef.current = null;
-                        const rect = containerRef.current?.getBoundingClientRect();
-                        if (rect) {
-                          const screenX = rect.left + token.x * stageScale + stagePos.x;
-                          const screenY = rect.top + token.y * stageScale + stagePos.y;
-                          onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                  <Group
+                    key={token.id}
+                    x={livePlayerPos[token.id]?.x ?? token.x}
+                    y={livePlayerPos[token.id]?.y ?? token.y}
+                    draggable={!activeAoe && !isMeasuringActive}
+                    onMouseDown={(e) => { e.cancelBubble = true; }}
+                    onDragStart={() => handleDragStart(token.id)}
+                    onDragMove={(e) => handleDragMove(token.id, e)}
+                    onDragEnd={(e) => handleDragEnd(token.id, e)}
+                    onContextMenu={(e) => handleTokenContextMenu(e, token.id)}
+                    onClick={(e) => {
+                      e.cancelBubble = true;
+                      tokenTapConsumedRef.current = true;
+                      if (onPlayerTokenDoubleTap && !activeAoe) {
+                        const now = Date.now();
+                        const last = lastTapRef.current;
+                        if (last && last.tokenId === token.id && now - last.time < 400) {
+                          lastTapRef.current = null;
+                          const rect = containerRef.current?.getBoundingClientRect();
+                          if (rect) {
+                            const screenX = rect.left + token.x * stageScale + stagePos.x;
+                            const screenY = rect.top + token.y * stageScale + stagePos.y;
+                            onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                          }
+                          return;
                         }
-                        return;
+                        lastTapRef.current = { tokenId: token.id, time: now };
                       }
-                      lastTapRef.current = { tokenId: token.id, time: now };
-                    }
-                  }}
-                  onTap={(e) => {
-                    e.cancelBubble = true;
-                    tokenTapConsumedRef.current = true;
-                    if (onPlayerTokenDoubleTap && !activeAoe) {
-                      const now = Date.now();
-                      const last = lastTapRef.current;
-                      if (last && last.tokenId === token.id && now - last.time < 400) {
-                        lastTapRef.current = null;
-                        const rect = containerRef.current?.getBoundingClientRect();
-                        if (rect) {
-                          const screenX = rect.left + token.x * stageScale + stagePos.x;
-                          const screenY = rect.top + token.y * stageScale + stagePos.y;
-                          onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                    }}
+                    onTap={(e) => {
+                      e.cancelBubble = true;
+                      tokenTapConsumedRef.current = true;
+                      if (onPlayerTokenDoubleTap && !activeAoe) {
+                        const now = Date.now();
+                        const last = lastTapRef.current;
+                        if (last && last.tokenId === token.id && now - last.time < 400) {
+                          lastTapRef.current = null;
+                          const rect = containerRef.current?.getBoundingClientRect();
+                          if (rect) {
+                            const screenX = rect.left + token.x * stageScale + stagePos.x;
+                            const screenY = rect.top + token.y * stageScale + stagePos.y;
+                            onPlayerTokenDoubleTap(token.id, screenX, screenY);
+                          }
+                          return;
                         }
-                        return;
+                        lastTapRef.current = { tokenId: token.id, time: now };
                       }
-                      lastTapRef.current = { tokenId: token.id, time: now };
-                    }
-                  }}
-                >
-                  {/* Countdown Timers */}
-                  {(activeTimers || []).filter(t => t.playerId === token.combatantId).map((timer, i) => (
-                    <CountdownRing
-                      key={`timer-${timer.playerId}-${timer.abilityId}-${i}`}
-                      radius={r + (i * 5 * tokenScale)}
-                      tokenScale={tokenScale}
-                      startTime={timer.startTime}
-                      durationMs={timer.durationMs}
-                      color={timer.color}
+                    }}
+                  >
+                    {/* Countdown Timers */}
+                    {(activeTimers || []).filter(t => t.playerId === token.combatantId).map((timer, i) => (
+                      <CountdownRing
+                        key={`timer-${timer.playerId}-${timer.abilityId}-${i}`}
+                        radius={r + (i * 5 * tokenScale)}
+                        tokenScale={tokenScale}
+                        startTime={timer.startTime}
+                        durationMs={timer.durationMs}
+                        color={timer.color}
+                      />
+                    ))}
+                    <Circle
+                      radius={r}
+                      fill={token.avatar ? 'transparent' : token.color}
+                      stroke={token.color}
+                      strokeWidth={2 * tokenScale}
+                      opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                      dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
+                      perfectDrawEnabled={false}
                     />
-                  ))}
-                  <Circle
-                    radius={r}
-                    fill={token.avatar ? 'transparent' : token.color}
-                    stroke={token.color}
-                    strokeWidth={2 * tokenScale}
-                    opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
-                    dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
-                    perfectDrawEnabled={false}
-                  />
-                  {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
-                    const hlRgb2 = getDamageRgb(activeAoe?.damageType);
-                    return <>
-                      <Circle radius={r + 4 * tokenScale} fill="" stroke={`rgba(${hlRgb2}, 0.4)`} strokeWidth={3 * tokenScale} listening={false} perfectDrawEnabled={false} />
-                      <Circle radius={r + 3 * tokenScale} fill="" stroke={`rgba(${hlRgb2}, 0.9)`} strokeWidth={2.5 * tokenScale} listening={false} perfectDrawEnabled={false} />
-                    </>;
-                  })()}
-                  {propActiveCombatantId && (() => {
-                    const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
-                    if (!activeComb) return null;
-                    const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
-                    if (!isActiveToken) return null;
-                    return <ActiveTurnRing radius={r} tokenScale={tokenScale} color="#fbbf24" />;
-                  })()}
-                  {turnFlashCombatantId && (() => {
-                    const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
-                    if (!activeComb) return null;
-                    const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
-                    if (!isActiveToken) return null;
-                    return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
-                  })()}
-                  {token.avatar && (
-                    <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
-                      <TokenAvatar url={token.avatar} radius={r - tokenScale} />
-                    </Group>
-                  )}
-                </Group>
+                    {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
+                      const hlRgb2 = getDamageRgb(activeAoe?.damageType);
+                      return <>
+                        <Circle radius={r + 4 * tokenScale} fill="" stroke={`rgba(${hlRgb2}, 0.4)`} strokeWidth={3 * tokenScale} listening={false} perfectDrawEnabled={false} />
+                        <Circle radius={r + 3 * tokenScale} fill="" stroke={`rgba(${hlRgb2}, 0.9)`} strokeWidth={2.5 * tokenScale} listening={false} perfectDrawEnabled={false} />
+                      </>;
+                    })()}
+                    {propActiveCombatantId && (() => {
+                      const activeComb = activeCombatants.find(c => c.id === propActiveCombatantId);
+                      if (!activeComb) return null;
+                      const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                      if (!isActiveToken) return null;
+                      return <ActiveTurnRing radius={r} tokenScale={tokenScale} color="#fbbf24" />;
+                    })()}
+                    {turnFlashCombatantId && (() => {
+                      const activeComb = activeCombatants.find(c => c.id === turnFlashCombatantId);
+                      if (!activeComb) return null;
+                      const isActiveToken = token.combatantId === activeComb.sourceCombatantId || token.combatantId === activeComb.id;
+                      if (!isActiveToken) return null;
+                      return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
+                    })()}
+                    {token.avatar && (
+                      <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
+                        <TokenAvatar url={token.avatar} radius={r - tokenScale} />
+                      </Group>
+                    )}
+                  </Group>
                 );
               })}
             </Layer>
@@ -5343,9 +5343,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             // Local corners (relative to wall center at 0,0) — Line is positioned via x/y
             const localCorners = [
               { x: -halfL * cosA - -halfT * sinA, y: -halfL * sinA + -halfT * cosA },
-              { x:  halfL * cosA - -halfT * sinA, y:  halfL * sinA + -halfT * cosA },
-              { x:  halfL * cosA -  halfT * sinA, y:  halfL * sinA +  halfT * cosA },
-              { x: -halfL * cosA -  halfT * sinA, y: -halfL * sinA +  halfT * cosA },
+              { x: halfL * cosA - -halfT * sinA, y: halfL * sinA + -halfT * cosA },
+              { x: halfL * cosA - halfT * sinA, y: halfL * sinA + halfT * cosA },
+              { x: -halfL * cosA - halfT * sinA, y: -halfL * sinA + halfT * cosA },
             ];
             const pointsFlat = localCorners.flatMap(c => [c.x, c.y]);
             // Handle positions (world coords) — symmetric about center
@@ -5859,7 +5859,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           const screenX = note.x * stageScale + stagePos.x;
           // Position relative to note radius (scaled to screen size)
           const screenY = note.y * stageScale + stagePos.y - (tokenRadius * 0.6 * stageScale) - 8;
-          
+
           return (
             <div
               className="absolute pointer-events-none z-[100] bg-black shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded px-3 py-2 border border-white/10"
@@ -6592,343 +6592,343 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </div>
         )}
 
-      {/* Custom Confirm Dialog */}
-      <AnimatePresence>
-        {confirmDialog && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setConfirmDialog(null)}
-          >
+        {/* Custom Confirm Dialog */}
+        <AnimatePresence>
+          {confirmDialog && (
             <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[360px] p-6 mx-4"
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => setConfirmDialog(null)}
             >
-              <p className="text-sm mb-6 leading-relaxed">{confirmDialog.message}</p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setConfirmDialog(null)}
-                  className="btn-ghost py-1.5 px-4 rounded-lg text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
-                  className="py-1.5 px-4 rounded-lg text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-                >
-                  DELETE
-                </button>
-              </div>
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[360px] p-6 mx-4"
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="text-sm mb-6 leading-relaxed">{confirmDialog.message}</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setConfirmDialog(null)}
+                    className="btn-ghost py-1.5 px-4 rounded-lg text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
+                    className="py-1.5 px-4 rounded-lg text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                  >
+                    DELETE
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Change Map Warning Modal */}
-      <AnimatePresence>
-        {showChangeMapModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowChangeMapModal(false)}
-          >
+        {/* Change Map Warning Modal */}
+        <AnimatePresence>
+          {showChangeMapModal && (
             <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[420px] p-6 mx-4"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowChangeMapModal(false)}
             >
-              <div className="flex items-start gap-4 mb-5">
-                <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Upload size={18} className="text-yellow-400" />
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[420px] p-6 mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start gap-4 mb-5">
+                  <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <Upload size={18} className="text-yellow-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base font-serif mb-1">Change Map?</h3>
+                    <p className="text-sm opacity-60 leading-relaxed">
+                      This scenario has {tokens.length > 0 && mapNotes.length > 0
+                        ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''} and ${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
+                        : tokens.length > 0
+                          ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`
+                          : `${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
+                      } placed on the current map. Uploading a new map will remove all of them.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-base font-serif mb-1">Change Map?</h3>
-                  <p className="text-sm opacity-60 leading-relaxed">
-                    This scenario has {tokens.length > 0 && mapNotes.length > 0
-                      ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''} and ${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
-                      : tokens.length > 0
-                        ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`
-                        : `${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
-                    } placed on the current map. Uploading a new map will remove all of them.
-                  </p>
+
+                <div className="bg-black/20 border border-[var(--line)] rounded-xl p-3 mb-5 text-xs opacity-60 leading-relaxed">
+                  If you want to keep this scenario's content, consider creating a new scenario instead.
                 </div>
-              </div>
 
-              <div className="bg-black/20 border border-[var(--line)] rounded-xl p-3 mb-5 text-xs opacity-60 leading-relaxed">
-                If you want to keep this scenario's content, consider creating a new scenario instead.
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => {
-                    setShowChangeMapModal(false);
-                    fileInputRef.current?.click();
-                  }}
-                  className="btn-filled py-2.5 rounded-xl"
-                >
-                  Change Map Anyway
-                </button>
-                {onAddScenario && (
+                <div className="flex flex-col gap-2">
                   <button
                     onClick={() => {
                       setShowChangeMapModal(false);
-                      onAddScenario();
+                      fileInputRef.current?.click();
                     }}
-                    className="btn-ghost py-2.5 rounded-xl"
+                    className="btn-filled py-2.5 rounded-xl"
                   >
-                    Create New Scenario Instead
+                    Change Map Anyway
                   </button>
-                )}
-                <button
-                  onClick={() => setShowChangeMapModal(false)}
-                  className="py-2 text-xs opacity-40 hover:opacity-70 transition-opacity"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Transition Zone Config Modal */}
-      <AnimatePresence>
-        {transitionZoneConfig && floors && floors.length > 1 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => { setTransitionZoneConfig(null); setTzSelectedFloorId(''); setTzFloorPickerOpen(false); }}
-          >
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[400px] p-6 mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-                <ArrowUpDown size={16} className="text-blue-400" /> Configure Transition Zone
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs opacity-60 block mb-1">Label (optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Stairs down, Hole, Ladder..."
-                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm"
-                    id="tz-label"
-                    autoFocus
-                    onKeyDown={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs opacity-60 block mb-1">Target Floor</label>
-                  <div className="relative">
+                  {onAddScenario && (
                     <button
-                      type="button"
-                      onClick={() => setTzFloorPickerOpen(o => !o)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm hover:border-[var(--accent)] transition-colors"
+                      onClick={() => {
+                        setShowChangeMapModal(false);
+                        onAddScenario();
+                      }}
+                      className="btn-ghost py-2.5 rounded-xl"
                     >
-                      <span className={tzSelectedFloorId ? '' : 'opacity-40'}>
-                        {tzSelectedFloorId
-                          ? floors.find(f => f.id === tzSelectedFloorId)?.name
-                          : 'Select floor...'}
-                      </span>
-                      <ChevronDown size={14} className={cn('opacity-50 transition-transform', tzFloorPickerOpen && 'rotate-180')} />
+                      Create New Scenario Instead
                     </button>
-                    <AnimatePresence>
-                      {tzFloorPickerOpen && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setTzFloorPickerOpen(false)} />
-                          <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.12 }}
-                            className="absolute top-full left-0 right-0 mt-1 z-20 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden"
-                          >
-                            {floors.filter(f => f.id !== activeFloorId).map(f => (
-                              <button
-                                key={f.id}
-                                type="button"
-                                onClick={() => { setTzSelectedFloorId(f.id); setTzFloorPickerOpen(false); }}
-                                className={cn(
-                                  'w-full text-left px-3 py-2 text-sm hover:bg-white/5 transition-colors',
-                                  tzSelectedFloorId === f.id && 'text-[var(--accent)]'
-                                )}
-                              >
-                                {f.name}
-                              </button>
-                            ))}
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-                <p className="text-xs opacity-40">You'll draw the arrival zone on the target floor next.</p>
-                <div className="flex gap-2 mt-4">
+                  )}
                   <button
-                    onClick={() => {
-                      const targetFloorId = tzSelectedFloorId;
-                      const label = (document.getElementById('tz-label') as HTMLInputElement)?.value?.trim();
-                      if (!targetFloorId) return;
-                      // Compute next pairIndex from all floors
-                      let maxPairIndex = 0;
-                      for (const f of floors) {
-                        for (const tz of f.transitionZones || []) {
-                          if (tz.pairIndex != null && tz.pairIndex > maxPairIndex) maxPairIndex = tz.pairIndex;
-                        }
-                      }
-                      const nextPairIndex = maxPairIndex + 1;
-                      setPendingPairData({
-                        sourceFloorId: activeFloorId || floors[0]?.id || '',
-                        sourceRect: transitionZoneConfig.rect,
-                        targetFloorId,
-                        label: label || undefined,
-                        pairIndex: nextPairIndex,
-                      });
-                      setTransitionZoneConfig(null);
-                      setTzSelectedFloorId('');
-                      setTransitionZoneMode(true);
-                      onSwitchFloor?.(targetFloorId);
-                    }}
-                    className="btn-filled py-1.5 px-3 rounded-lg text-xs"
-                  >
-                    Next: Draw Arrival Zone
-                  </button>
-                  <button
-                    onClick={() => { setTransitionZoneConfig(null); setTzSelectedFloorId(''); setTzFloorPickerOpen(false); }}
-                    className="btn-ghost py-1.5 px-3 rounded-lg text-xs"
+                    onClick={() => setShowChangeMapModal(false)}
+                    className="py-2 text-xs opacity-40 hover:opacity-70 transition-opacity"
                   >
                     Cancel
                   </button>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Drawing banner — shown during both first and second zone drawing */}
-      {transitionZoneMode && !transitionZoneConfig && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-3 px-4 py-2 bg-blue-600/90 rounded-xl shadow-lg text-white text-xs font-medium whitespace-nowrap">
-          <span>
-            {pendingPairData
-              ? `Draw arrival zone on ${floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click and drag`
-              : 'Draw transition zone — click and drag'}
-          </span>
-          <button
-            onClick={() => {
-              if (pendingPairData) onSwitchFloor?.(pendingPairData.sourceFloorId);
-              setPendingPairData(null);
-              setTransitionZoneMode(false);
-              setDrawingZone(null);
-            }}
-            className="px-2 py-0.5 bg-white/20 rounded-md hover:bg-white/30"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Transition Popup — appears when token is dropped on a transition zone */}
-      <AnimatePresence>
-        {transitionPopup && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="fixed z-[70] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl p-3 min-w-[180px]"
-            style={{ left: transitionPopup.screenX - 90, top: transitionPopup.screenY + 30 }}
-          >
-            {(() => {
-              const zone = transitionPopup.zone;
-              const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
-              // Compute arrival position: use partner zone's rect center if available, fall back to targetPosition
-              let arrivalX = zone.targetPosition.x;
-              let arrivalY = zone.targetPosition.y;
-              if (zone.pairedZoneId && targetFloor) {
-                const partnerZone = targetFloor.transitionZones?.find(tz => tz.id === zone.pairedZoneId);
-                if (partnerZone) {
-                  arrivalX = partnerZone.rect.x + partnerZone.rect.width / 2;
-                  arrivalY = partnerZone.rect.y + partnerZone.rect.height / 2;
-                }
-              }
-              return (
-                <>
-                  <p className="text-xs opacity-60 mb-2 text-center">
-                    {zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
-                  </p>
-                  <div className="flex flex-col gap-1.5">
+        {/* Transition Zone Config Modal */}
+        <AnimatePresence>
+          {transitionZoneConfig && floors && floors.length > 1 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => { setTransitionZoneConfig(null); setTzSelectedFloorId(''); setTzFloorPickerOpen(false); }}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[400px] p-6 mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                  <ArrowUpDown size={16} className="text-blue-400" /> Configure Transition Zone
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs opacity-60 block mb-1">Label (optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Stairs down, Hole, Ladder..."
+                      className="w-full px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm"
+                      id="tz-label"
+                      autoFocus
+                      onKeyDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs opacity-60 block mb-1">Target Floor</label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setTzFloorPickerOpen(o => !o)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-black/30 border border-[var(--line)] text-sm hover:border-[var(--accent)] transition-colors"
+                      >
+                        <span className={tzSelectedFloorId ? '' : 'opacity-40'}>
+                          {tzSelectedFloorId
+                            ? floors.find(f => f.id === tzSelectedFloorId)?.name
+                            : 'Select floor...'}
+                        </span>
+                        <ChevronDown size={14} className={cn('opacity-50 transition-transform', tzFloorPickerOpen && 'rotate-180')} />
+                      </button>
+                      <AnimatePresence>
+                        {tzFloorPickerOpen && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setTzFloorPickerOpen(false)} />
+                            <motion.div
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.12 }}
+                              className="absolute top-full left-0 right-0 mt-1 z-20 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden"
+                            >
+                              {floors.filter(f => f.id !== activeFloorId).map(f => (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => { setTzSelectedFloorId(f.id); setTzFloorPickerOpen(false); }}
+                                  className={cn(
+                                    'w-full text-left px-3 py-2 text-sm hover:bg-white/5 transition-colors',
+                                    tzSelectedFloorId === f.id && 'text-[var(--accent)]'
+                                  )}
+                                >
+                                  {f.name}
+                                </button>
+                              ))}
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                  <p className="text-xs opacity-40">You'll draw the arrival zone on the target floor next.</p>
+                  <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => {
-                        const updated = tokens.map(t =>
-                          t.id === transitionPopup.tokenId
-                            ? { ...t, floorId: zone.targetFloorId, x: arrivalX, y: arrivalY }
-                            : t
-                        );
-                        onTokensChange(updated);
-                        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                          window.electronAPI.sendPlayerTokenUpdate(updated);
+                        const targetFloorId = tzSelectedFloorId;
+                        const label = (document.getElementById('tz-label') as HTMLInputElement)?.value?.trim();
+                        if (!targetFloorId) return;
+                        // Compute next pairIndex from all floors
+                        let maxPairIndex = 0;
+                        for (const f of floors) {
+                          for (const tz of f.transitionZones || []) {
+                            if (tz.pairIndex != null && tz.pairIndex > maxPairIndex) maxPairIndex = tz.pairIndex;
+                          }
                         }
-                        setTransitionPopup(null);
+                        const nextPairIndex = maxPairIndex + 1;
+                        setPendingPairData({
+                          sourceFloorId: activeFloorId || floors[0]?.id || '',
+                          sourceRect: transitionZoneConfig.rect,
+                          targetFloorId,
+                          label: label || undefined,
+                          pairIndex: nextPairIndex,
+                        });
+                        setTransitionZoneConfig(null);
+                        setTzSelectedFloorId('');
+                        setTransitionZoneMode(true);
+                        onSwitchFloor?.(targetFloorId);
                       }}
-                      className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                      className="btn-filled py-1.5 px-3 rounded-lg text-xs"
                     >
-                      <User size={12} className="text-blue-400" /> Move Just Me
+                      Next: Draw Arrival Zone
                     </button>
                     <button
-                      onClick={() => {
-                        const spacing = gridResolution?.pixelsPerGrid || 70;
-                        let offsetIndex = 0;
-                        const updated = tokens.map(t => {
-                          if (t.type === 'player') {
-                            const col = offsetIndex % 2;
-                            const row = Math.floor(offsetIndex / 2);
-                            offsetIndex++;
-                            return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
-                          }
-                          return t;
-                        });
-                        onTokensChange(updated);
-                        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                          window.electronAPI.sendPlayerTokenUpdate(updated);
-                        }
-                        setTransitionPopup(null);
-                      }}
-                      className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                      onClick={() => { setTransitionZoneConfig(null); setTzSelectedFloorId(''); setTzFloorPickerOpen(false); }}
+                      className="btn-ghost py-1.5 px-3 rounded-lg text-xs"
                     >
-                      <Layers size={12} className="text-blue-400" /> Move Whole Team
+                      Cancel
                     </button>
                   </div>
-                  <button
-                    onClick={() => setTransitionPopup(null)}
-                    className="absolute top-1 right-1 p-1 opacity-40 hover:opacity-100"
-                  >
-                    <X size={10} />
-                  </button>
-                </>
-              );
-            })()}
-          </motion.div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Drawing banner — shown during both first and second zone drawing */}
+        {transitionZoneMode && !transitionZoneConfig && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-3 px-4 py-2 bg-blue-600/90 rounded-xl shadow-lg text-white text-xs font-medium whitespace-nowrap">
+            <span>
+              {pendingPairData
+                ? `Draw arrival zone on ${floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click and drag`
+                : 'Draw transition zone — click and drag'}
+            </span>
+            <button
+              onClick={() => {
+                if (pendingPairData) onSwitchFloor?.(pendingPairData.sourceFloorId);
+                setPendingPairData(null);
+                setTransitionZoneMode(false);
+                setDrawingZone(null);
+              }}
+              className="px-2 py-0.5 bg-white/20 rounded-md hover:bg-white/30"
+            >
+              Cancel
+            </button>
+          </div>
         )}
-      </AnimatePresence>
+
+        {/* Transition Popup — appears when token is dropped on a transition zone */}
+        <AnimatePresence>
+          {transitionPopup && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="fixed z-[70] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl p-3 min-w-[180px]"
+              style={{ left: transitionPopup.screenX - 90, top: transitionPopup.screenY + 30 }}
+            >
+              {(() => {
+                const zone = transitionPopup.zone;
+                const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
+                // Compute arrival position: use partner zone's rect center if available, fall back to targetPosition
+                let arrivalX = zone.targetPosition.x;
+                let arrivalY = zone.targetPosition.y;
+                if (zone.pairedZoneId && targetFloor) {
+                  const partnerZone = targetFloor.transitionZones?.find(tz => tz.id === zone.pairedZoneId);
+                  if (partnerZone) {
+                    arrivalX = partnerZone.rect.x + partnerZone.rect.width / 2;
+                    arrivalY = partnerZone.rect.y + partnerZone.rect.height / 2;
+                  }
+                }
+                return (
+                  <>
+                    <p className="text-xs opacity-60 mb-2 text-center">
+                      {zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        onClick={() => {
+                          const updated = tokens.map(t =>
+                            t.id === transitionPopup.tokenId
+                              ? { ...t, floorId: zone.targetFloorId, x: arrivalX, y: arrivalY }
+                              : t
+                          );
+                          onTokensChange(updated);
+                          if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                            window.electronAPI.sendPlayerTokenUpdate(updated);
+                          }
+                          setTransitionPopup(null);
+                        }}
+                        className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                      >
+                        <User size={12} className="text-blue-400" /> Move Just Me
+                      </button>
+                      <button
+                        onClick={() => {
+                          const spacing = gridResolution?.pixelsPerGrid || 70;
+                          let offsetIndex = 0;
+                          const updated = tokens.map(t => {
+                            if (t.type === 'player') {
+                              const col = offsetIndex % 2;
+                              const row = Math.floor(offsetIndex / 2);
+                              offsetIndex++;
+                              return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
+                            }
+                            return t;
+                          });
+                          onTokensChange(updated);
+                          if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                            window.electronAPI.sendPlayerTokenUpdate(updated);
+                          }
+                          setTransitionPopup(null);
+                        }}
+                        className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                      >
+                        <Layers size={12} className="text-blue-400" /> Move Whole Team
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setTransitionPopup(null)}
+                      className="absolute top-1 right-1 p-1 opacity-40 hover:opacity-100"
+                    >
+                      <X size={10} />
+                    </button>
+                  </>
+                );
+              })()}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>

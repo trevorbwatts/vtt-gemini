@@ -911,7 +911,7 @@ const SpellsPanel: React.FC<{
         <div>
           {isWildShaped && onRevertWildShape && (
             <button
-              onPointerDown={(e) => { e.stopPropagation(); onRevertWildShape(); onClose(); }}
+              onClick={(e) => { e.stopPropagation(); onRevertWildShape(); onClose(); }}
               className="w-full mb-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 active:bg-red-500/40 transition-colors"
             >
               Revert Wild Shape
@@ -949,7 +949,7 @@ const SpellsPanel: React.FC<{
                     </span>
                     {onWildShape && (
                       <button
-                        onPointerDown={(e) => { e.stopPropagation(); onWildShape(beast); setBeastSearch(''); setShowKeyboard(false); onClose(); }}
+                        onClick={(e) => { e.stopPropagation(); onWildShape(beast); setBeastSearch(''); setShowKeyboard(false); onClose(); }}
                         className="ml-1 shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 active:bg-emerald-500/40 transition-colors"
                       >
                         Shift
@@ -1058,7 +1058,7 @@ const SpellsPanel: React.FC<{
                         AC {beast.ac}
                       </span>
                       <button
-                        onPointerDown={(e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           const spellName = summonPickerSpell.name;
                           const creatureSize = (beast.size as Token['size']) || 'Small';
