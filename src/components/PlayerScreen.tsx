@@ -1289,7 +1289,7 @@ export function PlayerScreen() {
 
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>(null);
-  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>(null);
+  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; aoeType?: string; aoeSize?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>(null);
   const addMarkersDirectlyRef = useRef<((markers: import('../types').SpellMarker[]) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
@@ -1306,7 +1306,7 @@ export function PlayerScreen() {
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
 
   // Wall of Fire variant picker — shown when player casts Wall of Fire before choosing Wall vs Ring
-  const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
+  const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
 
   // Summon creature picker — shown when player casts a Summon spell (e.g. Summon Aberration)
   const [summonPicker, setSummonPicker] = useState<{ spotId: SpotId; playerId: string; spell: any; options: SummonOption[] } | null>(null);
@@ -1767,7 +1767,17 @@ export function PlayerScreen() {
 
     // Wall of Fire exception: show variant picker (Wall vs Ring) before placement
     if (spell?.name === 'Wall of Fire') {
-      setWallOfFirePicker({ spotId, playerId });
+      const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
+      let wofSaveDc: number | undefined = (player as any).spellSaveDc;
+      if (!wofSaveDc && (player as any).stats && (player as any).proficiencyBonus && (player as any).classes?.length) {
+        let bestMod = -Infinity;
+        for (const cls of (player as any).classes) {
+          const ability = CASTING_ABILITY[cls.name?.toLowerCase?.()];
+          if (ability) { const m = Math.floor(((player as any).stats[ability] - 10) / 2); if (m > bestMod) bestMod = m; }
+        }
+        if (bestMod !== -Infinity) wofSaveDc = 8 + (player as any).proficiencyBonus + bestMod;
+      }
+      setWallOfFirePicker({ spotId, playerId, saveDc: wofSaveDc });
       setOpenPanel(null);
       setActionRing(null);
       return;
@@ -2301,15 +2311,15 @@ export function PlayerScreen() {
 
       {/* Wall of Fire variant picker */}
       {wallOfFirePicker && (() => {
-        const { spotId, playerId } = wallOfFirePicker;
+        const { spotId, playerId, saveDc: wofSaveDc } = wallOfFirePicker;
         const handleVariant = (variant: 'wall' | 'ring') => {
           setWallOfFirePicker(null);
           if (variant === 'wall') {
-            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', shapeType: 'wall', maxLength: 60, maxThickness: 1, blocksVision: false }, playerId);
+            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', shapeType: 'wall', maxLength: 60, maxThickness: 1, blocksVision: false, saveAbility: 'dex', saveDc: wofSaveDc, halfDamageOnSave: true }, playerId);
             setActiveCasting({ spotId, spellName: 'Wall of Fire', saveAbility: 'dex' });
           } else {
-            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', aoeType: 'sphere', aoeSize: 10 }, playerId);
-            setActiveCasting({ spotId, spellName: 'Wall of Fire (Ring)', saveAbility: 'dex', aoeType: 'sphere' });
+            startPlacingRef.current?.({ name: 'Wall of Fire (Ring)', school: 'Evocation', shapeType: 'ring', saveAbility: 'dex', saveDc: wofSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Fire (Ring)', saveAbility: 'dex' });
           }
         };
         return (

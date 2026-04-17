@@ -302,11 +302,12 @@ export interface SpellMarker {
   lightSource?: boolean;
 
   // --- wall-shape fields (Wall of Sand, etc.) ---
-  shapeType?: 'point' | 'wall';   // default behavior is 'point'
+  shapeType?: 'point' | 'wall' | 'ring';  // default behavior is 'point'
   length?: number;                // feet — long axis
   thickness?: number;             // feet — short axis
   angle?: number;                 // degrees — rotation of long axis
   blocksVision?: boolean;         // true for Wall of Sand — fog-of-war integration
+  hotSide?: 'inside' | 'outside'; // Wall of Fire (Ring) — which face emits fire
 }
 
 export interface Viewpoint {

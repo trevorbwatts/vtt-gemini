@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Stage, Layer, Image as KonvaImage, Circle, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
@@ -57,7 +57,7 @@ interface MapViewProps {
   /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can trigger spell marker placement */
-  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; aoeType?: string; aoeSize?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
+  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; aoeType?: string; aoeSize?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>;
   /** Ref that MapView populates so external code can add spell markers directly (no interactive placement) */
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
@@ -557,16 +557,101 @@ const WallOfFireParticles: React.FC<{
     const fadeIn = 0.08 + rand(i, 7) * 0.1;
     const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
     const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, wallLen * 0.006 * sizeMul * (1 - phase * 0.45));
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.45));
     const warm = rand(i, 9);
     const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+    const rotation = rand(i, 10) * 360;
 
     particles.push(
-      <Circle
+      <RegularPolygon
         key={`wfp${i}`}
         x={x}
         y={y}
+        sides={3}
         radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#ff5a00"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Fire particles for Wall of Fire (Ring). Emits from the ring circumference
+ * radially inward or outward depending on hotSide.
+ */
+const WallOfFireRingParticles: React.FC<{
+  cx: number;
+  cy: number;
+  radiusPx: number;
+  hotSide: 'inside' | 'outside';
+}> = ({ cx, cy, radiusPx, hotSide }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (radiusPx < 1) return null;
+
+  const COUNT = 90;
+  const BASE_PERIOD = 1300;
+  const dir = hotSide === 'outside' ? 1 : -1;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
+    const offset = rand(i, 2);
+    const baseAngle = rand(i, 3) * Math.PI * 2;
+    const drift = radiusPx * (0.12 + rand(i, 4) * 0.22);
+    const jitter = (rand(i, 5) - 0.5) * 0.04;
+    const sizeMul = 0.3 + rand(i, 6) * 0.85;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const angle = baseAngle + jitter;
+    const nx = Math.cos(angle) * dir;
+    const ny = Math.sin(angle) * dir;
+    const bx = cx + Math.cos(angle) * radiusPx;
+    const by = cy + Math.sin(angle) * radiusPx;
+    const x = bx + nx * phase * drift;
+    const y = by + ny * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.45));
+    const warm = rand(i, 9);
+    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wfrp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
         fill={fill}
         shadowColor="#ff5a00"
         shadowBlur={size * 2.5}
@@ -960,6 +1045,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
     school: string;
     casterId?: string;
     blocksVision: boolean;
+    saveAbility?: string;
+    saveDc?: number;
+    halfDamageOnSave?: boolean;
+  } | null>(null);
+  // Editing/preview state for Wall of Fire (Ring) — before confirmation
+  const [editingRing, setEditingRing] = useState<{
+    x: number;
+    y: number;
+    radius: number;    // feet, 5–20
+    hotSide: 'inside' | 'outside';
+    spellName: string;
+    school: string;
+    casterId?: string;
+    saveAbility?: string;
+    saveDc?: number;
+    halfDamageOnSave?: boolean;
   } | null>(null);
 
   // Remote AoE: placed by the other screen (DM sees player's AoE, player sees DM's AoE)
@@ -1242,6 +1343,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           school,
           casterId: combatantId,
           blocksVision,
+          saveAbility: spell.saveAbility,
+          saveDc: spell.saveDc,
+          halfDamageOnSave: spell.halfDamageOnSave,
         });
         setPlacingSpell({
           name: spell.name,
@@ -1251,6 +1355,38 @@ const MapViewInner: React.FC<MapViewProps> = ({
           maxLength,
           maxThickness,
           blocksVision,
+        });
+        setPendingMarkerPos(null);
+        setSelectedTokenIds([]);
+        setSelectedTokenId(null);
+        return;
+      }
+
+      // Ring-shape spell (Wall of Fire Ring): open ring editing preview immediately
+      if (shapeType === 'ring') {
+        const casterToken = tokens.find(t => t.combatantId === combatantId);
+        let anchorX: number;
+        let anchorY: number;
+        if (casterToken) {
+          const ppgLocal = gridResolution?.pixelsPerGrid || 40;
+          anchorX = casterToken.x;
+          anchorY = casterToken.y - tokenRadius * 2 - (10 / 5) * ppgLocal;
+        } else {
+          const rect = containerRef.current?.getBoundingClientRect();
+          anchorX = ((rect ? rect.width / 2 : 400) - stagePos.x) / stageScale;
+          anchorY = ((rect ? rect.height / 2 : 300) - stagePos.y) / stageScale;
+        }
+        setEditingRing({
+          x: anchorX,
+          y: anchorY,
+          radius: 5,
+          hotSide: 'outside',
+          spellName: spell.name,
+          school,
+          casterId: combatantId,
+          saveAbility: spell.saveAbility,
+          saveDc: spell.saveDc,
+          halfDamageOnSave: spell.halfDamageOnSave,
         });
         setPendingMarkerPos(null);
         setSelectedTokenIds([]);
@@ -1295,6 +1431,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setCastingSpell(null);
       setCastingMousePos(null);
       setEditingWall(null);
+      setEditingRing(null);
       setPlacingSpell(null);
       onCastingDismissed?.();
       onAoeHighlightsChange?.(null);
@@ -1446,7 +1583,32 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // Confirm Cast: roll saves for affected monsters
   const handleConfirmCast = () => {
-    // Wall-shape placement (Wall of Sand, etc.) — create a persistent rotated-rectangle marker
+    const ppgLocal = gridResolution?.pixelsPerGrid || 40;
+    const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+
+    /** Roll saves for a set of tokens and return results. */
+    const rollSaves = (
+      affectedTokens: typeof tokens,
+      saveAbility: string,
+      saveDc: number,
+    ): Record<string, SaveResult> => {
+      const results: Record<string, SaveResult> = {};
+      for (const token of affectedTokens) {
+        if (!token.combatantId) continue;
+        const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
+        if (!combatant || combatant.type === 'player') continue;
+        const statValue = (combatant.stats as any)?.[saveAbility] || 10;
+        const modifier = Math.floor((statValue - 10) / 2);
+        const roll = Math.floor(Math.random() * 20) + 1;
+        const total = roll + modifier;
+        results[combatant.sourceCombatantId || combatant.id] = {
+          roll, modifier, total, success: total >= saveDc, name: combatant.name,
+        };
+      }
+      return results;
+    };
+
+    // Wall-shape placement (Wall of Sand, Wall of Fire, etc.) — create a persistent rotated-rectangle marker
     if (editingWall) {
       const marker: SpellMarker = {
         id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1472,7 +1634,93 @@ const MapViewInner: React.FC<MapViewProps> = ({
           window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
         }
       } catch (_e) { /* IPC not available */ }
+
+      // Roll saves for tokens overlapping the wall rectangle
+      if (editingWall.saveAbility && editingWall.saveDc) {
+        const wallRad = (editingWall.angle * Math.PI) / 180;
+        const cosA = Math.cos(wallRad);
+        const sinA = Math.sin(wallRad);
+        const halfL = (editingWall.length / 5) * ppgLocal / 2;
+        const halfT = (editingWall.thickness / 5) * ppgLocal / 2;
+        const tRadius = ppgLocal * 0.5;
+        const affected = tokens.filter(t => {
+          const dx = t.x - editingWall!.x;
+          const dy = t.y - editingWall!.y;
+          return Math.abs(dx * cosA + dy * sinA) <= halfL + tRadius &&
+                 Math.abs(-dx * sinA + dy * cosA) <= halfT + tRadius;
+        });
+        const results = rollSaves(affected, editingWall.saveAbility, editingWall.saveDc);
+        const combatantIds = Object.keys(results);
+        setEditingWall(null);
+        setPlacingSpell(null);
+        if (combatantIds.length === 0) { onCastingDismissed?.(); return; }
+        onAoeHighlightsChange?.({
+          affectedCombatantIds: combatantIds,
+          saveResults: results,
+          spellName: editingWall.spellName,
+          saveAbility: editingWall.saveAbility,
+          saveDc: editingWall.saveDc,
+          halfDamageOnSave: editingWall.halfDamageOnSave,
+        });
+        return;
+      }
+
       setEditingWall(null);
+      setPlacingSpell(null);
+      onCastingDismissed?.();
+      return;
+    }
+
+    // Ring-shape placement (Wall of Fire Ring) — create a persistent ring marker
+    if (editingRing) {
+      const marker: SpellMarker = {
+        id: `sm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        spellName: editingRing.spellName,
+        school: editingRing.school,
+        casterId: editingRing.casterId,
+        x: editingRing.x,
+        y: editingRing.y,
+        visibleToPlayers: true,
+        floorId: activeFloorId || undefined,
+        shapeType: 'ring',
+        aoeSize: editingRing.radius,
+        hotSide: editingRing.hotSide,
+      };
+      const updated = [...spellMarkers, marker];
+      onSpellMarkersChange?.(updated);
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+        } else {
+          window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+        }
+      } catch (_e) { /* IPC not available */ }
+
+      // Roll saves for tokens touching the ring (within one token-radius of the ring edge)
+      if (editingRing.saveAbility && editingRing.saveDc) {
+        const ringRadiusPx = (editingRing.radius / 5) * ppgLocal;
+        const tRadius = ppgLocal * 0.5;
+        const affected = tokens.filter(t => {
+          const dist = Math.hypot(t.x - editingRing!.x, t.y - editingRing!.y);
+          return Math.abs(dist - ringRadiusPx) <= tRadius;
+        });
+        const results = rollSaves(affected, editingRing.saveAbility, editingRing.saveDc);
+        const combatantIds = Object.keys(results);
+        setEditingRing(null);
+        setPlacingSpell(null);
+        if (combatantIds.length === 0) { onCastingDismissed?.(); return; }
+        onAoeHighlightsChange?.({
+          affectedCombatantIds: combatantIds,
+          saveResults: results,
+          spellName: editingRing.spellName,
+          saveAbility: editingRing.saveAbility,
+          saveDc: editingRing.saveDc,
+          halfDamageOnSave: editingRing.halfDamageOnSave,
+        });
+        return;
+      }
+
+      setEditingRing(null);
       setPlacingSpell(null);
       onCastingDismissed?.();
       return;
@@ -1581,7 +1829,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       return;
     }
 
-    const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const results: Record<string, SaveResult> = {};
 
     for (const tokenId of tokensInAoe) {
@@ -2707,6 +2954,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
       if (e.code === 'Escape') {
         if (placedAoe) { setPlacedAoe(null); onCastingDismissed?.(); return; }
         if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); onCastingDismissed?.(); return; }
+        if (editingWall) { setEditingWall(null); setPlacingSpell(null); onCastingDismissed?.(); return; }
+        if (editingRing) { setEditingRing(null); setPlacingSpell(null); onCastingDismissed?.(); return; }
       }
 
       const tag = (e.target as HTMLElement).tagName;
@@ -2964,8 +3213,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     // Spell marker placement: click to place
-    // Wall-shape spells use a dedicated preview (editingWall) and should ignore the click-to-place flow
-    if (placingSpell && placingSpell.shapeType === 'wall') {
+    // Wall/ring-shape spells use dedicated previews and should ignore the click-to-place flow
+    if (placingSpell && (placingSpell.shapeType === 'wall' || (placingSpell.shapeType as any) === 'ring')) {
       return;
     }
     if (placingSpell && e.evt.button === 0) {
@@ -5362,6 +5611,74 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       );
                     }
                   }
+                  // Ring-shape marker (Wall of Fire Ring) — also catches old sphere-format markers
+                  if (marker.shapeType === 'ring' || marker.spellName === 'Wall of Fire (Ring)') {
+                    const ringRadiusPx = ((marker.aoeSize ?? 10) / 5) * ppg;
+                    const isHotOutside = (marker.hotSide ?? 'outside') === 'outside';
+                    const tapHandler = (e: any) => {
+                      if (!isPlayerView) return;
+                      e.cancelBubble = true;
+                      const now = Date.now();
+                      const last = lastMarkerTapRef.current;
+                      if (last && last.markerId === marker.id && now - last.time < 400) {
+                        lastMarkerTapRef.current = null;
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        setDismissMarkerBubble({
+                          markerId: marker.id,
+                          screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
+                          screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
+                        });
+                      } else {
+                        lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                        setDismissMarkerBubble(null);
+                      }
+                    };
+                    const ctxHandler = (e: any) => {
+                      if (isPlayerView) return;
+                      e.evt.preventDefault();
+                      e.cancelBubble = true;
+                      const pos = e.target.getStage()?.getPointerPosition();
+                      setContextMenu({
+                        x: marker.x, y: marker.y,
+                        stageX: pos?.x ?? e.evt.clientX,
+                        stageY: pos?.y ?? e.evt.clientY,
+                        view: 'spell-marker',
+                        markerId: marker.id,
+                      });
+                    };
+                    return (
+                      <React.Fragment key={marker.id}>
+                        {/* Flame fill */}
+                        <Circle
+                          x={marker.x} y={marker.y}
+                          radius={ringRadiusPx}
+                          fill="rgba(255,90,10,0.18)"
+                          stroke="transparent"
+                          listening={false}
+                        />
+                        {/* Ring stroke */}
+                        <Circle
+                          x={marker.x} y={marker.y}
+                          radius={ringRadiusPx}
+                          fill="transparent"
+                          stroke="#ff8c00"
+                          strokeWidth={3 / stageScale}
+                          listening={false}
+                        />
+                        {/* Transparent hit area */}
+                        <Circle
+                          x={marker.x} y={marker.y}
+                          radius={ringRadiusPx}
+                          fill="rgba(0,0,0,0.001)"
+                          stroke="transparent"
+                          strokeWidth={8 / stageScale}
+                          onTap={tapHandler}
+                          onContextMenu={ctxHandler}
+                          onMouseDown={(e) => { e.cancelBubble = true; }}
+                        />
+                      </React.Fragment>
+                    );
+                  }
                   const color = SPELL_COLOR_OVERRIDES[marker.spellName] ?? getSchoolColor(marker.school);
                   const iconSvg = SPELL_ICON_SVGS[marker.spellName] ?? SCHOOL_ICON_SVGS[marker.school] ?? '';
                   // eslint-disable-next-line @typescript-eslint/no-unused-expressions
@@ -5573,6 +5890,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   );
                 })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Fire Ring particle layer ── */}
+          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <WallOfFireRingParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
+                    hotSide={m.hotSide ?? 'outside'}
+                  />
+                ))}
             </Layer>
           )}
 
@@ -5865,6 +6199,85 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── Wall of Fire Ring editing preview ── */}
+          {editingRing && (() => {
+            const ringRadiusPx = (editingRing.radius / 5) * ppg;
+            const handleX = editingRing.x + ringRadiusPx;
+            const handleY = editingRing.y;
+            const handleR = 7 / stageScale;
+            const handleStroke = 1.5 / stageScale;
+            const minRadiusFt = 2.5;
+            const maxRadiusFt = 10;
+            const isHotOutside = editingRing.hotSide === 'outside';
+
+            const onBodyDragMove = (e: any) => {
+              setEditingRing(r => r ? { ...r, x: e.target.x(), y: e.target.y() } : null);
+            };
+            const onRadiusDrag = (e: any) => {
+              const dx = e.target.x() - editingRing.x;
+              const dy = e.target.y() - editingRing.y;
+              const distPx = Math.hypot(dx, dy);
+              const rawFt = (distPx / ppg) * 5;
+              const clampedFt = Math.min(maxRadiusFt, Math.max(minRadiusFt, rawFt));
+              const clampedPx = (clampedFt / 5) * ppg;
+              const dirX = distPx > 0 ? dx / distPx : 1;
+              const dirY = distPx > 0 ? dy / distPx : 0;
+              e.target.position({ x: editingRing.x + dirX * clampedPx, y: editingRing.y + dirY * clampedPx });
+              setEditingRing(r => r ? { ...r, radius: clampedFt } : null);
+            };
+            const labelFontSize = 14 / stageScale;
+
+            return (
+              <>
+                <Layer>
+                  {/* Ring body — draggable to translate */}
+                  <Circle
+                    x={editingRing.x}
+                    y={editingRing.y}
+                    radius={ringRadiusPx}
+                    fill="rgba(255,100,10,0.12)"
+                    stroke="#ff8c00"
+                    strokeWidth={3 / stageScale}
+                    draggable
+                    onDragMove={onBodyDragMove}
+                    onDragEnd={onBodyDragMove}
+                  />
+                  {/* Radius drag handle */}
+                  <Circle
+                    x={handleX}
+                    y={handleY}
+                    radius={handleR}
+                    fill="white"
+                    stroke="#8b5a2b"
+                    strokeWidth={handleStroke}
+                    draggable
+                    onDragMove={onRadiusDrag}
+                  />
+                  {/* Dimension label */}
+                  <Text
+                    x={editingRing.x - 50 / stageScale}
+                    y={editingRing.y - ringRadiusPx - 20 / stageScale}
+                    text={`${Math.round(editingRing.radius * 2)} ft`}
+                    fontSize={labelFontSize}
+                    fill="#ffd9a6"
+                    fontStyle="bold"
+                    align="center"
+                    width={100 / stageScale}
+                    listening={false}
+                  />
+                </Layer>
+                <Layer listening={false}>
+                  <WallOfFireRingParticles
+                    cx={editingRing.x}
+                    cy={editingRing.y}
+                    radiusPx={ringRadiusPx}
+                    hotSide={editingRing.hotSide}
+                  />
+                </Layer>
+              </>
+            );
+          })()}
+
           {/* ── Measure / Ruler — above fog of war ── */}
           {isMeasuringActive && measureStart && measureEnd && (() => {
             const ppg = gridResolution?.pixelsPerGrid || 40;
@@ -5941,9 +6354,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </>
         )}
 
-        {/* Placing spell indicator — hidden for wall-shape spells and summon placements in player view
+        {/* Placing spell indicator — hidden for wall/ring-shape spells and summon placements in player view
             (which use their own banners in PlayerScreen instead). */}
-        {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && !(isPlayerView && placingSpell.summonData) && (
+        {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && (placingSpell.shapeType as any) !== 'ring' && !(isPlayerView && placingSpell.summonData) && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
             <div className="flex items-center gap-3 px-4 py-2 rounded-xl shadow-2xl border"
               style={{
@@ -5955,7 +6368,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 {`Placing: ${placingSpell.name}`}
               </span>
               <button
-                onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); setEditingWall(null); onCastingDismissed?.(); }}
+                onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); setEditingWall(null); setEditingRing(null); onCastingDismissed?.(); }}
                 className="text-white/40 hover:text-white/80 transition-colors"
               >
                 <X size={14} />
@@ -6212,6 +6625,30 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <div className="text-white text-[15px] font-sans truncate leading-snug">
                 {note.content.split('\n')[0]}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* Wall of Fire Ring — hot-side toggle overlay */}
+        {editingRing && (() => {
+          const ringRadiusPx = (editingRing.radius / 5) * ppg;
+          const screenX = editingRing.x * stageScale + stagePos.x;
+          const screenY = editingRing.y * stageScale + stagePos.y;
+          const screenR = ringRadiusPx * stageScale;
+          return (
+            <div
+              className="absolute z-50 pointer-events-auto -translate-x-1/2"
+              style={{ left: screenX, top: screenY + screenR + 14 }}
+            >
+              <button
+                onClick={() => setEditingRing(r => r ? { ...r, hotSide: r.hotSide === 'inside' ? 'outside' : 'inside' } : null)}
+                onPointerDown={(e) => e.preventDefault()}
+                className="bg-black/80 border border-orange-500/50 rounded-full px-3 py-1.5 text-xs text-orange-300 font-semibold hover:bg-orange-900/80 transition-colors flex items-center gap-1.5 shadow-lg"
+              >
+                <span>🔥</span>
+                <span>Fire: {editingRing.hotSide === 'inside' ? 'Inward' : 'Outward'}</span>
+                <span className="text-white/35 text-[10px] ml-0.5">tap to flip</span>
+              </button>
             </div>
           );
         })()}

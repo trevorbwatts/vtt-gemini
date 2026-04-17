@@ -114,7 +114,7 @@ export function DMScreen() {
   const clearRemoteAoeRef = useRef<(() => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
-  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>(null);
+  const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
