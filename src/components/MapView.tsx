@@ -502,6 +502,159 @@ const CountdownRing: React.FC<{ radius: number; tokenScale: number; startTime: n
 };
 
 /**
+ * Fire particles streaming outward from the hot face of Wall of Fire.
+ * p0/p1 are the two endpoints of the hot edge in layer/world coords.
+ * normalX/normalY is the unit vector pointing away from that face.
+ */
+const WallOfFireParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 90;
+  const BASE_PERIOD = 1300;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);                            // position along edge 0..1
+    const drift = wallLen * (0.05 + rand(i, 4) * 0.16);  // outward drift distance
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.015; // tiny sideways wobble
+    const sizeMul = 0.3 + rand(i, 6) * 0.85;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * phase * drift;
+    const y = by + normalY * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, wallLen * 0.006 * sizeMul * (1 - phase * 0.45));
+    const warm = rand(i, 9);
+    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+
+    particles.push(
+      <Circle
+        key={`wfp${i}`}
+        x={x}
+        y={y}
+        radius={size}
+        fill={fill}
+        shadowColor="#ff5a00"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Dr. Strange–style particle ring for Fireball. Particles orbit the AoE
+ * perimeter clockwise, drifting outward with a small trail and fading.
+ * Cheap: one RAF loop, pure trig — no per-particle state.
+ */
+const FireballParticles: React.FC<{ radius: number }> = ({ radius }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Deterministic hash-based pseudo-random in [0,1) so each particle keeps
+  // its own stable "personality" across frames without any state.
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 120;
+  const BASE_PERIOD = 1600;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const inward = rand(i, 11) < 0.38; // ~38% of particles spiral inward
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const sweep = Math.PI * (0.45 + rand(i, 3) * 0.9);
+    const drift = radius * (0.04 + rand(i, 4) * 0.22);
+    const baseAngle = rand(i, 5) * Math.PI * 2;
+    const jitterR = (rand(i, 6) - 0.5) * radius * 0.04;
+    const sizeMul = 0.35 + rand(i, 7) * 0.9;
+
+    const phase = ((tick / period) + offset) % 1;
+    const angle = baseAngle + phase * sweep;
+    // Inward particles start at ring and travel toward center; outward drift away
+    const r = inward
+      ? (radius + jitterR) * (1 - phase * (0.55 + rand(i, 12) * 0.35))
+      : radius + jitterR + phase * drift;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+
+    const fadeIn = 0.12 + rand(i, 8) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.55 + rand(i, 9) * 0.4);
+    const size = Math.max(0.5, radius * 0.008 * sizeMul * (1 - phase * 0.4));
+    const warm = rand(i, 10);
+    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+
+    particles.push(
+      <Circle
+        key={`p${i}`}
+        x={x}
+        y={y}
+        radius={size}
+        fill={fill}
+        shadowColor="#ff5a00"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.8}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
  * Animated 4-chevron turn indicator that zooms in and fades out over 3 seconds.
  * Each chevron points inward from one of the 4 cardinal directions.
  */
@@ -4269,31 +4422,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const rangeMidY = (rangeEdgeY + rangeTargetY) / 2;
             const rangeLabelSize = 14 / stageScale;
 
+            const fireballCx = placedAoe.selfOrigin
+              ? placedAoe.originX + Math.cos(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+              : placedAoe.x;
+            const fireballCy = placedAoe.selfOrigin
+              ? placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx)
+              : placedAoe.y;
+
             return (
+              <>
               <Layer listening={!!isPlayerView}>
-                {/* Range line: caster edge → AoE target (only for spells with range) */}
-                {!isAnchored && (
-                  <>
-                    <Line
-                      points={[rangeEdgeX, rangeEdgeY, rangeTargetX, rangeTargetY]}
-                      stroke="rgba(255, 255, 255, 0.4)"
-                      strokeWidth={1.5 / stageScale}
-                      dash={[4 / stageScale, 4 / stageScale]}
-                      listening={false}
-                    />
-                    <Text
-                      x={rangeMidX}
-                      y={rangeMidY - rangeLabelSize * 1.5}
-                      text={`${rangeFeet} ft`}
-                      fontSize={rangeLabelSize}
-                      fill="white"
-                      fontStyle="bold"
-                      fontFamily="Inter"
-                      align="center"
-                      listening={false}
-                    />
-                  </>
-                )}
+                {/* Range line moved to overlay layer above tokens — see below */}
 
                 {/* Emanation — non-draggable circle locked to caster origin */}
                 {placedAoe.aoeType === 'emanation' && (
@@ -4320,18 +4459,36 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     ? placedAoe.originY + Math.sin(angleRad) * (placedAoe.casterRadiusPx + sizePx)
                     : placedAoe.y;
                   return (
-                    <Circle
-                      x={cx}
-                      y={cy}
-                      radius={sizePx}
-                      fill={fillColor}
-                      stroke={strokeColor}
-                      strokeWidth={strokeW}
-                      dash={[6 / stageScale, 4 / stageScale]}
-                      draggable={!!isPlayerView}
-                      onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleSphereDragMove}
-                      onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleAoeDragEnd}
-                    />
+                    <>
+                      <Circle
+                        x={cx}
+                        y={cy}
+                        radius={sizePx}
+                        fill={placedAoe.name === 'Fireball' ? 'transparent' : fillColor}
+                        stroke={strokeColor}
+                        strokeWidth={strokeW}
+                        dash={[6 / stageScale, 4 / stageScale]}
+                        draggable={!!isPlayerView}
+                        onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleSphereDragMove}
+                        onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleAoeDragEnd}
+                      />
+                      {placedAoe.name === 'Fireball' && (
+                        <>
+                          <Circle
+                            x={cx}
+                            y={cy}
+                            radius={sizePx}
+                            fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                            fillRadialGradientStartRadius={0}
+                            fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                            fillRadialGradientEndRadius={sizePx}
+                            fillRadialGradientColorStops={[0, 'rgba(255,160,20,0.72)', 0.45, 'rgba(255,90,0,0.42)', 0.8, 'rgba(200,50,0,0.18)', 1, 'rgba(150,30,0,0)']}
+                            listening={false}
+                            perfectDrawEnabled={false}
+                          />
+                        </>
+                      )}
+                    </>
                   );
                 })()}
 
@@ -4448,6 +4605,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   );
                 })()}
               </Layer>
+              {placedAoe.name === 'Fireball' && placedAoe.aoeType === 'sphere' && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <FireballParticles radius={sizePx} />
+                  </Group>
+                </Layer>
+              )}
+              </>
             );
           })()}
 
@@ -4468,16 +4633,40 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const isAnchored = remoteAoe.aoeType === 'cone' || remoteAoe.aoeType === 'line' || !!remoteAoe.selfOrigin;
 
             return (
+              <>
               <Layer listening={false}>
-                {(remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (
-                  <Circle
-                    x={isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x}
-                    y={isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y}
-                    radius={sizePx}
-                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW}
-                    dash={[6 / stageScale, 4 / stageScale]}
-                  />
-                )}
+                {(remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
+                  const cx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                  const cy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                  return (
+                    <>
+                      <Circle
+                        x={cx}
+                        y={cy}
+                        radius={sizePx}
+                        fill={remoteAoe.name === 'Fireball' ? 'transparent' : fillColor}
+                        stroke={strokeColor} strokeWidth={strokeW}
+                        dash={[6 / stageScale, 4 / stageScale]}
+                      />
+                      {remoteAoe.name === 'Fireball' && (
+                        <>
+                          <Circle
+                            x={cx}
+                            y={cy}
+                            radius={sizePx}
+                            fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                            fillRadialGradientStartRadius={0}
+                            fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                            fillRadialGradientEndRadius={sizePx}
+                            fillRadialGradientColorStops={[0, 'rgba(255,160,20,0.72)', 0.45, 'rgba(255,90,0,0.42)', 0.8, 'rgba(200,50,0,0.18)', 1, 'rgba(150,30,0,0)']}
+                            listening={false}
+                            perfectDrawEnabled={false}
+                          />
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
                 {remoteAoe.aoeType === 'cube' && (() => {
                   if (remoteAoe.selfOrigin) {
                     const perpX = Math.cos(aRad + Math.PI / 2) * sizePx / 2;
@@ -4510,6 +4699,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                 })()}
               </Layer>
+              {remoteAoe.name === 'Fireball' && remoteAoe.aoeType === 'sphere' && (() => {
+                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={rcx} y={rcy}>
+                      <FireballParticles radius={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+            </>
             );
           })()}
 
@@ -5024,22 +5225,61 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 .map(marker => {
                   // Wall-shape marker (Wall of Sand, etc.) — rotated rectangle, locked after placement
                   if (marker.shapeType === 'wall') {
+                    const wallAngle = marker.angle ?? 0;
                     const wallCorners = computeWallCorners(
                       marker.x, marker.y,
                       marker.length ?? 30,
                       marker.thickness ?? 10,
-                      marker.angle ?? 0,
+                      wallAngle,
                       ppg,
                     );
                     const wallPts = wallCorners.flatMap(c => [c.x, c.y]);
-                    return (
-                      <Line
-                        key={marker.id}
-                        points={wallPts}
-                        closed
-                        fill="rgba(212,165,116,0.55)"
-                        stroke="#8b5a2b"
-                        strokeWidth={1.5 / stageScale}
+                    const isWoF = marker.spellName === 'Wall of Fire';
+                    const wofAng = wallAngle * Math.PI / 180;
+                    // Hot-side outward normal: (sinA, -cosA)
+                    const wofNX = Math.sin(wofAng);
+                    const wofNY = -Math.cos(wofAng);
+                    if (isWoF) {
+                      return (
+                        <React.Fragment key={marker.id}>
+                          {/* Fill */}
+                          <Line
+                            points={wallPts}
+                            closed
+                            fill="rgba(255,100,10,0.45)"
+                            stroke="transparent"
+                            listening={false}
+                          />
+                          {/* Hot side — solid bright orange */}
+                          <Line
+                            points={[wallCorners[0].x, wallCorners[0].y, wallCorners[1].x, wallCorners[1].y]}
+                            stroke="#ff8c00"
+                            strokeWidth={3 / stageScale}
+                            listening={false}
+                          />
+                          {/* Cold side — dashed */}
+                          <Line
+                            points={[wallCorners[3].x, wallCorners[3].y, wallCorners[2].x, wallCorners[2].y]}
+                            stroke="#8b5a2b"
+                            strokeWidth={1.5 / stageScale}
+                            dash={[8 / stageScale, 4 / stageScale]}
+                            listening={false}
+                          />
+                          {/* End caps */}
+                          <Line
+                            points={[wallCorners[0].x, wallCorners[0].y, wallCorners[3].x, wallCorners[3].y]}
+                            stroke="#8b5a2b" strokeWidth={1.5 / stageScale} listening={false}
+                          />
+                          <Line
+                            points={[wallCorners[1].x, wallCorners[1].y, wallCorners[2].x, wallCorners[2].y]}
+                            stroke="#8b5a2b" strokeWidth={1.5 / stageScale} listening={false}
+                          />
+                          {/* Transparent hit area for tap/context on the whole wall */}
+                          <Line
+                            points={wallPts}
+                            closed
+                            fill="rgba(0,0,0,0.001)"
+                            stroke="transparent"
                         onTap={(e) => {
                           if (!isPlayerView) return;
                           e.cancelBubble = true;
@@ -5074,7 +5314,53 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         }}
                         onMouseDown={(e) => { e.cancelBubble = true; }}
                       />
-                    );
+                        </React.Fragment>
+                      );
+                    } else {
+                      return (
+                        <Line
+                          key={marker.id}
+                          points={wallPts}
+                          closed
+                          fill="rgba(212,165,116,0.55)"
+                          stroke="#8b5a2b"
+                          strokeWidth={1.5 / stageScale}
+                          onTap={(e) => {
+                            if (!isPlayerView) return;
+                            e.cancelBubble = true;
+                            const now = Date.now();
+                            const last = lastMarkerTapRef.current;
+                            if (last && last.markerId === marker.id && now - last.time < 400) {
+                              lastMarkerTapRef.current = null;
+                              const rect = containerRef.current?.getBoundingClientRect();
+                              setDismissMarkerBubble({
+                                markerId: marker.id,
+                                screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
+                                screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
+                              });
+                            } else {
+                              lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                              setDismissMarkerBubble(null);
+                            }
+                          }}
+                          onContextMenu={(e) => {
+                            if (isPlayerView) return;
+                            e.evt.preventDefault();
+                            e.cancelBubble = true;
+                            const pos = e.target.getStage()?.getPointerPosition();
+                            setContextMenu({
+                              x: marker.x,
+                              y: marker.y,
+                              stageX: pos?.x ?? e.evt.clientX,
+                              stageY: pos?.y ?? e.evt.clientY,
+                              view: 'spell-marker',
+                              markerId: marker.id,
+                            });
+                          }}
+                          onMouseDown={(e) => { e.cancelBubble = true; }}
+                        />
+                      );
+                    }
                   }
                   const color = SPELL_COLOR_OVERRIDES[marker.spellName] ?? getSchoolColor(marker.school);
                   const iconSvg = SPELL_ICON_SVGS[marker.spellName] ?? SCHOOL_ICON_SVGS[marker.school] ?? '';
@@ -5210,6 +5496,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         }
                         return null;
                       })()}
+                      {/* Spell-specific particle effects */}
+                      {marker.spellName === 'Fireball' && marker.aoeType === 'sphere' && marker.aoeSize && (
+                        <FireballParticles radius={(marker.aoeSize / 5) * ppg} />
+                      )}
                       {/* Invisible expanded hit area so the marker is easy to grab/drag on touch */}
                       <Circle
                         radius={Math.max(markerRadius * 3, effectPx > 0 ? Math.min(effectPx, markerRadius * 5) : markerRadius * 3)}
@@ -5265,6 +5555,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
+          {/* ── Wall of Fire particle layer — isolated so RAF redraws don't dirty other layers ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Fire' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Fire' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 10, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WallOfFireParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
           {/* Map Notes — above fog so they're always visible to the DM */}
           {!isPlayerView && mapNotes.length > 0 && (
             <Layer>
@@ -5291,6 +5602,50 @@ const MapViewInner: React.FC<MapViewProps> = ({
               ))}
             </Layer>
           )}
+
+          {/* ── AoE range line overlay — above tokens so it's never hidden ── */}
+          {placedAoe && (() => {
+            const ppg2 = gridResolution?.pixelsPerGrid || 40;
+            const feetToPx2 = (ft: number) => (ft / 5) * ppg2;
+            const sizePx2 = feetToPx2(placedAoe.aoeSize);
+            const angleRad2 = placedAoe.angle * (Math.PI / 180);
+            const isAnchored2 = placedAoe.aoeType === 'cone' || placedAoe.aoeType === 'line' || !!placedAoe.selfOrigin;
+            if (isAnchored2) return null;
+            const casterR2 = placedAoe.casterRadiusPx ?? 0;
+            const rangeEdgeX2 = placedAoe.originX + Math.cos(angleRad2) * casterR2;
+            const rangeEdgeY2 = placedAoe.originY + Math.sin(angleRad2) * casterR2;
+            const rangeTargetX2 = placedAoe.x;
+            const rangeTargetY2 = placedAoe.y;
+            const rangeMidX2 = (rangeEdgeX2 + rangeTargetX2) / 2;
+            const rangeMidY2 = (rangeEdgeY2 + rangeTargetY2) / 2;
+            const dx2 = rangeTargetX2 - rangeEdgeX2;
+            const dy2 = rangeTargetY2 - rangeEdgeY2;
+            const distPx2 = Math.sqrt(dx2 * dx2 + dy2 * dy2) - sizePx2;
+            const rangeFeet2 = Math.round(Math.max(0, distPx2) / ppg2 * 5);
+            const labelSize2 = 14 / stageScale;
+            return (
+              <Layer listening={false}>
+                <Line
+                  points={[rangeEdgeX2, rangeEdgeY2, rangeTargetX2, rangeTargetY2]}
+                  stroke="rgba(255, 255, 255, 0.4)"
+                  strokeWidth={1.5 / stageScale}
+                  dash={[4 / stageScale, 4 / stageScale]}
+                  listening={false}
+                />
+                <Text
+                  x={rangeMidX2}
+                  y={rangeMidY2 - labelSize2 * 1.5}
+                  text={`${rangeFeet2} ft`}
+                  fontSize={labelSize2}
+                  fill="white"
+                  fontStyle="bold"
+                  fontFamily="Inter"
+                  align="center"
+                  listening={false}
+                />
+              </Layer>
+            );
+          })()}
 
           {/* ── Wall-shape spell preview (Wall of Sand, Wall of Fire, etc.) ── */}
           {/* Rendered last so handles are always on top of all other layers */}
@@ -5374,7 +5729,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const labelX = editingWall.x - sinA * -labelOffset;
             const labelY = editingWall.y + cosA * -labelOffset;
 
+            const isWallOfFire = editingWall.spellName === 'Wall of Fire';
+            // Hot side = corners[0]→[1], normal points in (sinA, -cosA) direction
+            const hotNX = sinA;
+            const hotNY = -cosA;
+
             return (
+              <>
               <Layer>
                 {/* Wall body — draggable to translate the whole wall */}
                 <Line
@@ -5382,14 +5743,55 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   y={editingWall.y}
                   points={pointsFlat}
                   closed
-                  fill="rgba(212,165,116,0.35)"
-                  stroke="#d4a574"
+                  fill={isWallOfFire ? 'rgba(255,120,20,0.22)' : 'rgba(212,165,116,0.35)'}
+                  stroke={isWallOfFire ? 'transparent' : '#d4a574'}
                   strokeWidth={2 / stageScale}
                   dash={[8 / stageScale, 4 / stageScale]}
                   draggable
                   onDragMove={onBodyDragMove}
                   onDragEnd={onBodyDragMove}
                 />
+                {/* Wall of Fire: hot side solid, cold side dashed */}
+                {isWallOfFire && (
+                  <>
+                    {/* Hot side — solid bright orange */}
+                    <Line
+                      x={editingWall.x}
+                      y={editingWall.y}
+                      points={[localCorners[0].x, localCorners[0].y, localCorners[1].x, localCorners[1].y]}
+                      stroke="#ff8c00"
+                      strokeWidth={3 / stageScale}
+                      listening={false}
+                    />
+                    {/* Cold side — dashed */}
+                    <Line
+                      x={editingWall.x}
+                      y={editingWall.y}
+                      points={[localCorners[3].x, localCorners[3].y, localCorners[2].x, localCorners[2].y]}
+                      stroke="#d4a574"
+                      strokeWidth={1.5 / stageScale}
+                      dash={[8 / stageScale, 4 / stageScale]}
+                      listening={false}
+                    />
+                    {/* End caps */}
+                    <Line
+                      x={editingWall.x}
+                      y={editingWall.y}
+                      points={[localCorners[0].x, localCorners[0].y, localCorners[3].x, localCorners[3].y]}
+                      stroke="#d4a574"
+                      strokeWidth={1.5 / stageScale}
+                      listening={false}
+                    />
+                    <Line
+                      x={editingWall.x}
+                      y={editingWall.y}
+                      points={[localCorners[1].x, localCorners[1].y, localCorners[2].x, localCorners[2].y]}
+                      stroke="#d4a574"
+                      strokeWidth={1.5 / stageScale}
+                      listening={false}
+                    />
+                  </>
+                )}
                 {/* Length handles (both ends of long axis) — rotate + resize length */}
                 <Circle
                   x={lenHandleA.x}
@@ -5411,27 +5813,31 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   draggable
                   onDragMove={onLengthDrag}
                 />
-                {/* Thickness handles — resize thickness along perpendicular axis */}
-                <Circle
-                  x={thkHandleA.x}
-                  y={thkHandleA.y}
-                  radius={handleR}
-                  fill="#ffe6b3"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onThicknessDrag}
-                />
-                <Circle
-                  x={thkHandleB.x}
-                  y={thkHandleB.y}
-                  radius={handleR}
-                  fill="#ffe6b3"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onThicknessDrag}
-                />
+                {/* Thickness handles — resize thickness along perpendicular axis (not shown for Wall of Fire) */}
+                {!isWallOfFire && (
+                  <>
+                    <Circle
+                      x={thkHandleA.x}
+                      y={thkHandleA.y}
+                      radius={handleR}
+                      fill="#ffe6b3"
+                      stroke="#8b5a2b"
+                      strokeWidth={handleStroke}
+                      draggable
+                      onDragMove={onThicknessDrag}
+                    />
+                    <Circle
+                      x={thkHandleB.x}
+                      y={thkHandleB.y}
+                      radius={handleR}
+                      fill="#ffe6b3"
+                      stroke="#8b5a2b"
+                      strokeWidth={handleStroke}
+                      draggable
+                      onDragMove={onThicknessDrag}
+                    />
+                  </>
+                )}
                 {/* Live dimensions readout */}
                 <Text
                   x={labelX - 40 / stageScale}
@@ -5445,6 +5851,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   listening={false}
                 />
               </Layer>
+              {isWallOfFire && (
+                <Layer listening={false}>
+                  <WallOfFireParticles
+                    p0={{ x: editingWall.x + localCorners[0].x, y: editingWall.y + localCorners[0].y }}
+                    p1={{ x: editingWall.x + localCorners[1].x, y: editingWall.y + localCorners[1].y }}
+                    normalX={hotNX}
+                    normalY={hotNY}
+                  />
+                </Layer>
+              )}
+            </>
             );
           })()}
 

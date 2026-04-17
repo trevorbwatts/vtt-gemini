@@ -2305,7 +2305,7 @@ export function PlayerScreen() {
         const handleVariant = (variant: 'wall' | 'ring') => {
           setWallOfFirePicker(null);
           if (variant === 'wall') {
-            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', shapeType: 'wall', maxLength: 60, maxThickness: 1, blocksVision: true }, playerId);
+            startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', shapeType: 'wall', maxLength: 60, maxThickness: 1, blocksVision: false }, playerId);
             setActiveCasting({ spotId, spellName: 'Wall of Fire', saveAbility: 'dex' });
           } else {
             startPlacingRef.current?.({ name: 'Wall of Fire', school: 'Evocation', aoeType: 'sphere', aoeSize: 10 }, playerId);
