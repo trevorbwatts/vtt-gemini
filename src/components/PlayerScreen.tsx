@@ -876,7 +876,7 @@ const SpellsPanel: React.FC<{
               <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
               <div className="divide-y divide-white/10">
                 {recentSpells.map((spell, i) => (
-                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} />
+                 <SpellRow key={`r-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} onSummon={() => handleSpellTap(spell)} />
                 ))}
               </div>
             </div>
@@ -884,7 +884,7 @@ const SpellsPanel: React.FC<{
           {searchResults.length > 0 && (
             <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
               {searchResults.map((spell, i) => (
-                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} />
+                <SpellRow key={`s-${i}`} spell={spell} spellSaveDc={spellSaveDc} spellAttackBonus={spellAttackBonus} disabled={!ready} onPress={() => handleSpellTap(spell)} onPlace={() => onPlace(spell)} onSummon={() => handleSpellTap(spell)} />
               ))}
             </div>
           )}
