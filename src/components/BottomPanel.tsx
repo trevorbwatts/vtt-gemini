@@ -82,6 +82,7 @@ interface BottomPanelProps {
 
   // HP management (for token detail panel)
   onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
+  onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
 
   // Spell casting from detail panel
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
@@ -114,6 +115,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   onSelectedTokenIdChange,
   onSelectedTokenIdsChange,
   onUpdateCombatantHp,
+  onRemoveCondition,
   startCastingRef,
   startPlacingRef,
   targetedCombatantIds,
@@ -645,6 +647,20 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <span className="text-[14px] font-bold leading-none">+</span>
                       </button>
                     </div>
+                    {detailSource?.conditions && detailSource.conditions.length > 0 && (
+                      <div className="flex items-center gap-1 ml-3 flex-wrap">
+                        {detailSource.conditions.map(condition => (
+                          <span
+                            key={condition}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[11px] font-semibold capitalize cursor-pointer hover:bg-purple-500/40 transition-colors"
+                            onClick={() => detailSourceId && onRemoveCondition?.(detailSourceId, condition)}
+                            title={`Remove ${condition}`}
+                          >
+                            {condition} ×
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {!combatActive && (

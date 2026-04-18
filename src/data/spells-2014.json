@@ -1156,7 +1156,9 @@
     "source": "2014",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "cha"
+    "saveAbility": "cha",
+    "saveEffect": "condition",
+    "condition": "charmed"
   },
   {
     "name": "Cloud of Daggers",

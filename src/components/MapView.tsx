@@ -1547,6 +1547,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
     return set;
   }, [tokens, activeCombatants, players, npcs, persistentEnemies, scenarioCombatants]);
 
+  // Tokens whose combatant has at least one active condition
+  const conditionedTokenIds = useMemo(() => {
+    const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const set = new Set<string>();
+    for (const token of tokens) {
+      if (!token.combatantId) continue;
+      const combatant = allCombatants.find(c => c.id === token.combatantId || c.sourceCombatantId === token.combatantId);
+      if (combatant?.conditions && combatant.conditions.length > 0) {
+        set.add(token.id);
+      }
+    }
+    return set;
+  }, [tokens, activeCombatants, players, npcs, persistentEnemies, scenarioCombatants]);
+
   // Dead tokens: enemy/npc tokens at 0 HP
   const deadTokenIds = useMemo(() => {
     const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
@@ -4263,6 +4277,19 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   {/* Target ring for targeted monsters */}
                   {targetedCombatantIds && token.combatantId && targetedCombatantIds.has(token.combatantId) && (
                     <TargetRing radius={r} tokenScale={tokenScale} />
+                  )}
+                  {/* Condition indicator — small white dot on the outer ring */}
+                  {conditionedTokenIds.has(token.id) && (
+                    <Circle
+                      x={r * 0.707}
+                      y={-r * 0.707}
+                      radius={3.5 * tokenScale}
+                      fill="white"
+                      stroke="rgba(0,0,0,0.4)"
+                      strokeWidth={tokenScale}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
                   )}
                   {token.avatar && (
                     <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
