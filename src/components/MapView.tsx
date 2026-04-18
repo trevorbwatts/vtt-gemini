@@ -261,6 +261,7 @@ type AoeState = {
   saveEffect?: string;
   condition?: string;
   casterId?: string;
+  isPersistentPlaced?: boolean;
 };
 
 /** Determine which tokens overlap a placed AoE shape */
@@ -1427,6 +1428,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   if (cancelCastingRef) {
     cancelCastingRef.current = () => {
+      // Persistent placed spell (e.g. Moonbeam) — only clear save results, keep AOE alive
+      if (placedAoe?.isPersistentPlaced) {
+        setPlacedAoe(prev => prev ? { ...prev, saveResults: undefined } : null);
+        onAoeHighlightsChange?.(null);
+        return;
+      }
       setPlacedAoe(null);
       setCastingSpell(null);
       setCastingMousePos(null);
@@ -1791,7 +1798,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           onCastingDismissed?.();
           return;
         }
-        setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
+        setPlacedAoe(prev => prev ? { ...prev, saveResults: results, isPersistentPlaced: true } : null);
         return;
       }
 
@@ -1857,14 +1864,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // Activate emanation (cast-and-emanate)
     if (aoe.mapInteraction === 'cast-and-emanate' && aoe.casterId) onEmanationCast?.(aoe.name, aoe.casterId);
 
-    // No monsters hit — skip modal
+    // No monsters hit — skip modal; for persistent spells keep AOE alive
     if (Object.keys(results).length === 0) {
+      if (aoe.mapInteraction === 'cast-and-place') {
+        setPlacedAoe(prev => prev ? { ...prev, isPersistentPlaced: true } : null);
+        return;
+      }
       setPlacedAoe(null);
       onCastingDismissed?.();
       return;
     }
 
-    setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
+    setPlacedAoe(prev => prev ? { ...prev, saveResults: results, ...(aoe.mapInteraction === 'cast-and-place' ? { isPersistentPlaced: true } : {}) } : null);
   };
 
   if (confirmCastRef) {
@@ -3314,8 +3325,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
     } else if (e.evt.button === 0) {
-      // DM click-to-dismiss placed AoE
-      if (placedAoe && !isPlayerView) {
+      // DM click-to-dismiss placed AoE (not for persistent active spells like Moonbeam)
+      if (placedAoe && !isPlayerView && !placedAoe.isPersistentPlaced) {
         setPlacedAoe(null);
         onCastingDismissed?.();
         return;
@@ -4680,7 +4691,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
             return (
               <>
-              <Layer listening={!!isPlayerView}>
+              <Layer listening={!!isPlayerView || !!placedAoe.isPersistentPlaced}>
                 {/* Range line moved to overlay layer above tokens — see below */}
 
                 {/* Emanation — non-draggable circle locked to caster origin */}
@@ -4717,7 +4728,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         stroke={strokeColor}
                         strokeWidth={strokeW}
                         dash={[6 / stageScale, 4 / stageScale]}
-                        draggable={!!isPlayerView}
+                        draggable={(!!isPlayerView || !!placedAoe.isPersistentPlaced) && !hasSaveResults}
                         onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleSphereDragMove}
                         onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleAoeDragEnd}
                       />
@@ -6664,10 +6675,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
         {/* DM Placed AoE Banner — local DM spell */}
         {placedAoe && !castingSpell && !isPlayerView && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
-            <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-            <span className="text-sm font-bold text-orange-400">Casting {placedAoe.name}</span>
-            {!placedAoe.saveResults && placedAoe.saveAbility && (
+          <div className={`absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border ${placedAoe.isPersistentPlaced ? 'border-blue-500/50 shadow-blue-500/10' : 'border-orange-500/50 shadow-orange-500/10'} rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg pointer-events-auto`}>
+            <div className={`w-2 h-2 rounded-full ${placedAoe.isPersistentPlaced ? 'bg-blue-400' : 'bg-orange-400'} animate-pulse`} />
+            <span className={`text-sm font-bold ${placedAoe.isPersistentPlaced ? 'text-blue-400' : 'text-orange-400'}`}>
+              {placedAoe.isPersistentPlaced ? `${placedAoe.name} (Active)` : `Casting ${placedAoe.name}`}
+            </span>
+            {!placedAoe.isPersistentPlaced && !placedAoe.saveResults && placedAoe.saveAbility && (
               <button
                 onClick={handleConfirmCast}
                 className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
@@ -6678,12 +6691,28 @@ const MapViewInner: React.FC<MapViewProps> = ({
             {placedAoe.saveResults && (
               <span className="text-xs font-semibold text-green-400">Saves Rolled</span>
             )}
-            <button
-              onClick={() => { setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null); }}
-              className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-            >
-              {placedAoe.saveResults ? 'Done' : 'Cancel'}
-            </button>
+            {placedAoe.isPersistentPlaced && !placedAoe.saveResults ? (
+              <button
+                onClick={() => { setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null); }}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                End Spell
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  if (placedAoe?.isPersistentPlaced) {
+                    setPlacedAoe(prev => prev ? { ...prev, saveResults: undefined } : null);
+                    onAoeHighlightsChange?.(null);
+                  } else {
+                    setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null);
+                  }
+                }}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                {placedAoe.saveResults ? 'Done' : 'Cancel'}
+              </button>
+            )}
           </div>
         )}
 

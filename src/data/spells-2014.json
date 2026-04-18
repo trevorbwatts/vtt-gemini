@@ -1482,7 +1482,8 @@
     "aoeType": "cylinder",
     "aoeSize": 5,
     "saveAbility": "con",
-    "halfDamageOnSave": true
+    "halfDamageOnSave": true,
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Nystul's Magic Aura",
