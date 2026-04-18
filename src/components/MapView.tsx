@@ -4436,7 +4436,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     key={`dist-${path.tokenId}`}
                     x={lastX - tokenRadius * 2.5}
                     y={distY}
-                    text={speedFt !== null ? `${distFeet} / ${speedFt} ft` : `${distFeet} ft`}
+                    text={`${distFeet} ft`}
                     fontSize={distLabelFontSize}
                     fill={isOverSpeed ? '#ef4444' : 'rgba(255,255,255,0.7)'}
                     fontStyle="bold"
