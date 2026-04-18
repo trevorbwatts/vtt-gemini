@@ -37,6 +37,10 @@ interface MapViewProps {
   onAddScenario?: () => void;
   panToNote?: MapNote | null;
   isPlayerView?: boolean;
+  /** Combatant IDs that this viewer "is" — used to restrict spell-marker dragging
+   *  and double-tap dismiss on the player screen to the actual caster. Unused in
+   *  DM view (DM can always interact). */
+  viewerCasterIds?: string[];
   walls?: WallSegment[];
   objectWalls?: WallSegment[];
   portals?: Portal[];
@@ -261,7 +265,6 @@ type AoeState = {
   saveEffect?: string;
   condition?: string;
   casterId?: string;
-  isPersistentPlaced?: boolean;
 };
 
 /** Determine which tokens overlap a placed AoE shape */
@@ -877,6 +880,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onAddScenario,
   panToNote,
   isPlayerView = false,
+  viewerCasterIds,
   walls,
   objectWalls,
   portals,
@@ -1428,12 +1432,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   if (cancelCastingRef) {
     cancelCastingRef.current = () => {
-      // Persistent placed spell (e.g. Moonbeam) — only clear save results, keep AOE alive
-      if (placedAoe?.isPersistentPlaced) {
-        setPlacedAoe(prev => prev ? { ...prev, saveResults: undefined } : null);
-        onAoeHighlightsChange?.(null);
-        return;
-      }
       setPlacedAoe(null);
       setCastingSpell(null);
       setCastingMousePos(null);
@@ -1798,7 +1796,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           onCastingDismissed?.();
           return;
         }
-        setPlacedAoe(prev => prev ? { ...prev, saveResults: results, isPersistentPlaced: true } : null);
+        setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
         return;
       }
 
@@ -1859,23 +1857,19 @@ const MapViewInner: React.FC<MapViewProps> = ({
       };
     }
 
-    // For cast-and-place spells (Grease, etc.), also drop a persistent marker
+    // For cast-and-place spells (Grease, Moonbeam, etc.), also drop a persistent marker
     if (aoe.mapInteraction === 'cast-and-place') placePersistentMarker();
     // Activate emanation (cast-and-emanate)
     if (aoe.mapInteraction === 'cast-and-emanate' && aoe.casterId) onEmanationCast?.(aoe.name, aoe.casterId);
 
-    // No monsters hit — skip modal; for persistent spells keep AOE alive
+    // No monsters hit — skip modal
     if (Object.keys(results).length === 0) {
-      if (aoe.mapInteraction === 'cast-and-place') {
-        setPlacedAoe(prev => prev ? { ...prev, isPersistentPlaced: true } : null);
-        return;
-      }
       setPlacedAoe(null);
       onCastingDismissed?.();
       return;
     }
 
-    setPlacedAoe(prev => prev ? { ...prev, saveResults: results, ...(aoe.mapInteraction === 'cast-and-place' ? { isPersistentPlaced: true } : {}) } : null);
+    setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
   };
 
   if (confirmCastRef) {
@@ -3325,8 +3319,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setIsPanning(true);
       setLastPos({ x: e.evt.clientX, y: e.evt.clientY });
     } else if (e.evt.button === 0) {
-      // DM click-to-dismiss placed AoE (not for persistent active spells like Moonbeam)
-      if (placedAoe && !isPlayerView && !placedAoe.isPersistentPlaced) {
+      // DM click-to-dismiss placed AoE
+      if (placedAoe && !isPlayerView) {
         setPlacedAoe(null);
         onCastingDismissed?.();
         return;
@@ -4691,7 +4685,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
             return (
               <>
-              <Layer listening={!!isPlayerView || !!placedAoe.isPersistentPlaced}>
+              <Layer listening={!!isPlayerView}>
                 {/* Range line moved to overlay layer above tokens — see below */}
 
                 {/* Emanation — non-draggable circle locked to caster origin */}
@@ -4728,7 +4722,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         stroke={strokeColor}
                         strokeWidth={strokeW}
                         dash={[6 / stageScale, 4 / stageScale]}
-                        draggable={(!!isPlayerView || !!placedAoe.isPersistentPlaced) && !hasSaveResults}
+                        draggable={!!isPlayerView}
                         onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleSphereDragMove}
                         onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleAoeDragEnd}
                       />
@@ -5697,12 +5691,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   const iconImg = iconSvg ? getIconImage(iconSvg) : null;
                   const markerRadius = tokenRadius * 0.5;
                   const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
+                  // On the player screen, only the actual caster can drag/dismiss the marker.
+                  // DM can always interact. Markers with no casterId (legacy) fall back to "anyone can".
+                  const canInteract = !isPlayerView
+                    || !marker.casterId
+                    || (viewerCasterIds?.includes(marker.casterId) ?? false);
                   return (
                     <Group
                       key={marker.id}
                       x={marker.x}
                       y={marker.y}
-                      draggable={true}
+                      draggable={canInteract}
                       onDragStart={(e) => {
                         e.cancelBubble = true;
                         markerDraggingRef.current = true;
@@ -5729,12 +5728,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
                         );
                         onSpellMarkersChange?.(updated);
-                        if (!isPlayerView) {
-                          try { window.electronAPI?.sendDMSpellMarkerUpdate?.(updated); } catch (_e) { /* */ }
-                        }
+                        try {
+                          if (isPlayerView) {
+                            window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+                          } else {
+                            window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+                          }
+                        } catch (_e) { /* IPC not available */ }
                       }}
                       onTap={(e) => {
                         if (!isPlayerView) return;
+                        if (!canInteract) return;
                         // Suppress tap if a drag just completed
                         if (markerDraggingRef.current) return;
                         e.cancelBubble = true;
@@ -6675,12 +6679,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
         {/* DM Placed AoE Banner — local DM spell */}
         {placedAoe && !castingSpell && !isPlayerView && (
-          <div className={`absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border ${placedAoe.isPersistentPlaced ? 'border-blue-500/50 shadow-blue-500/10' : 'border-orange-500/50 shadow-orange-500/10'} rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg pointer-events-auto`}>
-            <div className={`w-2 h-2 rounded-full ${placedAoe.isPersistentPlaced ? 'bg-blue-400' : 'bg-orange-400'} animate-pulse`} />
-            <span className={`text-sm font-bold ${placedAoe.isPersistentPlaced ? 'text-blue-400' : 'text-orange-400'}`}>
-              {placedAoe.isPersistentPlaced ? `${placedAoe.name} (Active)` : `Casting ${placedAoe.name}`}
-            </span>
-            {!placedAoe.isPersistentPlaced && !placedAoe.saveResults && placedAoe.saveAbility && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
+            <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+            <span className="text-sm font-bold text-orange-400">Casting {placedAoe.name}</span>
+            {!placedAoe.saveResults && placedAoe.saveAbility && (
               <button
                 onClick={handleConfirmCast}
                 className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
@@ -6691,28 +6693,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
             {placedAoe.saveResults && (
               <span className="text-xs font-semibold text-green-400">Saves Rolled</span>
             )}
-            {placedAoe.isPersistentPlaced && !placedAoe.saveResults ? (
-              <button
-                onClick={() => { setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null); }}
-                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-              >
-                End Spell
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  if (placedAoe?.isPersistentPlaced) {
-                    setPlacedAoe(prev => prev ? { ...prev, saveResults: undefined } : null);
-                    onAoeHighlightsChange?.(null);
-                  } else {
-                    setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null);
-                  }
-                }}
-                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
-              >
-                {placedAoe.saveResults ? 'Done' : 'Cancel'}
-              </button>
-            )}
+            <button
+              onClick={() => { setPlacedAoe(null); onCastingDismissed?.(); onAoeHighlightsChange?.(null); }}
+              className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+            >
+              {placedAoe.saveResults ? 'Done' : 'Cancel'}
+            </button>
           </div>
         )}
 

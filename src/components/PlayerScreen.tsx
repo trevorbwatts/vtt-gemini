@@ -2130,6 +2130,7 @@ export function PlayerScreen() {
           leftSidebarOpen={false}
           setLeftSidebarOpen={() => {}}
           isPlayerView={true}
+          viewerCasterIds={Object.values(signedInSpots).filter(Boolean) as string[]}
           onPortalToggle={(portalId) => window.electronAPI?.sendPlayerPortalToggle?.(portalId)}
           onDragStatusChange={handleDragStatusChange}
           viewportCenter={viewportCenter}
