@@ -5691,11 +5691,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   const iconImg = iconSvg ? getIconImage(iconSvg) : null;
                   const markerRadius = tokenRadius * 0.5;
                   const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
-                  // On the player screen, only the actual caster can drag/dismiss the marker.
-                  // DM can always interact. Markers with no casterId (legacy) fall back to "anyone can".
-                  const canInteract = !isPlayerView
-                    || !marker.casterId
-                    || (viewerCasterIds?.includes(marker.casterId) ?? false);
+                  const canInteract = true;
                   return (
                     <Group
                       key={marker.id}

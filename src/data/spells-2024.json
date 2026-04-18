@@ -523,7 +523,9 @@
     "range": 90,
     "source": "2024",
     "aoeType": "cube",
-    "saveAbility": "str"
+    "aoeSize": 20,
+    "saveAbility": "str",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Expeditious Retreat",

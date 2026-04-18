@@ -664,7 +664,9 @@
     "range": 90,
     "source": "2014",
     "aoeType": "cube",
-    "saveAbility": "str"
+    "aoeSize": 20,
+    "saveAbility": "str",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Expeditious Retreat",
