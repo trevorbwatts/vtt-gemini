@@ -660,6 +660,30 @@ export function DMScreen() {
     });
   }, []);
 
+  const addConditionToCombatant = useCallback((sourceCombatantId: string, condition: string) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      const addTo = (list: Combatant[]) =>
+        list.map(c => {
+          if (c.id !== sourceCombatantId && c.sourceCombatantId !== sourceCombatantId) return c;
+          const current = new Set(c.conditions || []);
+          current.add(condition);
+          return { ...c, conditions: Array.from(current) };
+        });
+      return {
+        ...prev,
+        players: addTo(prev.players),
+        npcs: addTo(prev.npcs),
+        persistentEnemies: addTo(prev.persistentEnemies),
+        scenarios: prev.scenarios.map(s => ({
+          ...s,
+          combatants: addTo(s.combatants || []),
+          activeCombatants: addTo(s.activeCombatants || []),
+        })),
+      };
+    });
+  }, []);
+
   const removeConditionFromCombatant = useCallback((sourceCombatantId: string, condition: string) => {
     setCampaign(prev => {
       if (!prev) return prev;
@@ -1590,6 +1614,7 @@ export function DMScreen() {
               onSelectedTokenIdsChange={setSelectedTokenIds}
               onUpdateCombatantHp={updateCombatantHp}
               onRemoveCondition={removeConditionFromCombatant}
+              onAddCondition={addConditionToCombatant}
               startCastingRef={startCastingRef}
               startPlacingRef={startPlacingRef}
               targetedCombatantIds={targetedCombatantIds}

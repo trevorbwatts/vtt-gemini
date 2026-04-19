@@ -453,7 +453,7 @@
     "desc": "You do one of the following:\n\n• **Create Water.** You create up to 10 gallons of clean water within range in an open container. Alternatively, the water falls as rain in a 30-foot Cube within range, extinguishing exposed flames there.\n• **Destroy Water.** You destroy up to 10 gallons of water in an open container within range. Alternatively, you destroy fog in a 30-foot Cube within range.",
     "range": 30,
     "source": "2024",
-    "mapInteraction": "place",
+    "mapInteraction": "cast",
     "aoeType": "cube",
     "aoeSize": 30
   },
@@ -573,10 +573,10 @@
     "desc": "Objects in a 20-foot Cube within range are outlined in blue, green, or violet light (your choice). Each creature in the Cube is also outlined if it fails a Dexterity saving throw. For the duration, objects and affected creatures shed Dim in a 10-foot radius and can't benefit from the Invisible condition.\n\nAttack rolls against an affected creature or object have Advantage if the attacker can see it.",
     "range": 60,
     "source": "2024",
-    "aoeType": "cone",
-    "aoeSize": 10,
+    "aoeType": "cube",
+    "aoeSize": 20,
     "saveAbility": "dex",
-    "effectRadius": 20
+    "effectRadius": 10
   },
   {
     "name": "False Life",
@@ -650,9 +650,10 @@
     "level": 1,
     "school": "Conjuration",
     "desc": "As you hit the creature, this spell creates a rain of thorns that sprouts from your Ranged weapon or ammunition. The target of the attack and each creature within 5 feet of it make a Dexterity saving throw, taking 1d10 Piercing damage on a failed save or half as much damage on a successful one.",
-    "range": 0,
+    "range": 120,
     "source": "2024",
     "aoeType": "sphere",
+    "aoeSize": 5,
     "saveAbility": "dex",
     "halfDamageOnSave": true,
     "damageType": "Piercing"
@@ -709,8 +710,10 @@
     "desc": "You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 Piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 Cold damage.",
     "range": 60,
     "source": "2024",
+    "aoeType": "sphere",
+    "aoeSize": 5,
     "saveAbility": "dex",
-    "damageType": "Piercing"
+    "damageType": "Cold"
   },
   {
     "name": "Identify",
@@ -831,11 +834,7 @@
     "level": 1,
     "school": "Abjuration",
     "desc": "A shimmering field surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.",
-    "range": 60,
-    "source": "2024",
-    "mapInteraction": "cast-and-emanate",
-    "aoeType": "emanation",
-    "aoeSize": 5
+    "source": "2024"
   },
   {
     "name": "Silent Image",
@@ -881,7 +880,10 @@
     "school": "Conjuration",
     "desc": "This spell creates a circular, horizontal plane of force, 3 feet in diameter and 1 inch thick, that floats 3 feet above the ground in an unoccupied space of your choice that you can see within range. The disk remains for the duration and can hold up to 500 pounds. If more weight is placed on it, the spell ends, and everything on the disk falls to the ground.\n\nThe disk is immobile while you are within 20 feet of it. If you move more than 20 feet away from it, the disk follows you so that it remains within 20 feet of you. It can move across uneven terrain, up or down stairs, slopes and the like, but it can't cross an elevation change of 10 feet or more. For example, the disk can't move across a 10-foot-deep pit, nor could it leave such a pit if it was created at the bottom.\n\nIf you move more than 100 feet from the disk (typically because it can't move around an obstacle to follow you), the spell ends.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "aoeType": "sphere",
+    "aoeSize": 1.5,
+    "mapInteraction": "place"
   },
   {
     "name": "Thunderous Smite",
@@ -1172,6 +1174,7 @@
     "aoeType": "sphere",
     "aoeSize": 20,
     "saveAbility": "dex",
+    "mapInteraction": "cast-and-place",
     "halfDamageOnSave": true,
     "damageType": "Fire"
   },
@@ -1446,7 +1449,7 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "damageType": "Thunder"
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Spider Climb",
@@ -1465,7 +1468,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "damageType": "Piercing"
+    "damageType": "Piercing",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Spiritual Weapon",
@@ -1506,12 +1510,14 @@
     "name": "Web",
     "level": 2,
     "school": "Conjuration",
-    "desc": "You conjure a mass of sticky webbing at a point within range. The webs fill a 20-foot Cube there for the duration. The webs are Difficult, and the area within them is Lightly.\n\nIf the webs aren't anchored between two solid masses (such as walls or trees) or layered across a floor, wall, or ceiling, the web collapses on itself, and the spell ends at the start of your next turn. Webs layered over a flat surface have a depth of 5 feet.\n\nThe first time a creature enters the webs on a turn or starts its turn there, it must succeed on a Dexterity saving throw or have the Restrained condition while in the webs or until it breaks free.\n\nA creature Restrained by the webs can take an action to make a Strength (Athletics) check against your spell save DC. If it succeeds, it is no longer Restrained.\n\nThe webs are flammable. Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire.",
+    "desc": "You conjure a mass of sticky webbing at a point within range. The webs fill a 20-foot Cube there for the duration. The webs are Difficult Terrain, and the area within them is Lightly Obscured.\n\nIf the webs aren't anchored between two solid masses (such as walls or trees) or layered across a floor, wall, or ceiling, the web collapses on itself, and the spell ends at the start of your next turn. Webs layered over a flat surface have a depth of 5 feet.\n\nThe first time a creature enters the webs on a turn or starts its turn there, it must succeed on a Dexterity saving throw or have the Restrained condition while in the webs or until it breaks free.\n\nA creature Restrained by the webs can take an action to make a Strength (Athletics) check against your spell save DC. If it succeeds, it is no longer Restrained.\n\nThe webs are flammable. Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire.",
     "range": 60,
     "source": "2024",
-    "aoeType": "cone",
+    "aoeType": "cube",
+    "aoeSize": 20,
     "saveAbility": "dex",
-    "damageType": "Fire"
+    "damageType": "Fire",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Zone of Truth",
@@ -1522,7 +1528,8 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 15,
-    "saveAbility": "cha"
+    "saveAbility": "cha",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Animate Dead",
@@ -1590,7 +1597,8 @@
     "aoeSize": 60,
     "saveAbility": "dex",
     "halfDamageOnSave": true,
-    "damageType": "Lightning"
+    "damageType": "Lightning",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Clairvoyance",
@@ -1698,8 +1706,7 @@
     "school": "Necromancy",
     "desc": "You touch a willing creature and put it into a cataleptic state that is indistinguishable from death.\n\nFor the duration, the target appears dead to outward inspection and to spells used to determine the target's status. The target has the Blinded and Incapacitated conditions, and its Speed is 0.\n\nThe target also has Resistance to all damage except Psychic damage, and it has Immunity to the Poisoned condition.",
     "range": 0,
-    "source": "2024",
-    "damageType": "Psychic"
+    "source": "2024"
   },
   {
     "name": "Fireball",
@@ -1728,8 +1735,7 @@
     "school": "Transmutation",
     "desc": "A willing creature you touch shape-shifts, along with everything it's wearing and carrying, into a misty cloud for the duration. The spell ends on the target if it drops to 0 Hit or if it takes a Magic action to end the spell on itself.\n\nWhile in this form, the target's only method of movement is a Fly of 10 feet, and it can hover. The target can enter and occupy the space of another creature. The target has Resistance to Bludgeoning, Piercing, and Slashing damage; it has Immunity to the Prone condition; and it has Advantage on Strength, Dexterity, and Constitution saving throws. The target can pass through narrow openings, but it treats liquids as though they were solid surfaces.\n\nThe target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with. Finally, the target can't attack or cast spells.",
     "range": 0,
-    "source": "2024",
-    "damageType": "Slashing"
+    "source": "2024"
   },
   {
     "name": "Glyph of Warding",
@@ -1756,14 +1762,15 @@
     "name": "Hunger of Hadar",
     "level": 3,
     "school": "Conjuration",
-    "desc": "You open a gateway to the Far Realm, a region infested with unspeakable horrors. A 20-foot-radius Sphere of Darkness appears, centered on a point within range and lasting for the duration. The Sphere is Difficult, and it is filled with strange whispers and slurping noises, which can be heard up to 30 feet away. No light, magical or otherwise, can illuminate the area, and creatures fully within it have the Blinded condition.\n\nAny creature that starts its turn in the area takes 2d6 Cold damage. Any creature that ends its turn there must succeed on a Dexterity saving throw or take 2d6 Acid damage from otherworldly tentacles.",
+    "desc": "You open a gateway to the Far Realm, a region infested with unspeakable horrors. A 20-foot-radius Sphere of Darkness appears, centered on a point within range and lasting for the duration. The Sphere is Difficult Terrain, and it is filled with strange whispers and slurping noises, which can be heard up to 30 feet away. No light, magical or otherwise, can illuminate the area, and creatures fully within it have the Blinded condition.\n\nAny creature that starts its turn in the area takes 2d6 Cold damage. Any creature that ends its turn there must succeed on a Dexterity saving throw or take 2d6 Acid damage from otherworldly tentacles.",
     "range": 150,
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
     "saveAbility": "dex",
     "effectRadius": 20,
-    "damageType": "Cold"
+    "damageType": "Cold",
+    "mapInteraction": "place"
   },
   {
     "name": "Hypnotic Pattern",
@@ -1772,8 +1779,10 @@
     "desc": "You create a twisting pattern of colors in a 30-foot Cube within range. The pattern appears for a moment and vanishes. Each creature in the area who can see the pattern must succeed on a Wisdom saving throw or have the Charmed condition for the duration. While Charmed, the creature has the Incapacitated condition and a Speed of 0.\n\nThe spell ends for an affected creature if it takes any damage or if someone else uses an action to shake the creature out of its stupor.",
     "range": 120,
     "source": "2024",
-    "aoeType": "cone",
-    "saveAbility": "wis"
+    "aoeType": "cube",
+    "aoeSize": 30,
+    "saveAbility": "wis",
+    "mapInteraction": "cast"
   },
   {
     "name": "Leomund's Tiny Hut",
@@ -1791,12 +1800,14 @@
     "level": 3,
     "school": "Transmutation",
     "desc": "As your attack hits or misses the target, the weapon or ammunition you're using transforms into a lightning bolt. Instead of taking any damage or other effects from the attack, the target takes 4d8 Lightning damage on a hit or half as much damage on a miss. Each creature within 10 feet of the target then makes a Dexterity saving throw, taking 2d8 Lightning damage on a failed save or half as much damage on a successful one.\n\nThe weapon or ammunition then returns to its normal form.",
-    "range": 0,
+    "range": 120,
     "source": "2024",
     "aoeType": "sphere",
+    "aoeSize": 10,
     "saveAbility": "dex",
     "halfDamageOnSave": true,
-    "damageType": "Lightning"
+    "damageType": "Lightning",
+    "mapInteraction": "cast"
   },
   {
     "name": "Lightning Bolt",
@@ -1820,7 +1831,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 10,
-    "saveAbility": "cha"
+    "saveAbility": "cha",
+    "mapInteraction": "place"
   },
   {
     "name": "Major Image",
@@ -1829,7 +1841,10 @@
     "desc": "You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 20-foot Cube. The image appears at a spot that you can see within range and lasts for the duration. It seems real, including sounds, smells, and temperature appropriate to the thing depicted, but it can't deal damage or cause conditions.\n\nIf you are within range of the illusion, you can take a Magic action to cause the image to move to any other spot within range. As the image changes location, you can alter its appearance so that its movements appear natural for the image. For example, if you create an image of a creature and move it, you can alter the image so that it appears to be walking. Similarly, you can cause the illusion to make different sounds at different times, even making it carry on a conversation, for example.\n\nPhysical interaction with the image reveals it to be an illusion, for things can pass through it. A creature that takes a Study action to examine the image can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the creature can see through the image, and its other sensory qualities become faint to the creature.",
     "range": 120,
     "source": "2024",
-    "effectRadius": 20
+    "effectRadius": 20,
+    "mapInteraction": "place",
+    "aoeType": "cube",
+    "aoeSize": 20
   },
   {
     "name": "Mass Healing Word",
@@ -1913,7 +1928,8 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 20,
-    "saveAbility": "dex"
+    "saveAbility": "dex",
+    "mapInteraction": "place"
   },
   {
     "name": "Slow",
@@ -1922,8 +1938,10 @@
     "desc": "You alter time around up to six creatures of your choice in a 40-foot Cube within range. Each target must succeed on a Wisdom saving throw or be affected by this spell for the duration.\n\nAn affected target's Speed is halved, it takes a -2 penalty to AC and Dexterity saving throws, and it can't take Reactions. On its turns, it can take either an action or a Bonus, not both, and it can make only one attack if it takes the Attack action. If it casts a spell with a Somatic component, there is a 25 chance the spell fails as a result of the target making the spell's gestures too slowly.\n\nAn affected target repeats the save at the end of each of its turns, ending the spell on itself on a success.",
     "range": 120,
     "source": "2024",
-    "aoeType": "cone",
-    "saveAbility": "wis"
+    "aoeType": "cube",
+    "aoeSize": 40,
+    "saveAbility": "wis",
+    "mapInteraction": "cast"
   },
   {
     "name": "Speak with Dead",
@@ -1966,7 +1984,8 @@
     "aoeSize": 20,
     "saveAbility": "con",
     "saveEffect": "condition",
-    "condition": "poisoned"
+    "condition": "poisoned",
+    "mapInteraction": "place"
   },
   {
     "name": "Summon Fey",
@@ -2096,9 +2115,14 @@
     "level": 4,
     "school": "Enchantment",
     "desc": "Each creature of your choice that you can see within range must succeed on a Wisdom saving throw or have the Charmed condition until the spell ends.\n\nFor the duration, you can take a Bonus to designate a direction that is horizontal to you. Each Charmed target must use as much of its movement as possible to move in that direction on its next turn, taking the safest route. After moving in this way, a target repeats the save, ending the spell on itself on a success.",
-    "range": 30,
+    "range": 0,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "aoeSize": 30,
+    "mapInteraction": "cast",
+    "aoeType": "emanation",
+    "saveEffect": "condition",
+    "condition": "charmed"
   },
   {
     "name": "Confusion",
@@ -2133,8 +2157,7 @@
     "halfDamageOnSave": true,
     "mapInteraction": "cast-and-emanate",
     "aoeType": "emanation",
-    "aoeSize": 10,
-    "damageType": "Force"
+    "aoeSize": 10
   },
   {
     "name": "Control Water",
@@ -2191,7 +2214,9 @@
     "source": "2024",
     "aoeType": "cube",
     "saveAbility": "str",
-    "damageType": "Bludgeoning"
+    "damageType": "Bludgeoning",
+    "aoeSize": 20,
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Fabricate",
@@ -2207,14 +2232,13 @@
     "school": "Evocation",
     "desc": "Wispy flames wreathe your body for the duration, shedding Bright in a 10-foot radius and Dim for an additional 10 feet.\n\nThe flames provide you with a warm shield or a chill shield, as you choose. The warm shield grants you Resistance to Cold damage, and the chill shield grants you Resistance to Fire damage.\n\nIn addition, whenever a creature within 5 feet of you hits you with a melee attack roll, the shield erupts with flame. The attacker takes 2d8 Fire damage from a warm shield or 2d8 Cold damage from a chill shield.",
     "range": 0,
-    "source": "2024",
-    "damageType": "Cold"
+    "source": "2024"
   },
   {
     "name": "Fount of Moonlight",
     "level": 4,
     "school": "Evocation",
-    "desc": "A cool light wreathes your body for the duration, emitting Bright in a 20-foot radius and Dim for an additional 20 feet.\n\nUntil the spell ends, you have Resistance to Radiant damage, and your melee attacks deal an extra 2d6 Radiant damage on a hit.\n\nIn addition, immediately after you take damage from a creature you can see within 60 feet of yourself, you can take a Reaction to force the creature to make a Constitution saving throw. On a failed save, the creature has the Blinded condition until the end of your next turn.",
+    "desc": "A cool light wreathes your body for the duration, emitting Bright Light in a 20-foot radius and Dim Light for an additional 20 feet.\n\nUntil the spell ends, you have Resistance to Radiant damage, and your melee attacks deal an extra 2d6 Radiant damage on a hit.\n\nIn addition, immediately after you take damage from a creature you can see within 60 feet of yourself, you can take a Reaction to force the creature to make a Constitution saving throw. On a failed save, the creature has the Blinded condition until the end of your next turn.",
     "range": 0,
     "source": "2024",
     "saveAbility": "con",
@@ -2243,7 +2267,8 @@
     "desc": "You conjure a vine that sprouts from a surface in an unoccupied space that you can see within range. The vine lasts for the duration.\n\nMake a melee spell attack against a creature within 30 feet of the vine. On a hit, the target takes 4d8 Bludgeoning damage and is pulled up to 30 feet toward the vine; if the target is Huge or smaller, it has the Grappled condition (escape DC equal to your spell save DC). The vine can grapple only one creature at a time, and you can cause the vine to release a Grappled creature (no action required).\n\nAs a Bonus on your later turns, you can repeat the attack against a creature within 30 feet of the vine.",
     "range": 60,
     "source": "2024",
-    "damageType": "Bludgeoning"
+    "aoeSize": 30,
+    "mapInteraction": "place"
   },
   {
     "name": "Greater Invisibility",
@@ -2269,10 +2294,7 @@
     "level": 4,
     "school": "Illusion",
     "desc": "You make natural terrain in a 150-foot Cube in range look, sound, and smell like another sort of natural terrain. Thus, open fields or a road can be made to resemble a swamp, hill, crevasse, or some other difficult or impassable terrain. A pond can be made to seem like a grassy meadow, a precipice like a gentle slope, or a rock-strewn gully like a wide and smooth road. Manufactured structures, equipment, and creatures within the area aren't changed.\n\nThe tactile characteristics of the terrain are unchanged, so creatures entering the area are likely to notice the illusion. If the difference isn't obvious by touch, a creature examining the illusion can take the Study action to make an Intelligence (Investigation) check against your spell save DC to disbelieve it. If a creature discerns that the terrain is illusory, the creature sees a vague image superimposed on the real terrain.",
-    "range": 300,
-    "source": "2024",
-    "aoeType": "cone",
-    "effectRadius": 150
+    "source": "2024"
   },
   {
     "name": "Ice Storm",

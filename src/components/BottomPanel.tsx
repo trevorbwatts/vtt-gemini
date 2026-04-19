@@ -83,6 +83,7 @@ interface BottomPanelProps {
   // HP management (for token detail panel)
   onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
   onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
+  onAddCondition?: (sourceCombatantId: string, condition: string) => void;
 
   // Spell casting from detail panel
   startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
@@ -116,6 +117,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   onSelectedTokenIdsChange,
   onUpdateCombatantHp,
   onRemoveCondition,
+  onAddCondition,
   startCastingRef,
   startPlacingRef,
   targetedCombatantIds,
@@ -147,6 +149,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   };
 
   const [panelHpInput, setPanelHpInput] = useState('');
+  const [conditionDropdownOpen, setConditionDropdownOpen] = useState(false);
 
   // ── Action roll state ──
   const [actionRollOpen, setActionRollOpen] = useState(false);
@@ -647,16 +650,16 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <span className="text-[14px] font-bold leading-none">+</span>
                       </button>
                     </div>
-                    {detailSource?.conditions && detailSource.conditions.length > 0 && (
+                    {detailSourceId && (
                       <div className="flex items-center gap-1 ml-3 flex-wrap">
-                        {detailSource.conditions.map(condition => (
+                        {(detailSource?.conditions || []).map(condition => (
                           <span
                             key={condition}
                             className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[11px] font-semibold capitalize"
                           >
                             {condition}
                             <button
-                              onClick={(e) => { e.stopPropagation(); detailSourceId && onRemoveCondition?.(detailSourceId, condition); }}
+                              onClick={(e) => { e.stopPropagation(); onRemoveCondition?.(detailSourceId, condition); }}
                               className="ml-0.5 text-purple-300 hover:text-white text-[14px] leading-none w-4 h-4 flex items-center justify-center hover:bg-purple-500/40 rounded-full transition-colors"
                               title={`Remove ${condition}`}
                             >
@@ -664,6 +667,31 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             </button>
                           </span>
                         ))}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConditionDropdownOpen(v => !v); }}
+                            className="w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/40 hover:bg-purple-500/30 hover:text-purple-300 text-[13px] leading-none transition-colors"
+                            title="Add condition"
+                          >
+                            +
+                          </button>
+                          {conditionDropdownOpen && (
+                            <div className="absolute bottom-full left-0 mb-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 py-1 min-w-[130px]">
+                              {['blinded','charmed','deafened','frightened','grappled','incapacitated','paralyzed','petrified','poisoned','prone','restrained','stunned','unconscious']
+                                .filter(c => !(detailSource?.conditions || []).includes(c))
+                                .map(c => (
+                                  <button
+                                    key={c}
+                                    onClick={(e) => { e.stopPropagation(); onAddCondition?.(detailSourceId, c); setConditionDropdownOpen(false); }}
+                                    className="w-full text-left px-3 py-1 text-[11px] font-semibold capitalize text-white/70 hover:bg-purple-500/20 hover:text-purple-300 transition-colors"
+                                  >
+                                    {c}
+                                  </button>
+                                ))
+                              }
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
