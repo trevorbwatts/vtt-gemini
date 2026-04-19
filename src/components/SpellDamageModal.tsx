@@ -11,6 +11,12 @@ interface SaveResult {
   name: string;
 }
 
+interface CombatantTrait {
+  resistant: boolean;
+  immune: boolean;
+  vulnerable: boolean;
+}
+
 interface SpellDamageModalProps {
   isOpen: boolean;
   spellName: string;
@@ -18,8 +24,39 @@ interface SpellDamageModalProps {
   saveDc: number;
   halfDamageOnSave: boolean;
   saveResults: Record<string, SaveResult>;
+  damageType?: string;
+  combatantTraits?: Record<string, CombatantTrait>;
   onApply: (damages: Record<string, number>) => void;
   onClose: () => void;
+}
+
+function applyTraits(base: number, trait: CombatantTrait | undefined): number {
+  if (!trait) return base;
+  if (trait.immune) return 0;
+  let val = base;
+  if (trait.resistant) val = Math.floor(val / 2);
+  if (trait.vulnerable) val = val * 2;
+  return val;
+}
+
+function TraitBadge({ trait }: { trait: CombatantTrait | undefined }) {
+  if (!trait) return null;
+  if (trait.immune) return (
+    <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 shrink-0">
+      Immune
+    </span>
+  );
+  if (trait.resistant) return (
+    <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 shrink-0">
+      Resist
+    </span>
+  );
+  if (trait.vulnerable) return (
+    <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 shrink-0">
+      Vuln
+    </span>
+  );
+  return null;
 }
 
 export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
@@ -29,6 +66,8 @@ export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
   saveDc,
   halfDamageOnSave,
   saveResults,
+  damageType,
+  combatantTraits,
   onApply,
   onClose,
 }) => {
@@ -41,7 +80,6 @@ export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
   const passed = Object.entries(saveResults).filter(([, r]) => r.success);
   const hasMonsters = failed.length > 0 || (halfDamageOnSave && passed.length > 0);
 
-  // Reset and focus input when modal opens
   useEffect(() => {
     if (isOpen) {
       setTotalDamage('');
@@ -51,19 +89,24 @@ export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
     }
   }, [isOpen]);
 
-  // Auto-fill individual damage boxes when total changes
   useEffect(() => {
     const val = parseInt(totalDamage, 10);
     if (isNaN(val) || val < 0) return;
 
     const updates: Record<string, string> = {};
     for (const [id] of failed) {
-      if (!dirtyFields.has(id)) updates[id] = String(val);
+      if (!dirtyFields.has(id)) {
+        const adjusted = applyTraits(val, combatantTraits?.[id]);
+        updates[id] = String(adjusted);
+      }
     }
     if (halfDamageOnSave) {
       const halfVal = Math.floor(val / 2);
       for (const [id] of passed) {
-        if (!dirtyFields.has(id)) updates[id] = String(halfVal);
+        if (!dirtyFields.has(id)) {
+          const adjusted = applyTraits(halfVal, combatantTraits?.[id]);
+          updates[id] = String(adjusted);
+        }
       }
     }
     setIndividualDamage(prev => ({ ...prev, ...updates }));
@@ -114,7 +157,10 @@ export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
           <div className="flex items-center justify-between p-4 border-b border-[var(--line)] bg-black/10">
             <div>
               <h2 className="text-lg font-serif font-bold tracking-tight text-orange-400">{spellName}</h2>
-              <p className="text-[11px] text-white/50 mt-0.5">{abilityLabel} Save DC {saveDc}</p>
+              <p className="text-[11px] text-white/50 mt-0.5">
+                {abilityLabel} Save DC {saveDc}
+                {damageType && <span className="ml-2 opacity-70">· {damageType}</span>}
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -157,20 +203,31 @@ export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
                       </span>
                     </div>
                     <div className="space-y-1.5">
-                      {failed.map(([id, result]) => (
-                        <div key={id} className="flex items-center gap-2 bg-red-500/5 border border-red-500/10 rounded-lg px-2.5 py-1.5">
-                          <span className="text-xs font-bold text-white/70 flex-1 truncate">{result.name}</span>
-                          <span className="text-[9px] text-red-400/60 shrink-0">{result.total}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={individualDamage[id] || ''}
-                            onChange={(e) => handleIndividualChange(id, e.target.value)}
-                            placeholder="0"
-                            className="w-12 h-6 text-center text-[12px] font-bold bg-black/50 border border-red-500/20 rounded text-red-400 placeholder:text-white/15 focus:outline-none focus:border-red-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                        </div>
-                      ))}
+                      {failed.map(([id, result]) => {
+                        const trait = combatantTraits?.[id];
+                        const isImmune = trait?.immune;
+                        return (
+                          <div key={id} className="flex items-center gap-2 bg-red-500/5 border border-red-500/10 rounded-lg px-2.5 py-1.5">
+                            <span className="text-xs font-bold text-white/70 flex-1 truncate">{result.name}</span>
+                            <TraitBadge trait={trait} />
+                            <span className="text-[9px] text-red-400/60 shrink-0">{result.total}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={individualDamage[id] || ''}
+                              onChange={(e) => handleIndividualChange(id, e.target.value)}
+                              placeholder="0"
+                              disabled={isImmune}
+                              className={cn(
+                                "w-12 h-6 text-center text-[12px] font-bold bg-black/50 border rounded text-red-400 placeholder:text-white/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                isImmune
+                                  ? "border-white/10 opacity-30 cursor-not-allowed"
+                                  : "border-red-500/20 focus:border-red-500/50"
+                              )}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -185,20 +242,31 @@ export const SpellDamageModal: React.FC<SpellDamageModalProps> = ({
                       </span>
                     </div>
                     <div className="space-y-1.5">
-                      {passed.map(([id, result]) => (
-                        <div key={id} className="flex items-center gap-2 bg-green-500/5 border border-green-500/10 rounded-lg px-2.5 py-1.5">
-                          <span className="text-xs font-bold text-white/70 flex-1 truncate">{result.name}</span>
-                          <span className="text-[9px] text-green-400/60 shrink-0">{result.total}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={individualDamage[id] || ''}
-                            onChange={(e) => handleIndividualChange(id, e.target.value)}
-                            placeholder="0"
-                            className="w-12 h-6 text-center text-[12px] font-bold bg-black/50 border border-green-500/20 rounded text-green-400 placeholder:text-white/15 focus:outline-none focus:border-green-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                        </div>
-                      ))}
+                      {passed.map(([id, result]) => {
+                        const trait = combatantTraits?.[id];
+                        const isImmune = trait?.immune;
+                        return (
+                          <div key={id} className="flex items-center gap-2 bg-green-500/5 border border-green-500/10 rounded-lg px-2.5 py-1.5">
+                            <span className="text-xs font-bold text-white/70 flex-1 truncate">{result.name}</span>
+                            <TraitBadge trait={trait} />
+                            <span className="text-[9px] text-green-400/60 shrink-0">{result.total}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={individualDamage[id] || ''}
+                              onChange={(e) => handleIndividualChange(id, e.target.value)}
+                              placeholder="0"
+                              disabled={isImmune}
+                              className={cn(
+                                "w-12 h-6 text-center text-[12px] font-bold bg-black/50 border rounded text-green-400 placeholder:text-white/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                isImmune
+                                  ? "border-white/10 opacity-30 cursor-not-allowed"
+                                  : "border-green-500/20 focus:border-green-500/50"
+                              )}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

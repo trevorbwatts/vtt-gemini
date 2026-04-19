@@ -16,6 +16,7 @@ import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
+import { lookupSpell } from './data/spellDatabase';
 
 // Load persisted panel states from localStorage
 function loadPanelStates(): { left: boolean; nav: boolean } {
@@ -124,7 +125,7 @@ export function DMScreen() {
 
   // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string; saveEffect?: string; condition?: string } | null>(null);
-  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any> } | null>(null);
+  const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any>; damageType?: string; combatantTraits?: Record<string, { resistant: boolean; immune: boolean; vulnerable: boolean }> } | null>(null);
   const [spellConditionModal, setSpellConditionModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; condition: string; saveResults: Record<string, any> } | null>(null);
   const prevSaveResultsRef = useRef<Record<string, any> | null>(null);
 
@@ -162,12 +163,40 @@ export function DMScreen() {
       }
     }
 
+    const spellEntry = lookupSpell(aoeHighlights.spellName || '');
+    const damageType = spellEntry?.damageType;
+
+    const combatantTraits: Record<string, { resistant: boolean; immune: boolean; vulnerable: boolean }> = {};
+    if (damageType) {
+      const dt = damageType.toLowerCase();
+      const hasType = (field: string | undefined) =>
+        !!field && field.toLowerCase().split(/[;,]/).map(s => s.trim()).includes(dt);
+      const scenario = campaign.scenarios.find(s => s.id === selectedScenarioId);
+      const allCombatants = [
+        ...(scenario?.combatants || []),
+        ...(scenario?.activeCombatants || []),
+        ...(campaign.persistentEnemies || []),
+      ];
+      for (const id of Object.keys(curr)) {
+        const c = allCombatants.find(ac => ac.id === id || ac.sourceCombatantId === id);
+        if (c) {
+          combatantTraits[id] = {
+            resistant: hasType(c.resistances),
+            immune: hasType(c.immunities),
+            vulnerable: hasType(c.vulnerabilities),
+          };
+        }
+      }
+    }
+
     setSpellDamageModal({
       spellName: aoeHighlights.spellName,
       saveAbility: aoeHighlights.saveAbility || '',
       saveDc: aoeHighlights.saveDc || 0,
       halfDamageOnSave: aoeHighlights.saveEffect === 'damage-auto' ? false : (aoeHighlights.halfDamageOnSave || false),
       saveResults: curr,
+      damageType,
+      combatantTraits,
     });
   }, [aoeHighlights?.saveResults]);
 
@@ -1658,6 +1687,8 @@ export function DMScreen() {
           saveDc={spellDamageModal?.saveDc || 0}
           halfDamageOnSave={spellDamageModal?.halfDamageOnSave || false}
           saveResults={spellDamageModal?.saveResults || {}}
+          damageType={spellDamageModal?.damageType}
+          combatantTraits={spellDamageModal?.combatantTraits}
           onApply={handleApplySpellDamage}
           onClose={() => {
             // DM closed without applying — still clear the AoE on both screens
