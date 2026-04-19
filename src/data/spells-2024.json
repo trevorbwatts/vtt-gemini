@@ -2350,8 +2350,7 @@
     "school": "Abjuration",
     "desc": "A shimmering sphere encloses a Large or smaller creature or object within range. An unwilling creature must succeed on a Dexterity saving throw or be enclosed for the duration.\n\nNothing—not physical objects, energy, or other spell effects—can pass through the barrier, in or out, though a creature in the sphere can breathe there. The sphere is immune to all damage, and a creature or object inside can't be damaged by attacks or effects originating from outside, nor can a creature inside the sphere damage anything outside it.\n\nThe sphere is weightless and just large enough to contain the creature or object inside. An enclosed creature can take an action to push against the sphere's walls and thus roll the sphere at up to half the creature's Speed. Similarly, the globe can be picked up and moved by other creatures.\n\nA Disintegrate spell targeting the globe destroys it without harming anything inside.",
     "range": 30,
-    "source": "2024",
-    "saveAbility": "dex"
+    "source": "2024"
   },
   {
     "name": "Phantasmal Killer",
@@ -2359,10 +2358,7 @@
     "school": "Illusion",
     "desc": "You tap into the nightmares of a creature you can see within range and create an illusion of its deepest fears, visible only to that creature. The target makes a Wisdom saving throw. On a failed save, the target takes 4d10 Psychic damage and has Disadvantage on ability checks and attack rolls for the duration. On a successful save, the target takes half as much damage, and the spell ends.\n\nFor the duration, the target makes a Wisdom saving throw at the end of each of its turns. On a failed save, it takes the Psychic damage again. On a successful save, the spell ends.",
     "range": 120,
-    "source": "2024",
-    "saveAbility": "wis",
-    "halfDamageOnSave": true,
-    "damageType": "Psychic"
+    "source": "2024"
   },
   {
     "name": "Polymorph",
@@ -2379,9 +2375,7 @@
     "school": "Enchantment",
     "desc": "The target takes an extra 4d6 Psychic damage from the attack, and the target must succeed on a Wisdom saving throw or have the Stunned condition until the end of your next turn.",
     "range": 0,
-    "source": "2024",
-    "saveAbility": "wis",
-    "damageType": "Psychic"
+    "source": "2024"
   },
   {
     "name": "Stone Shape",
@@ -2397,8 +2391,7 @@
     "school": "Transmutation",
     "desc": "Until the spell ends, one willing creature you touch has Resistance to Bludgeoning, Piercing, and Slashing damage.",
     "range": 0,
-    "source": "2024",
-    "damageType": "Slashing"
+    "source": "2024"
   },
   {
     "name": "Summon Aberration",
@@ -2485,8 +2478,7 @@
     "school": "Conjuration",
     "desc": "The target hit by the attack roll takes an extra 5d10 Force damage from the attack. If the attack reduces the target to 50 Hit or fewer, the target must succeed on a Charisma saving throw or be transported to a harmless demiplane for the duration. While there, the target has the Incapacitated condition. When the spell ends, the target reappears in the space it left or in the nearest unoccupied space if that space is occupied.",
     "range": 0,
-    "source": "2024",
-    "damageType": "Force"
+    "source": "2024"
   },
   {
     "name": "Bigby's Hand",
@@ -2521,7 +2513,8 @@
     "aoeSize": 20,
     "saveAbility": "con",
     "halfDamageOnSave": true,
-    "damageType": "Poison"
+    "damageType": "Poison",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Commune",
@@ -2572,7 +2565,8 @@
     "aoeSize": 40,
     "saveAbility": "dex",
     "halfDamageOnSave": true,
-    "damageType": "Force"
+    "damageType": "Force",
+    "mapInteraction": "cast"
   },
   {
     "name": "Contact Other Plane",
@@ -2590,11 +2584,7 @@
     "school": "Necromancy",
     "desc": "Your touch inflicts a magical contagion. The target must succeed on a Constitution saving throw or take 11d8 Necrotic damage and have the Poisoned condition. Also, choose one ability when you cast the spell. While Poisoned, the target has Disadvantage on saving throws made with the chosen ability.\n\nThe target must repeat the saving throw at the end of each of its turns until it gets three successes or failures. If the target succeeds on three of these saves, the spell ends on the target. If the target fails three of the saves, the spell lasts for 7 days on it.\n\nWhenever the Poisoned target receives an effect that would end the Poisoned condition, the target must succeed on a Constitution saving throw, or the Poisoned condition doesn't end on it.",
     "range": 0,
-    "source": "2024",
-    "saveAbility": "con",
-    "saveEffect": "condition",
-    "condition": "poisoned",
-    "damageType": "Necrotic"
+    "source": "2024"
   },
   {
     "name": "Creation",
