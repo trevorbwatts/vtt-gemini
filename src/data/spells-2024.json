@@ -525,7 +525,9 @@
     "aoeType": "cube",
     "aoeSize": 20,
     "saveAbility": "str",
-    "mapInteraction": "cast-and-place"
+    "mapInteraction": "cast-and-place",
+    "saveEffect": "condition",
+    "condition": "restrained"
   },
   {
     "name": "Expeditious Retreat",
@@ -960,7 +962,9 @@
     "desc": "One creature that you can see within range must succeed on a Constitution saving throw, or it has the Blinded or Deafened condition (your choice) for the duration. At the end of each of its turns, the target repeats the save, ending the spell on itself on a success.",
     "range": 120,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "blinded"
   },
   {
     "name": "Blur",
@@ -1159,7 +1163,9 @@
     "desc": "Choose a Humanoid that you can see within range. The target must succeed on a Wisdom saving throw or have the Paralyzed condition for the duration. At the end of each of its turns, the target repeats the save, ending the spell on itself on a success.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "paralyzed"
   },
   {
     "name": "Invisibility",
@@ -1616,7 +1622,9 @@
     "source": "2024",
     "aoeType": "cone",
     "aoeSize": 30,
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "frightened"
   },
   {
     "name": "Feign Death",
@@ -1881,7 +1889,9 @@
     "source": "2024",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "poisoned"
   },
   {
     "name": "Summon Fey",
@@ -2458,7 +2468,9 @@
     "desc": "Your touch inflicts a magical contagion. The target must succeed on a Constitution saving throw or take 11d8 Necrotic damage and have the Poisoned condition. Also, choose one ability when you cast the spell. While Poisoned, the target has Disadvantage on saving throws made with the chosen ability.\n\nThe target must repeat the saving throw at the end of each of its turns until it gets three successes or failures. If the target succeeds on three of these saves, the spell ends on the target. If the target fails three of the saves, the spell lasts for 7 days on it.\n\nWhenever the Poisoned target receives an effect that would end the Poisoned condition, the target must succeed on a Constitution saving throw, or the Poisoned condition doesn't end on it.",
     "range": 0,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "poisoned"
   },
   {
     "name": "Creation",
@@ -2552,7 +2564,9 @@
     "desc": "Choose a creature that you can see within range. The target must succeed on a Wisdom saving throw or have the Paralyzed condition for the duration. At the end of each of its turns, the target repeats the save, ending the spell on itself on a success.",
     "range": 90,
     "source": "2024",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "paralyzed"
   },
   {
     "name": "Insect Plague",
@@ -2878,7 +2892,9 @@
     "desc": "You attempt to turn one creature that you can see within range into stone. The target makes a Constitution saving throw. On a failed save, it has the Restrained condition for the duration. On a successful save, its Speed is 0 until the start of your next turn. Constructs automatically succeed on the save.\n\nA Restrained target makes another Constitution saving throw at the end of each of its turns. If it successfully saves against this spell three times, the spell ends. If it fails its saves three times, it is turned to stone and has the Petrified condition for the duration. The successes and failures needn't be consecutive; keep track of both until the target collects three of a kind.\n\nIf you maintain your Concentration on this spell for the entire possible duration, the target is Petrified until the condition is ended by Greater Restoration or similar magic.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "petrified"
   },
   {
     "name": "Forbiddance",
@@ -3414,7 +3430,9 @@
     "desc": "You overwhelm the mind of one creature you can see within range. If the target has 150 Hit or fewer, it has the Stunned condition. Otherwise, its Speed is 0 until the start of your next turn.\n\nThe Stunned target makes a Constitution saving throw at the end of each of its turns, ending the condition on itself on a success.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "stunned"
   },
   {
     "name": "Sunburst",

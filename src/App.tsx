@@ -647,6 +647,7 @@ export function DMScreen() {
         persistentEnemies: removeFrom(prev.persistentEnemies),
         scenarios: prev.scenarios.map(s => ({
           ...s,
+          combatants: removeFrom(s.combatants || []),
           activeCombatants: removeFrom(s.activeCombatants || []),
         })),
       };
@@ -856,31 +857,30 @@ export function DMScreen() {
   };
 
   const handleApplySpellCondition = (applyToIds: string[]) => {
-    // Apply the condition to the selected combatants
-    for (const combatantId of applyToIds) {
-      const condition = spellConditionModal?.condition;
-      if (!condition) continue;
-      setCampaign(prev => {
-        if (!prev) return prev;
-        const applyToList = (list: Combatant[]) =>
-          list.map(c => {
-            if (c.id !== combatantId && c.sourceCombatantId !== combatantId) return c;
-            const current = new Set(c.conditions || []);
-            current.add(condition);
-            return { ...c, conditions: Array.from(current) };
-          });
-        return {
-          ...prev,
-          players: applyToList(prev.players),
-          npcs: applyToList(prev.npcs),
-          persistentEnemies: applyToList(prev.persistentEnemies),
-          scenarios: prev.scenarios.map(s => ({
-            ...s,
-            activeCombatants: applyToList(s.activeCombatants || []),
-          })),
-        };
-      });
-    }
+    const condition = spellConditionModal?.condition;
+    if (!condition || applyToIds.length === 0) return;
+    const idSet = new Set(applyToIds);
+    setCampaign(prev => {
+      if (!prev) return prev;
+      const applyToList = (list: Combatant[]) =>
+        list.map(c => {
+          if (!idSet.has(c.id) && !idSet.has(c.sourceCombatantId || '')) return c;
+          const current = new Set(c.conditions || []);
+          current.add(condition);
+          return { ...c, conditions: Array.from(current) };
+        });
+      return {
+        ...prev,
+        players: applyToList(prev.players),
+        npcs: applyToList(prev.npcs),
+        persistentEnemies: applyToList(prev.persistentEnemies),
+        scenarios: prev.scenarios.map(s => ({
+          ...s,
+          combatants: applyToList(s.combatants || []),
+          activeCombatants: applyToList(s.activeCombatants || []),
+        })),
+      };
+    });
     cancelCastingRef.current?.();
     clearRemoteAoeRef.current?.();
     window.electronAPI?.sendDismissPlayerAoe?.();

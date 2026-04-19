@@ -492,7 +492,9 @@
     "desc": "You awaken the sense of mortality in one creature you can see within range. A construct or an undead is immune to this effect. The target must succeed on a Wisdom saving throw or become frightened of you until the spell ends. The frightened target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.",
     "range": 60,
     "source": "2014",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "frightened"
   },
   {
     "name": "Ceremony",
@@ -666,7 +668,9 @@
     "aoeType": "cube",
     "aoeSize": 20,
     "saveAbility": "str",
-    "mapInteraction": "cast-and-place"
+    "mapInteraction": "cast-and-place",
+    "saveEffect": "condition",
+    "condition": "restrained"
   },
   {
     "name": "Expeditious Retreat",
@@ -1129,7 +1133,9 @@
     "desc": "You can blind or deafen a foe. Choose one creature that you can see within range to make a Constitution saving throw. If it fails, the target is either blinded or deafened (your choice) for the duration. At the end of each of its turns, the target can make a Constitution saving throw. On a success, the spell ends.",
     "range": 30,
     "source": "2014",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "blinded"
   },
   {
     "name": "Blur",
@@ -1364,7 +1370,9 @@
     "desc": "Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration. At the end of each of its turns, the target can make another Wisdom saving throw. On a success, the spell ends on the target.",
     "range": 60,
     "source": "2014",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "paralyzed"
   },
   {
     "name": "Invisibility",
@@ -1904,7 +1912,9 @@
     "source": "2014",
     "aoeType": "cone",
     "aoeSize": 30,
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "frightened"
   },
   {
     "name": "Feign Death",
@@ -2213,7 +2223,9 @@
     "source": "2014",
     "aoeType": "sphere",
     "aoeSize": 20,
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "poisoned"
   },
   {
     "name": "Summon Fey",
@@ -2916,7 +2928,9 @@
     "desc": "Your touch inflicts disease. Make a melee spell attack against a creature within your reach. On a hit, the target is poisoned.\n\nAt the end of each of the poisoned target's turns, the target must make a Constitution saving throw. If the target succeeds on three of these saves, it is no longer poisoned, and the spell ends. If the target fails three of these saves, the target is no longer poisoned, but choose one of the diseases below. The target is subjected to the chosen disease for the spell's duration.\n\nSince this spell induces a natural disease in its target, any effect that removes a disease or otherwise ameliorates a disease's effects apply to it.\n\n**Blinding Sickness.** Pain grips the creature's mind, and its eyes turn milky white. The creature has disadvantage on Wisdom checks and Wisdom saving throws and is blinded.\n\n**Filth Fever.** A raging fever sweeps through the creature's body. The creature has disadvantage on Strength checks, Strength saving throws, and attack rolls that use Strength.\n\n**Flesh Rot.** The creature's flesh decays. The creature has disadvantage on Charisma checks and vulnerability to all damage.\n\n**Mindfire.** The creature's mind becomes feverish. The creature has disadvantage on Intelligence checks and Intelligence saving throws, and the creature behaves as if under the effects of the confusion spell during combat.\n\n**Seizure.** The creature is overcome with shaking. The creature has disadvantage on Dexterity checks, Dexterity saving throws, and attack rolls that use Dexterity.\n\n**Slimy Doom.** The creature begins to bleed uncontrollably. The creature has disadvantage on Constitution checks and Constitution saving throws. In addition, whenever the creature takes damage, it is stunned until the end of its next turn.",
     "range": 0,
     "source": "2014",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "poisoned"
   },
   {
     "name": "Control Winds",
@@ -3058,7 +3072,9 @@
     "desc": "Choose a creature that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration. This spell has no effect on undead. At the end of each of its turns, the target can make another Wisdom saving throw. On a success, the spell ends on the target.",
     "range": 90,
     "source": "2014",
-    "saveAbility": "wis"
+    "saveAbility": "wis",
+    "saveEffect": "condition",
+    "condition": "paralyzed"
   },
   {
     "name": "Holy Weapon",
@@ -3461,7 +3477,9 @@
     "desc": "You attempt to turn one creature that you can see within range into stone. If the target's body is made of flesh, the creature must make a Constitution saving throw. On a failed save, it is restrained as its flesh begins to harden. On a successful save, the creature isn't affected.\n\nA creature restrained by this spell must make another Constitution saving throw at the end of each of its turns. If it successfully saves against this spell three times, the spell ends. If it fails its saves three times, it is turned to stone and subjected to the petrified condition for the duration. The successes and failures don't need to be consecutive; keep track of both until the target collects three of a kind.\n\nIf the creature is physically broken while petrified, it suffers from similar deformities if it reverts to its original state.\n\nIf you maintain your concentration on this spell for the entire possible duration, the creature is turned to stone until the effect is removed.",
     "range": 60,
     "source": "2014",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "petrified"
   },
   {
     "name": "Forbiddance",
@@ -4163,7 +4181,9 @@
     "desc": "You speak a word of power that can overwhelm the mind of one creature you can see within range, leaving it dumbfounded. If the target has 150 hit points or fewer, it is stunned. Otherwise, the spell has no effect.\n\nThe stunned target must make a Constitution saving throw at the end of each of its turns. On a successful save, this stunning effect ends.",
     "range": 60,
     "source": "2014",
-    "saveAbility": "con"
+    "saveAbility": "con",
+    "saveEffect": "condition",
+    "condition": "stunned"
   },
   {
     "name": "Sunburst",

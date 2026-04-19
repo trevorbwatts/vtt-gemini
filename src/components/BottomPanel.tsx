@@ -652,11 +652,16 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         {detailSource.conditions.map(condition => (
                           <span
                             key={condition}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[11px] font-semibold capitalize cursor-pointer hover:bg-purple-500/40 transition-colors"
-                            onClick={() => detailSourceId && onRemoveCondition?.(detailSourceId, condition)}
-                            title={`Remove ${condition}`}
+                            className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[11px] font-semibold capitalize"
                           >
-                            {condition} ×
+                            {condition}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); detailSourceId && onRemoveCondition?.(detailSourceId, condition); }}
+                              className="ml-0.5 text-purple-300 hover:text-white text-[14px] leading-none w-4 h-4 flex items-center justify-center hover:bg-purple-500/40 rounded-full transition-colors"
+                              title={`Remove ${condition}`}
+                            >
+                              ×
+                            </button>
                           </span>
                         ))}
                       </div>
