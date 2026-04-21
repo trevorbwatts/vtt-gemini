@@ -13,6 +13,7 @@ import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
 import { searchBeasts } from '../data/bestiary';
 import { SUMMON_OPTIONS, SummonOption } from '../data/summonData';
+import { EnlargeReduceModal } from './EnlargeReduceModal';
 
 /** Derive the effective map interaction for a spell, falling back to DB lookup then aoeType heuristic. */
 function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-and-place' | 'cast-and-emanate' | 'summon' | 'exception' | 'none' {
@@ -1290,6 +1291,7 @@ export function PlayerScreen() {
   // Ref for spell casting from drawers
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>(null);
   const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; aoeType?: string; aoeSize?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>(null);
+  const startEnlargeReduceRef = useRef<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>(null);
   const addMarkersDirectlyRef = useRef<((markers: import('../types').SpellMarker[]) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const confirmCastRef = useRef<(() => void) | null>(null);
@@ -1307,6 +1309,8 @@ export function PlayerScreen() {
 
   // Wall of Fire variant picker — shown when player casts Wall of Fire before choosing Wall vs Ring
   const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
+  // Enlarge/Reduce picker — shown when player casts Enlarge/Reduce so they can choose Enlarge vs Reduce before targeting a token
+  const [enlargeReducePicker, setEnlargeReducePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
 
   // Summon creature picker — shown when player casts a Summon spell (e.g. Summon Aberration)
   const [summonPicker, setSummonPicker] = useState<{ spotId: SpotId; playerId: string; spell: any; options: SummonOption[] } | null>(null);
@@ -1870,6 +1874,13 @@ export function PlayerScreen() {
       return;
     }
 
+    // Enlarge/Reduce exception: show mode picker, then enter token-targeting mode.
+    // No token is placed on the map — the effect resizes an existing token.
+    if (spell?.name === 'Enlarge/Reduce') {
+      setEnlargeReducePicker({ spotId, playerId });
+      return;
+    }
+
     // Wall of Fire exception: show variant picker (Wall vs Ring) before placement
     if (spell?.name === 'Wall of Fire') {
       const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
@@ -2241,6 +2252,7 @@ export function PlayerScreen() {
           viewportCenter={viewportCenter}
           startCastingRef={startCastingRef}
           startPlacingRef={startPlacingRef}
+          startEnlargeReduceRef={startEnlargeReduceRef}
           addMarkersDirectlyRef={addMarkersDirectlyRef}
           cancelCastingRef={cancelCastingRef}
           confirmCastRef={confirmCastRef}
@@ -2415,6 +2427,18 @@ export function PlayerScreen() {
           />
         );
       })()}
+
+      {/* Enlarge/Reduce mode picker */}
+      <EnlargeReduceModal
+        isOpen={!!enlargeReducePicker}
+        onConfirm={(mode) => {
+          if (enlargeReducePicker) {
+            startEnlargeReduceRef.current?.(mode, enlargeReducePicker.playerId);
+          }
+          setEnlargeReducePicker(null);
+        }}
+        onClose={() => setEnlargeReducePicker(null)}
+      />
 
       {/* Wall of Fire variant picker */}
       {wallOfFirePicker && (() => {

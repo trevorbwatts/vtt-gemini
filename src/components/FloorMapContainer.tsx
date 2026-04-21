@@ -45,6 +45,7 @@ interface FloorMapContainerProps {
   startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; aoeType?: string; aoeSize?: number }, combatantId: string) => void) | null>;
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
+  startEnlargeReduceRef?: React.MutableRefObject<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>;
   confirmCastRef?: React.MutableRefObject<(() => void) | null>;
   onCastingDismissed?: () => void;
   onEmanationCast?: (spellName: string, casterId: string) => void;
@@ -219,6 +220,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       startPlacingRef: props.startPlacingRef,
       addMarkersDirectlyRef: props.addMarkersDirectlyRef,
       cancelCastingRef: props.cancelCastingRef,
+      startEnlargeReduceRef: props.startEnlargeReduceRef,
       confirmCastRef: props.confirmCastRef,
       onCastingDismissed: props.onCastingDismissed,
       onEmanationCast: props.onEmanationCast,

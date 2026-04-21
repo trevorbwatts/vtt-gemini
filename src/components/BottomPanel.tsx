@@ -92,6 +92,9 @@ interface BottomPanelProps {
   // Spell marker placement from detail panel
   startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall'; maxLength?: number; maxThickness?: number; blocksVision?: boolean }, combatantId: string) => void) | null>;
 
+  // Exception spell handler (e.g. Enlarge/Reduce)
+  onExceptionSpellCast?: (spellName: string, casterId: string) => void;
+
   // Targeting
   targetedCombatantIds?: Set<string>;
 
@@ -124,6 +127,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   onAddCondition,
   startCastingRef,
   startPlacingRef,
+  onExceptionSpellCast,
   targetedCombatantIds,
   wildShapeState,
   onRefreshPlayer,
@@ -1147,7 +1151,13 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             rangeBadge={makeRangeBadge(spell.range)}
                             aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
                             saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
-                            onCast={(getSpellMi(spell) === 'cast' || getSpellMi(spell) === 'cast-and-place') ? () => startCasting(spell) : undefined}
+                            onCast={
+                              (getSpellMi(spell) === 'cast' || getSpellMi(spell) === 'cast-and-place')
+                                ? () => startCasting(spell)
+                                : (getSpellMi(spell) === 'exception' && detailSourceId && onExceptionSpellCast)
+                                ? () => onExceptionSpellCast(spell.name, detailSourceId)
+                                : undefined
+                            }
                             onPlace={isPlaceable(spell) ? () => startPlacing(spell) : undefined}
                             onRoll={!hasAoe ? makeSpellRoll(spell.desc, spell.name) : undefined} />
                           );

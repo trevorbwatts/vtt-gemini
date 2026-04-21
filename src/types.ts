@@ -84,6 +84,8 @@ export interface Token {
   size?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
   floorId?: string;
   invisible?: boolean;
+  /** Set when this token is currently under an Enlarge/Reduce effect; stores its size before the spell so it can be reverted. */
+  enlargedFrom?: 'Tiny' | 'Small' | 'Medium' | 'Large' | 'Huge' | 'Gargantuan';
   // --- summoned creatures ---
   /** True if this token was created by a summon spell. */
   isSummon?: boolean;

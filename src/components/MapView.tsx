@@ -66,6 +66,8 @@ interface MapViewProps {
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   /** Ref that MapView populates so external code can cancel placed AoE */
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref that MapView populates so external code can start Enlarge/Reduce token targeting */
+  startEnlargeReduceRef?: React.MutableRefObject<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>;
   /** Ref that MapView populates so players can enter ruler/measure mode */
   startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
   /** Ref that MapView populates so players can cancel measure mode */
@@ -909,6 +911,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   startPlacingRef,
   addMarkersDirectlyRef,
   cancelCastingRef,
+  startEnlargeReduceRef,
   confirmCastRef,
   onCastingDismissed,
   startMeasuringRef,
@@ -1045,6 +1048,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [pendingMarkerPos, setPendingMarkerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+  const [targetingEnlargeReduce, setTargetingEnlargeReduce] = useState<{ mode: 'enlarge' | 'reduce'; casterId: string; targetTokenId: string | null } | null>(null);
   // Editing/preview state for wall-shape spells (Wall of Sand, etc.) — before confirmation
   const [editingWall, setEditingWall] = useState<{
     x: number;
@@ -1446,8 +1450,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setEditingWall(null);
       setEditingRing(null);
       setPlacingSpell(null);
+      setTargetingEnlargeReduce(null);
       onCastingDismissed?.();
       onAoeHighlightsChange?.(null);
+    };
+  }
+
+  if (startEnlargeReduceRef) {
+    startEnlargeReduceRef.current = (mode, casterId) => {
+      setTargetingEnlargeReduce({ mode, casterId, targetTokenId: null });
+      setSelectedTokenIds([]);
+      setSelectedTokenId(null);
     };
   }
 
@@ -2983,6 +2996,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         if (castingSpell) { setCastingSpell(null); setCastingMousePos(null); onCastingDismissed?.(); return; }
         if (editingWall) { setEditingWall(null); setPlacingSpell(null); onCastingDismissed?.(); return; }
         if (editingRing) { setEditingRing(null); setPlacingSpell(null); onCastingDismissed?.(); return; }
+        if (targetingEnlargeReduce) { setTargetingEnlargeReduce(null); onCastingDismissed?.(); return; }
       }
 
       const tag = (e.target as HTMLElement).tagName;
@@ -3099,6 +3113,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchEnd = (e: any) => {
+    // Enlarge/Reduce token targeting on touch: tap a token to select it as the target
+    if (targetingEnlargeReduce && e.evt.changedTouches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      const floorTokens = tokens.filter(t => !activeFloorId || !t.floorId || t.floorId === activeFloorId);
+      let nearest: Token | null = null;
+      let nearestDist = tokenRadius * 4;
+      for (const t of floorTokens) {
+        const dx = t.x - pos.x;
+        const dy = t.y - pos.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < nearestDist) { nearestDist = d; nearest = t; }
+      }
+      if (nearest) {
+        setTargetingEnlargeReduce(prev => prev ? { ...prev, targetTokenId: nearest!.id } : null);
+        setSelectedTokenId(nearest.id);
+      }
+      e.evt.preventDefault();
+      return;
+    }
+
     // Wall-shape spells use their own preview — skip tap-to-place
     if (placingSpell && placingSpell.shapeType === 'wall') {
       return;
@@ -3236,6 +3271,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const pos = getCanvasPos(e.target.getStage());
       setMeasureStart(pos);
       setMeasureEnd(pos);
+      return;
+    }
+
+    // Enlarge/Reduce token targeting: click a token to select it as the target
+    if (targetingEnlargeReduce && e.evt.button === 0) {
+      const pos = getCanvasPos(e.target.getStage());
+      const floorTokens = tokens.filter(t => !activeFloorId || !t.floorId || t.floorId === activeFloorId);
+      let nearest: Token | null = null;
+      let nearestDist = tokenRadius * 4;
+      for (const t of floorTokens) {
+        const dx = t.x - pos.x;
+        const dy = t.y - pos.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < nearestDist) { nearestDist = d; nearest = t; }
+      }
+      if (nearest) {
+        setTargetingEnlargeReduce(prev => prev ? { ...prev, targetTokenId: nearest!.id } : null);
+        setSelectedTokenId(nearest.id);
+      }
       return;
     }
 
@@ -6736,6 +6790,58 @@ const MapViewInner: React.FC<MapViewProps> = ({
           );
         })()}
 
+        {/* Enlarge/Reduce Token Targeting Banner */}
+        {targetingEnlargeReduce && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
+            <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+            <span className="text-sm font-bold text-orange-400">
+              Casting Enlarge/Reduce ({targetingEnlargeReduce.mode === 'enlarge' ? 'Enlarge' : 'Reduce'})
+            </span>
+            {targetingEnlargeReduce.targetTokenId ? (
+              <button
+                onClick={() => {
+                  const { mode, targetTokenId } = targetingEnlargeReduce;
+                  const sizes: Token['size'][] = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
+                  const target = tokens.find(t => t.id === targetTokenId);
+                  if (target) {
+                    const currentSize = target.size ?? 'Medium';
+                    const idx = sizes.indexOf(currentSize);
+                    const newSize = mode === 'enlarge'
+                      ? sizes[Math.min(idx + 1, sizes.length - 1)]
+                      : sizes[Math.max(idx - 1, 0)];
+                    // Preserve the original pre-spell size so it can be reverted via right-click.
+                    // If the token is already under Enlarge/Reduce, keep the existing enlargedFrom.
+                    const originalSize = target.enlargedFrom ?? currentSize;
+                    const updatedTokens = tokens.map(t => t.id === targetTokenId ? { ...t, size: newSize, enlargedFrom: originalSize } : t);
+                    onTokensChange(updatedTokens);
+                    try {
+                      if (isPlayerView) {
+                        window.electronAPI?.sendPlayerTokenUpdate?.(updatedTokens);
+                      } else {
+                        (window.electronAPI as any)?.sendDMTokenUpdate?.(updatedTokens);
+                      }
+                    } catch (_e) { /* IPC not available */ }
+                  }
+                  setTargetingEnlargeReduce(null);
+                  setSelectedTokenId(null);
+                  onCastingDismissed?.();
+                }}
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
+              >
+                Confirm Cast
+              </button>
+            ) : (
+              <span className="text-xs text-white/40">Tap a token to target</span>
+            )}
+            <button
+              onClick={() => { setTargetingEnlargeReduce(null); setSelectedTokenId(null); onCastingDismissed?.(); }}
+              className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {/* DM Casting Mode Banner (mouse-follow phase only) */}
         {castingSpell && !isPlayerView && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
@@ -7398,6 +7504,30 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <><EyeOff size={14} /> Hide Token</>
               )}
             </button>
+            {!isPlayerView && (() => {
+              const ctxToken = tokens.find(t => t.id === tokenContextMenu.tokenId);
+              if (!ctxToken || !ctxToken.enlargedFrom) return null;
+              return (
+                <button
+                  onClick={() => {
+                    const originalSize = ctxToken.enlargedFrom;
+                    const updatedTokens = tokens.map(t => t.id === ctxToken.id ? { ...t, size: originalSize, enlargedFrom: undefined } : t);
+                    onTokensChange(updatedTokens);
+                    try {
+                      if (isPlayerView) {
+                        window.electronAPI?.sendPlayerTokenUpdate?.(updatedTokens);
+                      } else {
+                        (window.electronAPI as any)?.sendDMTokenUpdate?.(updatedTokens);
+                      }
+                    } catch (_e) { /* IPC not available */ }
+                    setTokenContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
+                >
+                  <Undo2 size={14} /> Revert Enlarge/Reduce
+                </button>
+              );
+            })()}
             {!isPlayerView && (() => {
               const ctxToken = tokens.find(t => t.id === tokenContextMenu.tokenId);
               if (!ctxToken || ctxToken.type === 'player') return null;

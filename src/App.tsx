@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AddCombatantModal } from './components/AddCombatantModal';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
+import { EnlargeReduceModal } from './components/EnlargeReduceModal';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
 import { lookupSpell } from './data/spellDatabase';
@@ -114,6 +115,8 @@ export function DMScreen() {
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>(null);
+  const startEnlargeReduceRef = useRef<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>(null);
+  const [enlargeReduceModal, setEnlargeReduceModal] = useState<{ casterId: string } | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
   activeCombatantIdRef.current = activeCombatantId;
@@ -1555,6 +1558,7 @@ export function DMScreen() {
                 clearMovementPathsRef={clearMovementPathsRef}
                 clearRemoteAoeRef={clearRemoteAoeRef}
                 cancelCastingRef={cancelCastingRef}
+                startEnlargeReduceRef={startEnlargeReduceRef}
                 onAoeHighlightsChange={setAoeHighlights}
                 activeCombatantId={activeCombatantId}
                 targetedCombatantIds={targetedCombatantIds}
@@ -1630,6 +1634,9 @@ export function DMScreen() {
               onAddCondition={addConditionToCombatant}
               startCastingRef={startCastingRef}
               startPlacingRef={startPlacingRef}
+              onExceptionSpellCast={(spellName, casterId) => {
+                if (spellName === 'Enlarge/Reduce') setEnlargeReduceModal({ casterId });
+              }}
               targetedCombatantIds={targetedCombatantIds}
               wildShapeState={wildShapeState}
               onRefreshPlayer={async (playerId) => {
@@ -1772,6 +1779,18 @@ export function DMScreen() {
             setAoeHighlights(null);
             setSpellDamageModal(null);
           }}
+        />
+
+        {/* Enlarge/Reduce Modal */}
+        <EnlargeReduceModal
+          isOpen={!!enlargeReduceModal}
+          onConfirm={(mode) => {
+            if (enlargeReduceModal) {
+              startEnlargeReduceRef.current?.(mode, enlargeReduceModal.casterId);
+            }
+            setEnlargeReduceModal(null);
+          }}
+          onClose={() => setEnlargeReduceModal(null)}
         />
 
         {/* Spell Condition Modal — opens for condition-applying spells (Grease, etc.) */}
