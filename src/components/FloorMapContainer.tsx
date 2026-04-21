@@ -72,6 +72,7 @@ interface FloorMapContainerProps {
   activeEmanations?: import('../types').ActiveEmanation[];
   seeInvisibility?: boolean;
   activeTimers?: import('../types').TokenTimer[];
+  viewerCasterIds?: string[];
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -203,6 +204,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     activeEmanations: props.activeEmanations,
     seeInvisibility: props.seeInvisibility,
     activeTimers: props.activeTimers,
+    viewerCasterIds: props.viewerCasterIds,
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
       onAddScenario: props.onAddScenario,

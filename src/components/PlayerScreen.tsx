@@ -24,7 +24,7 @@ function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-
 }
 
 // ─── Sign-in spot types ───
-type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left';
 const SPOT_IDS: SpotId[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 const AOE_ICONS: Record<string, React.FC<{ size?: number; className?: string }>> = {
