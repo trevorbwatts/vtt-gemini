@@ -25,7 +25,7 @@ export function getTokenCollisionRadius(size: Token['size'] | undefined, pixelsP
   let multiplier: number;
   switch (size) {
     case 'Tiny':       multiplier = 0.5; break;
-    case 'Small':      multiplier = 1;   break;
+    case 'Small':      multiplier = 0.75; break;
     case 'Large':      multiplier = 2;   break;
     case 'Huge':       multiplier = 3;   break;
     case 'Gargantuan': multiplier = 4;   break;

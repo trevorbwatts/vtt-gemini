@@ -237,7 +237,7 @@ function computeWallCorners(
 function getTokenSizeMultiplier(size?: Token['size']): number {
   switch (size) {
     case 'Tiny': return 0.5;
-    case 'Small': return 1;
+    case 'Small': return 0.75;
     case 'Large': return 2;
     case 'Huge': return 3;
     case 'Gargantuan': return 4;
