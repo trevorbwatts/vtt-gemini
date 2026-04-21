@@ -9,6 +9,7 @@ import { parseAction, rollAction, parseActionAoe, ActionAoe, parseSpellDamage } 
 import { ActionRollModal } from './ActionRollModal';
 import type { ActionRollResult } from '../utils/actionParser';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
+import actionsData from '../data/actions.json';
 
 const AOE_ICONS_SMALL: Record<string, React.FC<{ size?: number }>> = {
   sphere: Circle, cone: Cone, line: Slash, cube: Box, cylinder: Cylinder,
@@ -96,6 +97,9 @@ interface BottomPanelProps {
 
   // Wild Shape state — maps playerId to creature name for beast stat display
   wildShapeState?: Record<string, { creatureName: string; originalAvatar?: string }>;
+
+  // Refresh player from D&D Beyond
+  onRefreshPlayer?: (playerId: string) => Promise<void>;
 }
 
 export const BottomPanel: React.FC<BottomPanelProps> = ({
@@ -122,6 +126,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   startPlacingRef,
   targetedCombatantIds,
   wildShapeState,
+  onRefreshPlayer,
 }) => {
   // ── Panel height (resizable) ──
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -150,6 +155,8 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
   const [panelHpInput, setPanelHpInput] = useState('');
   const [conditionDropdownOpen, setConditionDropdownOpen] = useState(false);
+  const [conditionDropdownPos, setConditionDropdownPos] = useState({ bottom: 0, left: 0 });
+  const conditionBtnRef = useRef<HTMLButtonElement>(null);
 
   // ── Action roll state ──
   const [actionRollOpen, setActionRollOpen] = useState(false);
@@ -269,29 +276,37 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
     // If a single token is selected on the map, show that one
     if (selectedTokenIds.length === 1) {
       const token = tokens.find(t => t.id === selectedTokenIds[0]);
-      // Wild-shaped players show beast stats in the monster panel
+      // Player tokens: wild-shaped shows beast stats, otherwise show player stats
       if (token?.type === 'player') {
         const ws = token.combatantId && wildShapeState?.[token.combatantId];
-        if (!ws) return null; // normal players use Character Sheet modal
-        // Build a virtual combatant from the beast data
-        const beast = BESTIARY.find(m => m.name === ws.creatureName && m.source === '2024')
-          || BESTIARY.find(m => m.name === ws.creatureName);
-        if (!beast) return null;
-        const player = allSourceCombatants.find(c => c.id === token.combatantId);
-        const virtualCombatant: Combatant = {
-          id: token.combatantId || token.id,
-          name: beast.name,
-          initiative: 0,
-          hp: beast.hp,
-          maxHp: beast.hp,
-          ac: beast.ac,
-          type: 'enemy',
-          stats: beast.stats,
-          actions: beast.actions,
-          speed: beast.speed ? parseInt(beast.speed) || 30 : 30,
-          color: player?.color,
-        };
-        return { combatant: virtualCombatant, token, sourceCombatantId: token.combatantId };
+        if (ws) {
+          // Build a virtual combatant from the beast data
+          const beast = BESTIARY.find(m => m.name === ws.creatureName && m.source === '2024')
+            || BESTIARY.find(m => m.name === ws.creatureName);
+          if (!beast) return null;
+          const player = allSourceCombatants.find(c => c.id === token.combatantId);
+          const virtualCombatant: Combatant = {
+            id: token.combatantId || token.id,
+            name: beast.name,
+            initiative: 0,
+            hp: beast.hp,
+            maxHp: beast.hp,
+            ac: beast.ac,
+            type: 'enemy',
+            stats: beast.stats,
+            actions: beast.actions,
+            speed: beast.speed ? parseInt(beast.speed) || 30 : 30,
+            color: player?.color,
+          };
+          return { combatant: virtualCombatant, token, sourceCombatantId: token.combatantId };
+        }
+        // Normal player: show player stats in panel
+        const sourceCombatantId = token.combatantId;
+        const source = allSourceCombatants.find(c => c.id === sourceCombatantId);
+        const active = activeCombatants.find(ac => ac.sourceCombatantId === sourceCombatantId);
+        const merged = active ? { ...source, ...active } : source;
+        if (merged) return { combatant: merged as Combatant, token, sourceCombatantId };
+        return null;
       }
       const sourceCombatantId = token?.combatantId;
       const source = allSourceCombatants.find(c => c.id === sourceCombatantId);
@@ -341,14 +356,8 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   }, [detailCombatant]);
 
   // ── Visibility ──
-  // Show panel if: combat is active, OR a non-player token is selected, OR a wild-shaped player is selected
-  const showPanel = combatActive || (selectedTokenIds.length === 1 && (() => {
-    const token = tokens.find(t => t.id === selectedTokenIds[0]);
-    if (!token) return false;
-    if (token.type !== 'player') return true;
-    // Show panel for wild-shaped players
-    return !!(token.combatantId && wildShapeState?.[token.combatantId]);
-  })());
+  // Show panel if: combat is active, OR any token is selected on the map
+  const showPanel = combatActive || (selectedTokenIds.length === 1 && tokens.some(t => t.id === selectedTokenIds[0]));
 
   // Show the Roll Initiative floating button when tokens are selected but combat hasn't started
   const selectedTokens = selectedTokenIds.map(id => tokens.find(t => t.id === id)).filter(Boolean);
@@ -599,35 +608,41 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
         )}
 
         {/* Right column: Token detail (or full width if no combat) */}
-        <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
           {detailSource ? (
             <>
               {/* Detail header */}
-              <div className="flex items-center justify-between px-3 border-b border-[var(--line)] bg-black/20 shrink-0 h-[52px]">
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {detailToken?.color && (
-                      <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: detailToken.color }} />
-                    )}
-                    <h4 className="font-bold text-base tracking-tight truncate">{detailSource.name}</h4>
-                    {detailSource.creatureType && (
-                      <span className="text-[11px] opacity-40 italic whitespace-nowrap">{detailSource.creatureType}</span>
-                    )}
-                    {detailSource.cr && (
-                      <span className="text-[11px] opacity-40 whitespace-nowrap">CR {detailSource.cr}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0 px-2 justify-end">
-                    <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden shadow-inner">
+              <div className="flex items-center gap-3 px-3 border-b border-[var(--line)] bg-black/20 shrink-0 h-[52px]">
+                {/* Color dot */}
+                {detailToken?.color && (
+                  <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: detailToken.color }} />
+                )}
+                {/* Name */}
+                <h4 className="font-bold text-base tracking-tight shrink-0">{detailSource.name}</h4>
+                {/* Player: class summary */}
+                {detailSource.type === 'player' && detailSource.classes && (
+                  <span className="text-[11px] opacity-40 italic whitespace-nowrap shrink-0">{getClassSummary(detailSource.classes)}</span>
+                )}
+                {/* Monster/NPC: creature type, CR */}
+                {detailSource.creatureType && (
+                  <span className="text-[11px] opacity-40 italic whitespace-nowrap shrink-0">{detailSource.creatureType}</span>
+                )}
+                {detailSource.cr && (
+                  <span className="text-[11px] opacity-40 whitespace-nowrap shrink-0">CR {detailSource.cr}</span>
+                )}
+                {/* HP bar + controls (monsters/NPCs only), inline after CR */}
+                {detailSource.type !== 'player' && (
+                  <>
+                    <div className="w-48 h-2 bg-black/50 rounded-full overflow-hidden shadow-inner shrink-0">
                       <div
                         className="h-full bg-[var(--accent)] transition-all shadow-[0_0_6px_rgba(205,127,50,0.4)]"
                         style={{ width: `${hpPct}%` }}
                       />
                     </div>
-                    <div className="text-xs font-bold text-white/50 w-20 text-right tabular-nums">
+                    <div className="text-xs font-bold text-white/50 tabular-nums shrink-0">
                       {detailSource.hp}/{detailSource.maxHp} HP
                     </div>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => applyPanelHpDelta(-1)}
                         className="w-6 h-6 flex items-center justify-center rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
@@ -650,64 +665,87 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         <span className="text-[14px] font-bold leading-none">+</span>
                       </button>
                     </div>
-                    {detailSourceId && (
-                      <div className="flex items-center gap-1 ml-3 flex-wrap">
-                        {(detailSource?.conditions || []).map(condition => (
-                          <span
-                            key={condition}
-                            className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[11px] font-semibold capitalize"
-                          >
-                            {condition}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onRemoveCondition?.(detailSourceId, condition); }}
-                              className="ml-0.5 text-purple-300 hover:text-white text-[14px] leading-none w-4 h-4 flex items-center justify-center hover:bg-purple-500/40 rounded-full transition-colors"
-                              title={`Remove ${condition}`}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setConditionDropdownOpen(v => !v); }}
-                            className="w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/40 hover:bg-purple-500/30 hover:text-purple-300 text-[13px] leading-none transition-colors"
-                            title="Add condition"
-                          >
-                            +
-                          </button>
-                          {conditionDropdownOpen && (
-                            <div className="absolute bottom-full left-0 mb-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 py-1 min-w-[130px]">
-                              {['blinded','charmed','deafened','frightened','grappled','incapacitated','paralyzed','petrified','poisoned','prone','restrained','stunned','unconscious']
-                                .filter(c => !(detailSource?.conditions || []).includes(c))
-                                .map(c => (
-                                  <button
-                                    key={c}
-                                    onClick={(e) => { e.stopPropagation(); onAddCondition?.(detailSourceId, c); setConditionDropdownOpen(false); }}
-                                    className="w-full text-left px-3 py-1 text-[11px] font-semibold capitalize text-white/70 hover:bg-purple-500/20 hover:text-purple-300 transition-colors"
-                                  >
-                                    {c}
-                                  </button>
-                                ))
-                              }
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {!combatActive && (
-                  <button
-                    onClick={() => {
-                      onSelectedTokenIdChange?.(null);
-                      onSelectedTokenIdsChange?.([]);
-                      setPanelHpInput('');
-                    }}
-                    className="p-1 hover:bg-white/10 rounded transition-colors opacity-50 hover:opacity-100 shrink-0"
-                  >
-                    <X size={16} />
-                  </button>
+                  </>
                 )}
+                {/* Conditions */}
+                {detailSourceId && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {(detailSource?.conditions || []).map(condition => (
+                      <span
+                        key={condition}
+                        className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[11px] font-semibold capitalize"
+                      >
+                        {condition}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onRemoveCondition?.(detailSourceId, condition); }}
+                          className="ml-0.5 text-purple-300 hover:text-white text-[14px] leading-none w-4 h-4 flex items-center justify-center hover:bg-purple-500/40 rounded-full transition-colors"
+                          title={`Remove ${condition}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    {detailSource.type !== 'player' && <div className="relative">
+                      <button
+                        ref={conditionBtnRef}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!conditionDropdownOpen && conditionBtnRef.current) {
+                            const rect = conditionBtnRef.current.getBoundingClientRect();
+                            setConditionDropdownPos({ bottom: window.innerHeight - rect.top + 4, left: rect.left });
+                          }
+                          setConditionDropdownOpen(v => !v);
+                        }}
+                        className="w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/40 hover:bg-purple-500/30 hover:text-purple-300 text-[13px] leading-none transition-colors"
+                        title="Add condition"
+                      >
+                        +
+                      </button>
+                      {conditionDropdownOpen && (
+                        <div
+                          className="fixed bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 py-1 w-[140px] overflow-y-auto"
+                          style={{ bottom: conditionDropdownPos.bottom, left: conditionDropdownPos.left, maxHeight: '160px' }}
+                        >
+                          {['blinded','charmed','deafened','frightened','grappled','incapacitated','paralyzed','petrified','poisoned','prone','restrained','stunned','unconscious']
+                            .filter(c => !(detailSource?.conditions || []).includes(c))
+                            .map(c => (
+                              <button
+                                key={c}
+                                onClick={(e) => { e.stopPropagation(); onAddCondition?.(detailSourceId, c); setConditionDropdownOpen(false); }}
+                                className="w-full text-left px-3 py-1 text-[11px] font-semibold capitalize text-white/70 hover:bg-purple-500/20 hover:text-purple-300 transition-colors"
+                              >
+                                {c}
+                              </button>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </div>}
+                  </div>
+                )}
+                {/* Right-side controls: Refresh (players) + close button */}
+                <div className="ml-auto flex items-center gap-1 shrink-0">
+                  {detailSource.type === 'player' && detailSourceId && onRefreshPlayer && (
+                    <button
+                      onClick={() => onRefreshPlayer(detailSourceId)}
+                      className="text-[11px] uppercase tracking-wider font-bold opacity-40 hover:opacity-100 transition-opacity px-2 py-1 rounded hover:bg-white/10"
+                    >
+                      Refresh D&D Beyond
+                    </button>
+                  )}
+                  {!combatActive && (
+                    <button
+                      onClick={() => {
+                        onSelectedTokenIdChange?.(null);
+                        onSelectedTokenIdsChange?.([]);
+                        setPanelHpInput('');
+                      }}
+                      className="p-1 hover:bg-white/10 rounded transition-colors opacity-50 hover:opacity-100"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Detail content: stats, actions, spells */}
@@ -865,11 +903,36 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Column 2: Actions */}
+                {/* Column 2: Actions (monsters) or Abilities (players) */}
                 <div className="min-w-[250px] flex-1 flex flex-col min-h-0">
-                  <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">Actions</h5>
+                  <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2 shrink-0">
+                    {detailSource.type === 'player' ? 'Abilities' : 'Actions'}
+                  </h5>
                   <div className="space-y-3 pr-2 overflow-y-auto custom-scrollbar flex-1">
-                    {detailSource.actions && detailSource.actions.length > 0 ? (
+                    {detailSource.type === 'player' ? (() => {
+                      const abilities = (actionsData as Array<{ id: string; name: string; source: string; class?: string; subclass?: string | null; species?: string; levelRequired: number; actionType: string; description: string; behavior: string }>).filter(entry => {
+                        if (entry.source === 'species') {
+                          if (!entry.species) return false;
+                          return detailSource.species?.toLowerCase().includes(entry.species.toLowerCase()) ?? false;
+                        }
+                        return detailSource.classes?.some(c =>
+                          c.name.toLowerCase() === (entry.class ?? '').toLowerCase() &&
+                          (!entry.subclass || c.subclass?.toLowerCase().includes(entry.subclass.toLowerCase())) &&
+                          c.level >= entry.levelRequired
+                        ) ?? false;
+                      });
+                      if (abilities.length === 0) return <p className="text-xs opacity-40 italic">No abilities found</p>;
+                      return abilities.map((ability) => (
+                        <div key={ability.id} className="text-xs p-2 rounded border bg-white/5 border-white/5">
+                          <div>
+                            <span className="font-bold italic text-[var(--accent)]">{ability.name}.</span>
+                            {' '}
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white/40 mr-1">{ability.actionType}</span>
+                            {ability.description}
+                          </div>
+                        </div>
+                      ));
+                    })() : detailSource.actions && detailSource.actions.length > 0 ? (
                       detailSource.actions.map((action, i) => {
                         const actionAoe = parseActionAoe(action.desc);
                         const AoeIcon = actionAoe ? AOE_ICONS_SMALL[actionAoe.aoeType] : null;
@@ -951,6 +1014,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     )}
                   </div>
                 </div>
+
 
                 {/* Column 2b: Legendary Actions */}
                 {detailSource.legendaryActions && detailSource.legendaryActions.length > 0 && (

@@ -6,7 +6,6 @@ import { BottomPanel } from './components/BottomPanel';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
-import { PlayerCharacterSheet } from './components/PlayerCharacterSheet';
 import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
 import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
@@ -76,7 +75,6 @@ export function DMScreen() {
     };
   }, []);
   const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('play');
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
 
@@ -1111,22 +1109,37 @@ export function DMScreen() {
               </div>
               <div className="space-y-2">
                 {campaign.players.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedPlayerId(p.id)}
-                    className="w-full flex items-center gap-5 px-1 py-1 rounded-lg transition-all group hover:bg-white/5 text-left"
-                  >
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0 overflow-hidden"
-                      style={{ background: p.avatar ? 'transparent' : (p.color || 'var(--accent)'), outline: `2px solid ${p.color || 'var(--accent)'}`, outlineOffset: '2px' }}
+                  <div key={p.id} className="flex items-center gap-3 px-1 py-1 rounded-lg transition-all group hover:bg-white/5">
+                    <button
+                      onClick={() => {
+                        const token = currentScenario?.tokens?.find(t => t.combatantId === p.id);
+                        if (token) {
+                          setPanToNote({ id: '_pan', type: 'warning', content: '', x: token.x, y: token.y });
+                        }
+                      }}
+                      className="flex items-center gap-5 flex-1 min-w-0 text-left"
                     >
-                      {p.avatar
-                        ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
-                        : p.name[0]
-                      }
-                    </div>
-                    <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{p.name}</span>
-                  </button>
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0 overflow-hidden"
+                        style={{ background: p.avatar ? 'transparent' : (p.color || 'var(--accent)'), outline: `2px solid ${p.color || 'var(--accent)'}`, outlineOffset: '2px' }}
+                      >
+                        {p.avatar
+                          ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
+                          : p.name[0]
+                        }
+                      </div>
+                      <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{p.name}</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCampaign(prev => prev ? ({ ...prev, players: prev.players.filter(pl => pl.id !== p.id) }) : prev);
+                      }}
+                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-2 text-white transition-opacity shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1619,6 +1632,42 @@ export function DMScreen() {
               startPlacingRef={startPlacingRef}
               targetedCombatantIds={targetedCombatantIds}
               wildShapeState={wildShapeState}
+              onRefreshPlayer={async (playerId) => {
+                const player = campaign.players.find(p => p.id === playerId);
+                if (!player) return;
+                const syncUrl = player.dndBeyondUrl
+                  || (player.dndBeyondId ? `https://www.dndbeyond.com/characters/${player.dndBeyondId}` : null);
+                if (!syncUrl || !window.electronAPI?.importDndBeyondCharacter) return;
+                const result = await window.electronAPI.importDndBeyondCharacter(syncUrl);
+                if (result.error) throw new Error(result.error);
+                const parsed = parseDndBeyondCharacter(result.data);
+                setCampaign(prev => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    players: prev.players.map(p => p.id === playerId ? {
+                      ...p,
+                      name: parsed.name ?? p.name,
+                      hp: parsed.hp ?? p.hp,
+                      maxHp: parsed.maxHp ?? p.maxHp,
+                      ac: parsed.ac ?? p.ac,
+                      species: parsed.species ?? p.species,
+                      speed: parsed.speed ?? p.speed,
+                      darkvision: parsed.darkvision ?? p.darkvision,
+                      classes: parsed.classes ?? p.classes,
+                      initiative: parsed.initiative ?? p.initiative,
+                      stats: parsed.stats ?? p.stats,
+                      proficiencyBonus: parsed.proficiencyBonus ?? p.proficiencyBonus,
+                      spells: parsed.spells ?? p.spells,
+                      atWillSpells: parsed.atWillSpells ?? p.atWillSpells,
+                      actions: parsed.actions ?? p.actions,
+                      spellSaveDc: parsed.spellSaveDc ?? p.spellSaveDc,
+                      avatar: parsed.avatar ?? p.avatar,
+                      dndBeyondId: parsed.dndBeyondId ?? p.dndBeyondId,
+                    } : p),
+                  };
+                });
+              }}
             />
           )}
         </div>
@@ -1743,70 +1792,6 @@ export function DMScreen() {
           }}
         />
 
-        {/* Player Character Sheet Modal */}
-        <PlayerCharacterSheet
-          player={campaign.players.find(p => p.id === selectedPlayerId) || null}
-          onClose={() => setSelectedPlayerId(null)}
-          onDelete={(playerId) => {
-            setCampaign(prev => prev ? ({
-              ...prev,
-              players: prev.players.filter(p => p.id !== playerId)
-            }) : prev);
-            setSelectedPlayerId(null);
-          }}
-          onColorChange={(playerId, color) => {
-            setCampaign(prev => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
-                // Also update any matching tokens in all scenarios
-                scenarios: prev.scenarios.map(s => ({
-                  ...s,
-                  tokens: s.tokens.map(t =>
-                    t.combatantId === playerId ? { ...t, color } : t
-                  )
-                }))
-              };
-            });
-          }}
-          onRefresh={async (playerId) => {
-            const player = campaign.players.find(p => p.id === playerId);
-            if (!player) return;
-            const syncUrl = player.dndBeyondUrl
-              || (player.dndBeyondId ? `https://www.dndbeyond.com/characters/${player.dndBeyondId}` : null);
-            if (!syncUrl || !window.electronAPI?.importDndBeyondCharacter) return;
-            const result = await window.electronAPI.importDndBeyondCharacter(syncUrl);
-            if (result.error) throw new Error(result.error);
-            const parsed = parseDndBeyondCharacter(result.data);
-            setCampaign(prev => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                players: prev.players.map(p => p.id === playerId ? {
-                  ...p,
-                  name: parsed.name ?? p.name,
-                  hp: parsed.hp ?? p.hp,
-                  maxHp: parsed.maxHp ?? p.maxHp,
-                  ac: parsed.ac ?? p.ac,
-                  species: parsed.species ?? p.species,
-                  speed: parsed.speed ?? p.speed,
-                  darkvision: parsed.darkvision ?? p.darkvision,
-                  classes: parsed.classes ?? p.classes,
-                  initiative: parsed.initiative ?? p.initiative,
-                  stats: parsed.stats ?? p.stats,
-                  proficiencyBonus: parsed.proficiencyBonus ?? p.proficiencyBonus,
-                  spells: parsed.spells ?? p.spells,
-                  atWillSpells: parsed.atWillSpells ?? p.atWillSpells,
-                  actions: parsed.actions ?? p.actions,
-                  spellSaveDc: parsed.spellSaveDc ?? p.spellSaveDc,
-                  avatar: parsed.avatar ?? p.avatar,
-                  dndBeyondId: parsed.dndBeyondId ?? p.dndBeyondId,
-                } : p),
-              };
-            });
-          }}
-        />
 
       </div>
     </div>
