@@ -19,7 +19,13 @@ export const EnlargeReduceModal: React.FC<EnlargeReduceModalProps> = ({ isOpen, 
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[200] flex items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={onClose}
+          onPointerDown={(e) => {
+            // Only dismiss if the pointerdown originated on the backdrop itself,
+            // not on the modal content. Prevents the triggering tap (which
+            // opened the modal via onPointerDown on the Cast button) from
+            // immediately dismissing it when the pointerup lands here.
+            if (e.target === e.currentTarget) onClose();
+          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: 8 }}
@@ -27,7 +33,7 @@ export const EnlargeReduceModal: React.FC<EnlargeReduceModalProps> = ({ isOpen, 
             exit={{ opacity: 0, scale: 0.92, y: 8 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             className="relative bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl p-5 w-[280px]"
-            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             <button
               onClick={onClose}

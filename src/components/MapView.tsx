@@ -6792,7 +6792,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
         {/* Enlarge/Reduce Token Targeting Banner */}
         {targetingEnlargeReduce && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
             <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
             <span className="text-sm font-bold text-orange-400">
               Casting Enlarge/Reduce ({targetingEnlargeReduce.mode === 'enlarge' ? 'Enlarge' : 'Reduce'})
