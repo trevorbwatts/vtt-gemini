@@ -122,6 +122,8 @@ interface MapViewProps {
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   /** Detect Magic data — when active, reveals 'magic' type map notes within range below fog */
   detectMagicData?: { playerId: string; rangeFt: number } | null;
+  detectPoisonData?: { playerId: string; rangeFt: number } | null;
+
   /** Active emanation rings that follow their casters */
   activeEmanations?: import('../types').ActiveEmanation[];
   /** Whether any player has See Invisibility active (player view only) */
@@ -931,6 +933,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onSpellMarkersChange,
   tremorsenseData,
   detectMagicData,
+  detectPoisonData,
   activeEmanations = [],
   seeInvisibility,
   activeTimers = [],
@@ -5188,6 +5191,43 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       perfectDrawEnabled={false}
                     />
                     <NoteMapIcon type="magic" />
+                  </Group>
+                ))}
+              </Layer>
+            );
+          })()}
+
+          {/* ── Detect Poison and Disease: poison/skull notes below fog (player view only) ── */}
+          {isPlayerView && detectPoisonData && (() => {
+            const casterToken = tokens.find(t => t.combatantId === detectPoisonData.playerId);
+            if (!casterToken) return null;
+            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
+            const rangePx = gridResolution
+              ? (detectPoisonData.rangeFt / 5) * gridResolution.pixelsPerGrid
+              : detectPoisonData.rangeFt * 4;
+
+            // Filter poison notes within range of caster
+            const poisonNotes = mapNotes.filter(note => {
+              if (note.type !== 'poison') return false;
+              const dx = note.x - casterPos.x;
+              const dy = note.y - casterPos.y;
+              return Math.sqrt(dx * dx + dy * dy) <= rangePx;
+            });
+            if (poisonNotes.length === 0) return null;
+            const noteR = tokenRadius * 0.6;
+            return (
+              <Layer listening={false}>
+                {poisonNotes.map(note => (
+                  <Group key={`poison-${note.id}`} x={note.x} y={note.y}>
+                    <Circle
+                      radius={noteR}
+                      fill={getNoteColor('poison')}
+                      stroke="rgba(74,222,128,0.6)"
+                      strokeWidth={2 * tokenScale}
+                      opacity={0.85}
+                      perfectDrawEnabled={false}
+                    />
+                    <NoteMapIcon type="poison" />
                   </Group>
                 ))}
               </Layer>
