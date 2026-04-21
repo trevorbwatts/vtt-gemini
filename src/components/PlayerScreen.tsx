@@ -1807,6 +1807,69 @@ export function PlayerScreen() {
       return;
     }
 
+    // Cordon of Arrows exception: place 4 arrow tokens in a tight cluster near the player's token
+    if (spell?.name === 'Cordon of Arrows') {
+      const token = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
+      const baseX = token?.x ?? window.innerWidth / 2;
+      const baseY = token?.y ?? window.innerHeight / 2;
+      const offset = 12;
+      const positions = [
+        { x: baseX - offset, y: baseY - offset },
+        { x: baseX + offset, y: baseY - offset },
+        { x: baseX - offset, y: baseY + offset },
+        { x: baseX + offset, y: baseY + offset },
+      ];
+      const dbEntry = lookupSpell('Cordon of Arrows');
+      const markers: import('../types').SpellMarker[] = positions.map((pos, i) => ({
+        id: `sm-coa-${Date.now()}-${i}`,
+        spellName: 'Cordon of Arrows',
+        school: dbEntry?.school || 'Transmutation',
+        casterId: player.id,
+        x: pos.x,
+        y: pos.y,
+        effectRadius: 30,
+        visibleToPlayers: true,
+      }));
+      addMarkersDirectlyRef.current?.(markers);
+      return;
+    }
+
+    // Arcane Gate exception: place two linked portal markers (near and far)
+    if (spell?.name === 'Arcane Gate') {
+      const token = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
+      const baseX = token?.x ?? window.innerWidth / 2;
+      const baseY = token?.y ?? window.innerHeight / 2;
+      const dbEntry = lookupSpell('Arcane Gate');
+      const school = dbEntry?.school || 'Conjuration';
+      const gateId = Date.now();
+      const markers: import('../types').SpellMarker[] = [
+        {
+          id: `sm-ag-near-${gateId}`,
+          spellName: 'Arcane Gate (Near)',
+          school,
+          casterId: player.id,
+          x: baseX,
+          y: baseY,
+          aoeType: 'sphere',
+          aoeSize: 5,
+          visibleToPlayers: true,
+        },
+        {
+          id: `sm-ag-far-${gateId}`,
+          spellName: 'Arcane Gate (Far)',
+          school,
+          casterId: player.id,
+          x: baseX + 70,
+          y: baseY,
+          aoeType: 'sphere',
+          aoeSize: 5,
+          visibleToPlayers: true,
+        },
+      ];
+      addMarkersDirectlyRef.current?.(markers);
+      return;
+    }
+
     // Wall of Fire exception: show variant picker (Wall vs Ring) before placement
     if (spell?.name === 'Wall of Fire') {
       const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };

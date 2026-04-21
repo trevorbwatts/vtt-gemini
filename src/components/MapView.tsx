@@ -152,7 +152,9 @@ function hexToRgb(hex: string): string {
 
 // Per-spell color overrides (take priority over school color)
 const SPELL_COLOR_OVERRIDES: Record<string, string> = {
-  'Mage Hand': '#1d4ed8', // dark blue
+  'Mage Hand': '#1d4ed8',
+  'Arcane Gate (Near)': '#06b6d4',
+  'Arcane Gate (Far)': '#0891b2',
 };
 
 // Lucide icon SVG inner content (24x24 viewbox) for each spell school.
@@ -171,6 +173,9 @@ const SCHOOL_ICON_SVGS: Record<string, string> = {
 // Per-spell SVG icon overrides (take priority over school icon)
 const SPELL_ICON_SVGS: Record<string, string> = {
   'Mage Hand': `<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>`,
+  'Cordon of Arrows': `<path d="M5 19h14"/><path d="M12 15V5"/><polyline points="8 9 12 5 16 9"/>`,
+  'Arcane Gate (Near)': `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="21"/>`,
+  'Arcane Gate (Far)': `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="3" y1="12" x2="8" y2="12"/><line x1="16" y1="12" x2="21" y2="12"/>`,
 };
 
 // Cache for rendered icon HTMLImageElements keyed by SVG content string

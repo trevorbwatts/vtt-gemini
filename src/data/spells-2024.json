@@ -600,7 +600,8 @@
     "school": "Conjuration",
     "desc": "You gain the service of a familiar, a spirit that takes an animal form you choose: Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0. Appearing in an unoccupied space within range, the familiar has the statistics of the chosen form, though it is a Celestial, Fey, or Fiend (your choice) instead of a Beast. Your familiar acts independently of you, but it obeys your commands.\n\n**Telepathic Connection.** While your familiar is within 100 feet of you, you can communicate with it telepathically. Additionally, as a Bonus, you can see through the familiar's eyes and hear what it hears until the start of your next turn, gaining the benefits of any special senses it has.\n\nFinally, when you cast a spell with a range of touch, your familiar can deliver the touch. Your familiar must be within 100 feet of you, and it must take a Reaction to deliver the touch when you cast the spell.\n\n**Combat.** The familiar is an ally to you and your allies. It rolls its own Initiative and acts on its own turn. A familiar can't attack, but it can take other actions as normal.\n\n**Disappearance of the Familiar.** When the familiar drops to 0 Hit, it disappears. It reappears after you cast this spell again. As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you. Whenever the familiar drops to 0 Hit or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying.\n\n**One Familiar Only.** You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.",
     "range": 10,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "summon"
   },
   {
     "name": "Fog Cloud",
@@ -1061,6 +1062,7 @@
     "desc": "You touch up to four nonmagical Arrows or Bolts and plant them in the ground in your space. Until the spell ends, the ammunition can't be physically uprooted, and whenever a creature other than you enters a space within 30 feet of the ammunition for the first time on a turn or ends its turn there, one piece of ammunition flies up to strike it. The creature must succeed on a Dexterity saving throw or take 2d4 Piercing damage. The piece of ammunition is then destroyed. The spell ends when none of the ammunition remains planted in the ground.\n\nWhen you cast this spell, you can designate any creatures you choose, and the spell ignores them.",
     "range": 0,
     "source": "2024",
+    "mapInteraction": "exception",
     "aoeType": "sphere",
     "saveAbility": "dex",
     "damageType": "Piercing"
@@ -2930,7 +2932,8 @@
     "school": "Conjuration",
     "desc": "You create linked teleportation portals. Choose two Large, unoccupied spaces on the ground that you can see, one space within range and the other one within 10 feet of you. A circular portal opens in each of those spaces and remains for the duration.\n\nThe portals are two-dimensional glowing rings filled with mist that blocks sight. They hover inches from the ground and are perpendicular to it.\n\nA portal is open on only one side (you choose which). Anything entering the open side of a portal exits from the open side of the other portal as if the two were adjacent to each other. As a Bonus, you can change the facing of the open sides.",
     "range": 500,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "exception"
   },
   {
     "name": "Blade Barrier",

@@ -83,6 +83,24 @@ export const SUMMON_OPTIONS: Record<string, SummonOption[]> = {
 
   // --- Non-"Summon X" spells that create tokens on the map ---
 
+  'Find Familiar': [
+    { name: 'Cat',           spellName: 'Find Familiar', hp: 2,  ac: 12, size: 'Tiny'  },
+    { name: 'Owl',           spellName: 'Find Familiar', hp: 1,  ac: 11, size: 'Tiny'  },
+    { name: 'Raven',         spellName: 'Find Familiar', hp: 1,  ac: 12, size: 'Tiny'  },
+    { name: 'Toad',          spellName: 'Find Familiar', hp: 1,  ac: 11, size: 'Tiny'  },
+    { name: 'Bat',           spellName: 'Find Familiar', hp: 1,  ac: 12, size: 'Tiny'  },
+    { name: 'Crab',          spellName: 'Find Familiar', hp: 2,  ac: 11, size: 'Tiny'  },
+    { name: 'Fish',          spellName: 'Find Familiar', hp: 1,  ac: 13, size: 'Tiny'  },
+    { name: 'Hawk',          spellName: 'Find Familiar', hp: 1,  ac: 13, size: 'Tiny'  },
+    { name: 'Lizard',        spellName: 'Find Familiar', hp: 2,  ac: 10, size: 'Tiny'  },
+    { name: 'Octopus',       spellName: 'Find Familiar', hp: 3,  ac: 12, size: 'Small' },
+    { name: 'Poisonous Snake',spellName: 'Find Familiar', hp: 2,  ac: 13, size: 'Tiny'  },
+    { name: 'Quasit',        spellName: 'Find Familiar', hp: 7,  ac: 13, size: 'Tiny'  },
+    { name: 'Imp',           spellName: 'Find Familiar', hp: 10, ac: 13, size: 'Tiny'  },
+    { name: 'Pseudodragon',  spellName: 'Find Familiar', hp: 7,  ac: 13, size: 'Tiny'  },
+    { name: 'Sprite',        spellName: 'Find Familiar', hp: 2,  ac: 15, size: 'Tiny'  },
+  ],
+
   'Unseen Servant': [
     { name: 'Unseen Servant', spellName: 'Unseen Servant', hp: 1, ac: 10, size: 'Medium' },
   ],
