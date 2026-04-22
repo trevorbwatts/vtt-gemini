@@ -75,7 +75,7 @@ export function DMScreen() {
       window.electronAPI?.removeFullscreenStatusListener?.();
     };
   }, []);
-  const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('play');
+  const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
 

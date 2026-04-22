@@ -167,6 +167,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   const [actionRollName, setActionRollName] = useState('');
   const [actionRollResult, setActionRollResult] = useState<ActionRollResult | null>(null);
 
+  // ── Stat roll popover ──
+  const [rollPopover, setRollPopover] = useState<{ label: string; roll: number; modifier: number; total: number; x: number; y: number } | null>(null);
+  const handleStatRoll = (label: string, modifier: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const roll = Math.floor(Math.random() * 20) + 1;
+    setRollPopover({ label, roll, modifier, total: roll + modifier, x: e.clientX, y: e.clientY });
+  };
+
 
   const handleRollAction = (actionName: string, desc: string, rollMode: import('../utils/actionParser').RollMode = 'normal') => {
     const parsed = parseAction(desc);
@@ -809,15 +817,18 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2">Attributes</h5>
                       {detailSource.stats ? (
                         <div className="grid grid-cols-3 gap-2">
-                          {Object.entries(detailSource.stats).map(([stat, val]) => (
-                            <div key={stat} className="bg-black/20 rounded p-2 text-center">
+                          {Object.entries(detailSource.stats).map(([stat, val]) => {
+                            const mod = Math.floor((val - 10) / 2);
+                            return (
+                            <div key={stat} className="bg-black/20 rounded p-2 text-center cursor-pointer hover:bg-white/10 transition-colors" onClick={(e) => handleStatRoll(stat.toUpperCase(), mod, e)}>
                               <div className="text-[9px] uppercase opacity-50">{stat}</div>
                               <div className="text-sm font-bold">
-                                {Math.floor((val - 10) / 2) >= 0 ? '+' : ''}{Math.floor((val - 10) / 2)}
+                                {mod >= 0 ? '+' : ''}{mod}
                               </div>
                               <div className="text-[10px] opacity-30">{val}</div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-[13px] opacity-40 italic">No stats available</p>
@@ -833,9 +844,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       <div>
                         <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2">Saving Throws</h5>
                         <div className="flex flex-wrap gap-2">
-                          {detailSource.saves.split(/,\s*/).map((save, i) => (
-                            <span key={i} className="px-2 py-1 bg-black/20 rounded text-xs font-bold">{save}</span>
-                          ))}
+                          {detailSource.saves.split(/,\s*/).map((save, i) => {
+                            const modMatch = save.match(/([+-]\d+)$/);
+                            const mod = modMatch ? parseInt(modMatch[1], 10) : 0;
+                            const label = save.split(/\s+/)[0];
+                            return (
+                              <span key={i} className="px-2 py-1 bg-black/20 rounded text-xs font-bold cursor-pointer hover:bg-white/10 transition-colors" onClick={(e) => handleStatRoll(label + ' Save', mod, e)}>{save}</span>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1220,6 +1236,19 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
         </div>
       </div>
     </div>}
+    {rollPopover && (
+      <>
+        <div className="fixed inset-0 z-[60]" onClick={() => setRollPopover(null)} />
+        <div
+          className="fixed z-[61] bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg shadow-xl px-3 py-2 text-center pointer-events-none"
+          style={{ left: rollPopover.x - 48, top: rollPopover.y - 80 }}
+        >
+          <div className="text-[9px] uppercase tracking-widest opacity-40 mb-0.5">{rollPopover.label}</div>
+          <div className="text-xl font-bold text-[var(--accent)]">{rollPopover.total}</div>
+          <div className="text-[10px] opacity-40 tabular-nums">d20({rollPopover.roll}) {rollPopover.modifier >= 0 ? '+' : ''}{rollPopover.modifier}</div>
+        </div>
+      </>
+    )}
     <ActionRollModal
       isOpen={actionRollOpen}
       actionName={actionRollName}

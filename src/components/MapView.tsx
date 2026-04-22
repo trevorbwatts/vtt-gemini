@@ -3,6 +3,7 @@ import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group,
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
+import { Lock, Unlock } from 'lucide-react';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle, computeRadiusLimitedVisibilityPolygon } from '../utils/visibility';
@@ -952,6 +953,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const lastTapRef = useRef<{ tokenId: string; time: number } | null>(null);
   const aoeJustPlacedRef = useRef(false); // prevents token reselection after AoE placement click
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const dimensionsRef = useRef({ width: 800, height: 600 });
 
   const [contextMenu, setContextMenu] = useState<{
     x: number,
@@ -972,6 +974,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const viewpointReturnRef = useRef<{ scale: number; x: number; y: number } | null>(null);
   const zoomAnimRef = useRef<number | null>(null);
   const [viewpointContextMenu, setViewpointContextMenu] = useState<{ screenX: number; screenY: number; viewpointId: string } | null>(null);
+  const [zoneContextMenu, setZoneContextMenu] = useState<{ screenX: number; screenY: number; zoneId: string } | null>(null);
   const [showChangeMapModal, setShowChangeMapModal] = useState(false);
   const [monsterSearch, setMonsterSearch] = useState('');
   const [showSource2014, setShowSource2014] = useState(false);
@@ -2205,42 +2208,47 @@ const MapViewInner: React.FC<MapViewProps> = ({
       img.src = mapImage;
       img.onload = () => {
         setLoadedImage(img);
-        if (dimensions.width > 0 && dimensions.height > 0) {
-          // Target a consistent token screen size of ~40px radius
-          const targetTokenScreenRadius = 18;
-          let scale: number;
+        // Defer scale/position calculation to the next animation frame so the
+        // ResizeObserver has had a chance to fire and dimensionsRef is current.
+        requestAnimationFrame(() => {
+          const dims = dimensionsRef.current;
+          if (dims.width > 0 && dims.height > 0) {
+            // Target a consistent token screen size of ~40px radius
+            const targetTokenScreenRadius = 18;
+            let scale: number;
 
-          if (gridResolution && gridResolution.pixelsPerGrid > 0) {
-            // Token radius in source image = pixelsPerGrid * 0.4
-            // We want (pixelsPerGrid * 0.4) * scale = targetTokenScreenRadius
-            const sourceTokenRadius = gridResolution.pixelsPerGrid * 0.4;
-            scale = targetTokenScreenRadius / sourceTokenRadius;
-          } else {
-            // No grid info: fit the map snugly in the viewport
-            const padding = 80;
-            scale = Math.min(
-              (dimensions.width - padding) / img.width,
-              (dimensions.height - padding) / img.height,
-              1
-            );
-          }
+            if (gridResolution && gridResolution.pixelsPerGrid > 0) {
+              // Token radius in source image = pixelsPerGrid * 0.4
+              // We want (pixelsPerGrid * 0.4) * scale = targetTokenScreenRadius
+              const sourceTokenRadius = gridResolution.pixelsPerGrid * 0.4;
+              scale = targetTokenScreenRadius / sourceTokenRadius;
+            } else {
+              // No grid info: fit the map snugly in the viewport
+              const padding = 80;
+              scale = Math.min(
+                (dims.width - padding) / img.width,
+                (dims.height - padding) / img.height,
+                1
+              );
+            }
 
-          const clampedScale = Math.min(Math.max(scale, 0.05), 5);
-          const finalScale = isPlayerView ? clampedScale * 1.15 : clampedScale;
-          setStageScale(finalScale);
-          if (isPlayerView && viewportCenter) {
-            // Center the player's view on the same map-space point the DM is looking at
-            setStagePos({
-              x: dimensions.width / 2 - viewportCenter.x * finalScale,
-              y: dimensions.height / 2 - viewportCenter.y * finalScale,
-            });
-          } else {
-            setStagePos({
-              x: (dimensions.width - img.width * finalScale) / 2,
-              y: (dimensions.height - img.height * finalScale) / 2,
-            });
+            const clampedScale = Math.min(Math.max(scale, 0.05), 5);
+            const finalScale = isPlayerView ? clampedScale * 1.15 : clampedScale;
+            setStageScale(finalScale);
+            if (isPlayerView && viewportCenter) {
+              // Center the player's view on the same map-space point the DM is looking at
+              setStagePos({
+                x: dims.width / 2 - viewportCenter.x * finalScale,
+                y: dims.height / 2 - viewportCenter.y * finalScale,
+              });
+            } else {
+              setStagePos({
+                x: (dims.width - img.width * finalScale) / 2,
+                y: (dims.height - img.height * finalScale) / 2,
+              });
+            }
           }
-        }
+        });
       };
     } else {
       setLoadedImage(null);
@@ -2252,13 +2260,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // (common after IPC round-trips) does NOT reset a player's two-finger pan.
   const lastAppliedViewportRef = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
-    if (isPlayerView && viewportCenter && stageScale > 0 && dimensions.width > 0 && !activeViewpointId) {
+    const dims = dimensionsRef.current;
+    if (isPlayerView && viewportCenter && stageScale > 0 && dims.width > 0 && !activeViewpointId) {
       const prev = lastAppliedViewportRef.current;
       if (prev && prev.x === viewportCenter.x && prev.y === viewportCenter.y) return;
       lastAppliedViewportRef.current = { x: viewportCenter.x, y: viewportCenter.y };
       setStagePos({
-        x: dimensions.width / 2 - viewportCenter.x * stageScale,
-        y: dimensions.height / 2 - viewportCenter.y * stageScale,
+        x: dims.width / 2 - viewportCenter.x * stageScale,
+        y: dims.height / 2 - viewportCenter.y * stageScale,
       });
     }
   }, [viewportCenter]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2267,10 +2276,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (containerRef.current) {
       const observer = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          setDimensions({
-            width: entry.contentRect.width,
-            height: entry.contentRect.height,
-          });
+          const d = { width: entry.contentRect.width, height: entry.contentRect.height };
+          dimensionsRef.current = d;
+          setDimensions(d);
         }
       });
 
@@ -2684,7 +2692,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           droppedToken.x >= z.rect.x && droppedToken.x <= z.rect.x + z.rect.width &&
           droppedToken.y >= z.rect.y && droppedToken.y <= z.rect.y + z.rect.height
         );
-        if (hitZone) {
+        if (hitZone && !hitZone.locked) {
           const rect = containerRef.current?.getBoundingClientRect();
           if (rect) {
             const screenX = rect.left + droppedToken.x * stageScale + stagePos.x;
@@ -3823,6 +3831,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               }
               setContextMenu(null);
               setTokenContextMenu(null);
+              setZoneContextMenu(null);
               setLeftSidebarOpen(false);
               setSelectedTokenIds([]);
               setSelectedTokenId(null);
@@ -3871,21 +3880,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       onContextMenu={(e) => {
                         e.evt.preventDefault();
                         e.cancelBubble = true;
-                        const partnerLabel = zone.pairedZoneId ? ' and its paired zone' : '';
-                        setConfirmDialog({
-                          message: `Delete transition zone${zone.label ? ` "${zone.label}"` : ''}${partnerLabel}?`,
-                          onConfirm: () => {
-                            setSelectedZoneId(null);
-                            const updated = zones.filter(z => z.id !== zone.id);
-                            onTransitionZonesChange?.(updated);
-                            if (zone.pairedZoneId && zone.targetFloorId) {
-                              onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
-                                ...f,
-                                transitionZones: (f.transitionZones || []).filter(z => z.id !== zone.pairedZoneId)
-                              }));
-                            }
-                          }
-                        });
+                        const stage = e.target.getStage();
+                        const ptr = stage?.getPointerPosition();
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        if (ptr && rect) {
+                          setZoneContextMenu({
+                            screenX: rect.left + ptr.x,
+                            screenY: rect.top + ptr.y,
+                            zoneId: zone.id,
+                          });
+                        }
                       }}
                       onDragEnd={(e) => {
                         const node = e.target;
@@ -3943,6 +3947,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         </>
                       );
                     })()}
+                    {zone.locked && (
+                      <>
+                        <Circle
+                          x={zone.rect.x + zone.rect.width / 2}
+                          y={zone.rect.y + zone.rect.height / 2}
+                          radius={14}
+                          fill="rgba(0,0,0,0.55)"
+                          listening={false}
+                        />
+                        <Text
+                          x={zone.rect.x + zone.rect.width / 2 - 7}
+                          y={zone.rect.y + zone.rect.height / 2 - 7}
+                          text="🔒"
+                          fontSize={14}
+                          listening={false}
+                        />
+                      </>
+                    )}
                     {zone.pairIndex != null && (
                       <>
                         <Circle
@@ -7918,6 +7940,67 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Zone right-click context menu */}
+        {zoneContextMenu && (() => {
+          const currentFloor = floors?.find(f => f.id === activeFloorId);
+          const zones = currentFloor?.transitionZones || [];
+          const zone = zones.find(z => z.id === zoneContextMenu.zoneId);
+          if (!zone) return null;
+          return (
+            <div
+              className="fixed z-[80] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 min-w-[160px]"
+              style={{ left: zoneContextMenu.screenX, top: zoneContextMenu.screenY }}
+              onMouseLeave={() => setZoneContextMenu(null)}
+            >
+              <button
+                onClick={() => {
+                  const updated = zones.map(z =>
+                    z.id === zone.id ? { ...z, locked: !z.locked } : z
+                  );
+                  onTransitionZonesChange?.(updated);
+                  if (zone.pairedZoneId && zone.targetFloorId) {
+                    onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
+                      ...f,
+                      transitionZones: (f.transitionZones || []).map(z =>
+                        z.id === zone.pairedZoneId ? { ...z, locked: !zone.locked } : z
+                      ),
+                    }));
+                  }
+                  setZoneContextMenu(null);
+                }}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors text-left"
+              >
+                {zone.locked ? <Unlock size={13} className="opacity-70" /> : <Lock size={13} className="opacity-70" />}
+                {zone.locked ? 'Unlock Zone' : 'Lock Zone'}
+              </button>
+              <button
+                onClick={() => {
+                  const partnerLabel = zone.pairedZoneId ? ' and its paired zone' : '';
+                  setConfirmDialog({
+                    message: `Delete transition zone${zone.label ? ` "${zone.label}"` : ''}${partnerLabel}?`,
+                    onConfirm: () => {
+                      setSelectedZoneId(null);
+                      const updated = zones.filter(z => z.id !== zone.id);
+                      onTransitionZonesChange?.(updated);
+                      if (zone.pairedZoneId && zone.targetFloorId) {
+                        onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
+                          ...f,
+                          transitionZones: (f.transitionZones || []).filter(z => z.id !== zone.pairedZoneId),
+                        }));
+                      }
+                    },
+                  });
+                  setZoneContextMenu(null);
+                }}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-xs hover:bg-red-500/20 hover:text-red-400 transition-colors text-left"
+              >
+                <Trash2 size={13} className="opacity-70" />
+                Delete Zone
+              </button>
+            </div>
+          );
+        })()}
 
       </div>
     </div>

@@ -329,6 +329,7 @@ export interface TransitionZone {
   label?: string;
   pairedZoneId?: string;
   pairIndex?: number;
+  locked?: boolean;
 }
 
 export interface Floor {
