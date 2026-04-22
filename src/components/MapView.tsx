@@ -133,6 +133,8 @@ interface MapViewProps {
   seeInvisibility?: boolean;
   /** Active timers for tokens to display countdown rings */
   activeTimers?: import('../types').TokenTimer[];
+  /** Maps combatantId → which side of the table the player signed in on, for avatar rotation */
+  playerSides?: Record<string, 'top' | 'bottom'>;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -946,6 +948,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   activeEmanations = [],
   seeInvisibility,
   activeTimers = [],
+  playerSides,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -4376,7 +4379,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   )}
                   {token.avatar && (
-                    <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
+                    <Group
+                      opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                      rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0}
+                      listening={false}
+                    >
                       <TokenAvatar
                         url={token.avatar}
                         radius={r - tokenScale}

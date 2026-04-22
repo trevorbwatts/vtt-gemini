@@ -74,6 +74,7 @@ interface FloorMapContainerProps {
   seeInvisibility?: boolean;
   activeTimers?: import('../types').TokenTimer[];
   viewerCasterIds?: string[];
+  playerSides?: Record<string, 'top' | 'bottom'>;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -206,6 +207,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     seeInvisibility: props.seeInvisibility,
     activeTimers: props.activeTimers,
     viewerCasterIds: props.viewerCasterIds,
+    playerSides: props.playerSides,
     ...(isPrimary ? {
       onNoteClick: props.onNoteClick,
       onAddScenario: props.onAddScenario,

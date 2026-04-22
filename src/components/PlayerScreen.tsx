@@ -1616,6 +1616,15 @@ export function PlayerScreen() {
     return campaign.players.filter(p => !signedInIds.has(p.id));
   }, [campaign?.players, signedInSpots]);
 
+  const playerSides = useMemo<Record<string, 'top' | 'bottom'>>(() => {
+    const result: Record<string, 'top' | 'bottom'> = {};
+    for (const [spotId, playerId] of Object.entries(signedInSpots)) {
+      if (!playerId) continue;
+      result[playerId] = spotId.startsWith('top') ? 'top' : 'bottom';
+    }
+    return result;
+  }, [signedInSpots]);
+
   const [viewportCenter, setViewportCenter] = useState<{ x: number; y: number } | null>(null);
 
   const currentScenario = campaign?.scenarios.find(s => s.id === currentScenarioId) ?? null;
@@ -2247,6 +2256,7 @@ export function PlayerScreen() {
           setLeftSidebarOpen={() => {}}
           isPlayerView={true}
           viewerCasterIds={Object.values(signedInSpots).filter(Boolean) as string[]}
+          playerSides={playerSides}
           onPortalToggle={(portalId) => window.electronAPI?.sendPlayerPortalToggle?.(portalId)}
           onDragStatusChange={handleDragStatusChange}
           viewportCenter={viewportCenter}
