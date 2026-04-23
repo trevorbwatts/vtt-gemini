@@ -261,6 +261,7 @@ export interface Portal {
   closed: boolean;
   freestanding: boolean;
   portalType?: 'door' | 'window' | 'secret';
+  locked?: boolean;
 }
 
 export interface GridResolution {

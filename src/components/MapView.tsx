@@ -49,7 +49,7 @@ interface MapViewProps {
   lights?: UVTTLight[];
   onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution, lights?: UVTTLight[]) => void;
   onPortalToggle?: (portalId: string) => void;
-  onPortalTypeChange?: (portalId: string, type: 'door' | 'window' | 'secret') => void;
+  onPortalTypeChange?: (portalId: string, type: 'door' | 'window' | 'secret', locked?: boolean) => void;
   onDragStatusChange?: (isDragging: boolean) => void;
   onViewportCenter?: (center: { x: number; y: number }) => void;
   viewportCenter?: { x: number; y: number } | null;
@@ -969,7 +969,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
-  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' | 'secret' } | null>(null);
+  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'quote', content: '' });
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
@@ -4062,7 +4062,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               if (isPlayerView && isSecret) return null;
               const showVisuals = showWalls && !isPlayerView;
               const strokeColor = showVisuals
-                ? (isSecret ? '#a855f7' : portal.closed ? '#4ade80' : '#60a5fa')
+                ? (isSecret ? '#a855f7' : portal.locked ? '#fbbf24' : portal.closed ? '#4ade80' : '#60a5fa')
                 : 'transparent';
               return (
                 <Line
@@ -4073,8 +4073,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   lineCap="round"
                   dash={showVisuals && (!portal.closed || isSecret) ? [8, 6] : []}
                   opacity={showVisuals ? (isSecret ? 0.7 : 0.9) : 1}
-                  onClick={(e) => { e.cancelBubble = true; onPortalToggle?.(portal.id); }}
-                  onTap={(e) => { e.cancelBubble = true; onPortalToggle?.(portal.id); }}
+                  onClick={(e) => { e.cancelBubble = true; if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+                  onTap={(e) => { e.cancelBubble = true; if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
                   hitStrokeWidth={isPlayerView ? 30 : 12}
                 />
               );
@@ -4553,12 +4553,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   const nameLines = Math.max(1, Math.ceil(nameText.length / charsPerLine));
                   nameHeight = nameLines * nameFontSize * 1.2;
                 }
-                const distY = lastY - r - distLabelFontSize - 5;
+                const isTop = playerSides?.[pathToken?.combatantId ?? ''] === 'top';
+                const labelCenterY = isTop
+                  ? lastY + r + distLabelFontSize / 2 + 5
+                  : lastY - r - distLabelFontSize / 2 - 5;
                 return (
                   <Text
                     key={`dist-${path.tokenId}`}
-                    x={lastX - tokenRadius * 2.5}
-                    y={distY}
+                    x={lastX}
+                    y={labelCenterY}
+                    offsetX={tokenRadius * 2.5}
+                    offsetY={distLabelFontSize / 2}
                     text={`${distFeet} ft`}
                     fontSize={distLabelFontSize}
                     fill={isOverSpeed ? '#ef4444' : 'rgba(255,255,255,0.7)'}
@@ -4566,6 +4571,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     fontFamily="Inter"
                     align="center"
                     width={tokenRadius * 5}
+                    rotation={isTop ? 180 : 0}
                     opacity={isFullyFaded ? 0.6 : 1}
                     listening={false}
                     perfectDrawEnabled={false}
@@ -4624,7 +4630,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                     <Text
                       x={midX}
-                      y={midY - labelFontSize * 1.5}
+                      y={playerSides?.[castingSpell.casterId ?? ''] === 'top' ? midY + labelFontSize * 1.5 : midY - labelFontSize * 1.5}
+                      offsetY={labelFontSize / 2}
+                      rotation={playerSides?.[castingSpell.casterId ?? ''] === 'top' ? 180 : 0}
                       text={`${rangeFeet} ft`}
                       fontSize={labelFontSize}
                       fill="white"
@@ -5107,6 +5115,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   iconColor = '#e879f9';
                   bgFill = 'rgba(168,85,247,0.35)';
                   bgStroke = 'rgba(232,121,249,0.6)';
+                } else if (portal.locked && !isPlayerView) {
+                  iconColor = '#fbbf24';
+                  bgFill = 'rgba(251,191,36,0.25)';
+                  bgStroke = 'rgba(251,191,36,0.6)';
                 } else if (portal.closed) {
                   iconColor = '#ffffff';
                   bgFill = 'rgba(255,255,255,0.15)';
@@ -5134,10 +5146,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     y={midY - iconSize / 2}
                     scaleX={s}
                     scaleY={s}
-                    onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
+                    onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
                     onTap={(e) => { e.cancelBubble = true; }}
                     onTouchStart={(e) => { e.cancelBubble = true; }}
-                    onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); onPortalToggle?.(portal.id); }}
+                    onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
                     onContextMenu={!isPlayerView ? (e) => {
                       e.evt.preventDefault();
                       e.cancelBubble = true;
@@ -5149,6 +5161,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         screenY: pos.y,
                         portalId: portal.id,
                         portalType: (portal.portalType ?? 'door') as 'door' | 'window' | 'secret',
+                        locked: !!portal.locked,
                       });
                     } : undefined}
                   >
@@ -5574,16 +5587,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     }}
                   >
                     {/* Countdown Timers */}
-                    {(activeTimers || []).filter(t => t.playerId === token.combatantId).map((timer, i) => (
-                      <CountdownRing
-                        key={`timer-${timer.playerId}-${timer.abilityId}-${i}`}
-                        radius={r + (i * 5 * tokenScale)}
-                        tokenScale={tokenScale}
-                        startTime={timer.startTime}
-                        durationMs={timer.durationMs}
-                        color={timer.color}
-                      />
-                    ))}
+                    <Group rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0} listening={false}>
+                      {(activeTimers || []).filter(t => t.playerId === token.combatantId).map((timer, i) => (
+                        <CountdownRing
+                          key={`timer-${timer.playerId}-${timer.abilityId}-${i}`}
+                          radius={r + (i * 5 * tokenScale)}
+                          tokenScale={tokenScale}
+                          startTime={timer.startTime}
+                          durationMs={timer.durationMs}
+                          color={timer.color}
+                        />
+                      ))}
+                    </Group>
                     <Circle
                       radius={r}
                       fill={token.avatar ? 'transparent' : token.color}
@@ -5615,7 +5630,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       return <TurnIndicatorChevrons key={turnFlashCombatantId} radius={r} tokenScale={tokenScale} />;
                     })()}
                     {token.avatar && (
-                      <Group opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1} listening={false}>
+                      <Group
+                        opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                        rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0}
+                        listening={false}
+                      >
                         <TokenAvatar url={token.avatar} radius={r - tokenScale} />
                       </Group>
                     )}
@@ -6134,7 +6153,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 />
                 <Text
                   x={rangeMidX2}
-                  y={rangeMidY2 - labelSize2 * 1.5}
+                  y={playerSides?.[placedAoe.casterId ?? ''] === 'top' ? rangeMidY2 + labelSize2 * 1.5 : rangeMidY2 - labelSize2 * 1.5}
+                  offsetY={labelSize2 / 2}
+                  rotation={playerSides?.[placedAoe.casterId ?? ''] === 'top' ? 180 : 0}
                   text={`${rangeFeet2} ft`}
                   fontSize={labelSize2}
                   fill="white"
@@ -6340,8 +6361,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 )}
                 {/* Live dimensions readout */}
                 <Text
-                  x={labelX - 40 / stageScale}
-                  y={labelY - labelFontSize / 2}
+                  x={labelX}
+                  y={labelY}
+                  offsetX={40 / stageScale}
+                  offsetY={labelFontSize / 2}
+                  rotation={playerSides?.[editingWall.casterId ?? ''] === 'top' ? 180 : 0}
                   text={`${Math.round(editingWall.length)} \u00d7 ${Math.round(editingWall.thickness)} ft`}
                   fontSize={labelFontSize}
                   fill="#ffd9a6"
@@ -6421,8 +6445,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   />
                   {/* Dimension label */}
                   <Text
-                    x={editingRing.x - 50 / stageScale}
-                    y={editingRing.y - ringRadiusPx - 20 / stageScale}
+                    x={editingRing.x}
+                    y={playerSides?.[editingRing.casterId ?? ''] === 'top' ? editingRing.y + ringRadiusPx + 20 / stageScale : editingRing.y - ringRadiusPx - 20 / stageScale}
+                    offsetX={50 / stageScale}
+                    offsetY={labelFontSize / 2}
+                    rotation={playerSides?.[editingRing.casterId ?? ''] === 'top' ? 180 : 0}
                     text={`${Math.round(editingRing.radius * 2)} ft`}
                     fontSize={labelFontSize}
                     fill="#ffd9a6"
@@ -6664,30 +6691,58 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <button
                 className={cn(
                   'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
-                  portalContextMenu.portalType === 'door' ? 'text-orange-400' : 'text-white/60',
+                  portalContextMenu.portalType === 'door' && !portalContextMenu.locked ? 'text-orange-400' : 'text-white/60',
                 )}
                 onClick={() => {
-                  onPortalTypeChange?.(portalContextMenu.portalId, 'door');
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'door', false);
                   setPortalContextMenu(null);
                 }}
               >
                 <DoorClosed size={14} />
                 Door
-                {portalContextMenu.portalType === 'door' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+                {portalContextMenu.portalType === 'door' && !portalContextMenu.locked && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
               </button>
               <button
                 className={cn(
                   'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
-                  portalContextMenu.portalType === 'window' ? 'text-orange-400' : 'text-white/60',
+                  portalContextMenu.portalType === 'door' && portalContextMenu.locked ? 'text-orange-400' : 'text-white/60',
                 )}
                 onClick={() => {
-                  onPortalTypeChange?.(portalContextMenu.portalId, 'window');
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'door', true);
+                  setPortalContextMenu(null);
+                }}
+              >
+                <Lock size={14} />
+                Locked Door
+                {portalContextMenu.portalType === 'door' && portalContextMenu.locked && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+              </button>
+              <button
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
+                  portalContextMenu.portalType === 'window' && !portalContextMenu.locked ? 'text-orange-400' : 'text-white/60',
+                )}
+                onClick={() => {
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'window', false);
                   setPortalContextMenu(null);
                 }}
               >
                 <Blinds size={14} />
                 Window
-                {portalContextMenu.portalType === 'window' && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+                {portalContextMenu.portalType === 'window' && !portalContextMenu.locked && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
+              </button>
+              <button
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors text-left',
+                  portalContextMenu.portalType === 'window' && portalContextMenu.locked ? 'text-orange-400' : 'text-white/60',
+                )}
+                onClick={() => {
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'window', true);
+                  setPortalContextMenu(null);
+                }}
+              >
+                <Lock size={14} />
+                Locked Window
+                {portalContextMenu.portalType === 'window' && portalContextMenu.locked && <span className="ml-auto text-[10px] text-orange-400/60">current</span>}
               </button>
               <button
                 className={cn(
@@ -6695,7 +6750,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   portalContextMenu.portalType === 'secret' ? 'text-orange-400' : 'text-white/60',
                 )}
                 onClick={() => {
-                  onPortalTypeChange?.(portalContextMenu.portalId, 'secret');
+                  onPortalTypeChange?.(portalContextMenu.portalId, 'secret', false);
                   setPortalContextMenu(null);
                 }}
               >
@@ -7465,22 +7520,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </div>
         )}
 
-        {/* Clear Movement Paths floating button */}
-        {inCombat && Object.keys(movementPaths).length > 0 && !Object.values(movementPaths).some(p => p.isDragging) && (
-          <button
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs opacity-60 hover:opacity-100 transition-opacity flex items-center gap-2"
-            onClick={() => {
-              setMovementPaths({}); activePathRef.current = {};
-              // Clear all fade timers/state
-              Object.values(pathFadeTimers.current).forEach(t => clearTimeout(t));
-              pathFadeTimers.current = {};
-              pathFadeStartRef.current = {};
-              setPathFadeProgress({});
-            }}
-          >
-            <Footprints size={12} /> Clear Movement Paths
-          </button>
-        )}
 
         {/* On-map undo buttons for movement paths */}
         {inCombat && Object.values(movementPaths).map(path => {
@@ -7867,85 +7906,98 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
         {/* Transition Popup — appears when token is dropped on a transition zone */}
         <AnimatePresence>
-          {transitionPopup && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              className="fixed z-[70] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl p-3 min-w-[180px]"
-              style={{ left: transitionPopup.screenX - 90, top: transitionPopup.screenY + 30 }}
-            >
-              {(() => {
-                const zone = transitionPopup.zone;
-                const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
-                // Compute arrival position: use partner zone's rect center if available, fall back to targetPosition
-                let arrivalX = zone.targetPosition.x;
-                let arrivalY = zone.targetPosition.y;
-                if (zone.pairedZoneId && targetFloor) {
-                  const partnerZone = targetFloor.transitionZones?.find(tz => tz.id === zone.pairedZoneId);
-                  if (partnerZone) {
-                    arrivalX = partnerZone.rect.x + partnerZone.rect.width / 2;
-                    arrivalY = partnerZone.rect.y + partnerZone.rect.height / 2;
-                  }
-                }
-                return (
-                  <>
-                    <p className="text-xs opacity-60 mb-2 text-center">
-                      {zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
-                    </p>
-                    <div className="flex flex-col gap-1.5">
-                      <button
-                        onClick={() => {
-                          const updated = tokens.map(t =>
-                            t.id === transitionPopup.tokenId
-                              ? { ...t, floorId: zone.targetFloorId, x: arrivalX, y: arrivalY }
-                              : t
-                          );
-                          onTokensChange(updated);
-                          if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                            window.electronAPI.sendPlayerTokenUpdate(updated);
-                          }
-                          setTransitionPopup(null);
-                        }}
-                        className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
-                      >
-                        <User size={12} className="text-blue-400" /> Move Just Me
-                      </button>
-                      <button
-                        onClick={() => {
-                          const spacing = gridResolution?.pixelsPerGrid || 70;
-                          let offsetIndex = 0;
-                          const updated = tokens.map(t => {
-                            if (t.type === 'player') {
-                              const col = offsetIndex % 2;
-                              const row = Math.floor(offsetIndex / 2);
-                              offsetIndex++;
-                              return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
-                            }
-                            return t;
-                          });
-                          onTokensChange(updated);
-                          if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                            window.electronAPI.sendPlayerTokenUpdate(updated);
-                          }
-                          setTransitionPopup(null);
-                        }}
-                        className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
-                      >
-                        <Layers size={12} className="text-blue-400" /> Move Whole Team
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setTransitionPopup(null)}
-                      className="absolute top-1 right-1 p-1 opacity-40 hover:opacity-100"
-                    >
-                      <X size={10} />
-                    </button>
-                  </>
-                );
-              })()}
-            </motion.div>
-          )}
+          {transitionPopup && (() => {
+            const popupToken = tokens.find(t => t.id === transitionPopup.tokenId);
+            const popupIsTop = playerSides?.[popupToken?.combatantId ?? ''] === 'top';
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: popupIsTop ? 4 : -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: popupIsTop ? 4 : -4 }}
+                className="fixed z-[70]"
+                style={{
+                  left: transitionPopup.screenX - 90,
+                  ...(popupIsTop
+                    ? { bottom: `calc(100vh - ${transitionPopup.screenY - 30}px)` }
+                    : { top: transitionPopup.screenY + 30 }),
+                }}
+              >
+                <div
+                  className="bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl p-3 min-w-[180px] relative"
+                  style={popupIsTop ? { transform: 'rotate(180deg)' } : undefined}
+                >
+                  {(() => {
+                    const zone = transitionPopup.zone;
+                    const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
+                    let arrivalX = zone.targetPosition.x;
+                    let arrivalY = zone.targetPosition.y;
+                    if (zone.pairedZoneId && targetFloor) {
+                      const partnerZone = targetFloor.transitionZones?.find(tz => tz.id === zone.pairedZoneId);
+                      if (partnerZone) {
+                        arrivalX = partnerZone.rect.x + partnerZone.rect.width / 2;
+                        arrivalY = partnerZone.rect.y + partnerZone.rect.height / 2;
+                      }
+                    }
+                    return (
+                      <>
+                        <p className="text-xs opacity-60 mb-2 text-center">
+                          {zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
+                        </p>
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            onClick={() => {
+                              const updated = tokens.map(t =>
+                                t.id === transitionPopup.tokenId
+                                  ? { ...t, floorId: zone.targetFloorId, x: arrivalX, y: arrivalY }
+                                  : t
+                              );
+                              onTokensChange(updated);
+                              if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                                window.electronAPI.sendPlayerTokenUpdate(updated);
+                              }
+                              setTransitionPopup(null);
+                            }}
+                            className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                          >
+                            <User size={12} className="text-blue-400" /> Move Just Me
+                          </button>
+                          <button
+                            onClick={() => {
+                              const spacing = gridResolution?.pixelsPerGrid || 70;
+                              let offsetIndex = 0;
+                              const updated = tokens.map(t => {
+                                if (t.type === 'player') {
+                                  const col = offsetIndex % 2;
+                                  const row = Math.floor(offsetIndex / 2);
+                                  offsetIndex++;
+                                  return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
+                                }
+                                return t;
+                              });
+                              onTokensChange(updated);
+                              if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                                window.electronAPI.sendPlayerTokenUpdate(updated);
+                              }
+                              setTransitionPopup(null);
+                            }}
+                            className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                          >
+                            <Layers size={12} className="text-blue-400" /> Move Whole Team
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setTransitionPopup(null)}
+                          className="absolute top-1 right-1 p-1 opacity-40 hover:opacity-100"
+                        >
+                          <X size={10} />
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
 
         {/* Zone right-click context menu */}

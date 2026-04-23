@@ -101,6 +101,7 @@ export {
   DoorOpen,
   Grid2x2,
   Blinds,
+  Lock,
 
   // Floors / Transition Zones
   Layers,

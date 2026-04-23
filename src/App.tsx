@@ -754,16 +754,16 @@ export function DMScreen() {
     updateActiveFloor(f => ({
       ...f,
       portals: f.portals?.map(p =>
-        p.id === portalId ? { ...p, closed: !p.closed } : p
+        p.id === portalId && !p.locked ? { ...p, closed: !p.closed } : p
       )
     }));
   }, [updateActiveFloor]);
 
-  const changePortalType = useCallback((portalId: string, type: 'door' | 'window') => {
+  const changePortalType = useCallback((portalId: string, type: 'door' | 'window' | 'secret', locked?: boolean) => {
     updateActiveFloor(f => ({
       ...f,
       portals: f.portals?.map(p =>
-        p.id === portalId ? { ...p, portalType: type } : p
+        p.id === portalId ? { ...p, portalType: type, locked: !!locked, closed: locked ? true : p.closed } : p
       )
     }));
   }, [updateActiveFloor]);
@@ -772,6 +772,9 @@ export function DMScreen() {
   useEffect(() => {
     if (!window.electronAPI?.onPlayerPortalToggle) return;
     window.electronAPI.onPlayerPortalToggle((portalId) => {
+      // Skip the full campaign rebroadcast — the Player screen already
+      // applied this change optimistically, so re-sending it just adds latency.
+      skipStateBroadcastRef.current = true;
       togglePortal(portalId);
     });
     return () => { window.electronAPI?.removePlayerPortalToggleListener?.(); };

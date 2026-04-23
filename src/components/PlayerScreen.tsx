@@ -2257,7 +2257,36 @@ export function PlayerScreen() {
           isPlayerView={true}
           viewerCasterIds={Object.values(signedInSpots).filter(Boolean) as string[]}
           playerSides={playerSides}
-          onPortalToggle={(portalId) => window.electronAPI?.sendPlayerPortalToggle?.(portalId)}
+          onPortalToggle={(portalId) => {
+            // Check if the portal is locked — if so, ignore the tap entirely.
+            const scenarioId = currentScenarioIdRef.current;
+            const scenario = campaign?.scenarios.find(s => s.id === scenarioId);
+            const isLocked = scenario?.floors?.some(f =>
+              f.portals?.some(p => p.id === portalId && p.locked)
+            );
+            if (isLocked) return;
+            // Optimistic local update so the door/window flips instantly,
+            // without waiting for the DM round-trip.
+            setCampaign(prev => {
+              if (!prev || !scenarioId) return prev;
+              return {
+                ...prev,
+                scenarios: prev.scenarios.map(s => {
+                  if (s.id !== scenarioId) return s;
+                  return {
+                    ...s,
+                    floors: s.floors?.map(f => ({
+                      ...f,
+                      portals: f.portals?.map(p =>
+                        p.id === portalId ? { ...p, closed: !p.closed } : p
+                      ),
+                    })),
+                  };
+                }),
+              };
+            });
+            window.electronAPI?.sendPlayerPortalToggle?.(portalId);
+          }}
           onDragStatusChange={handleDragStatusChange}
           viewportCenter={viewportCenter}
           startCastingRef={startCastingRef}
