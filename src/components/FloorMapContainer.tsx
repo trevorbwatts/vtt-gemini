@@ -46,7 +46,7 @@ interface FloorMapContainerProps {
   addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
   cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
   startEnlargeReduceRef?: React.MutableRefObject<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>;
-  confirmCastRef?: React.MutableRefObject<(() => void) | null>;
+  confirmCastRef?: React.MutableRefObject<(() => boolean) | null>;
   onCastingDismissed?: () => void;
   onEmanationCast?: (spellName: string, casterId: string) => void;
   startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;

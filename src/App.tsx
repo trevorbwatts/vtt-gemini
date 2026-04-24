@@ -62,6 +62,7 @@ export function DMScreen() {
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [dicePopover, setDicePopover] = useState<{ die: string; roll: number; x: number; y: number } | null>(null);
   // Listen for both browser fullscreen and Electron fullscreen changes
 
   useEffect(() => {
@@ -1411,8 +1412,8 @@ export function DMScreen() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="border-b border-[var(--line)] bg-[var(--surface)] px-4 flex items-center justify-between h-14 shrink-0 z-20">
-          <div className="flex items-center gap-4">
+        <header className="border-b border-[var(--line)] bg-[var(--surface)] px-4 flex items-center h-14 shrink-0 z-20">
+          <div className="flex items-center gap-4 flex-1">
             <AnimatePresence>
               {!navSidebarOpen && (
                 <motion.div
@@ -1446,7 +1447,24 @@ export function DMScreen() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Centered dice roller */}
+          <div className="flex items-center gap-1">
+            {[4, 6, 8, 10, 12, 20, 100].map((sides) => (
+              <button
+                key={sides}
+                onClick={(e) => {
+                  const roll = Math.floor(Math.random() * sides) + 1;
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setDicePopover({ die: `d${sides}`, roll, x: rect.left + rect.width / 2, y: rect.bottom });
+                }}
+                className="px-2.5 py-1 rounded text-xs font-bold font-mono tracking-tight hover:bg-white/10 transition-colors text-white/50 hover:text-[var(--accent)]"
+              >
+                d{sides}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 justify-end">
             {playerScreenOpen && (
               <div className="flex items-center bg-black/40 rounded-lg p-0.5 mr-2">
                 <button
@@ -1510,6 +1528,20 @@ export function DMScreen() {
             </button>
           </div>
         </header>
+
+        {/* Dice roll popover */}
+        {dicePopover && (
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setDicePopover(null)} />
+            <div
+              className="fixed z-[61] bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg shadow-xl px-4 py-2.5 text-center pointer-events-none"
+              style={{ left: dicePopover.x - 40, top: dicePopover.y + 8 }}
+            >
+              <div className="text-[9px] uppercase tracking-widest opacity-40 mb-0.5">{dicePopover.die}</div>
+              <div className="text-2xl font-bold text-[var(--accent)]">{dicePopover.roll}</div>
+            </div>
+          </>
+        )}
 
         {/* Main Layout */}
         <div className="flex-1 overflow-hidden relative">

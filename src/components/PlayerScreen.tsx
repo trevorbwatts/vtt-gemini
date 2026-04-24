@@ -1294,7 +1294,7 @@ export function PlayerScreen() {
   const startEnlargeReduceRef = useRef<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>(null);
   const addMarkersDirectlyRef = useRef<((markers: import('../types').SpellMarker[]) => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
-  const confirmCastRef = useRef<(() => void) | null>(null);
+  const confirmCastRef = useRef<(() => boolean) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
   const cancelMeasuringRef = useRef<(() => void) | null>(null);
 
@@ -1309,6 +1309,8 @@ export function PlayerScreen() {
 
   // Wall of Fire variant picker — shown when player casts Wall of Fire before choosing Wall vs Ring
   const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
+  // Wall of Ice variant picker — shown when player casts Wall of Ice before choosing Wall vs Dome
+  const [wallOfIcePicker, setWallOfIcePicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
   // Enlarge/Reduce picker — shown when player casts Enlarge/Reduce so they can choose Enlarge vs Reduce before targeting a token
   const [enlargeReducePicker, setEnlargeReducePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
 
@@ -1890,6 +1892,24 @@ export function PlayerScreen() {
       return;
     }
 
+    // Wall of Ice exception: show variant picker (Wall vs Dome) before placement
+    if (spell?.name === 'Wall of Ice') {
+      const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
+      let woiSaveDc: number | undefined = (player as any).spellSaveDc;
+      if (!woiSaveDc && (player as any).stats && (player as any).proficiencyBonus && (player as any).classes?.length) {
+        let bestMod = -Infinity;
+        for (const cls of (player as any).classes) {
+          const ability = CASTING_ABILITY[cls.name?.toLowerCase?.()];
+          if (ability) { const m = Math.floor(((player as any).stats[ability] - 10) / 2); if (m > bestMod) bestMod = m; }
+        }
+        if (bestMod !== -Infinity) woiSaveDc = 8 + (player as any).proficiencyBonus + bestMod;
+      }
+      setWallOfIcePicker({ spotId, playerId, saveDc: woiSaveDc });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
     // Wall of Fire exception: show variant picker (Wall vs Ring) before placement
     if (spell?.name === 'Wall of Fire') {
       const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
@@ -2350,7 +2370,13 @@ export function PlayerScreen() {
               )}
               {!aoeHighlights?.saveResults && (
                 <button
-                  onClick={() => confirmCastRef.current?.()}
+                  onClick={() => {
+                    const keepBanner = confirmCastRef.current?.() ?? false;
+                    if (!keepBanner) {
+                      setActiveCasting(null);
+                      setAoeHighlights(null);
+                    }
+                  }}
                   onPointerDown={(e) => e.preventDefault()}
                   className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
                 >
@@ -2528,6 +2554,57 @@ export function PlayerScreen() {
           </div>
         );
       })()}
+
+      {/* Wall of Ice variant picker */}
+      {wallOfIcePicker && (() => {
+        const { spotId, playerId, saveDc: woiSaveDc } = wallOfIcePicker;
+        const handleVariant = (variant: 'wall' | 'dome') => {
+          setWallOfIcePicker(null);
+          if (variant === 'wall') {
+            startPlacingRef.current?.({ name: 'Wall of Ice', school: 'Evocation', shapeType: 'wall', maxLength: 100, maxThickness: 1, blocksVision: true, saveAbility: 'dex', saveDc: woiSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Ice', saveAbility: 'dex' });
+          } else {
+            startPlacingRef.current?.({ name: 'Wall of Ice (Dome)', school: 'Evocation', shapeType: 'ring', saveAbility: 'dex', saveDc: woiSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Ice (Dome)', saveAbility: 'dex' });
+          }
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-sky-400/40 rounded-2xl p-6 shadow-2xl shadow-sky-400/10 flex flex-col items-center gap-4 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <span className="text-sky-300 text-lg">❄️</span>
+                <span className="text-white font-bold text-sm tracking-wide">Wall of Ice</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a shape</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('wall')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-sky-400/20 text-sky-200 border border-sky-400/40 active:bg-sky-400/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬜</span>
+                  Wall
+                  <span className="text-[9px] text-white/30 normal-case font-normal">100 ft long</span>
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('dome')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-sky-400/20 text-sky-200 border border-sky-400/40 active:bg-sky-400/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬤</span>
+                  Dome
+                  <span className="text-[9px] text-white/30 normal-case font-normal">10 ft radius</span>
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setWallOfIcePicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Summon Creature Picker */}
       {summonPicker && (() => {
         const { spotId, playerId, spell, options } = summonPicker;

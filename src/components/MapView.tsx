@@ -76,7 +76,7 @@ interface MapViewProps {
   /** Called with the current measured distance in feet as the player drags (null when cleared) */
   onMeasureDistanceChange?: (feet: number | null) => void;
   /** Ref that MapView populates so external code can confirm cast (roll saves) */
-  confirmCastRef?: React.MutableRefObject<(() => void) | null>;
+  confirmCastRef?: React.MutableRefObject<(() => boolean) | null>;
   /** Called when placed AoE is dismissed (by any means) */
   onCastingDismissed?: () => void;
   /** Ref that MapView populates so external code (e.g. DM apply-damage) can immediately clear the remote AoE */
@@ -589,6 +589,170 @@ const WallOfFireParticles: React.FC<{
         fill={fill}
         shadowColor="#ff5a00"
         shadowBlur={size * 2.5}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Ice particles drifting outward from both faces of Wall of Ice.
+ * Light blue shards, structure matches WallOfFireParticles.
+ */
+const WallOfIceParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 100;
+  const BASE_PERIOD = 1700;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    const drift = wallLen * (0.04 + rand(i, 4) * 0.12);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
+    const sizeMul = 0.35 + rand(i, 6) * 0.9;
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.1 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.3));
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wip${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#a7d8ff"
+        shadowBlur={size * 3}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Ice particles for Wall of Ice (Dome). Emits from the dome circumference
+ * drifting gently inward, light blue tones.
+ */
+const WallOfIceDomeParticles: React.FC<{
+  cx: number;
+  cy: number;
+  radiusPx: number;
+}> = ({ cx, cy, radiusPx }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (radiusPx < 1) return null;
+
+  const COUNT = 90;
+  const BASE_PERIOD = 1800;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const baseAngle = rand(i, 3) * Math.PI * 2;
+    const drift = radiusPx * (0.1 + rand(i, 4) * 0.2);
+    const jitter = (rand(i, 5) - 0.5) * 0.04;
+    const sizeMul = 0.3 + rand(i, 6) * 0.85;
+    // Mix: mostly inward, some outward for "frost shedding" feel
+    const dir = rand(i, 11) < 0.7 ? -1 : 1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const angle = baseAngle + jitter;
+    const nx = Math.cos(angle) * dir;
+    const ny = Math.sin(angle) * dir;
+    const bx = cx + Math.cos(angle) * radiusPx;
+    const by = cy + Math.sin(angle) * radiusPx;
+    const x = bx + nx * phase * drift;
+    const y = by + ny * phase * drift;
+
+    const fadeIn = 0.1 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.35));
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`widp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#a7d8ff"
+        shadowBlur={size * 3}
         shadowOpacity={0.85}
         opacity={opacity}
         listening={false}
@@ -1780,8 +1944,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     });
   }, [tokensInAoe, activeAoe?.saveResults]);
 
-  // Confirm Cast: roll saves for affected monsters
-  const handleConfirmCast = () => {
+  // Confirm Cast: roll saves for affected monsters.
+  // Returns true if the casting banner should remain visible (save results were produced
+  // and the banner will now show a "Roll for damage" prompt), false if it should dismiss.
+  const handleConfirmCast = (): boolean => {
     const ppgLocal = gridResolution?.pixelsPerGrid || 40;
     const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
 
@@ -1852,7 +2018,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         const combatantIds = Object.keys(results);
         setEditingWall(null);
         setPlacingSpell(null);
-        if (combatantIds.length === 0) { onCastingDismissed?.(); return; }
+        if (combatantIds.length === 0) { onCastingDismissed?.(); return false; }
         onAoeHighlightsChange?.({
           affectedCombatantIds: combatantIds,
           saveResults: results,
@@ -1861,13 +2027,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
           saveDc: editingWall.saveDc,
           halfDamageOnSave: editingWall.halfDamageOnSave,
         });
-        return;
+        return true;
       }
 
       setEditingWall(null);
       setPlacingSpell(null);
       onCastingDismissed?.();
-      return;
+      return false;
     }
 
     // Ring-shape placement (Wall of Fire Ring) — create a persistent ring marker
@@ -1907,7 +2073,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         const combatantIds = Object.keys(results);
         setEditingRing(null);
         setPlacingSpell(null);
-        if (combatantIds.length === 0) { onCastingDismissed?.(); return; }
+        if (combatantIds.length === 0) { onCastingDismissed?.(); return false; }
         onAoeHighlightsChange?.({
           affectedCombatantIds: combatantIds,
           saveResults: results,
@@ -1916,17 +2082,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
           saveDc: editingRing.saveDc,
           halfDamageOnSave: editingRing.halfDamageOnSave,
         });
-        return;
+        return true;
       }
 
       setEditingRing(null);
       setPlacingSpell(null);
       onCastingDismissed?.();
-      return;
+      return false;
     }
 
     const aoe = placedAoe; // Only the caster's screen can confirm
-    if (!aoe) return;
+    if (!aoe) return false;
 
     /** Helper: place a persistent spell marker at the AoE position */
     const placePersistentMarker = () => {
@@ -1958,7 +2124,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (aoe.mapInteraction === 'cast-confirm') {
       setPlacedAoe(null);
       onCastingDismissed?.();
-      return;
+      return false;
     }
 
     // No save roll needed (e.g. Darkness) — place as a persistent spell marker
@@ -1988,10 +2154,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         if (Object.keys(results).length === 0) {
           setPlacedAoe(null);
           onCastingDismissed?.();
-          return;
+          return false;
         }
         setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
-        return;
+        return true;
       }
 
       // cast-and-emanate with no save (Shield of Faith, etc.) — activate emanation and dismiss
@@ -1999,7 +2165,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         onEmanationCast?.(aoe.name, aoe.casterId);
         setPlacedAoe(null);
         onCastingDismissed?.();
-        return;
+        return false;
       }
 
       // Regular no-save spell (Darkness, etc.) — place as a persistent spell marker
@@ -2025,7 +2191,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       } catch (_e) { /* IPC not available */ }
       setPlacedAoe(null);
       onCastingDismissed?.();
-      return;
+      return false;
     }
 
     const results: Record<string, SaveResult> = {};
@@ -2060,10 +2226,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (Object.keys(results).length === 0) {
       setPlacedAoe(null);
       onCastingDismissed?.();
-      return;
+      return false;
     }
 
     setPlacedAoe(prev => prev ? { ...prev, saveResults: results } : null);
+    return true;
   };
 
   if (confirmCastRef) {
@@ -5965,9 +6132,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       );
                     }
                   }
-                  // Ring-shape marker (Wall of Fire Ring) — also catches old sphere-format markers
+                  // Ring-shape marker (Wall of Fire Ring / Wall of Ice Dome) — also catches old sphere-format markers
                   if (marker.shapeType === 'ring' || marker.spellName === 'Wall of Fire (Ring)') {
                     const ringRadiusPx = ((marker.aoeSize ?? 10) / 5) * ppg;
+                    const isIceDome = marker.spellName === 'Wall of Ice (Dome)';
+                    const ringFill = isIceDome ? 'rgba(126,200,238,0.18)' : 'rgba(255,90,10,0.18)';
+                    const ringStroke = isIceDome ? '#7ec8ee' : '#ff8c00';
                     const isHotOutside = (marker.hotSide ?? 'outside') === 'outside';
                     const tapHandler = (e: any) => {
                       if (!isPlayerView) return;
@@ -6002,11 +6172,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     };
                     return (
                       <React.Fragment key={marker.id}>
-                        {/* Flame fill */}
+                        {/* Fill */}
                         <Circle
                           x={marker.x} y={marker.y}
                           radius={ringRadiusPx}
-                          fill="rgba(255,90,10,0.18)"
+                          fill={ringFill}
                           stroke="transparent"
                           listening={false}
                         />
@@ -6015,7 +6185,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           x={marker.x} y={marker.y}
                           radius={ringRadiusPx}
                           fill="transparent"
-                          stroke="#ff8c00"
+                          stroke={ringStroke}
                           strokeWidth={3 / stageScale}
                           listening={false}
                         />
@@ -6275,10 +6445,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
           )}
 
           {/* ── Wall of Fire Ring particle layer ── */}
-          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
             <Layer listening={false}>
               {spellMarkers
-                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
                 .map(m => (
                   <WallOfFireRingParticles
                     key={m.id}
@@ -6286,6 +6456,43 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     cy={m.y}
                     radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
                     hotSide={m.hotSide ?? 'outside'}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Wall of Ice particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Ice' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Ice' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WallOfIceParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Ice Dome particle layer ── */}
+          {spellMarkers.some(m => m.spellName === 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.spellName === 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <WallOfIceDomeParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
                   />
                 ))}
             </Layer>
@@ -6595,6 +6802,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const minRadiusFt = 2.5;
             const maxRadiusFt = 10;
             const isHotOutside = editingRing.hotSide === 'outside';
+            const isIceDome = editingRing.spellName === 'Wall of Ice (Dome)';
+            const previewFill = isIceDome ? 'rgba(126,200,238,0.12)' : 'rgba(255,100,10,0.12)';
+            const previewStroke = isIceDome ? '#7ec8ee' : '#ff8c00';
+            const previewLabel = isIceDome ? '#cfeeff' : '#ffd9a6';
 
             const onBodyDragMove = (e: any) => {
               setEditingRing(r => r ? { ...r, x: e.target.x(), y: e.target.y() } : null);
@@ -6621,8 +6832,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     x={editingRing.x}
                     y={editingRing.y}
                     radius={ringRadiusPx}
-                    fill="rgba(255,100,10,0.12)"
-                    stroke="#ff8c00"
+                    fill={previewFill}
+                    stroke={previewStroke}
                     strokeWidth={3 / stageScale}
                     draggable
                     onDragMove={onBodyDragMove}
@@ -6648,7 +6859,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     rotation={playerSides?.[editingRing.casterId ?? ''] === 'top' ? 180 : 0}
                     text={`${Math.round(editingRing.radius * 2)} ft`}
                     fontSize={labelFontSize}
-                    fill="#ffd9a6"
+                    fill={previewLabel}
                     fontStyle="bold"
                     align="center"
                     width={100 / stageScale}
@@ -6656,12 +6867,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   />
                 </Layer>
                 <Layer listening={false}>
-                  <WallOfFireRingParticles
-                    cx={editingRing.x}
-                    cy={editingRing.y}
-                    radiusPx={ringRadiusPx}
-                    hotSide={editingRing.hotSide}
-                  />
+                  {isIceDome ? (
+                    <WallOfIceDomeParticles
+                      cx={editingRing.x}
+                      cy={editingRing.y}
+                      radiusPx={ringRadiusPx}
+                    />
+                  ) : (
+                    <WallOfFireRingParticles
+                      cx={editingRing.x}
+                      cy={editingRing.y}
+                      radiusPx={ringRadiusPx}
+                      hotSide={editingRing.hotSide}
+                    />
+                  )}
                 </Layer>
               </>
             );
@@ -7046,8 +7265,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
           );
         })()}
 
-        {/* Wall of Fire Ring — hot-side toggle overlay */}
-        {editingRing && (() => {
+        {/* Wall of Fire Ring — hot-side toggle overlay (hidden for Wall of Ice Dome) */}
+        {editingRing && editingRing.spellName !== 'Wall of Ice (Dome)' && (() => {
           const ringRadiusPx = (editingRing.radius / 5) * ppg;
           const screenX = editingRing.x * stageScale + stagePos.x;
           const screenY = editingRing.y * stageScale + stagePos.y;
