@@ -600,6 +600,89 @@ const WallOfFireParticles: React.FC<{
 };
 
 /**
+ * Wind particles streaming outward from both faces of Wind Wall.
+ * Gray tones, same structure as WallOfFireParticles but bidirectional.
+ */
+const WindWallParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 110;
+  const BASE_PERIOD = 1200;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);                            // position along edge 0..1
+    const drift = wallLen * (0.06 + rand(i, 4) * 0.2);   // outward drift distance
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;  // sideways wobble
+    const sizeMul = 0.3 + rand(i, 6) * 0.85;
+    // Half the particles blow to each side
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.4));
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#f0f0f0' : shade > 0.33 ? '#b5b5b5' : '#777777';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wwp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#aaaaaa"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.7}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
  * Fire particles for Wall of Fire (Ring). Emits from the ring circumference
  * radially inward or outward depending on hotSide.
  */
@@ -746,6 +829,76 @@ const FireballParticles: React.FC<{ radius: number }> = ({ radius }) => {
         shadowColor="#ff5a00"
         shadowBlur={size * 2.5}
         shadowOpacity={0.8}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Wind particles streaming along a line for Gust of Wind. Particles flow
+ * from origin to far end with mild perpendicular wave, in gray tones.
+ * One RAF loop, pure trig — no per-particle state.
+ */
+const GustOfWindParticles: React.FC<{ length: number; width: number }> = ({ length, width }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 140;
+  const BASE_PERIOD = 1100;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const yJitter = (rand(i, 3) - 0.5) * width * 0.92;
+    const waveAmp = width * (0.05 + rand(i, 4) * 0.12);
+    const waveFreq = 0.0025 + rand(i, 5) * 0.004;
+    const wavePhase = rand(i, 6) * Math.PI * 2;
+    const sizeMul = 0.4 + rand(i, 7) * 1.0;
+
+    const phase = ((tick / period) + offset) % 1;
+    const x = phase * length;
+    const yWave = Math.sin(tick * waveFreq + wavePhase + phase * Math.PI * 2) * waveAmp;
+    const y = yJitter + yWave;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.82;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.4 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, Math.min(length, width * 4) * 0.01 * sizeMul);
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#f0f0f0' : shade > 0.33 ? '#b5b5b5' : '#777777';
+
+    particles.push(
+      <Circle
+        key={`g${i}`}
+        x={x}
+        y={y}
+        radius={size}
+        fill={fill}
+        shadowColor="#aaaaaa"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.6}
         opacity={opacity}
         listening={false}
         perfectDrawEnabled={false}
@@ -4992,6 +5145,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </Group>
                 </Layer>
               )}
+              {placedAoe.name === 'Gust of Wind' && placedAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group
+                    x={edgeX}
+                    y={edgeY}
+                    rotation={(angleRad * 180) / Math.PI}
+                  >
+                    <GustOfWindParticles length={sizePx} width={feetToPx(5)} />
+                  </Group>
+                </Layer>
+              )}
               </>
             );
           })()}
@@ -5090,6 +5254,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </Layer>
                 );
               })()}
+              {remoteAoe.name === 'Gust of Wind' && remoteAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group
+                    x={edgeX}
+                    y={edgeY}
+                    rotation={(aRad * 180) / Math.PI}
+                  >
+                    <GustOfWindParticles length={sizePx} width={feetToPx(5)} />
+                  </Group>
+                </Layer>
+              )}
             </>
             );
           })()}
@@ -6067,6 +6242,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   const ang = (m.angle ?? 0) * Math.PI / 180;
                   return (
                     <WallOfFireParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wind Wall particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wind Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wind Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WindWallParticles
                       key={m.id}
                       p0={wCorners[0]}
                       p1={wCorners[1]}
