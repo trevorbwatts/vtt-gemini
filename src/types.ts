@@ -98,6 +98,8 @@ export interface Token {
   summonedBy?: string;
   /** combatantId of the player who controls this token (summons/pets). */
   controlledBy?: string;
+  /** Visual-only flag for illusions (Project Image, etc.) — renders translucent with a dashed outline. */
+  illusory?: boolean;
 }
 
 export interface MovementPathSegment {

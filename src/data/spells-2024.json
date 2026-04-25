@@ -2693,7 +2693,8 @@
     "school": "Abjuration",
     "desc": "You touch a point and infuse an area around it with holy or unholy power. The area can have a radius up to 60 feet, and the spell fails if the radius includes an area already under the effect of Hallow. The affected area has the following effects.\n\n**Hallowed Ward.** Choose any of these creature types: Aberration, Celestial, Elemental, Fey, Fiend, or Undead. Creatures of the chosen types can't willingly enter the area, and any creature that is possessed by or that has the Charmed or Frightened condition from such creatures isn't possessed, Charmed, or Frightened by them while in the area.\n\n**Extra Effect.** You bind an extra effect to the area from the list below:\n\n\u00e2\u20ac\u00a2 **Courage.** Creatures of any types you choose can't gain the Frightened condition while in the area.\n\u00e2\u20ac\u00a2 **Darkness.** Darkness fills the area. Normal light, as well as magical light created by spells of a level lower than this spell, can't illuminate the area.\n\u00e2\u20ac\u00a2 **Daylight.** Bright light fills the area. Magical Darkness created by spells of a level lower than this spell can't extinguish the light.\n\u00e2\u20ac\u00a2 **Peaceful Rest.** Dead bodies interred in the area can't be turned into Undead.\n\u00e2\u20ac\u00a2 **Extradimensional Interference.** Creatures of any types you choose can't enter or exit the area using teleportation or interplanar travel.\n\u00e2\u20ac\u00a2 **Fear.** Creatures of any types you choose have the Frightened condition while in the area.\n\u00e2\u20ac\u00a2 **Resistance.** Creatures of any types you choose have Resistance to one damage type of your choice while in the area.\n\u00e2\u20ac\u00a2 **Silence.** No sound can emanate from within the area, and no sound can reach into it.\n\u00e2\u20ac\u00a2 **Tongues.** Creatures of any types you choose can communicate with any other creature in the area even if they don't share a common language.\n\u00e2\u20ac\u00a2 **Vulnerability.** Creatures of any types you choose have Vulnerability to one damage type of your choice while in the area.",
     "range": 0,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "exception"
   },
   {
     "name": "Hold Monster",
@@ -2757,7 +2758,8 @@
     "school": "Illusion",
     "desc": "You gain the Invisible condition at the same time that an illusory double of you appears where you are standing. The double lasts for the duration, but the invisibility ends immediately after you make an attack roll, deal damage, or cast a spell.\n\nAs a Magic action, you can move the illusory double up to twice your Speed and make it gesture, speak, and behave in whatever way you choose. It is intangible and invulnerable.\n\nYou can see through its eyes and hear through its ears as if you were located where it is.",
     "range": 0,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "exception"
   },
   {
     "name": "Modify Memory",
@@ -2774,7 +2776,8 @@
     "school": "Transmutation",
     "desc": "A passage appears at a point that you can see on a wooden, plaster, or stone surface (such as a wall, ceiling, or floor) within range and lasts for the duration. You choose the opening's dimensions: up to 5 feet wide, 8 feet tall, and 20 feet deep. The passage creates no instability in a structure surrounding it.\n\nWhen the opening disappears, any creatures or objects still in the passage created by the spell are safely ejected to an unoccupied space nearest to the surface on which you cast the spell.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "exception"
   },
   {
     "name": "Planar Binding",
@@ -2952,6 +2955,7 @@
     "desc": "You create a wall of whirling blades made of magical energy. The wall appears within range and lasts for the duration. You make a straight wall up to 100 feet long, 20 feet high, and 5 feet thick, or a ringed wall up to 60 feet in diameter, 20 feet high, and 5 feet thick. The wall provides Three-Quarters Cover, and its space is Difficult.\n\nAny creature in the wall's space makes a Dexterity saving throw, taking 6d10 Force damage on a failed save or half as much damage on a successful one. A creature also makes that save if it enters the wall's space or ends it turn there. A creature makes that save only once per turn.",
     "range": 90,
     "source": "2024",
+    "mapInteraction": "exception",
     "saveAbility": "dex",
     "halfDamageOnSave": true,
     "damageType": "Force"
@@ -3329,7 +3333,9 @@
     "desc": "A storm of fire appears within range. The area of the storm consists of up to ten 10-foot Cubes, which you arrange as you like. Each Cube must be contiguous with at least one other Cube. Each creature in the area makes a Dexterity saving throw, taking 7d10 Fire damage on a failed save or half as much damage on a successful one.\n\nFlammable objects in the area that aren't being worn or carried start burning.",
     "range": 150,
     "source": "2024",
-    "aoeType": "cone",
+    "mapInteraction": "exception",
+    "aoeType": "cube",
+    "aoeSize": 10,
     "saveAbility": "dex",
     "halfDamageOnSave": true,
     "damageType": "Fire"
@@ -3341,7 +3347,7 @@
     "desc": "An immobile, Invisible, Cube-shaped prison composed of magical force springs into existence around an area you choose within range. The prison can be a cage or a solid box, as you choose.\n\nA prison in the shape of a cage can be up to 20 feet on a side and is made from 1/2-inch diameter bars spaced 1/2 inch apart. A prison in the shape of a box can be up to 10 feet on a side, creating a solid barrier that prevents any matter from passing through it and blocking any spells cast into or out from the area.\n\nWhen you cast the spell, any creature that is completely inside the cage's area is trapped. Creatures only partially within the area, or those too large to fit inside it, are pushed away from the center of the area until they are completely outside it.\n\nA creature inside the cage can't leave it by nonmagical means. If the creature tries to use teleportation or interplanar travel to leave, it must first make a Charisma saving throw. On a successful save, the creature can use that magic to exit the cage. On a failed save, the creature doesn't exit the cage and wastes the spell or effect. The cage also extends into the Ethereal Plane, blocking ethereal travel.\n\nThis spell can't be dispelled by Dispel Magic.",
     "range": 100,
     "source": "2024",
-    "aoeType": "cone",
+    "mapInteraction": "exception",
     "saveAbility": "cha"
   },
   {
@@ -3402,7 +3408,8 @@
     "school": "Illusion",
     "desc": "You create an illusory copy of yourself that lasts for the duration. The copy can appear at any location within range that you have seen before, regardless of intervening obstacles. The illusion looks and sounds like you, but it is intangible. If the illusion takes any damage, it disappears, and the spell ends.\n\nYou can see through the illusion's eyes and hear through its ears as if you were in its space. As a Magic action, you can move it up to 60 feet and make it gesture, speak, and behave in whatever way you choose. It mimics your mannerisms perfectly.\n\nPhysical interaction with the image reveals it to be illusory, since things can pass through it. A creature that takes the Study action to examine the image can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the creature can see through the image, and any noise it makes sounds hollow to the creature.",
     "range": 500,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "summon"
   },
   {
     "name": "Regenerate",

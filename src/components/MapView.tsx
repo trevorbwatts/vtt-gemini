@@ -1445,6 +1445,475 @@ const WallOfThornsRingParticles: React.FC<{
 };
 
 /**
+ * Soft golden motes drifting throughout a Hallow sphere. Suggests
+ * hallowed/sanctified ground — slow, warm, even glow across the area.
+ */
+const HallowParticles: React.FC<{
+  cx: number;
+  cy: number;
+  radiusPx: number;
+}> = ({ cx, cy, radiusPx }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (radiusPx < 1) return null;
+
+  // Density scales with area, capped so giant 60ft circles stay performant.
+  const COUNT = Math.min(220, Math.max(40, Math.round((radiusPx * radiusPx) / 110)));
+  const BASE_PERIOD = 2600;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.6 + rand(i, 1) * 1.0);
+    const offset = rand(i, 2);
+    const phase = ((tick / period) + offset) % 1;
+    // Sample uniformly inside the disc: r = R * sqrt(u)
+    const u = rand(i, 3);
+    const r = radiusPx * Math.sqrt(u);
+    const a = rand(i, 4) * Math.PI * 2;
+    // Small slow upward drift so it feels alive, not static
+    const drift = (phase - 0.5) * 4;
+    const x = cx + r * Math.cos(a);
+    const y = cy + r * Math.sin(a) - drift;
+    const fade = phase < 0.2 ? phase / 0.2 : 1 - (phase - 0.2) / 0.8;
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 5) * 0.4);
+    const size = 1.0 + rand(i, 6) * 1.6;
+    const shade = rand(i, 7);
+    const fill = shade > 0.7 ? '#fff7d6' : shade > 0.4 ? '#fde68a' : shade > 0.18 ? '#fbbf24' : '#f59e0b';
+    particles.push(
+      <Circle
+        key={`hp${i}`}
+        x={x}
+        y={y}
+        radius={size}
+        fill={fill}
+        shadowColor="#fbbf24"
+        shadowBlur={size * 2.2}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Vertical "bars" suggested by parallel rows of violet sparks across the
+ * Forcecage (Cage) footprint. Bars run perpendicular to the long axis.
+ */
+const ForcecageBarsParticles: React.FC<{
+  cx: number;
+  cy: number;
+  lengthPx: number;
+  thicknessPx: number;
+  angleRad: number;
+}> = ({ cx, cy, lengthPx, thicknessPx, angleRad }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (lengthPx < 1 || thicknessPx < 1) return null;
+
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  // Local axes: u = along length, v = along thickness
+  const ux = cosA, uy = sinA;
+  const vx = -sinA, vy = cosA;
+
+  const halfL = lengthPx / 2;
+  const halfT = thicknessPx / 2;
+
+  // Suggest bars: a regular row of "columns" running across length,
+  // each column shimmering top-to-bottom along the thickness.
+  const BAR_COUNT = Math.max(6, Math.round(lengthPx / 14));
+  const PER_BAR = 9;
+  const BASE_PERIOD = 1800;
+  const particles: React.ReactElement[] = [];
+
+  for (let b = 0; b < BAR_COUNT; b++) {
+    const uFrac = (b + 0.5) / BAR_COUNT; // 0..1
+    const u = -halfL + uFrac * lengthPx;
+    for (let k = 0; k < PER_BAR; k++) {
+      const i = b * PER_BAR + k;
+      const period = BASE_PERIOD * (0.7 + rand(i, 1) * 0.6);
+      const offset = rand(i, 2);
+      const phase = ((tick / period) + offset) % 1;
+      const vFrac = (k + rand(i, 3) * 0.6) / PER_BAR; // 0..1 along thickness
+      const v = -halfT + vFrac * thicknessPx;
+      const jitterU = (rand(i, 4) - 0.5) * 1.5;
+      const jitterV = (rand(i, 5) - 0.5) * 1.5;
+      const x = cx + (u + jitterU) * ux + (v + jitterV) * vx;
+      const y = cy + (u + jitterU) * uy + (v + jitterV) * vy;
+      const fade = phase < 0.15 ? phase / 0.15 : 1 - (phase - 0.15) / 0.85;
+      const opacity = Math.max(0, fade) * (0.5 + rand(i, 6) * 0.4);
+      const size = 1.2 + rand(i, 7) * 1.4;
+      const shade = rand(i, 8);
+      const fill = shade > 0.7 ? '#ede9fe' : shade > 0.4 ? '#c4b5fd' : shade > 0.18 ? '#a78bfa' : '#7c3aed';
+      particles.push(
+        <Circle
+          key={`fcb${i}`}
+          x={x}
+          y={y}
+          radius={size}
+          fill={fill}
+          shadowColor="#7c3aed"
+          shadowBlur={size * 2}
+          shadowOpacity={0.85}
+          opacity={opacity}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      );
+    }
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Soft, even violet shimmer filling the Forcecage (Box) footprint.
+ * Used for the solid-box variant — no visible bars.
+ */
+const ForcecageBoxParticles: React.FC<{
+  cx: number;
+  cy: number;
+  lengthPx: number;
+  thicknessPx: number;
+  angleRad: number;
+}> = ({ cx, cy, lengthPx, thicknessPx, angleRad }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (lengthPx < 1 || thicknessPx < 1) return null;
+
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const ux = cosA, uy = sinA;
+  const vx = -sinA, vy = cosA;
+
+  const COUNT = Math.max(40, Math.round((lengthPx * thicknessPx) / 80));
+  const BASE_PERIOD = 2000;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.6 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const phase = ((tick / period) + offset) % 1;
+    const u = (rand(i, 3) - 0.5) * lengthPx;
+    const v = (rand(i, 4) - 0.5) * thicknessPx;
+    const x = cx + u * ux + v * vx;
+    const y = cy + u * uy + v * vy;
+    const fade = phase < 0.2 ? phase / 0.2 : 1 - (phase - 0.2) / 0.8;
+    const opacity = Math.max(0, fade) * (0.35 + rand(i, 5) * 0.35);
+    const size = 1.0 + rand(i, 6) * 1.6;
+    const shade = rand(i, 7);
+    const fill = shade > 0.7 ? '#ede9fe' : shade > 0.4 ? '#c4b5fd' : '#a78bfa';
+    particles.push(
+      <Circle
+        key={`fcx${i}`}
+        x={x}
+        y={y}
+        radius={size}
+        fill={fill}
+        shadowColor="#a78bfa"
+        shadowBlur={size * 2}
+        shadowOpacity={0.7}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Stone-dust motes drifting lazily inside a Passwall passage.
+ * Brown/tan palette to evoke a freshly opened tunnel through stone.
+ */
+const PasswallParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 60;
+  const BASE_PERIOD = 2600;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.6 + rand(i, 1) * 1.0);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    // Drift along the long axis of the passage (rather than perpendicular)
+    const drift = wallLen * (0.2 + rand(i, 4) * 0.4);
+    // Stay within the passage thickness
+    const lateral = (rand(i, 5) - 0.5) * wallLen * 0.06;
+    const sizeMul = 0.4 + rand(i, 6) * 0.9;
+    const dirSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const baseAlong = tAlong * wallLen;
+    const along = baseAlong + dirSign * phase * drift;
+    const x = p0.x + wallDirX * along + normalX * lateral;
+    const y = p0.y + wallDirY * along + normalY * lateral;
+
+    const fadeIn = 0.1 + rand(i, 7) * 0.12;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.3 + rand(i, 8) * 0.35);
+    const size = Math.max(0.5, 1.6 * sizeMul);
+    const shade = rand(i, 9);
+    const fill = shade > 0.7 ? '#d6c4a8' : shade > 0.4 ? '#a88c66' : shade > 0.18 ? '#7a5e3e' : '#5a4226';
+
+    particles.push(
+      <Circle
+        key={`pwp${i}`}
+        x={x}
+        y={y}
+        radius={size}
+        fill={fill}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Blade shards spinning along both faces of Blade Barrier.
+ * Metallic silver palette, square/diamond shapes to evoke whirling steel.
+ */
+const BladeBarrierParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 130;
+  const BASE_PERIOD = 1100;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    const drift = wallLen * (0.04 + rand(i, 4) * 0.16);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.025;
+    const sizeMul = 0.4 + rand(i, 6) * 1.0;
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.06 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.55 + rand(i, 8) * 0.4);
+    const size = Math.max(0.6, 2.4 * sizeMul * (1 - phase * 0.35));
+    const shade = rand(i, 9);
+    const fill = shade > 0.75 ? '#ffffff' : shade > 0.45 ? '#e2e8f0' : shade > 0.2 ? '#94a3b8' : '#64748b';
+    const rotation = (rand(i, 10) * 360 + tick * (0.4 + rand(i, 12) * 0.6)) % 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`bbp${i}`}
+        x={x}
+        y={y}
+        sides={4}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#cbd5e1"
+        shadowBlur={size * 2.2}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Blade shards for Blade Barrier (Ring). Emits from the ring circumference
+ * radially both inward and outward with a metallic silver palette.
+ */
+const BladeBarrierRingParticles: React.FC<{
+  cx: number;
+  cy: number;
+  radiusPx: number;
+}> = ({ cx, cy, radiusPx }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (radiusPx < 1) return null;
+
+  const COUNT = 140;
+  const BASE_PERIOD = 1100;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
+    const offset = rand(i, 2);
+    const baseAngle = rand(i, 3) * Math.PI * 2;
+    const drift = radiusPx * (0.08 + rand(i, 4) * 0.2);
+    const jitter = (rand(i, 5) - 0.5) * 0.04;
+    const sizeMul = 0.4 + rand(i, 6) * 0.95;
+    const dir = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const angle = baseAngle + jitter;
+    const nx = Math.cos(angle) * dir;
+    const ny = Math.sin(angle) * dir;
+    const bx = cx + Math.cos(angle) * radiusPx;
+    const by = cy + Math.sin(angle) * radiusPx;
+    const x = bx + nx * phase * drift;
+    const y = by + ny * phase * drift;
+
+    const fadeIn = 0.06 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.55 + rand(i, 8) * 0.4);
+    const size = Math.max(0.6, 2.2 * sizeMul * (1 - phase * 0.4));
+    const shade = rand(i, 9);
+    const fill = shade > 0.75 ? '#ffffff' : shade > 0.45 ? '#e2e8f0' : shade > 0.2 ? '#94a3b8' : '#64748b';
+    const rotation = (rand(i, 10) * 360 + tick * (0.4 + rand(i, 12) * 0.6)) % 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`bbrp${i}`}
+        x={x}
+        y={y}
+        sides={4}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#cbd5e1"
+        shadowBlur={size * 2.2}
+        shadowOpacity={0.9}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
  * Fire particles for Wall of Fire (Ring). Emits from the ring circumference
  * radially inward or outward depending on hotSide.
  */
@@ -1966,7 +2435,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     maxThickness?: number;
     blocksVision?: boolean;
     // Summon creature data — when present, tap-to-place creates a Token instead of a SpellMarker
-    summonData?: { creatureName: string; spellName: string; casterId: string; playerColor: string; size?: import('../types').Token['size'] };
+    summonData?: { creatureName: string; spellName: string; casterId: string; playerColor: string; size?: import('../types').Token['size']; avatar?: string; illusory?: boolean };
   } | null>(null);
   const [pendingMarkerPos, setPendingMarkerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
@@ -4115,6 +4584,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
           summonedBy: sd.casterId,
           controlledBy: sd.casterId,
           size: sd.size,
+          ...(sd.avatar ? { avatar: sd.avatar } : {}),
+          ...(sd.illusory ? { illusory: true } : {}),
         };
         const updatedTokens = [...tokens, newToken];
         onTokensChange(updatedTokens);
@@ -4273,6 +4744,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
           summonedBy: sd.casterId,
           controlledBy: sd.casterId,
           size: sd.size,
+          ...(sd.avatar ? { avatar: sd.avatar } : {}),
+          ...(sd.illusory ? { illusory: true } : {}),
         };
         const updatedTokens = [...tokens, newToken];
         onTokensChange(updatedTokens);
@@ -5262,8 +5735,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     fill={token.avatar ? "transparent" : token.color}
                     stroke={token.color}
                     strokeWidth={2 * tokenScale}
-                    opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
-                    dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
+                    opacity={(token.invisible || token.illusory) ? 0.5 : token.hidden ? 0.4 : 1}
+                    dash={(token.invisible || token.illusory) ? [6 * tokenScale, 4 * tokenScale] : undefined}
                     perfectDrawEnabled={false}
                   />
                   {/* Engaged range ring — shown when within 5ft of an opposing token during combat */}
@@ -5348,7 +5821,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   )}
                   {token.avatar && (
                     <Group
-                      opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
+                      opacity={(token.invisible || token.illusory) ? 0.5 : token.hidden ? 0.4 : 1}
                       rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0}
                       listening={false}
                     >
@@ -5479,7 +5952,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       x={-tokenRadius * 2.5}
                       fontStyle="bold"
                       fontFamily="Inter"
-                      opacity={token.invisible ? 0.5 : token.hidden ? 0.6 : 1}
+                      opacity={(token.invisible || token.illusory) ? 0.5 : token.hidden ? 0.6 : 1}
                       listening={false}
                       perfectDrawEnabled={false}
                     />
@@ -6594,8 +7067,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       fill={token.avatar ? 'transparent' : token.color}
                       stroke={token.color}
                       strokeWidth={2 * tokenScale}
-                      opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
-                      dash={token.invisible ? [6 * tokenScale, 4 * tokenScale] : undefined}
+                      opacity={(token.invisible || token.illusory) ? 0.5 : token.hidden ? 0.4 : 1}
+                      dash={(token.invisible || token.illusory) ? [6 * tokenScale, 4 * tokenScale] : undefined}
                       perfectDrawEnabled={false}
                     />
                     {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
@@ -6735,14 +7208,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         </React.Fragment>
                       );
                     } else {
+                      const isPasswall = marker.spellName === 'Passwall';
+                      const isForcecage = marker.spellName === 'Forcecage' || marker.spellName === 'Forcecage (Box)';
+                      const isForcecageBox = marker.spellName === 'Forcecage (Box)';
+                      const fcFill = isForcecageBox ? 'rgba(167,139,250,0.32)' : 'rgba(167,139,250,0.10)';
+                      const fcStroke = '#a78bfa';
                       return (
                         <Line
                           key={marker.id}
                           points={wallPts}
                           closed
-                          fill="rgba(212,165,116,0.55)"
-                          stroke="#8b5a2b"
-                          strokeWidth={1.5 / stageScale}
+                          fill={isForcecage ? fcFill : isPasswall ? 'rgba(20,16,12,0.78)' : 'rgba(212,165,116,0.55)'}
+                          stroke={isForcecage ? fcStroke : isPasswall ? '#3a2c1c' : '#8b5a2b'}
+                          strokeWidth={isForcecage ? 2 / stageScale : isPasswall ? 2 / stageScale : 1.5 / stageScale}
+                          dash={isForcecage && !isForcecageBox ? [6 / stageScale, 4 / stageScale] : undefined}
                           onTap={(e) => {
                             if (!isPlayerView) return;
                             e.cancelBubble = true;
@@ -6786,12 +7265,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     const isIceDome = marker.spellName === 'Wall of Ice (Dome)';
                     const isForceDome = marker.spellName === 'Wall of Force (Dome)';
                     const isThornsRing = marker.spellName === 'Wall of Thorns (Ring)';
+                    const isBladeRing = marker.spellName === 'Blade Barrier (Ring)';
+                    const isHallow = marker.spellName === 'Hallow';
                     const ringFill = isForceDome
                       ? 'rgba(168,85,247,0.14)'
                       : isIceDome
                       ? 'rgba(126,200,238,0.18)'
                       : isThornsRing
                       ? 'rgba(34,197,94,0.18)'
+                      : isBladeRing
+                      ? 'rgba(203,213,225,0.18)'
+                      : isHallow
+                      ? 'rgba(251,191,36,0.16)'
                       : 'rgba(255,90,10,0.18)';
                     const ringStroke = isForceDome
                       ? '#c084fc'
@@ -6799,6 +7284,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       ? '#7ec8ee'
                       : isThornsRing
                       ? '#22c55e'
+                      : isBladeRing
+                      ? '#cbd5e1'
+                      : isHallow
+                      ? '#fbbf24'
                       : '#ff8c00';
                     const isHotOutside = (marker.hotSide ?? 'outside') === 'outside';
                     const tapHandler = (e: any) => {
@@ -7149,10 +7638,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
           )}
 
           {/* ── Wall of Fire Ring particle layer ── */}
-          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && m.spellName !== 'Blade Barrier (Ring)' && m.spellName !== 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
             <Layer listening={false}>
               {spellMarkers
-                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && m.spellName !== 'Blade Barrier (Ring)' && m.spellName !== 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
                 .map(m => (
                   <WallOfFireRingParticles
                     key={m.id}
@@ -7292,6 +7781,116 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     cx={m.x}
                     cy={m.y}
                     radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Hallow particle layer ── */}
+          {spellMarkers.some(m => m.spellName === 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.spellName === 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <HallowParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    radiusPx={((m.aoeSize ?? 30) / 5) * ppg}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Forcecage particle layer (Cage variant — bars) ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Forcecage' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Forcecage' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <ForcecageBarsParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    lengthPx={((m.length ?? 20) / 5) * ppg}
+                    thicknessPx={((m.thickness ?? 20) / 5) * ppg}
+                    angleRad={(m.angle ?? 0) * Math.PI / 180}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Forcecage particle layer (Box variant — solid shimmer) ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Forcecage (Box)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Forcecage (Box)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <ForcecageBoxParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    lengthPx={((m.length ?? 10) / 5) * ppg}
+                    thicknessPx={((m.thickness ?? 10) / 5) * ppg}
+                    angleRad={(m.angle ?? 0) * Math.PI / 180}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Passwall particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Passwall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Passwall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 20, m.thickness ?? 5, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <PasswallParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Blade Barrier particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Blade Barrier' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Blade Barrier' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 100, m.thickness ?? 5, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <BladeBarrierParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Blade Barrier Ring particle layer ── */}
+          {spellMarkers.some(m => m.spellName === 'Blade Barrier (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.spellName === 'Blade Barrier (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <BladeBarrierRingParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    radiusPx={((m.aoeSize ?? 30) / 5) * ppg}
                   />
                 ))}
             </Layer>
@@ -7453,6 +8052,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const labelY = editingWall.y + cosA * -labelOffset;
 
             const isWallOfFire = editingWall.spellName === 'Wall of Fire';
+            const isPasswall = editingWall.spellName === 'Passwall';
+            const isForcecage = editingWall.spellName === 'Forcecage' || editingWall.spellName === 'Forcecage (Box)';
+            const isForcecageBox = editingWall.spellName === 'Forcecage (Box)';
             // Hot side = corners[0]→[1], normal points in (sinA, -cosA) direction
             const hotNX = sinA;
             const hotNY = -cosA;
@@ -7466,8 +8068,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   y={editingWall.y}
                   points={pointsFlat}
                   closed
-                  fill={isWallOfFire ? 'rgba(255,120,20,0.22)' : 'rgba(212,165,116,0.35)'}
-                  stroke={isWallOfFire ? 'transparent' : '#d4a574'}
+                  fill={isWallOfFire ? 'rgba(255,120,20,0.22)' : isPasswall ? 'rgba(20,16,12,0.6)' : isForcecage ? (isForcecageBox ? 'rgba(167,139,250,0.28)' : 'rgba(167,139,250,0.12)') : 'rgba(212,165,116,0.35)'}
+                  stroke={isWallOfFire ? 'transparent' : isPasswall ? '#5a4226' : isForcecage ? '#a78bfa' : '#d4a574'}
                   strokeWidth={2 / stageScale}
                   dash={[8 / stageScale, 4 / stageScale]}
                   draggable
@@ -7515,29 +8117,34 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   </>
                 )}
-                {/* Length handles (both ends of long axis) — rotate + resize length */}
-                <Circle
-                  x={lenHandleA.x}
-                  y={lenHandleA.y}
-                  radius={handleR}
-                  fill="white"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onLengthDrag}
-                />
-                <Circle
-                  x={lenHandleB.x}
-                  y={lenHandleB.y}
-                  radius={handleR}
-                  fill="white"
-                  stroke="#8b5a2b"
-                  strokeWidth={handleStroke}
-                  draggable
-                  onDragMove={onLengthDrag}
-                />
-                {/* Thickness handles — resize thickness along perpendicular axis (not shown for Wall of Fire) */}
-                {!isWallOfFire && (
+                {/* Length handles (both ends of long axis) — rotate + resize length.
+                    Hidden for Forcecage (fixed-size cube). */}
+                {!isForcecage && (
+                  <>
+                    <Circle
+                      x={lenHandleA.x}
+                      y={lenHandleA.y}
+                      radius={handleR}
+                      fill="white"
+                      stroke="#8b5a2b"
+                      strokeWidth={handleStroke}
+                      draggable
+                      onDragMove={onLengthDrag}
+                    />
+                    <Circle
+                      x={lenHandleB.x}
+                      y={lenHandleB.y}
+                      radius={handleR}
+                      fill="white"
+                      stroke="#8b5a2b"
+                      strokeWidth={handleStroke}
+                      draggable
+                      onDragMove={onLengthDrag}
+                    />
+                  </>
+                )}
+                {/* Thickness handles — resize thickness along perpendicular axis (not shown for Wall of Fire or Forcecage) */}
+                {!isWallOfFire && !isForcecage && (
                   <>
                     <Circle
                       x={thkHandleA.x}
@@ -7587,6 +8194,47 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   />
                 </Layer>
               )}
+              {editingWall.spellName === 'Blade Barrier' && (
+                <Layer listening={false}>
+                  <BladeBarrierParticles
+                    p0={{ x: editingWall.x + localCorners[0].x, y: editingWall.y + localCorners[0].y }}
+                    p1={{ x: editingWall.x + localCorners[1].x, y: editingWall.y + localCorners[1].y }}
+                    normalX={hotNX}
+                    normalY={hotNY}
+                  />
+                </Layer>
+              )}
+              {isPasswall && (
+                <Layer listening={false}>
+                  <PasswallParticles
+                    p0={{ x: editingWall.x + localCorners[0].x, y: editingWall.y + localCorners[0].y }}
+                    p1={{ x: editingWall.x + localCorners[1].x, y: editingWall.y + localCorners[1].y }}
+                    normalX={hotNX}
+                    normalY={hotNY}
+                  />
+                </Layer>
+              )}
+              {isForcecage && (
+                <Layer listening={false}>
+                  {isForcecageBox ? (
+                    <ForcecageBoxParticles
+                      cx={editingWall.x}
+                      cy={editingWall.y}
+                      lengthPx={(editingWall.length / 5) * ppg}
+                      thicknessPx={(editingWall.thickness / 5) * ppg}
+                      angleRad={aRad}
+                    />
+                  ) : (
+                    <ForcecageBarsParticles
+                      cx={editingWall.x}
+                      cy={editingWall.y}
+                      lengthPx={(editingWall.length / 5) * ppg}
+                      thicknessPx={(editingWall.thickness / 5) * ppg}
+                      angleRad={aRad}
+                    />
+                  )}
+                </Layer>
+              )}
             </>
             );
           })()}
@@ -7598,18 +8246,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const handleY = editingRing.y;
             const handleR = 7 / stageScale;
             const handleStroke = 1.5 / stageScale;
-            const minRadiusFt = 2.5;
-            const maxRadiusFt = 10;
             const isHotOutside = editingRing.hotSide === 'outside';
             const isIceDome = editingRing.spellName === 'Wall of Ice (Dome)';
             const isForceDome = editingRing.spellName === 'Wall of Force (Dome)';
             const isThornsRing = editingRing.spellName === 'Wall of Thorns (Ring)';
+            const isBladeRing = editingRing.spellName === 'Blade Barrier (Ring)';
+            const isHallow = editingRing.spellName === 'Hallow';
+            const minRadiusFt = 2.5;
+            const maxRadiusFt = isHallow ? 60 : isBladeRing ? 30 : 10;
             const previewFill = isForceDome
               ? 'rgba(168,85,247,0.10)'
               : isIceDome
               ? 'rgba(126,200,238,0.12)'
               : isThornsRing
               ? 'rgba(34,197,94,0.14)'
+              : isBladeRing
+              ? 'rgba(203,213,225,0.14)'
+              : isHallow
+              ? 'rgba(251,191,36,0.14)'
               : 'rgba(255,100,10,0.12)';
             const previewStroke = isForceDome
               ? '#c084fc'
@@ -7617,6 +8271,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
               ? '#7ec8ee'
               : isThornsRing
               ? '#22c55e'
+              : isBladeRing
+              ? '#cbd5e1'
+              : isHallow
+              ? '#fbbf24'
               : '#ff8c00';
             const previewLabel = isForceDome
               ? '#e9d5ff'
@@ -7624,6 +8282,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
               ? '#cfeeff'
               : isThornsRing
               ? '#bbf7d0'
+              : isBladeRing
+              ? '#e2e8f0'
+              : isHallow
+              ? '#fde68a'
               : '#ffd9a6';
 
             const onBodyDragMove = (e: any) => {
@@ -7700,6 +8362,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     />
                   ) : isThornsRing ? (
                     <WallOfThornsRingParticles
+                      cx={editingRing.x}
+                      cy={editingRing.y}
+                      radiusPx={ringRadiusPx}
+                    />
+                  ) : isBladeRing ? (
+                    <BladeBarrierRingParticles
+                      cx={editingRing.x}
+                      cy={editingRing.y}
+                      radiusPx={ringRadiusPx}
+                    />
+                  ) : isHallow ? (
+                    <HallowParticles
                       cx={editingRing.x}
                       cy={editingRing.y}
                       radiusPx={ringRadiusPx}
@@ -8097,7 +8771,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         })()}
 
         {/* Wall of Fire Ring — hot-side toggle overlay (hidden for Wall of Ice Dome) */}
-        {editingRing && editingRing.spellName !== 'Wall of Ice (Dome)' && editingRing.spellName !== 'Wall of Force (Dome)' && editingRing.spellName !== 'Wall of Thorns (Ring)' && (() => {
+        {editingRing && editingRing.spellName !== 'Wall of Ice (Dome)' && editingRing.spellName !== 'Wall of Force (Dome)' && editingRing.spellName !== 'Wall of Thorns (Ring)' && editingRing.spellName !== 'Blade Barrier (Ring)' && editingRing.spellName !== 'Hallow' && (() => {
           const ringRadiusPx = (editingRing.radius / 5) * ppg;
           const screenX = editingRing.x * stageScale + stagePos.x;
           const screenY = editingRing.y * stageScale + stagePos.y;

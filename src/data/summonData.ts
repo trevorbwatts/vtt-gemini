@@ -118,6 +118,13 @@ export const SUMMON_OPTIONS: Record<string, SummonOption[]> = {
     { name: 'Zombie',   spellName: 'Animate Dead', hp: 22, ac: 8,  size: 'Medium' },
   ],
 
+  'Create Undead': [
+    { name: 'Ghoul',  spellName: 'Create Undead', hp: 22, ac: 12, size: 'Medium' },
+    { name: 'Ghast',  spellName: 'Create Undead', hp: 36, ac: 13, size: 'Medium' },
+    { name: 'Wight',  spellName: 'Create Undead', hp: 45, ac: 14, size: 'Medium' },
+    { name: 'Mummy',  spellName: 'Create Undead', hp: 58, ac: 11, size: 'Medium' },
+  ],
+
   'Conjure Animals': [
     { name: 'Wolf',        spellName: 'Conjure Animals', hp: 11, ac: 13, size: 'Medium' },
     { name: 'Black Bear',  spellName: 'Conjure Animals', hp: 19, ac: 11, size: 'Medium' },
@@ -129,6 +136,14 @@ export const SUMMON_OPTIONS: Record<string, SummonOption[]> = {
 
   'Phantom Steed': [
     { name: 'Phantom Steed', spellName: 'Phantom Steed', hp: 13, ac: 11, size: 'Large' },
+  ],
+
+  "Mordenkainen's Faithful Hound": [
+    { name: 'Faithful Hound', spellName: "Mordenkainen's Faithful Hound", hp: 4, ac: 13, size: 'Medium' },
+  ],
+
+  "Mordenkainen's Sword": [
+    { name: 'Spectral Sword', spellName: "Mordenkainen's Sword", hp: 20, ac: 20, size: 'Medium' },
   ],
 
   'Arcane Eye': [

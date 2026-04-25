@@ -760,21 +760,9 @@ const SpellsPanel: React.FC<{
                 )];
               }
 
-              // Wild Shape: show a button that switches to the Wild Shape tab
+              // Wild Shape has its own dedicated tab — skip it in the Abilities list
               if (entry.behavior === 'wildshape') {
-                return [(
-                  <div key={entry.id} className="flex items-center gap-2 py-2">
-                    <span className="font-bold flex-1 min-w-0 truncate text-xs text-emerald-400">
-                      {entry.name}
-                    </span>
-                    <button
-                      onPointerDown={(e) => { e.stopPropagation(); setActiveTab('wildshape'); setShowKeyboard(true); }}
-                      className="shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 active:bg-emerald-500/40 transition-colors"
-                    >
-                      {isWildShaped ? 'Change Form' : 'Cast'}
-                    </button>
-                  </div>
-                )];
+                return [];
               }
 
               // Entries with multiple AoE variants (e.g. Breath Weapon: Cone + Line)
@@ -1316,6 +1304,10 @@ export function PlayerScreen() {
   const [wallOfForcePicker, setWallOfForcePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
   // Wall of Thorns variant picker — shown when player casts Wall of Thorns before choosing Wall vs Ring
   const [wallOfThornsPicker, setWallOfThornsPicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
+  // Blade Barrier variant picker — shown when player casts Blade Barrier before choosing Wall vs Ring
+  const [bladeBarrierPicker, setBladeBarrierPicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
+  // Forcecage variant picker — shown when player casts Forcecage before choosing Cage vs Box
+  const [forcecagePicker, setForcecagePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
   // Enlarge/Reduce picker — shown when player casts Enlarge/Reduce so they can choose Enlarge vs Reduce before targeting a token
   const [enlargeReducePicker, setEnlargeReducePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
 
@@ -1827,6 +1819,40 @@ export function PlayerScreen() {
       return;
     }
 
+    // Fire Storm exception: place 10 contiguous 10-ft cube markers in a 5x2 block near the player.
+    // Each cube is independently draggable so the player can rearrange the area.
+    if (spell?.name === 'Fire Storm') {
+      const token = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
+      const baseX = token?.x ?? window.innerWidth / 2;
+      const baseY = token?.y ?? window.innerHeight / 2;
+      // 10ft cube at default ppg=40 → 80px wide. Place 5 wide × 2 tall, offset clear of caster.
+      const cubePx = 80;
+      const cols = 5;
+      const rows = 2;
+      const startX = baseX + cubePx; // shift the block off the caster
+      const startY = baseY - cubePx;
+      const dbEntry = lookupSpell('Fire Storm');
+      const stormId = Date.now();
+      const markers: import('../types').SpellMarker[] = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          markers.push({
+            id: `sm-fs-${stormId}-${r}-${c}`,
+            spellName: 'Fire Storm',
+            school: dbEntry?.school || 'Evocation',
+            casterId: player.id,
+            x: startX + c * cubePx,
+            y: startY + r * cubePx,
+            aoeType: 'cube',
+            aoeSize: 10,
+            visibleToPlayers: true,
+          });
+        }
+      }
+      addMarkersDirectlyRef.current?.(markers);
+      return;
+    }
+
     // Cordon of Arrows exception: place 4 arrow tokens in a tight cluster near the player's token
     if (spell?.name === 'Cordon of Arrows') {
       const token = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
@@ -1894,6 +1920,51 @@ export function PlayerScreen() {
     // No token is placed on the map — the effect resizes an existing token.
     if (spell?.name === 'Enlarge/Reduce') {
       setEnlargeReducePicker({ spotId, playerId });
+      return;
+    }
+
+    // Hallow exception: place a hallowed sphere (drag radius up to 60 ft, no save, no shape choice)
+    if (spell?.name === 'Hallow') {
+      const school = spell.school || 'Abjuration';
+      startPlacingRef.current?.({ name: 'Hallow', school, shapeType: 'ring' }, playerId);
+      setActiveCasting({ spotId, spellName: 'Hallow' });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
+    // Forcecage exception: show variant picker (Cage 20 ft vs Box 10 ft) before placement
+    if (spell?.name === 'Forcecage') {
+      setForcecagePicker({ spotId, playerId });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
+    // Passwall exception: place a 20 ft × 5 ft passage directly (no shape choice, no save)
+    if (spell?.name === 'Passwall') {
+      startPlacingRef.current?.({ name: 'Passwall', school: 'Transmutation', shapeType: 'wall', maxLength: 20, maxThickness: 5, blocksVision: false }, playerId);
+      setActiveCasting({ spotId, spellName: 'Passwall' });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
+    // Blade Barrier exception: show variant picker (Wall vs Ring) before placement
+    if (spell?.name === 'Blade Barrier') {
+      const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
+      let bbSaveDc: number | undefined = (player as any).spellSaveDc;
+      if (!bbSaveDc && (player as any).stats && (player as any).proficiencyBonus && (player as any).classes?.length) {
+        let bestMod = -Infinity;
+        for (const cls of (player as any).classes) {
+          const ability = CASTING_ABILITY[cls.name?.toLowerCase?.()];
+          if (ability) { const m = Math.floor(((player as any).stats[ability] - 10) / 2); if (m > bestMod) bestMod = m; }
+        }
+        if (bestMod !== -Infinity) bbSaveDc = 8 + (player as any).proficiencyBonus + bestMod;
+      }
+      setBladeBarrierPicker({ spotId, playerId, saveDc: bbSaveDc });
+      setOpenPanel(null);
+      setActionRing(null);
       return;
     }
 
@@ -1986,6 +2057,53 @@ export function PlayerScreen() {
       return;
     }
 
+    // Mislead exception: drop an illusory duplicate at the caster's position + make caster invisible
+    if (spell?.name === 'Mislead') {
+      const casterToken = campaign.scenarios.flatMap(s => s.tokens || []).find(t => t.combatantId === player.id);
+      if (!casterToken) return;
+      const scenarioId = campaign.scenarios.find(s => s.tokens.some(t => t.id === casterToken.id))?.id;
+      const illusionToken: import('../types').Token = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: `${player.name} (Image)`,
+        type: 'player',
+        x: casterToken.x,
+        y: casterToken.y,
+        color: player.color || '#a78bfa',
+        floorId: casterToken.floorId,
+        size: casterToken.size,
+        isSummon: true,
+        summonSpellName: 'Mislead',
+        summonedBy: player.id,
+        controlledBy: player.id,
+        illusory: true,
+        ...(player.avatar ? { avatar: player.avatar } : {}),
+      };
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s => {
+            if (s.id !== scenarioId) return s;
+            const merged = [...s.tokens.map(t => t.id === casterToken.id ? { ...t, invisible: true } : t), illusionToken];
+            if (window.electronAPI?.sendPlayerTokenUpdate) {
+              window.electronAPI.sendPlayerTokenUpdate(merged);
+            }
+            return { ...s, tokens: merged };
+          }),
+        };
+      });
+      window.electronAPI?.sendPlayerInvisibleToggle?.(casterToken.id);
+      setInvisiblePlayerIds(prev => new Set(prev).add(player.id));
+      setActiveTimers(prev => [...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'invisibility')), {
+        playerId: player.id,
+        abilityId: 'invisibility',
+        startTime: Date.now(),
+        durationMs: 3600000, // 1 hour, matches Mislead duration
+        color: '#a855f7',
+      }]);
+      return;
+    }
+
     // See Invisibility exception: reveal all invisible tokens on the player screen + start 1hr timer
     if (spell?.name === 'See Invisibility') {
       setSeeInvisibilityPlayerIds(prev => new Set(prev).add(player.id));
@@ -2041,6 +2159,30 @@ export function PlayerScreen() {
     const { spotId } = actionRing;
     const playerId = signedInSpots[spotId];
     if (!playerId || !campaign) return;
+
+    // Project Image: place an illusory duplicate of the caster — skip the picker.
+    if (spell.name === 'Project Image') {
+      const player = campaign.players.find(p => p.id === playerId);
+      if (!player) return;
+      const playerToken = campaign.scenarios.flatMap(s => s.tokens).find(t => t.combatantId === playerId);
+      setActionRing(null);
+      setOpenPanel(null);
+      setActiveSummoning({ spotId, creatureName: `${player.name} (Image)` });
+      startPlacingRef.current?.({
+        name: `Project Image: ${player.name}`,
+        school: spell.school || 'Illusion',
+        summonData: {
+          creatureName: `${player.name} (Image)`,
+          spellName: 'Project Image',
+          casterId: playerId,
+          playerColor: player.color || '#a78bfa',
+          size: playerToken?.size || 'Medium',
+          avatar: player.avatar,
+          illusory: true,
+        },
+      } as any, playerId);
+      return;
+    }
 
     // Look up available summon options for this spell
     const options = SUMMON_OPTIONS[spell.name];
@@ -2692,6 +2834,106 @@ export function PlayerScreen() {
               </div>
               <button
                 onPointerDown={() => setWallOfThornsPicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Blade Barrier variant picker */}
+      {bladeBarrierPicker && (() => {
+        const { spotId, playerId, saveDc: bbSaveDc } = bladeBarrierPicker;
+        const handleVariant = (variant: 'wall' | 'ring') => {
+          setBladeBarrierPicker(null);
+          if (variant === 'wall') {
+            startPlacingRef.current?.({ name: 'Blade Barrier', school: 'Evocation', shapeType: 'wall', maxLength: 100, maxThickness: 5, blocksVision: false, saveAbility: 'dex', saveDc: bbSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Blade Barrier', saveAbility: 'dex' });
+          } else {
+            startPlacingRef.current?.({ name: 'Blade Barrier (Ring)', school: 'Evocation', shapeType: 'ring', saveAbility: 'dex', saveDc: bbSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Blade Barrier (Ring)', saveAbility: 'dex' });
+          }
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-slate-300/40 rounded-2xl p-6 shadow-2xl shadow-slate-300/10 flex flex-col items-center gap-4 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-200 text-lg">⚔️</span>
+                <span className="text-white font-bold text-sm tracking-wide">Blade Barrier</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a shape</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('wall')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-slate-300/20 text-slate-200 border border-slate-300/40 active:bg-slate-300/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬜</span>
+                  Wall
+                  <span className="text-[9px] text-white/30 normal-case font-normal">100 ft long</span>
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('ring')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-slate-300/20 text-slate-200 border border-slate-300/40 active:bg-slate-300/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⭕</span>
+                  Ring
+                  <span className="text-[9px] text-white/30 normal-case font-normal">60 ft diameter</span>
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setBladeBarrierPicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Forcecage variant picker */}
+      {forcecagePicker && (() => {
+        const { spotId, playerId } = forcecagePicker;
+        const handleVariant = (variant: 'cage' | 'box') => {
+          setForcecagePicker(null);
+          if (variant === 'cage') {
+            startPlacingRef.current?.({ name: 'Forcecage', school: 'Evocation', shapeType: 'wall', maxLength: 20, maxThickness: 20, blocksVision: false }, playerId);
+            setActiveCasting({ spotId, spellName: 'Forcecage' });
+          } else {
+            startPlacingRef.current?.({ name: 'Forcecage (Box)', school: 'Evocation', shapeType: 'wall', maxLength: 10, maxThickness: 10, blocksVision: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Forcecage (Box)' });
+          }
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-violet-400/40 rounded-2xl p-6 shadow-2xl shadow-violet-400/10 flex flex-col items-center gap-4 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <span className="text-violet-300 text-lg">🟪</span>
+                <span className="text-white font-bold text-sm tracking-wide">Forcecage</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a shape</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('cage')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-violet-400/20 text-violet-200 border border-violet-400/40 active:bg-violet-400/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">▦</span>
+                  Cage
+                  <span className="text-[9px] text-white/30 normal-case font-normal">20 ft cube</span>
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('box')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-violet-400/20 text-violet-200 border border-violet-400/40 active:bg-violet-400/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬛</span>
+                  Box
+                  <span className="text-[9px] text-white/30 normal-case font-normal">10 ft cube</span>
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setForcecagePicker(null)}
                 className="text-white/25 text-xs hover:text-white/50 transition-colors"
               >
                 Cancel
