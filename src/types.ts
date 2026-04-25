@@ -63,6 +63,9 @@ declare global {
       sendPlayerInvisibleToggle?: (tokenId: string) => void;
       onPlayerInvisibleToggle?: (callback: (tokenId: string) => void) => void;
       removePlayerInvisibleToggleListener?: () => void;
+      sendPlayerImageRotation?: (data: { noteId: string; rotation: number }) => void;
+      onPlayerImageRotation?: (callback: (data: { noteId: string; rotation: number }) => void) => void;
+      removePlayerImageRotationListener?: () => void;
     }
   }
 }
@@ -279,7 +282,7 @@ export interface UVTTLight {
   intensity?: number; // 0–1
 }
 
-export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'magic' | 'poison';
+export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'magic' | 'poison' | 'image';
 
 export interface MapNote {
   id: string;
@@ -287,6 +290,10 @@ export interface MapNote {
   content: string;
   x: number;
   y: number;
+  /** Base64 data URL for image-type notes. Stripped from persisted JSON; rehydrated from localStorage(`note_img_<id>`). */
+  imageData?: string;
+  /** Rotation in degrees for image-type notes (0/90/180/270). Defaults to 0. */
+  imageRotation?: number;
 }
 
 export interface SpellMarker {
@@ -362,6 +369,8 @@ export interface Scenario {
   activeCombatants: Combatant[];
   floors?: Floor[];
   activeFloorId?: string;
+  /** When set, an image-type MapNote with this id is currently being shown as an overlay on the player + DM screens. */
+  displayedImageNoteId?: string | null;
   /** @deprecated Use floors[].mapImage instead. Kept for migration. */
   mapImage?: string;
   /** @deprecated Use floors[].walls instead. Kept for migration. */

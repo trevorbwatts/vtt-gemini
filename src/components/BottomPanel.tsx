@@ -78,6 +78,9 @@ interface BottomPanelProps {
   // Token selection
   tokens: Token[];
   selectedTokenIds: string[];
+  /** Token whose details should be shown in the panel. Set on double-click (outside initiative)
+   *  or single-click (during initiative). When null, the panel is closed unless combat is active. */
+  selectedTokenId?: string | null;
   onSelectedTokenIdChange?: (id: string | null) => void;
   onSelectedTokenIdsChange?: (ids: string[]) => void;
 
@@ -120,6 +123,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   aoeHighlights,
   tokens,
   selectedTokenIds,
+  selectedTokenId,
   onSelectedTokenIdChange,
   onSelectedTokenIdsChange,
   onUpdateCombatantHp,
@@ -285,9 +289,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
   // Determine which combatant to show in the detail column
   const detailCombatant = useMemo(() => {
-    // If a single token is selected on the map, show that one
-    if (selectedTokenIds.length === 1) {
-      const token = tokens.find(t => t.id === selectedTokenIds[0]);
+    // If a token has been opened (double-click outside combat, or single-click during combat), show that one
+    if (selectedTokenId) {
+      const token = tokens.find(t => t.id === selectedTokenId);
       // Player tokens: wild-shaped shows beast stats, otherwise show player stats
       if (token?.type === 'player') {
         const ws = token.combatantId && wildShapeState?.[token.combatantId];
@@ -336,7 +340,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
       }
     }
     return null;
-  }, [selectedTokenIds, tokens, allSourceCombatants, activeCombatants, combatActive, activeCombatantId, sortedCombatants, wildShapeState]);
+  }, [selectedTokenId, tokens, allSourceCombatants, activeCombatants, combatActive, activeCombatantId, sortedCombatants, wildShapeState]);
 
   const detailToken = detailCombatant?.token;
   const detailSourceId = detailCombatant?.sourceCombatantId;
@@ -368,8 +372,8 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   }, [detailCombatant]);
 
   // ── Visibility ──
-  // Show panel if: combat is active, OR any token is selected on the map
-  const showPanel = combatActive || (selectedTokenIds.length === 1 && tokens.some(t => t.id === selectedTokenIds[0]));
+  // Show panel if: combat is active, OR a token has been explicitly opened (double-click)
+  const showPanel = combatActive || (!!selectedTokenId && tokens.some(t => t.id === selectedTokenId));
 
   // Show the Roll Initiative floating button when tokens are selected but combat hasn't started
   const selectedTokens = selectedTokenIds.map(id => tokens.find(t => t.id === id)).filter(Boolean);

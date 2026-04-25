@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { MapView } from './MapView';
 import { FloorMapContainer } from './FloorMapContainer';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
+import { ImageNoteOverlay } from './ImageNoteOverlay';
 import { Campaign, Token, Combatant, Monster, cn, ActiveEmanation } from '../types';
 import { searchSpells } from '../data/spellDatabase';
 import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame, Ruler } from '../icons';
@@ -2857,6 +2858,25 @@ export function PlayerScreen() {
 
       {/* Initiative Strip */}
       {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} wide={stripWide} />}
+
+      {/* Image-note overlay — DM has pushed an image to the table */}
+      {currentScenario?.displayedImageNoteId && (() => {
+        const noteId = currentScenario.displayedImageNoteId;
+        const note = currentScenario.floors?.flatMap(f => f.mapNotes || []).find(n => n.id === noteId);
+        if (!note || note.type !== 'image' || !note.imageData) return null;
+        const rotation = note.imageRotation || 0;
+        return (
+          <ImageNoteOverlay
+            imageData={note.imageData}
+            caption={note.content}
+            rotation={rotation}
+            onRotate={() => {
+              const next = (rotation + 90) % 360;
+              window.electronAPI?.sendPlayerImageRotation?.({ noteId: note.id, rotation: next });
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

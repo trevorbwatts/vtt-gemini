@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Campaign } from '../types';
-import { Plus, FolderOpen, Sword, Trash2, ChevronRight, Sparkles } from '../icons';
+import { Plus, FolderOpen, Sword, Trash2, ChevronRight, Sparkles, Upload } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
+import { readCampaignFile } from '../utils/campaignFile';
 
 interface SplashScreenProps {
   onSelectCampaign: (campaign: Campaign) => void;
@@ -12,6 +13,21 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
   const [savedCampaigns, setSavedCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLoadFromFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    try {
+      const campaign = await readCampaignFile(file);
+      setLoadError(null);
+      onSelectCampaign(campaign);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Could not read that file.');
+    }
+  };
 
   useEffect(() => {
     const campaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
@@ -169,6 +185,26 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
                       </div>
                     </button>
                   ))
+                )}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-[var(--line)]">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleLoadFromFile}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-[var(--line)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors text-xs uppercase tracking-widest font-bold opacity-60 hover:opacity-100"
+                >
+                  <Upload size={14} />
+                  Load from File
+                </button>
+                {loadError && (
+                  <p className="mt-2 text-[11px] text-[var(--accent)] opacity-80 text-center">{loadError}</p>
                 )}
               </div>
             </div>

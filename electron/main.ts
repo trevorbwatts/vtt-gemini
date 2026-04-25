@@ -288,6 +288,13 @@ ipcMain.on('player-invisible-toggle', (_event, tokenId) => {
   }
 });
 
+// Player rotated the image-note overlay: proxy to DM window
+ipcMain.on('player-image-rotation', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-image-rotation', data);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

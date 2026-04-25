@@ -1885,7 +1885,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
-  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string }>({ type: 'quote', content: '' });
+  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string }>({ type: 'quote', content: '' });
+  const noteImageInputRef = useRef<HTMLInputElement>(null);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
   const [activeViewpointId, setActiveViewpointId] = useState<string | null>(null);
@@ -3057,6 +3058,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       case 'warning': return '#ef4444';
       case 'magic': return '#22d3ee';
       case 'poison': return '#4ade80';
+      case 'image': return '#a78bfa';
       default: return '#ffffff';
     }
   };
@@ -3113,6 +3115,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <Path data="M22 5h-4" {...sp} />
               <Path data="M4 17v2" {...sp} />
               <Path data="M5 18H3" {...sp} />
+            </Group>
+          );
+        case 'image':
+          return (
+            <Group>
+              <Path data="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10" {...sp} />
+              <Circle x={9} y={9} radius={2} {...sp} />
+              <Path data="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" {...sp} />
             </Group>
           );
         default:
@@ -3808,19 +3818,36 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const saveNote = () => {
-    if (!contextMenu || !noteDraft.content.trim()) return;
+    if (!contextMenu) return;
+    if (noteDraft.type === 'image') {
+      if (!noteDraft.imageData) return;
+    } else if (!noteDraft.content.trim()) {
+      return;
+    }
 
     const newNote: MapNote = {
       id: Math.random().toString(36).substr(2, 9),
       type: noteDraft.type,
       content: noteDraft.content,
       x: contextMenu.x,
-      y: contextMenu.y
+      y: contextMenu.y,
+      ...(noteDraft.type === 'image' && noteDraft.imageData ? { imageData: noteDraft.imageData, imageRotation: 0 } : {}),
     };
 
     onMapNotesChange([...mapNotes, newNote]);
     setContextMenu(null);
     setNoteDraft({ type: 'treasure', content: '' });
+  };
+
+  const handleNoteImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNoteDraft(prev => ({ ...prev, imageData: typeof reader.result === 'string' ? reader.result : undefined }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const saveViewpoint = () => {
@@ -5181,6 +5208,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       if (inCombat) {
                         setSelectedTokenId(token.id);
                         onSelectedTokenIdChange?.(token.id);
+                      } else if (selectedTokenId !== token.id) {
+                        // Clicking a different token closes the previously open panel
+                        setSelectedTokenId(null);
+                        onSelectedTokenIdChange?.(null);
                       }
                     }
                   }}
@@ -5188,6 +5219,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     if (isPlayerView) return;
                     if (inCombat) return; // initiative already opens on single click
                     e.cancelBubble = true;
+                    setSelectedTokenIds([token.id]);
+                    setSelectedTokenId(token.id);
+                    onSelectedTokenIdChange?.(token.id);
+                  }}
+                  onDblTap={(e) => {
+                    if (isPlayerView) return;
+                    if (inCombat) return;
+                    e.cancelBubble = true;
+                    setSelectedTokenIds([token.id]);
                     setSelectedTokenId(token.id);
                     onSelectedTokenIdChange?.(token.id);
                   }}
@@ -8377,10 +8417,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
 
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
-                  {(['quote', 'treasure', 'warning', 'magic', 'poison'] as MapNoteType[]).map(type => (
+                  {(['quote', 'treasure', 'warning', 'magic', 'poison', 'image'] as MapNoteType[]).map(type => (
                     <button
                       key={type}
-                      onClick={() => setNoteDraft(prev => ({ ...prev, type }))}
+                      onClick={() => setNoteDraft(prev => ({ ...prev, type, imageData: type === 'image' ? prev.imageData : undefined }))}
                       className={cn(
                         "p-2 rounded-md transition-all",
                         noteDraft.type === type ? "scale-110 shadow-lg" : "hover:bg-white/5 opacity-40 hover:opacity-100"
@@ -8392,22 +8432,64 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   ))}
                 </div>
 
-                <textarea
-                  autoFocus
-                  value={noteDraft.content}
-                  onChange={(e) => setNoteDraft(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder="Write note content..."
-                  className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors min-h-[80px] resize-none mb-3"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      saveNote();
-                    }
-                  }}
-                />
+                {noteDraft.type === 'image' ? (
+                  <>
+                    <input
+                      ref={noteImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleNoteImagePick}
+                      className="hidden"
+                    />
+                    {noteDraft.imageData ? (
+                      <div className="mb-3 rounded-lg overflow-hidden border border-[var(--line)] bg-black/30">
+                        <img src={noteDraft.imageData} alt="" className="w-full max-h-[160px] object-contain" />
+                        <button
+                          onClick={() => noteImageInputRef.current?.click()}
+                          className="w-full py-1.5 text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100 hover:bg-white/5 transition-colors"
+                        >
+                          Replace
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => noteImageInputRef.current?.click()}
+                        className="w-full mb-3 py-6 rounded-lg border border-dashed border-[var(--line)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors text-xs uppercase tracking-widest opacity-60 hover:opacity-100"
+                      >
+                        Choose Image…
+                      </button>
+                    )}
+                    <input
+                      value={noteDraft.content}
+                      onChange={(e) => setNoteDraft(prev => ({ ...prev, content: e.target.value }))}
+                      placeholder="Caption (optional)"
+                      className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors mb-3"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          saveNote();
+                        }
+                      }}
+                    />
+                  </>
+                ) : (
+                  <textarea
+                    autoFocus
+                    value={noteDraft.content}
+                    onChange={(e) => setNoteDraft(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="Write note content..."
+                    className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors min-h-[80px] resize-none mb-3"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        saveNote();
+                      }
+                    }}
+                  />
+                )}
 
                 <button
-                  disabled={!noteDraft.content.trim()}
+                  disabled={noteDraft.type === 'image' ? !noteDraft.imageData : !noteDraft.content.trim()}
                   onClick={saveNote}
                   className="btn-filled w-full py-2 rounded-lg disabled:opacity-30"
                 >

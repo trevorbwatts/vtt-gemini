@@ -29,6 +29,8 @@ export {
   Cloud,
   Package,
   ImagePlus,
+  Image,
+  RotateCw,
 
   // Combat / D&D
   Swords,

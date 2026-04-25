@@ -137,4 +137,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerInvisibleToggleListener: () => {
     ipcRenderer.removeAllListeners('player-invisible-toggle');
   },
+  sendPlayerImageRotation: (data: { noteId: string; rotation: number }) =>
+    ipcRenderer.send('player-image-rotation', data),
+  onPlayerImageRotation: (callback: (data: { noteId: string; rotation: number }) => void) => {
+    ipcRenderer.on('player-image-rotation', (_event, data) => callback(data));
+  },
+  removePlayerImageRotationListener: () => {
+    ipcRenderer.removeAllListeners('player-image-rotation');
+  },
 });

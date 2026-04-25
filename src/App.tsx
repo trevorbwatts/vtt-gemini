@@ -14,6 +14,7 @@ import { AddCombatantModal } from './components/AddCombatantModal';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { EnlargeReduceModal } from './components/EnlargeReduceModal';
+import { ImageNoteOverlay } from './components/ImageNoteOverlay';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
 import { lookupSpell } from './data/spellDatabase';
@@ -31,19 +32,45 @@ function savePanelStates(left: boolean, nav: boolean) {
   localStorage.setItem('dm_panel_states', JSON.stringify({ left, nav }));
 }
 
+/** Strip imageData from every map note except the one currently being shown to players. */
+function stripUndisplayedNoteImages(floors: NonNullable<Scenario['floors']>, displayedNoteId: string | null | undefined) {
+  return floors.map(f => ({
+    ...f,
+    mapNotes: (f.mapNotes || []).map(n => {
+      if (n.type !== 'image') return n;
+      if (n.id === displayedNoteId) return n;
+      const { imageData: _img, ...rest } = n;
+      return rest;
+    }),
+  }));
+}
+
 /** Build a lightweight campaign for IPC — keep current scenario's floor images, strip everything else */
 function buildLightCampaignForIPC(campaign: Campaign, currentScenarioId: string): Campaign {
   return {
     ...campaign,
     scenarios: campaign.scenarios.map(s => {
-      if (s.id === currentScenarioId) return s; // keep current scenario's images
-      // Strip floor images from non-current scenarios
+      if (s.id === currentScenarioId) {
+        // Keep current scenario's map images; only ship the displayed image note's data
+        return {
+          ...s,
+          floors: s.floors ? stripUndisplayedNoteImages(s.floors, s.displayedImageNoteId ?? null) : s.floors,
+        };
+      }
+      // Strip floor images and all note images from non-current scenarios
       const { mapImage, ...rest } = s;
       return {
         ...rest,
         floors: rest.floors?.map(f => {
           const { mapImage: _fImg, ...fRest } = f;
-          return fRest;
+          return {
+            ...fRest,
+            mapNotes: (fRest.mapNotes || []).map(n => {
+              if (n.type !== 'image') return n;
+              const { imageData: _img, ...nRest } = n;
+              return nRest;
+            }),
+          };
         })
       };
     })
@@ -218,6 +245,12 @@ export function DMScreen() {
             if (f.mapImage) {
               try { localStorage.setItem(`map_img_${s.id}_${f.id}`, f.mapImage); } catch { /* quota */ }
             }
+            // Note images on this floor
+            for (const n of f.mapNotes || []) {
+              if (n.type === 'image' && n.imageData) {
+                try { localStorage.setItem(`note_img_${n.id}`, n.imageData); } catch { /* quota */ }
+              }
+            }
           }
         }
         // Legacy fallback for non-migrated scenarios
@@ -225,7 +258,7 @@ export function DMScreen() {
           try { localStorage.setItem(`map_img_${s.id}`, s.mapImage); } catch { /* quota */ }
         }
       }
-      // Strip mapImage from all scenarios and floors before persisting the campaign JSON
+      // Strip mapImage and note imageData from all scenarios/floors/notes before persisting the campaign JSON
       const lightCampaign = {
         ...campaign,
         scenarios: campaign.scenarios.map(s => {
@@ -234,7 +267,14 @@ export function DMScreen() {
             ...rest,
             floors: rest.floors?.map(f => {
               const { mapImage: _fImg, ...fRest } = f;
-              return fRest;
+              return {
+                ...fRest,
+                mapNotes: (fRest.mapNotes || []).map(n => {
+                  if (n.type !== 'image') return n;
+                  const { imageData: _img, ...nRest } = n;
+                  return nRest;
+                }),
+              };
             })
           };
         })
@@ -472,6 +512,27 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerInvisibleToggleListener?.(); };
   }, []);
 
+  // Listen for image-note rotation from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerImageRotation) return;
+    window.electronAPI.onPlayerImageRotation(({ noteId, rotation }) => {
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s => ({
+            ...s,
+            floors: s.floors?.map(f => ({
+              ...f,
+              mapNotes: (f.mapNotes || []).map(n => n.id === noteId ? { ...n, imageRotation: rotation } : n),
+            })),
+          })),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerImageRotationListener?.(); };
+  }, []);
+
 
   const handleCreateCampaign = (name: string) => {
     const scenarioId = `s-${Date.now()}`;
@@ -551,10 +612,17 @@ export function DMScreen() {
             if (!t.floorId) t.floorId = defaultFloorId;
           }
         } else {
-          // Rehydrate floor map images from separate storage
+          // Rehydrate floor map images and note images from separate storage
           scenario.floors = scenario.floors.map(f => ({
             ...f,
             mapImage: f.mapImage || localStorage.getItem(`map_img_${s.id}_${f.id}`) || undefined,
+            mapNotes: (f.mapNotes || []).map(n => {
+              if (n.type !== 'image') return n;
+              return {
+                ...n,
+                imageData: n.imageData || localStorage.getItem(`note_img_${n.id}`) || undefined,
+              };
+            }),
           }));
           if (!scenario.activeFloorId) {
             scenario.activeFloorId = scenario.floors[0]?.id;
@@ -609,6 +677,39 @@ export function DMScreen() {
   const updateMapNotes = useCallback((mapNotes: any[]) => {
     updateActiveFloor(f => ({ ...f, mapNotes }));
   }, [updateActiveFloor]);
+
+  const toggleDisplayImageNote = useCallback((noteId: string) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s =>
+          s.id === selectedScenarioIdRef.current
+            ? { ...s, displayedImageNoteId: s.displayedImageNoteId === noteId ? null : noteId }
+            : s
+        ),
+      };
+    });
+  }, []);
+
+  const setImageNoteRotation = useCallback((noteId: string, rotation: number) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          return {
+            ...s,
+            floors: s.floors?.map(f => ({
+              ...f,
+              mapNotes: (f.mapNotes || []).map(n => n.id === noteId ? { ...n, imageRotation: rotation } : n),
+            })),
+          };
+        }),
+      };
+    });
+  }, []);
 
   const updateViewpoints = useCallback((viewpoints: Viewpoint[]) => {
     updateActiveFloor(f => ({ ...f, viewpoints }));
@@ -1626,6 +1727,8 @@ export function DMScreen() {
                     setHighlightedNoteId(note.id);
                     setPanToNote({ ...note });
                   }}
+                  displayedImageNoteId={currentScenario.displayedImageNoteId ?? null}
+                  onToggleDisplayImage={toggleDisplayImageNote}
                 />
               )}
             </div>
@@ -1662,6 +1765,7 @@ export function DMScreen() {
               aoeHighlights={aoeHighlights}
               tokens={currentScenario.tokens || []}
               selectedTokenIds={selectedTokenIds}
+              selectedTokenId={selectedTokenId}
               onSelectedTokenIdChange={setSelectedTokenId}
               onSelectedTokenIdsChange={setSelectedTokenIds}
               onUpdateCombatantHp={updateCombatantHp}
@@ -1827,6 +1931,23 @@ export function DMScreen() {
           }}
           onClose={() => setEnlargeReduceModal(null)}
         />
+
+        {/* Image-note overlay — shown when DM has hit "Show" on an image note */}
+        {currentScenario?.displayedImageNoteId && (() => {
+          const noteId = currentScenario.displayedImageNoteId;
+          const note = (activeFloor?.mapNotes || []).find(n => n.id === noteId)
+            || currentScenario.floors?.flatMap(f => f.mapNotes || []).find(n => n.id === noteId);
+          if (!note || note.type !== 'image') return null;
+          return (
+            <ImageNoteOverlay
+              imageData={note.imageData}
+              caption={note.content}
+              rotation={note.imageRotation || 0}
+              onRotate={() => setImageNoteRotation(note.id, ((note.imageRotation || 0) + 90) % 360)}
+              onClose={() => toggleDisplayImageNote(note.id)}
+            />
+          );
+        })()}
 
         {/* Spell Condition Modal — opens for condition-applying spells (Grease, etc.) */}
         <SpellConditionModal
