@@ -2357,7 +2357,9 @@
     "desc": "You make an area within range magically secure. The area is a Cube that can be as small as 5 feet to as large as 100 feet on each side. The spell lasts for the duration.\n\nWhen you cast the spell, you decide what sort of security the spell provides, choosing any of the following properties:\n\n\u00e2\u20ac\u00a2 Sound can't pass through the barrier at the edge of the warded area.\n\u00e2\u20ac\u00a2 The barrier of the warded area appears dark and foggy, preventing vision (including Darkvision) through it.\n\u00e2\u20ac\u00a2 Sensors created by Divination spells can't appear inside the protected area or pass through the barrier at its perimeter.\n\u00e2\u20ac\u00a2 Creatures in the area can't be targeted by Divination spells.\n\u00e2\u20ac\u00a2 Nothing can teleport into or out of the warded area.\n\u00e2\u20ac\u00a2 Planar travel is blocked within the warded area.\n\nCasting this spell on the same spot every day for 365 days makes the spell last until dispelled.",
     "range": 120,
     "source": "2024",
-    "aoeType": "cone"
+    "mapInteraction": "place",
+    "aoeType": "cube",
+    "aoeSize": 30
   },
   {
     "name": "Otiluke's Resilient Sphere",
@@ -2504,7 +2506,8 @@
     "range": 120,
     "source": "2024",
     "saveAbility": "dex",
-    "damageType": "Force"
+    "damageType": "Force",
+    "mapInteraction": "place"
   },
   {
     "name": "Circle of Power",
@@ -2906,7 +2909,8 @@
     "school": "Evocation",
     "desc": "An Invisible wall of force springs into existence at a point you choose within range. The wall appears in any orientation you choose, as a horizontal or vertical barrier or at an angle. It can be free floating or resting on a solid surface. You can form it into a hemispherical dome or a globe with a radius of up to 10 feet, or you can shape a flat surface made up of ten 10-foot-by-10-foot panels. Each panel must be contiguous with another panel. In any form, the wall is 1/4 inch thick and lasts for the duration. If the wall cuts through a creature's space when it appears, the creature is pushed to one side of the wall (you choose which side).\n\nNothing can physically pass through the wall. It is immune to all damage and can't be dispelled by Dispel Magic. A Disintegrate spell destroys the wall instantly, however. The wall also extends into the Ethereal Plane and blocks ethereal travel through the wall.",
     "range": 120,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "exception"
   },
   {
     "name": "Wall of Stone",
@@ -3238,6 +3242,7 @@
     "desc": "You create a wall of tangled brush bristling with needle-sharp thorns. The wall appears within range on a solid surface and lasts for the duration. You choose to make the wall up to 60 feet long, 10 feet high, and 5 feet thick or a circle that has a 20-foot diameter and is up to 20 feet high and 5 feet thick. The wall blocks line of sight.\n\nWhen the wall appears, each creature in its area makes a Dexterity saving throw, taking 7d8 Piercing damage on a failed save or half as much damage on a successful one.\n\nA creature can move through the wall, albeit slowly and painfully. For every 1 foot a creature moves through the wall, it must spend 4 feet of movement. Furthermore, the first time a creature enters a space in the wall on a turn or ends its turn there, the creature makes a Dexterity saving throw, taking 7d8 Slashing damage on a failed save or half as much damage on a successful one. A creature makes this save only once per turn.",
     "range": 120,
     "source": "2024",
+    "mapInteraction": "exception",
     "saveAbility": "dex",
     "halfDamageOnSave": true,
     "damageType": "Piercing"
@@ -3719,6 +3724,11 @@
     "name": "Prismatic Wall",
     "level": 9,
     "school": "Abjuration",
+    "mapInteraction": "place",
+    "shapeType": "wall",
+    "maxLength": 90,
+    "maxThickness": 1,
+    "blocksVision": true,
     "desc": "A shimmering, multicolored plane of light forms a vertical opaque wall\u00e2\u20ac\u201dup to 90 feet long, 30 feet high, and 1 inch thick\u00e2\u20ac\u201dcentered on a point within range. Alternatively, you shape the wall into a globe up to 30 feet in diameter centered on a point within range. The wall lasts for the duration. If you position the wall in a space occupied by a creature, the spell ends instantly without effect.\n\nThe wall sheds Bright within 100 feet and Dim for an additional 100 feet. You and creatures you designate when you cast the spell can pass through and be near the wall without harm. If another creature that can see the wall moves within 20 feet of it or starts its turn there, the creature must succeed on a Constitution saving throw or have the Blinded condition for 1 minute.\n\nThe wall consists of seven layers, each with a different color. When a creature reaches into or passes through the wall, it does so one layer at a time through all the layers. Each layer forces the creature to make a Dexterity saving throw or be affected by that layer's properties as described in the Prismatic Layers table.\n\nThe wall, which has AC 10, can be destroyed one layer at a time, in order from red to violet, by means specific to each layer. If a layer is destroyed, it is gone for the duration. Antimagic Field has no effect on the wall, and Dispel Magic can affect only the violet layer.",
     "range": 60,
     "source": "2024",

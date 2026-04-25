@@ -764,6 +764,169 @@ const WallOfIceDomeParticles: React.FC<{
 };
 
 /**
+ * Force particles shimmering along both faces of Wall of Force.
+ * Purple/violet tones, bidirectional like WallOfIceParticles.
+ */
+const WallOfForceParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 100;
+  const BASE_PERIOD = 1800;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    const drift = wallLen * (0.03 + rand(i, 4) * 0.1);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
+    const sizeMul = 0.35 + rand(i, 6) * 0.9;
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.1 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.3));
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#f3e8ff' : shade > 0.33 ? '#c084fc' : '#a855f7';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wfp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#c084fc"
+        shadowBlur={size * 3}
+        shadowOpacity={0.9}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Force particles for Wall of Force (Dome). Emits along the dome circumference,
+ * drifting gently, purple/violet tones.
+ */
+const WallOfForceDomeParticles: React.FC<{
+  cx: number;
+  cy: number;
+  radiusPx: number;
+}> = ({ cx, cy, radiusPx }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (radiusPx < 1) return null;
+
+  const COUNT = 90;
+  const BASE_PERIOD = 1900;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const baseAngle = rand(i, 3) * Math.PI * 2;
+    const drift = radiusPx * (0.08 + rand(i, 4) * 0.18);
+    const jitter = (rand(i, 5) - 0.5) * 0.04;
+    const sizeMul = 0.3 + rand(i, 6) * 0.85;
+    const dir = rand(i, 11) < 0.5 ? -1 : 1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const angle = baseAngle + jitter;
+    const nx = Math.cos(angle) * dir;
+    const ny = Math.sin(angle) * dir;
+    const bx = cx + Math.cos(angle) * radiusPx;
+    const by = cy + Math.sin(angle) * radiusPx;
+    const x = bx + nx * phase * drift;
+    const y = by + ny * phase * drift;
+
+    const fadeIn = 0.1 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.35));
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#f3e8ff' : shade > 0.33 ? '#c084fc' : '#a855f7';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wfdp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#c084fc"
+        shadowBlur={size * 3}
+        shadowOpacity={0.9}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
  * Wind particles streaming outward from both faces of Wind Wall.
  * Gray tones, same structure as WallOfFireParticles but bidirectional.
  */
@@ -837,6 +1000,441 @@ const WindWallParticles: React.FC<{
         shadowColor="#aaaaaa"
         shadowBlur={size * 2.5}
         shadowOpacity={0.7}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Radiant particles streaming outward from both faces of Wall of Light.
+ * Yellow/gold tones, same bidirectional structure as WindWallParticles.
+ */
+const WallOfLightParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 110;
+  const BASE_PERIOD = 1400;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    const drift = wallLen * (0.06 + rand(i, 4) * 0.2);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
+    const sizeMul = 0.35 + rand(i, 6) * 0.9;
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2.2 * sizeMul * (1 - phase * 0.4));
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#fff3a3' : '#ffd84a';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wlp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#ffe066"
+        shadowBlur={size * 3}
+        shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Sand particles swirling along both faces of Wall of Sand.
+ * Tan/brown tones, with a gentle swirl to feel granular and dusty.
+ */
+const WallOfSandParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 140;
+  const BASE_PERIOD = 1600;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    const drift = wallLen * (0.04 + rand(i, 4) * 0.14);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.025;
+    const sizeMul = 0.25 + rand(i, 6) * 0.7;
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    // Swirl: sideways oscillation grows with phase for a dusty curl feel
+    const swirlAmp = wallLen * 0.015 * sizeMul;
+    const swirlFreq = 2 + rand(i, 12) * 3;
+    const swirl = Math.sin(phase * Math.PI * swirlFreq + rand(i, 13) * Math.PI * 2) * swirlAmp * phase;
+
+    const alongX = wallDirX * tAlong * wallLen + swirl * wallDirX;
+    const alongY = wallDirY * tAlong * wallLen + swirl * wallDirY;
+    const bx = p0.x + alongX + jitter * (-wallDirY);
+    const by = p0.y + alongY + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.12;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.5);
+    const size = Math.max(0.4, 1.6 * sizeMul * (1 - phase * 0.25));
+    const shade = rand(i, 9);
+    // Sand palette: pale dune → warm sand → dark ochre
+    const fill = shade > 0.75 ? '#f5e4b5' : shade > 0.45 ? '#d9b982' : shade > 0.2 ? '#b5894f' : '#8b6230';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wsp${i}`}
+        x={x}
+        y={y}
+        sides={4}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#c9a468"
+        shadowBlur={size * 1.8}
+        shadowOpacity={0.55}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Prismatic Wall — dense band of particles along the wall length. Color is
+ * driven by the particle's position along the wall plus a time offset, so the
+ * seven rainbow hues flow through the wall like colored water through a hose.
+ */
+const PrismaticWallParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  // Seven prismatic layers, red → violet
+  const palette = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'];
+  const shadowPalette = ['#b91c1c', '#c2410c', '#a16207', '#15803d', '#1d4ed8', '#4338ca', '#7e22ce'];
+
+  const COUNT = 180;
+  // Speed of color flow along the wall (cycles per second)
+  const FLOW_SPEED = 0.35;
+  // How many full rainbow cycles fit along the wall length
+  const BANDS = 2.5;
+  const particles: React.ReactElement[] = [];
+
+  // Pulse period for per-particle in/out fade
+  const BASE_PERIOD = 1300;
+
+  for (let i = 0; i < COUNT; i++) {
+    const tAlong = rand(i, 3);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
+    // Small side sway around the wall plane
+    const swaySide = (rand(i, 11) - 0.5) * 2;
+    const swayAmp = wallLen * 0.012 * (0.4 + rand(i, 12) * 0.8);
+    const swayFreq = 0.8 + rand(i, 13) * 1.2;
+    const sway = Math.sin(tick / 1000 * swayFreq + rand(i, 14) * Math.PI * 2) * swayAmp * swaySide;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sway;
+    const y = by + normalY * sway;
+
+    // Color cycles based on position along the wall plus time — the "hose" flow
+    const colorPhase = (tAlong * BANDS + (tick / 1000) * FLOW_SPEED) % 1;
+    const colorIdx = Math.floor(colorPhase * palette.length) % palette.length;
+    const fill = palette[colorIdx];
+    const shadow = shadowPalette[colorIdx];
+
+    // Per-particle pulse so not every dot has the same brightness
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const pulse = ((tick / period) + offset) % 1;
+    const pulseFade = pulse < 0.5 ? pulse * 2 : (1 - pulse) * 2;
+    const opacity = 0.55 + pulseFade * 0.4;
+
+    const sizeMul = 0.4 + rand(i, 6) * 0.9;
+    const size = Math.max(0.6, 2.0 * sizeMul);
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`pwp${i}`}
+        x={x}
+        y={y}
+        sides={4}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor={shadow}
+        shadowBlur={size * 3.5}
+        shadowOpacity={0.9}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Thorn particles drifting along both faces of Wall of Thorns.
+ * Green palette to evoke brambles and foliage.
+ */
+const WallOfThornsParticles: React.FC<{
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  normalX: number;
+  normalY: number;
+}> = ({ p0, p1, normalX, normalY }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  if (wallLen < 1) return null;
+  const wallDirX = (p1.x - p0.x) / wallLen;
+  const wallDirY = (p1.y - p0.y) / wallLen;
+
+  const COUNT = 120;
+  const BASE_PERIOD = 1500;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const tAlong = rand(i, 3);
+    const drift = wallLen * (0.05 + rand(i, 4) * 0.18);
+    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
+    const sizeMul = 0.35 + rand(i, 6) * 0.9;
+    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
+    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
+    const x = bx + normalX * sideSign * phase * drift;
+    const y = by + normalY * sideSign * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2.2 * sizeMul * (1 - phase * 0.4));
+    const shade = rand(i, 9);
+    const fill = shade > 0.7 ? '#d1fae5' : shade > 0.4 ? '#86efac' : shade > 0.18 ? '#22c55e' : '#15803d';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wtp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#15803d"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.75}
+        opacity={opacity}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Thorn particles for Wall of Thorns (Ring). Emits from the ring circumference
+ * radially both inward and outward with a green palette.
+ */
+const WallOfThornsRingParticles: React.FC<{
+  cx: number;
+  cy: number;
+  radiusPx: number;
+}> = ({ cx, cy, radiusPx }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick(Date.now() - startRef.current);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  if (radiusPx < 1) return null;
+
+  const COUNT = 100;
+  const BASE_PERIOD = 1500;
+  const particles: React.ReactElement[] = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
+    const offset = rand(i, 2);
+    const baseAngle = rand(i, 3) * Math.PI * 2;
+    const drift = radiusPx * (0.1 + rand(i, 4) * 0.22);
+    const jitter = (rand(i, 5) - 0.5) * 0.04;
+    const sizeMul = 0.3 + rand(i, 6) * 0.85;
+    const dir = rand(i, 11) < 0.5 ? 1 : -1;
+
+    const phase = ((tick / period) + offset) % 1;
+
+    const angle = baseAngle + jitter;
+    const nx = Math.cos(angle) * dir;
+    const ny = Math.sin(angle) * dir;
+    const bx = cx + Math.cos(angle) * radiusPx;
+    const by = cy + Math.sin(angle) * radiusPx;
+    const x = bx + nx * phase * drift;
+    const y = by + ny * phase * drift;
+
+    const fadeIn = 0.08 + rand(i, 7) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
+    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.45));
+    const shade = rand(i, 9);
+    const fill = shade > 0.7 ? '#d1fae5' : shade > 0.4 ? '#86efac' : shade > 0.18 ? '#22c55e' : '#15803d';
+    const rotation = rand(i, 10) * 360;
+
+    particles.push(
+      <RegularPolygon
+        key={`wtrp${i}`}
+        x={x}
+        y={y}
+        sides={3}
+        radius={size}
+        rotation={rotation}
+        fill={fill}
+        shadowColor="#15803d"
+        shadowBlur={size * 2.5}
+        shadowOpacity={0.8}
         opacity={opacity}
         listening={false}
         perfectDrawEnabled={false}
@@ -4579,9 +5177,19 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       );
                     } else {
                       setSelectedTokenIds([token.id]);
-                      setSelectedTokenId(token.id);
-                      onSelectedTokenIdChange?.(token.id);
+                      // Outside initiative, single click only selects visually — double click opens the panel
+                      if (inCombat) {
+                        setSelectedTokenId(token.id);
+                        onSelectedTokenIdChange?.(token.id);
+                      }
                     }
+                  }}
+                  onDblClick={(e) => {
+                    if (isPlayerView) return;
+                    if (inCombat) return; // initiative already opens on single click
+                    e.cancelBubble = true;
+                    setSelectedTokenId(token.id);
+                    onSelectedTokenIdChange?.(token.id);
                   }}
                   onTap={(e) => {
                     e.cancelBubble = true;
@@ -6136,8 +6744,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   if (marker.shapeType === 'ring' || marker.spellName === 'Wall of Fire (Ring)') {
                     const ringRadiusPx = ((marker.aoeSize ?? 10) / 5) * ppg;
                     const isIceDome = marker.spellName === 'Wall of Ice (Dome)';
-                    const ringFill = isIceDome ? 'rgba(126,200,238,0.18)' : 'rgba(255,90,10,0.18)';
-                    const ringStroke = isIceDome ? '#7ec8ee' : '#ff8c00';
+                    const isForceDome = marker.spellName === 'Wall of Force (Dome)';
+                    const isThornsRing = marker.spellName === 'Wall of Thorns (Ring)';
+                    const ringFill = isForceDome
+                      ? 'rgba(168,85,247,0.14)'
+                      : isIceDome
+                      ? 'rgba(126,200,238,0.18)'
+                      : isThornsRing
+                      ? 'rgba(34,197,94,0.18)'
+                      : 'rgba(255,90,10,0.18)';
+                    const ringStroke = isForceDome
+                      ? '#c084fc'
+                      : isIceDome
+                      ? '#7ec8ee'
+                      : isThornsRing
+                      ? '#22c55e'
+                      : '#ff8c00';
                     const isHotOutside = (marker.hotSide ?? 'outside') === 'outside';
                     const tapHandler = (e: any) => {
                       if (!isPlayerView) return;
@@ -6444,11 +7066,53 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
-          {/* ── Wall of Fire Ring particle layer ── */}
-          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+          {/* ── Wall of Light particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Light' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
             <Layer listening={false}>
               {spellMarkers
-                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Light' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WallOfLightParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Sand particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Sand' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Sand' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WallOfSandParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Fire Ring particle layer ── */}
+          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
                 .map(m => (
                   <WallOfFireRingParticles
                     key={m.id}
@@ -6489,6 +7153,101 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 .filter(m => m.spellName === 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
                 .map(m => (
                   <WallOfIceDomeParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Wall of Force particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Force' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Force' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WallOfForceParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Force Dome particle layer ── */}
+          {spellMarkers.some(m => m.spellName === 'Wall of Force (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.spellName === 'Wall of Force (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <WallOfForceDomeParticles
+                    key={m.id}
+                    cx={m.x}
+                    cy={m.y}
+                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
+                  />
+                ))}
+            </Layer>
+          )}
+
+          {/* ── Prismatic Wall particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Prismatic Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Prismatic Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 90, m.thickness ?? 1, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <PrismaticWallParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Thorns particle layer ── */}
+          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Thorns' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Thorns' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => {
+                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 60, m.thickness ?? 5, m.angle ?? 0, ppg);
+                  const ang = (m.angle ?? 0) * Math.PI / 180;
+                  return (
+                    <WallOfThornsParticles
+                      key={m.id}
+                      p0={wCorners[0]}
+                      p1={wCorners[1]}
+                      normalX={Math.sin(ang)}
+                      normalY={-Math.cos(ang)}
+                    />
+                  );
+                })}
+            </Layer>
+          )}
+
+          {/* ── Wall of Thorns Ring particle layer ── */}
+          {spellMarkers.some(m => m.spellName === 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
+            <Layer listening={false}>
+              {spellMarkers
+                .filter(m => m.spellName === 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
+                .map(m => (
+                  <WallOfThornsRingParticles
                     key={m.id}
                     cx={m.x}
                     cy={m.y}
@@ -6803,9 +7562,29 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const maxRadiusFt = 10;
             const isHotOutside = editingRing.hotSide === 'outside';
             const isIceDome = editingRing.spellName === 'Wall of Ice (Dome)';
-            const previewFill = isIceDome ? 'rgba(126,200,238,0.12)' : 'rgba(255,100,10,0.12)';
-            const previewStroke = isIceDome ? '#7ec8ee' : '#ff8c00';
-            const previewLabel = isIceDome ? '#cfeeff' : '#ffd9a6';
+            const isForceDome = editingRing.spellName === 'Wall of Force (Dome)';
+            const isThornsRing = editingRing.spellName === 'Wall of Thorns (Ring)';
+            const previewFill = isForceDome
+              ? 'rgba(168,85,247,0.10)'
+              : isIceDome
+              ? 'rgba(126,200,238,0.12)'
+              : isThornsRing
+              ? 'rgba(34,197,94,0.14)'
+              : 'rgba(255,100,10,0.12)';
+            const previewStroke = isForceDome
+              ? '#c084fc'
+              : isIceDome
+              ? '#7ec8ee'
+              : isThornsRing
+              ? '#22c55e'
+              : '#ff8c00';
+            const previewLabel = isForceDome
+              ? '#e9d5ff'
+              : isIceDome
+              ? '#cfeeff'
+              : isThornsRing
+              ? '#bbf7d0'
+              : '#ffd9a6';
 
             const onBodyDragMove = (e: any) => {
               setEditingRing(r => r ? { ...r, x: e.target.x(), y: e.target.y() } : null);
@@ -6867,8 +7646,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   />
                 </Layer>
                 <Layer listening={false}>
-                  {isIceDome ? (
+                  {isForceDome ? (
+                    <WallOfForceDomeParticles
+                      cx={editingRing.x}
+                      cy={editingRing.y}
+                      radiusPx={ringRadiusPx}
+                    />
+                  ) : isIceDome ? (
                     <WallOfIceDomeParticles
+                      cx={editingRing.x}
+                      cy={editingRing.y}
+                      radiusPx={ringRadiusPx}
+                    />
+                  ) : isThornsRing ? (
+                    <WallOfThornsRingParticles
                       cx={editingRing.x}
                       cy={editingRing.y}
                       radiusPx={ringRadiusPx}
@@ -7266,7 +8057,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         })()}
 
         {/* Wall of Fire Ring — hot-side toggle overlay (hidden for Wall of Ice Dome) */}
-        {editingRing && editingRing.spellName !== 'Wall of Ice (Dome)' && (() => {
+        {editingRing && editingRing.spellName !== 'Wall of Ice (Dome)' && editingRing.spellName !== 'Wall of Force (Dome)' && editingRing.spellName !== 'Wall of Thorns (Ring)' && (() => {
           const ringRadiusPx = (editingRing.radius / 5) * ppg;
           const screenX = editingRing.x * stageScale + stagePos.x;
           const screenY = editingRing.y * stageScale + stagePos.y;

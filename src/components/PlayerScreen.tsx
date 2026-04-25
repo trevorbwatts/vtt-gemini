@@ -1311,6 +1311,10 @@ export function PlayerScreen() {
   const [wallOfFirePicker, setWallOfFirePicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
   // Wall of Ice variant picker — shown when player casts Wall of Ice before choosing Wall vs Dome
   const [wallOfIcePicker, setWallOfIcePicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
+  // Wall of Force variant picker — shown when player casts Wall of Force before choosing Wall vs Dome
+  const [wallOfForcePicker, setWallOfForcePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
+  // Wall of Thorns variant picker — shown when player casts Wall of Thorns before choosing Wall vs Ring
+  const [wallOfThornsPicker, setWallOfThornsPicker] = useState<{ spotId: SpotId; playerId: string; saveDc?: number } | null>(null);
   // Enlarge/Reduce picker — shown when player casts Enlarge/Reduce so they can choose Enlarge vs Reduce before targeting a token
   const [enlargeReducePicker, setEnlargeReducePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
 
@@ -1892,6 +1896,32 @@ export function PlayerScreen() {
       return;
     }
 
+    // Wall of Thorns exception: show variant picker (Wall vs Ring) before placement
+    if (spell?.name === 'Wall of Thorns') {
+      const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
+      let wotSaveDc: number | undefined = (player as any).spellSaveDc;
+      if (!wotSaveDc && (player as any).stats && (player as any).proficiencyBonus && (player as any).classes?.length) {
+        let bestMod = -Infinity;
+        for (const cls of (player as any).classes) {
+          const ability = CASTING_ABILITY[cls.name?.toLowerCase?.()];
+          if (ability) { const m = Math.floor(((player as any).stats[ability] - 10) / 2); if (m > bestMod) bestMod = m; }
+        }
+        if (bestMod !== -Infinity) wotSaveDc = 8 + (player as any).proficiencyBonus + bestMod;
+      }
+      setWallOfThornsPicker({ spotId, playerId, saveDc: wotSaveDc });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
+    // Wall of Force exception: show variant picker (Wall vs Dome) before placement
+    if (spell?.name === 'Wall of Force') {
+      setWallOfForcePicker({ spotId, playerId });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
     // Wall of Ice exception: show variant picker (Wall vs Dome) before placement
     if (spell?.name === 'Wall of Ice') {
       const CASTING_ABILITY: Record<string, string> = { wizard: 'int', artificer: 'int', cleric: 'wis', druid: 'wis', ranger: 'wis', monk: 'wis', bard: 'cha', sorcerer: 'cha', warlock: 'cha', paladin: 'cha' };
@@ -1965,6 +1995,21 @@ export function PlayerScreen() {
         durationMs: 3600000, // 1 hour
         color: '#a855f7', // purple
       }]);
+      return;
+    }
+
+    // Bigby's Hand: place a Large token on the board (same Place flow as Mage Hand)
+    if (spell?.name === "Bigby's Hand") {
+      startPlacingRef.current?.({
+        ...spell,
+        summonData: {
+          creatureName: "Bigby's Hand",
+          spellName: "Bigby's Hand",
+          casterId: player.id,
+          playerColor: player.color || '#3b82f6',
+          size: 'Large' as const,
+        },
+      }, player.id);
       return;
     }
 
@@ -2596,6 +2641,106 @@ export function PlayerScreen() {
               </div>
               <button
                 onPointerDown={() => setWallOfIcePicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Wall of Thorns variant picker */}
+      {wallOfThornsPicker && (() => {
+        const { spotId, playerId, saveDc: wotSaveDc } = wallOfThornsPicker;
+        const handleVariant = (variant: 'wall' | 'ring') => {
+          setWallOfThornsPicker(null);
+          if (variant === 'wall') {
+            startPlacingRef.current?.({ name: 'Wall of Thorns', school: 'Conjuration', shapeType: 'wall', maxLength: 60, maxThickness: 5, blocksVision: true, saveAbility: 'dex', saveDc: wotSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Thorns', saveAbility: 'dex' });
+          } else {
+            startPlacingRef.current?.({ name: 'Wall of Thorns (Ring)', school: 'Conjuration', shapeType: 'ring', saveAbility: 'dex', saveDc: wotSaveDc, halfDamageOnSave: true }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Thorns (Ring)', saveAbility: 'dex' });
+          }
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-green-500/40 rounded-2xl p-6 shadow-2xl shadow-green-500/10 flex flex-col items-center gap-4 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <span className="text-green-300 text-lg">🌿</span>
+                <span className="text-white font-bold text-sm tracking-wide">Wall of Thorns</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a shape</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('wall')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-green-500/20 text-green-300 border border-green-500/40 active:bg-green-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬜</span>
+                  Wall
+                  <span className="text-[9px] text-white/30 normal-case font-normal">60 ft long</span>
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('ring')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-green-500/20 text-green-300 border border-green-500/40 active:bg-green-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⭕</span>
+                  Ring
+                  <span className="text-[9px] text-white/30 normal-case font-normal">20 ft diameter</span>
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setWallOfThornsPicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Wall of Force variant picker */}
+      {wallOfForcePicker && (() => {
+        const { spotId, playerId } = wallOfForcePicker;
+        const handleVariant = (variant: 'wall' | 'dome') => {
+          setWallOfForcePicker(null);
+          if (variant === 'wall') {
+            startPlacingRef.current?.({ name: 'Wall of Force', school: 'Evocation', shapeType: 'wall', maxLength: 100, maxThickness: 1, blocksVision: false }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Force', saveAbility: undefined });
+          } else {
+            startPlacingRef.current?.({ name: 'Wall of Force (Dome)', school: 'Evocation', shapeType: 'ring' }, playerId);
+            setActiveCasting({ spotId, spellName: 'Wall of Force (Dome)', saveAbility: undefined });
+          }
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-purple-400/40 rounded-2xl p-6 shadow-2xl shadow-purple-400/10 flex flex-col items-center gap-4 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <span className="text-purple-300 text-lg">✦</span>
+                <span className="text-white font-bold text-sm tracking-wide">Wall of Force</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose a shape</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('wall')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-purple-400/20 text-purple-200 border border-purple-400/40 active:bg-purple-400/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬜</span>
+                  Wall
+                  <span className="text-[9px] text-white/30 normal-case font-normal">100 ft long</span>
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('dome')}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-purple-400/20 text-purple-200 border border-purple-400/40 active:bg-purple-400/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">⬤</span>
+                  Dome
+                  <span className="text-[9px] text-white/30 normal-case font-normal">10 ft radius</span>
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setWallOfForcePicker(null)}
                 className="text-white/25 text-xs hover:text-white/50 transition-colors"
               >
                 Cancel
