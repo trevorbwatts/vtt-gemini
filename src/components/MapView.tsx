@@ -2084,6 +2084,797 @@ const FireballParticles: React.FC<{ radius: number }> = ({ radius }) => {
 };
 
 /**
+ * Fire-damage spells whose AoE shape should render with the same Fireball-style
+ * ember/particle treatment. Centralized so it can be reused across the placed
+ * preview, the remote echo, and persisted markers.
+ */
+const FIRE_SPELLS_SPHERE = new Set<string>([
+  'Fireball',
+  'Flaming Sphere',
+  'Delayed Blast Fireball',
+  'Incendiary Cloud',
+  'Meteor Swarm',
+  'Flame Strike',
+]);
+const FIRE_SPELLS_CONE = new Set<string>([
+  'Burning Hands',
+]);
+const FIRE_SPELLS_LINE = new Set<string>([
+  "Aganazzar's Scorcher",
+  'Investiture of Flame',
+]);
+const FIRE_SPELLS_CUBE = new Set<string>([
+  'Fire Storm',
+]);
+const isFireSphereSpell = (n?: string) => !!n && FIRE_SPELLS_SPHERE.has(n);
+const isFireConeSpell = (n?: string) => !!n && FIRE_SPELLS_CONE.has(n);
+const isFireLineSpell = (n?: string) => !!n && FIRE_SPELLS_LINE.has(n);
+const isFireCubeSpell = (n?: string) => !!n && FIRE_SPELLS_CUBE.has(n);
+
+/**
+ * Fire particles filling a cone (Burning Hands). Cone is rendered in a local
+ * frame where +x is forward; halfAngle bounds it on each side. Particles flow
+ * from the apex outward, wobbling slightly, and fade near the far edge.
+ */
+const FireConeParticles: React.FC<{ length: number; halfAngle: number }> = ({ length, halfAngle }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 110;
+  const BASE_PERIOD = 1100;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
+    const offset = rand(i, 2);
+    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
+    const wobbleAmp = halfAngle * 0.08 * (0.5 + rand(i, 4));
+    const wobbleFreq = 0.003 + rand(i, 5) * 0.005;
+    const sizeMul = 0.35 + rand(i, 6) * 0.95;
+
+    const phase = ((tick / period) + offset) % 1;
+    const r = phase * length;
+    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.78;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 7) * 0.45);
+    const size = Math.max(0.5, length * 0.012 * sizeMul * (1 - phase * 0.35));
+    const warm = rand(i, 8);
+    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+
+    particles.push(
+      <Circle
+        key={`fc${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor="#ff5a00" shadowBlur={size * 2.5} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Fire particles streaming along a line spell (Aganazzar's Scorcher,
+ * Investiture of Flame). Particles flow from origin to far end, wobbling.
+ */
+const FireLineParticles: React.FC<{ length: number; width: number }> = ({ length, width }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 130;
+  const BASE_PERIOD = 1000;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const yJitter = (rand(i, 3) - 0.5) * width * 0.85;
+    const waveAmp = width * (0.06 + rand(i, 4) * 0.14);
+    const waveFreq = 0.003 + rand(i, 5) * 0.005;
+    const wavePhase = rand(i, 6) * Math.PI * 2;
+    const sizeMul = 0.4 + rand(i, 7) * 1.0;
+
+    const phase = ((tick / period) + offset) % 1;
+    const x = phase * length;
+    const yWave = Math.sin(tick * waveFreq + wavePhase + phase * Math.PI * 2) * waveAmp;
+    const y = yJitter + yWave;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.82;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.5);
+    const size = Math.max(0.5, Math.min(length, width * 4) * 0.012 * sizeMul);
+    const warm = rand(i, 9);
+    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+
+    particles.push(
+      <Circle
+        key={`fl${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor="#ff5a00" shadowBlur={size * 2.5} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Fire particles raining within a square footprint (Fire Storm). Particles
+ * appear at random points across the cube and rise upward briefly before
+ * fading — evokes burning columns of flame across the area.
+ */
+const FireCubeParticles: React.FC<{ size: number }> = ({ size }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 160;
+  const BASE_PERIOD = 1400;
+  const particles: React.ReactElement[] = [];
+  const half = size / 2;
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const cx = (rand(i, 3) - 0.5) * size * 0.96;
+    const cy = (rand(i, 4) - 0.5) * size * 0.96;
+    const rise = size * (0.06 + rand(i, 5) * 0.12);
+    const sizeMul = 0.4 + rand(i, 6) * 1.0;
+
+    const phase = ((tick / period) + offset) % 1;
+    const x = cx;
+    const y = cy - phase * rise;
+
+    const fadeIn = 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 7) * 0.45);
+    const sizePx = Math.max(0.5, size * 0.008 * sizeMul * (1 - phase * 0.4));
+    const warm = rand(i, 8);
+    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
+
+    // Clamp inside the cube to avoid bleed outside the footprint
+    if (Math.abs(x) > half || Math.abs(y) > half) continue;
+
+    particles.push(
+      <Circle
+        key={`fb${i}`}
+        x={x} y={y} radius={sizePx} fill={fill}
+        shadowColor="#ff5a00" shadowBlur={sizePx * 2.5} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Ice/cold AoE spell sets for sphere/cylinder shapes (Ice Knife, Snilloc's
+ * Snowball Swarm, Otiluke's Freezing Sphere, Ice Storm, Sleet Storm) and cone
+ * shapes (Cone of Cold, Investiture of Ice). Wind sets cover cone (Investiture
+ * of Wind) and line (Gust of Wind) shapes.
+ */
+const ICE_SPELLS_SPHERE = new Set<string>([
+  'Ice Knife',
+  "Snilloc's Snowball Swarm",
+  "Otiluke's Freezing Sphere",
+  'Ice Storm',
+  'Sleet Storm',
+]);
+const ICE_SPELLS_CONE = new Set<string>([
+  'Cone of Cold',
+  'Investiture of Ice',
+]);
+const WIND_SPELLS_CONE = new Set<string>([
+  'Investiture of Wind',
+]);
+const WIND_SPELLS_LINE = new Set<string>([
+  'Gust of Wind',
+]);
+const isIceSphereSpell = (n?: string) => !!n && ICE_SPELLS_SPHERE.has(n);
+const isIceConeSpell = (n?: string) => !!n && ICE_SPELLS_CONE.has(n);
+const isWindConeSpell = (n?: string) => !!n && WIND_SPELLS_CONE.has(n);
+const isWindLineSpell = (n?: string) => !!n && WIND_SPELLS_LINE.has(n);
+
+/**
+ * Ice shards drifting around a sphere/cylinder AoE. Mirrors FireballParticles'
+ * structure but uses light blue/white triangular shards with cold glow.
+ */
+const IceSphereParticles: React.FC<{ radius: number }> = ({ radius }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 110;
+  const BASE_PERIOD = 2000;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const inward = rand(i, 11) < 0.32;
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const sweep = Math.PI * (0.3 + rand(i, 3) * 0.7);
+    const drift = radius * (0.05 + rand(i, 4) * 0.2);
+    const baseAngle = rand(i, 5) * Math.PI * 2;
+    const jitterR = (rand(i, 6) - 0.5) * radius * 0.05;
+    const sizeMul = 0.4 + rand(i, 7) * 0.95;
+    const rotation = rand(i, 13) * 360;
+
+    const phase = ((tick / period) + offset) % 1;
+    const angle = baseAngle + phase * sweep;
+    const r = inward
+      ? (radius + jitterR) * (1 - phase * (0.45 + rand(i, 12) * 0.4))
+      : radius + jitterR + phase * drift;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+
+    const fadeIn = 0.12 + rand(i, 8) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 9) * 0.4);
+    const size = Math.max(0.5, radius * 0.009 * sizeMul * (1 - phase * 0.3));
+    const shade = rand(i, 10);
+    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
+
+    particles.push(
+      <RegularPolygon
+        key={`isp${i}`}
+        x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
+        shadowColor="#a7d8ff" shadowBlur={size * 3} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Ice shards spreading outward through a cone (Cone of Cold, Investiture of
+ * Ice). Mirrors FireConeParticles but with cold tones and triangular shards.
+ */
+const IceConeParticles: React.FC<{ length: number; halfAngle: number }> = ({ length, halfAngle }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 130;
+  const BASE_PERIOD = 1400;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.95);
+    const offset = rand(i, 2);
+    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
+    const wobbleAmp = halfAngle * 0.06 * (0.5 + rand(i, 4));
+    const wobbleFreq = 0.0025 + rand(i, 5) * 0.004;
+    const sizeMul = 0.4 + rand(i, 6) * 1.0;
+    const rotation = rand(i, 11) * 360;
+
+    const phase = ((tick / period) + offset) % 1;
+    const r = phase * length;
+    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.8;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 7) * 0.45);
+    const size = Math.max(0.5, length * 0.014 * sizeMul * (1 - phase * 0.3));
+    const shade = rand(i, 8);
+    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
+
+    particles.push(
+      <RegularPolygon
+        key={`icc${i}`}
+        x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
+        shadowColor="#a7d8ff" shadowBlur={size * 3} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Wind streaks fanning through a cone (Investiture of Wind). Gray tones,
+ * mirrors GustOfWindParticles but distributed within a cone wedge.
+ */
+const WindConeParticles: React.FC<{ length: number; halfAngle: number }> = ({ length, halfAngle }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const COUNT = 130;
+  const BASE_PERIOD = 950;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
+    const wobbleAmp = halfAngle * 0.1 * (0.5 + rand(i, 4));
+    const wobbleFreq = 0.003 + rand(i, 5) * 0.005;
+    const sizeMul = 0.4 + rand(i, 6) * 1.0;
+
+    const phase = ((tick / period) + offset) % 1;
+    const r = phase * length;
+    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.82;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.4 + rand(i, 7) * 0.45);
+    const size = Math.max(0.5, length * 0.01 * sizeMul);
+    const shade = rand(i, 8);
+    const fill = shade > 0.66 ? '#f0f0f0' : shade > 0.33 ? '#b5b5b5' : '#777777';
+
+    particles.push(
+      <Circle
+        key={`wcc${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor="#aaaaaa" shadowBlur={size * 2.5} shadowOpacity={0.6}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/**
+ * Poison/Acid/Necrotic AoE spell sets. Shapes covered:
+ *   - Poison sphere: Cloudkill, Stinking Cloud (sickly green wisps)
+ *   - Acid sphere/line: Acid Splash, Vitriolic Sphere, Tasha's Caustic Brew
+ *   - Necrotic sphere/cone: Circle of Death, Abi-Dalzim's Horrid Wilting
+ */
+const POISON_SPELLS_SPHERE = new Set<string>([
+  'Cloudkill',
+  'Stinking Cloud',
+]);
+const ACID_SPELLS_SPHERE = new Set<string>([
+  'Acid Splash',
+  'Vitriolic Sphere',
+]);
+const ACID_SPELLS_LINE = new Set<string>([
+  "Tasha's Caustic Brew",
+]);
+const NECROTIC_SPELLS_SPHERE = new Set<string>([
+  'Circle of Death',
+]);
+const NECROTIC_SPELLS_CONE = new Set<string>([
+  "Abi-Dalzim's Horrid Wilting",
+]);
+const isPoisonSphereSpell = (n?: string) => !!n && POISON_SPELLS_SPHERE.has(n);
+const isAcidSphereSpell = (n?: string) => !!n && ACID_SPELLS_SPHERE.has(n);
+const isAcidLineSpell = (n?: string) => !!n && ACID_SPELLS_LINE.has(n);
+const isNecroticSphereSpell = (n?: string) => !!n && NECROTIC_SPELLS_SPHERE.has(n);
+const isNecroticConeSpell = (n?: string) => !!n && NECROTIC_SPELLS_CONE.has(n);
+
+/** Generic radial-AoE particle component, parameterized by palette/glow. */
+const RadialAoEParticles: React.FC<{
+  radius: number;
+  count?: number;
+  basePeriod?: number;
+  inwardChance?: number;
+  palette: [string, string, string];
+  glow: string;
+  shape?: 'circle' | 'triangle';
+}> = ({ radius, count = 110, basePeriod = 1700, inwardChance = 0.35, palette, glow, shape = 'circle' }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < count; i++) {
+    const inward = rand(i, 11) < inwardChance;
+    const period = basePeriod * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const sweep = Math.PI * (0.3 + rand(i, 3) * 0.7);
+    const drift = radius * (0.05 + rand(i, 4) * 0.22);
+    const baseAngle = rand(i, 5) * Math.PI * 2;
+    const jitterR = (rand(i, 6) - 0.5) * radius * 0.05;
+    const sizeMul = 0.4 + rand(i, 7) * 0.95;
+    const rotation = rand(i, 13) * 360;
+
+    const phase = ((tick / period) + offset) % 1;
+    const angle = baseAngle + phase * sweep;
+    const r = inward
+      ? (radius + jitterR) * (1 - phase * (0.45 + rand(i, 12) * 0.4))
+      : radius + jitterR + phase * drift;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+
+    const fadeIn = 0.12 + rand(i, 8) * 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 9) * 0.4);
+    const size = Math.max(0.5, radius * 0.009 * sizeMul * (1 - phase * 0.3));
+    const shade = rand(i, 10);
+    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
+
+    if (shape === 'triangle') {
+      particles.push(
+        <RegularPolygon
+          key={`rp${i}`}
+          x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
+          shadowColor={glow} shadowBlur={size * 3} shadowOpacity={0.85}
+          opacity={opacity}
+          listening={false} perfectDrawEnabled={false}
+        />
+      );
+    } else {
+      particles.push(
+        <Circle
+          key={`rp${i}`}
+          x={x} y={y} radius={size} fill={fill}
+          shadowColor={glow} shadowBlur={size * 2.5} shadowOpacity={0.85}
+          opacity={opacity}
+          listening={false} perfectDrawEnabled={false}
+        />
+      );
+    }
+  }
+  return <>{particles}</>;
+};
+
+/** Generic cone particle component, parameterized by palette/glow. */
+const ConeAoEParticles: React.FC<{
+  length: number;
+  halfAngle: number;
+  count?: number;
+  basePeriod?: number;
+  palette: [string, string, string];
+  glow: string;
+  shape?: 'circle' | 'triangle';
+}> = ({ length, halfAngle, count = 120, basePeriod = 1300, palette, glow, shape = 'circle' }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < count; i++) {
+    const period = basePeriod * (0.55 + rand(i, 1) * 0.95);
+    const offset = rand(i, 2);
+    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
+    const wobbleAmp = halfAngle * 0.07 * (0.5 + rand(i, 4));
+    const wobbleFreq = 0.0025 + rand(i, 5) * 0.005;
+    const sizeMul = 0.4 + rand(i, 6) * 1.0;
+    const rotation = rand(i, 11) * 360;
+
+    const phase = ((tick / period) + offset) % 1;
+    const r = phase * length;
+    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.8;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.5 + rand(i, 7) * 0.45);
+    const size = Math.max(0.5, length * 0.013 * sizeMul * (1 - phase * 0.3));
+    const shade = rand(i, 8);
+    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
+
+    if (shape === 'triangle') {
+      particles.push(
+        <RegularPolygon
+          key={`rcp${i}`}
+          x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
+          shadowColor={glow} shadowBlur={size * 3} shadowOpacity={0.85}
+          opacity={opacity}
+          listening={false} perfectDrawEnabled={false}
+        />
+      );
+    } else {
+      particles.push(
+        <Circle
+          key={`rcp${i}`}
+          x={x} y={y} radius={size} fill={fill}
+          shadowColor={glow} shadowBlur={size * 2.5} shadowOpacity={0.85}
+          opacity={opacity}
+          listening={false} perfectDrawEnabled={false}
+        />
+      );
+    }
+  }
+  return <>{particles}</>;
+};
+
+/** Generic line particle component, parameterized by palette/glow. */
+const LineAoEParticles: React.FC<{
+  length: number;
+  width: number;
+  palette: [string, string, string];
+  glow: string;
+}> = ({ length, width, palette, glow }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const COUNT = 130;
+  const BASE_PERIOD = 1100;
+  const particles: React.ReactElement[] = [];
+  for (let i = 0; i < COUNT; i++) {
+    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const yJitter = (rand(i, 3) - 0.5) * width * 0.85;
+    const waveAmp = width * (0.06 + rand(i, 4) * 0.14);
+    const waveFreq = 0.003 + rand(i, 5) * 0.005;
+    const wavePhase = rand(i, 6) * Math.PI * 2;
+    const sizeMul = 0.4 + rand(i, 7) * 1.0;
+
+    const phase = ((tick / period) + offset) % 1;
+    const x = phase * length;
+    const yWave = Math.sin(tick * waveFreq + wavePhase + phase * Math.PI * 2) * waveAmp;
+    const y = yJitter + yWave;
+
+    const fadeIn = 0.08;
+    const fadeOut = 0.82;
+    let fade = 1;
+    if (phase < fadeIn) fade = phase / fadeIn;
+    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.5);
+    const size = Math.max(0.5, Math.min(length, width * 4) * 0.012 * sizeMul);
+    const shade = rand(i, 9);
+    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
+
+    particles.push(
+      <Circle
+        key={`rl${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor={glow} shadowBlur={size * 2.5} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+/** Generic cube particle component (rising motes within a square footprint). */
+const CubeAoEParticles: React.FC<{
+  size: number;
+  palette: [string, string, string];
+  glow: string;
+  count?: number;
+  basePeriod?: number;
+}> = ({ size, palette, glow, count = 150, basePeriod = 1300 }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const particles: React.ReactElement[] = [];
+  const half = size / 2;
+  for (let i = 0; i < count; i++) {
+    const period = basePeriod * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const cx = (rand(i, 3) - 0.5) * size * 0.96;
+    const cy = (rand(i, 4) - 0.5) * size * 0.96;
+    const rise = size * (0.06 + rand(i, 5) * 0.12);
+    const sizeMul = 0.4 + rand(i, 6) * 1.0;
+    const phase = ((tick / period) + offset) % 1;
+    const x = cx;
+    const y = cy - phase * rise;
+    const fadeIn = 0.1;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.45 + rand(i, 7) * 0.45);
+    const sizePx = Math.max(0.5, size * 0.008 * sizeMul * (1 - phase * 0.4));
+    const shade = rand(i, 8);
+    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
+    if (Math.abs(x) > half || Math.abs(y) > half) continue;
+    particles.push(
+      <Circle
+        key={`cb${i}`}
+        x={x} y={y} radius={sizePx} fill={fill}
+        shadowColor={glow} shadowBlur={sizePx * 2.5} shadowOpacity={0.85}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{particles}</>;
+};
+
+const POISON_PALETTE: [string, string, string] = ['#bef264', '#65a30d', '#365314'];
+const ACID_PALETTE:   [string, string, string] = ['#ecfccb', '#a3e635', '#65a30d'];
+const NECROTIC_PALETTE: [string, string, string] = ['#d8b4fe', '#7e22ce', '#1e1b2e'];
+
+const POISON_GRADIENT = [0, 'rgba(132,204,22,0.45)', 0.5, 'rgba(101,163,13,0.30)', 0.85, 'rgba(54,83,20,0.15)', 1, 'rgba(20,40,10,0)'] as any;
+const ACID_GRADIENT   = [0, 'rgba(236,252,203,0.50)', 0.5, 'rgba(163,230,53,0.34)', 0.85, 'rgba(101,163,13,0.16)', 1, 'rgba(60,100,10,0)'] as any;
+const NECROTIC_GRADIENT = [0, 'rgba(168,85,247,0.45)', 0.5, 'rgba(126,34,206,0.30)', 0.85, 'rgba(60,20,90,0.16)', 1, 'rgba(20,8,40,0)'] as any;
+
+/**
+ * Remaining elemental damage types (Lightning, Thunder, Radiant, Psychic,
+ * Force) routed through a single style table. Each entry provides palette,
+ * glow color, radial gradient, and tuning for the generic particle components.
+ */
+type ElementKey = 'lightning' | 'thunder' | 'radiant' | 'psychic' | 'force';
+const ELEMENT_STYLES: Record<ElementKey, {
+  palette: [string, string, string];
+  glow: string;
+  gradient: any;
+  basePeriod: number;
+  inwardChance: number;
+  shape: 'circle' | 'triangle';
+}> = {
+  lightning: {
+    palette: ['#fef9c3', '#fde047', '#60a5fa'],
+    glow: '#facc15',
+    gradient: [0, 'rgba(254,240,138,0.55)', 0.45, 'rgba(250,204,21,0.34)', 0.85, 'rgba(96,165,250,0.16)', 1, 'rgba(30,60,180,0)'],
+    basePeriod: 850,
+    inwardChance: 0.35,
+    shape: 'circle',
+  },
+  thunder: {
+    palette: ['#ffffff', '#a5f3fc', '#0ea5e9'],
+    glow: '#67e8f9',
+    gradient: [0, 'rgba(224,250,255,0.55)', 0.5, 'rgba(165,243,252,0.32)', 0.85, 'rgba(14,165,233,0.16)', 1, 'rgba(8,80,150,0)'],
+    basePeriod: 1300,
+    inwardChance: 0.25,
+    shape: 'circle',
+  },
+  radiant: {
+    palette: ['#fffbeb', '#fde047', '#eab308'],
+    glow: '#facc15',
+    gradient: [0, 'rgba(255,251,235,0.65)', 0.45, 'rgba(253,224,71,0.40)', 0.85, 'rgba(234,179,8,0.18)', 1, 'rgba(140,100,8,0)'],
+    basePeriod: 1900,
+    inwardChance: 0.2,
+    shape: 'circle',
+  },
+  psychic: {
+    palette: ['#fbcfe8', '#e879f9', '#7e22ce'],
+    glow: '#d946ef',
+    gradient: [0, 'rgba(232,121,249,0.45)', 0.5, 'rgba(126,34,206,0.30)', 0.85, 'rgba(60,20,90,0.16)', 1, 'rgba(20,8,40,0)'],
+    basePeriod: 2100,
+    inwardChance: 0.55,
+    shape: 'triangle',
+  },
+  force: {
+    palette: ['#dbeafe', '#93c5fd', '#3b82f6'],
+    glow: '#60a5fa',
+    gradient: [0, 'rgba(219,234,254,0.55)', 0.5, 'rgba(147,197,253,0.32)', 0.85, 'rgba(59,130,246,0.16)', 1, 'rgba(20,40,120,0)'],
+    basePeriod: 1500,
+    inwardChance: 0.4,
+    shape: 'circle',
+  },
+};
+
+const SPHERE_ELEMENT_MAP: Record<string, ElementKey> = {
+  'Call Lightning': 'lightning',
+  'Lightning Arrow': 'lightning',
+  'Lightning Lure': 'lightning',
+  'Shatter': 'thunder',
+  'Storm of Vengeance': 'thunder',
+  'Sunburst': 'radiant',
+  'Sickening Radiance': 'radiant',
+  'Moonbeam': 'radiant',
+  'Dawn': 'radiant',
+  "Jallarzi's Storm of Radiance": 'radiant',
+  'Conjure Celestial': 'radiant',
+  'Synaptic Static': 'psychic',
+  'Weird': 'psychic',
+  'Sword Burst': 'force',
+  'Conjure Volley': 'force',
+};
+const CONE_ELEMENT_MAP: Record<string, ElementKey> = {
+  'Conjure Barrage': 'force',
+};
+const LINE_ELEMENT_MAP: Record<string, ElementKey> = {
+  'Lightning Bolt': 'lightning',
+  'Sunbeam': 'radiant',
+};
+const CUBE_ELEMENT_MAP: Record<string, ElementKey> = {
+  'Thunderwave': 'thunder',
+};
+const getSphereElement = (n?: string) => (n && SPHERE_ELEMENT_MAP[n]) || null;
+const getConeElement = (n?: string) => (n && CONE_ELEMENT_MAP[n]) || null;
+const getLineElement = (n?: string) => (n && LINE_ELEMENT_MAP[n]) || null;
+const getCubeElement = (n?: string) => (n && CUBE_ELEMENT_MAP[n]) || null;
+
+/**
  * Wind particles streaming along a line for Gust of Wind. Particles flow
  * from origin to far end with mild perpendicular wave, in gray tones.
  * One RAF loop, pure trig — no per-particle state.
@@ -6605,7 +7396,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         x={cx}
                         y={cy}
                         radius={sizePx}
-                        fill={placedAoe.name === 'Fireball' ? 'transparent' : fillColor}
+                        fill={isFireSphereSpell(placedAoe.name) || isIceSphereSpell(placedAoe.name) || isPoisonSphereSpell(placedAoe.name) || isAcidSphereSpell(placedAoe.name) || isNecroticSphereSpell(placedAoe.name) || getSphereElement(placedAoe.name) ? 'transparent' : fillColor}
                         stroke={strokeColor}
                         strokeWidth={strokeW}
                         dash={[6 / stageScale, 4 / stageScale]}
@@ -6613,21 +7404,61 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         onDragMove={placedAoe.selfOrigin ? handleDirectionalDragMove : handleSphereDragMove}
                         onDragEnd={placedAoe.selfOrigin ? handleDirectionalDragEnd : handleAoeDragEnd}
                       />
-                      {placedAoe.name === 'Fireball' && (
-                        <>
-                          <Circle
-                            x={cx}
-                            y={cy}
-                            radius={sizePx}
-                            fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                            fillRadialGradientStartRadius={0}
-                            fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                            fillRadialGradientEndRadius={sizePx}
-                            fillRadialGradientColorStops={[0, 'rgba(255,160,20,0.72)', 0.45, 'rgba(255,90,0,0.42)', 0.8, 'rgba(200,50,0,0.18)', 1, 'rgba(150,30,0,0)']}
-                            listening={false}
-                            perfectDrawEnabled={false}
-                          />
-                        </>
+                      {isFireSphereSpell(placedAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={[0, 'rgba(255,160,20,0.72)', 0.45, 'rgba(255,90,0,0.42)', 0.8, 'rgba(200,50,0,0.18)', 1, 'rgba(150,30,0,0)']}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {isIceSphereSpell(placedAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={[0, 'rgba(220,240,255,0.55)', 0.5, 'rgba(150,210,240,0.32)', 0.85, 'rgba(80,160,210,0.14)', 1, 'rgba(50,110,170,0)']}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {(isPoisonSphereSpell(placedAoe.name) || isAcidSphereSpell(placedAoe.name) || isNecroticSphereSpell(placedAoe.name)) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={isNecroticSphereSpell(placedAoe.name) ? NECROTIC_GRADIENT : isAcidSphereSpell(placedAoe.name) ? ACID_GRADIENT : POISON_GRADIENT}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {getSphereElement(placedAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={ELEMENT_STYLES[getSphereElement(placedAoe.name)!].gradient}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
                       )}
                     </>
                   );
@@ -6746,13 +7577,149 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   );
                 })()}
               </Layer>
-              {placedAoe.name === 'Fireball' && placedAoe.aoeType === 'sphere' && (
+              {isFireSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
                 <Layer listening={false}>
                   <Group x={fireballCx} y={fireballCy}>
                     <FireballParticles radius={sizePx} />
                   </Group>
                 </Layer>
               )}
+              {isFireConeSpell(placedAoe.name) && placedAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group
+                    x={edgeX}
+                    y={edgeY}
+                    rotation={(angleRad * 180) / Math.PI}
+                  >
+                    <FireConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
+                  </Group>
+                </Layer>
+              )}
+              {isFireLineSpell(placedAoe.name) && placedAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group
+                    x={edgeX}
+                    y={edgeY}
+                    rotation={(angleRad * 180) / Math.PI}
+                  >
+                    <FireLineParticles length={sizePx} width={feetToPx(5)} />
+                  </Group>
+                </Layer>
+              )}
+              {isFireCubeSpell(placedAoe.name) && placedAoe.aoeType === 'cube' && (
+                <Layer listening={false}>
+                  {placedAoe.selfOrigin ? (
+                    <Group
+                      x={edgeX + Math.cos(angleRad) * sizePx / 2}
+                      y={edgeY + Math.sin(angleRad) * sizePx / 2}
+                    >
+                      <FireCubeParticles size={sizePx} />
+                    </Group>
+                  ) : (
+                    <Group x={placedAoe.x} y={placedAoe.y}>
+                      <FireCubeParticles size={sizePx} />
+                    </Group>
+                  )}
+                </Layer>
+              )}
+              {isIceSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <IceSphereParticles radius={sizePx} />
+                  </Group>
+                </Layer>
+              )}
+              {isIceConeSpell(placedAoe.name) && placedAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                    <IceConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
+                  </Group>
+                </Layer>
+              )}
+              {isWindConeSpell(placedAoe.name) && placedAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                    <WindConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
+                  </Group>
+                </Layer>
+              )}
+              {isPoisonSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <RadialAoEParticles radius={sizePx} palette={POISON_PALETTE} glow="#65a30d" inwardChance={0.25} basePeriod={2000} />
+                  </Group>
+                </Layer>
+              )}
+              {isAcidSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <RadialAoEParticles radius={sizePx} palette={ACID_PALETTE} glow="#a3e635" inwardChance={0.4} basePeriod={1500} />
+                  </Group>
+                </Layer>
+              )}
+              {isNecroticSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <RadialAoEParticles radius={sizePx} palette={NECROTIC_PALETTE} glow="#7e22ce" inwardChance={0.5} basePeriod={2200} shape="triangle" />
+                  </Group>
+                </Layer>
+              )}
+              {isAcidLineSpell(placedAoe.name) && placedAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                    <LineAoEParticles length={sizePx} width={feetToPx(5)} palette={ACID_PALETTE} glow="#a3e635" />
+                  </Group>
+                </Layer>
+              )}
+              {isNecroticConeSpell(placedAoe.name) && placedAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                    <ConeAoEParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} palette={NECROTIC_PALETTE} glow="#7e22ce" shape="triangle" />
+                  </Group>
+                </Layer>
+              )}
+              {getSphereElement(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (() => {
+                const s = ELEMENT_STYLES[getSphereElement(placedAoe.name)!];
+                return (
+                  <Layer listening={false}>
+                    <Group x={fireballCx} y={fireballCy}>
+                      <RadialAoEParticles radius={sizePx} palette={s.palette} glow={s.glow} basePeriod={s.basePeriod} inwardChance={s.inwardChance} shape={s.shape} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {getConeElement(placedAoe.name) && placedAoe.aoeType === 'cone' && (() => {
+                const s = ELEMENT_STYLES[getConeElement(placedAoe.name)!];
+                return (
+                  <Layer listening={false}>
+                    <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                      <ConeAoEParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} palette={s.palette} glow={s.glow} shape={s.shape} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {getLineElement(placedAoe.name) && placedAoe.aoeType === 'line' && (() => {
+                const s = ELEMENT_STYLES[getLineElement(placedAoe.name)!];
+                return (
+                  <Layer listening={false}>
+                    <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                      <LineAoEParticles length={sizePx} width={feetToPx(5)} palette={s.palette} glow={s.glow} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {getCubeElement(placedAoe.name) && placedAoe.aoeType === 'cube' && (() => {
+                const s = ELEMENT_STYLES[getCubeElement(placedAoe.name)!];
+                const groupX = placedAoe.selfOrigin ? edgeX + Math.cos(angleRad) * sizePx / 2 : placedAoe.x;
+                const groupY = placedAoe.selfOrigin ? edgeY + Math.sin(angleRad) * sizePx / 2 : placedAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={groupX} y={groupY}>
+                      <CubeAoEParticles size={sizePx} palette={s.palette} glow={s.glow} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
               {placedAoe.name === 'Gust of Wind' && placedAoe.aoeType === 'line' && (
                 <Layer listening={false}>
                   <Group
@@ -6796,11 +7763,53 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         x={cx}
                         y={cy}
                         radius={sizePx}
-                        fill={remoteAoe.name === 'Fireball' ? 'transparent' : fillColor}
+                        fill={isFireSphereSpell(remoteAoe.name) || isIceSphereSpell(remoteAoe.name) || isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name) || getSphereElement(remoteAoe.name) ? 'transparent' : fillColor}
                         stroke={strokeColor} strokeWidth={strokeW}
                         dash={[6 / stageScale, 4 / stageScale]}
                       />
-                      {remoteAoe.name === 'Fireball' && (
+                      {isIceSphereSpell(remoteAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={[0, 'rgba(220,240,255,0.55)', 0.5, 'rgba(150,210,240,0.32)', 0.85, 'rgba(80,160,210,0.14)', 1, 'rgba(50,110,170,0)']}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {(isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name)) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={isNecroticSphereSpell(remoteAoe.name) ? NECROTIC_GRADIENT : isAcidSphereSpell(remoteAoe.name) ? ACID_GRADIENT : POISON_GRADIENT}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {getSphereElement(remoteAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={ELEMENT_STYLES[getSphereElement(remoteAoe.name)!].gradient}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {isFireSphereSpell(remoteAoe.name) && (
                         <>
                           <Circle
                             x={cx}
@@ -6851,13 +7860,140 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
                 })()}
               </Layer>
-              {remoteAoe.name === 'Fireball' && remoteAoe.aoeType === 'sphere' && (() => {
+              {isFireSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
                 const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
                 const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
                 return (
                   <Layer listening={false}>
                     <Group x={rcx} y={rcy}>
                       <FireballParticles radius={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {isFireConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <FireConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
+                  </Group>
+                </Layer>
+              )}
+              {isFireLineSpell(remoteAoe.name) && remoteAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <FireLineParticles length={sizePx} width={feetToPx(5)} />
+                  </Group>
+                </Layer>
+              )}
+              {isFireCubeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cube' && (
+                <Layer listening={false}>
+                  {remoteAoe.selfOrigin ? (
+                    <Group
+                      x={edgeX + Math.cos(aRad) * sizePx / 2}
+                      y={edgeY + Math.sin(aRad) * sizePx / 2}
+                    >
+                      <FireCubeParticles size={sizePx} />
+                    </Group>
+                  ) : (
+                    <Group x={remoteAoe.x} y={remoteAoe.y}>
+                      <FireCubeParticles size={sizePx} />
+                    </Group>
+                  )}
+                </Layer>
+              )}
+              {isIceSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
+                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={rcx} y={rcy}>
+                      <IceSphereParticles radius={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {isIceConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <IceConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
+                  </Group>
+                </Layer>
+              )}
+              {isWindConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <WindConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
+                  </Group>
+                </Layer>
+              )}
+              {(isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name)) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
+                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                const palette = isNecroticSphereSpell(remoteAoe.name) ? NECROTIC_PALETTE : isAcidSphereSpell(remoteAoe.name) ? ACID_PALETTE : POISON_PALETTE;
+                const glow = isNecroticSphereSpell(remoteAoe.name) ? '#7e22ce' : isAcidSphereSpell(remoteAoe.name) ? '#a3e635' : '#65a30d';
+                const shape: 'circle' | 'triangle' = isNecroticSphereSpell(remoteAoe.name) ? 'triangle' : 'circle';
+                return (
+                  <Layer listening={false}>
+                    <Group x={rcx} y={rcy}>
+                      <RadialAoEParticles radius={sizePx} palette={palette} glow={glow} shape={shape} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {isAcidLineSpell(remoteAoe.name) && remoteAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <LineAoEParticles length={sizePx} width={feetToPx(5)} palette={ACID_PALETTE} glow="#a3e635" />
+                  </Group>
+                </Layer>
+              )}
+              {isNecroticConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <ConeAoEParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} palette={NECROTIC_PALETTE} glow="#7e22ce" shape="triangle" />
+                  </Group>
+                </Layer>
+              )}
+              {getSphereElement(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
+                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                const s = ELEMENT_STYLES[getSphereElement(remoteAoe.name)!];
+                return (
+                  <Layer listening={false}>
+                    <Group x={rcx} y={rcy}>
+                      <RadialAoEParticles radius={sizePx} palette={s.palette} glow={s.glow} basePeriod={s.basePeriod} inwardChance={s.inwardChance} shape={s.shape} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {getConeElement(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (() => {
+                const s = ELEMENT_STYLES[getConeElement(remoteAoe.name)!];
+                return (
+                  <Layer listening={false}>
+                    <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                      <ConeAoEParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} palette={s.palette} glow={s.glow} shape={s.shape} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {getLineElement(remoteAoe.name) && remoteAoe.aoeType === 'line' && (() => {
+                const s = ELEMENT_STYLES[getLineElement(remoteAoe.name)!];
+                return (
+                  <Layer listening={false}>
+                    <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                      <LineAoEParticles length={sizePx} width={feetToPx(5)} palette={s.palette} glow={s.glow} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {getCubeElement(remoteAoe.name) && remoteAoe.aoeType === 'cube' && (() => {
+                const s = ELEMENT_STYLES[getCubeElement(remoteAoe.name)!];
+                const groupX = remoteAoe.selfOrigin ? edgeX + Math.cos(aRad) * sizePx / 2 : remoteAoe.x;
+                const groupY = remoteAoe.selfOrigin ? edgeY + Math.sin(aRad) * sizePx / 2 : remoteAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={groupX} y={groupY}>
+                      <CubeAoEParticles size={sizePx} palette={s.palette} glow={s.glow} />
                     </Group>
                   </Layer>
                 );
@@ -7818,9 +8954,32 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         return null;
                       })()}
                       {/* Spell-specific particle effects */}
-                      {marker.spellName === 'Fireball' && marker.aoeType === 'sphere' && marker.aoeSize && (
+                      {isFireSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
                         <FireballParticles radius={(marker.aoeSize / 5) * ppg} />
                       )}
+                      {isFireCubeSpell(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (
+                        <FireCubeParticles size={(marker.aoeSize / 5) * ppg} />
+                      )}
+                      {isIceSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                        <IceSphereParticles radius={(marker.aoeSize / 5) * ppg} />
+                      )}
+                      {isPoisonSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                        <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={POISON_PALETTE} glow="#65a30d" inwardChance={0.25} basePeriod={2000} />
+                      )}
+                      {isAcidSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                        <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={ACID_PALETTE} glow="#a3e635" inwardChance={0.4} basePeriod={1500} />
+                      )}
+                      {isNecroticSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                        <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={NECROTIC_PALETTE} glow="#7e22ce" inwardChance={0.5} basePeriod={2200} shape="triangle" />
+                      )}
+                      {getSphereElement(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (() => {
+                        const s = ELEMENT_STYLES[getSphereElement(marker.spellName)!];
+                        return <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={s.palette} glow={s.glow} basePeriod={s.basePeriod} inwardChance={s.inwardChance} shape={s.shape} />;
+                      })()}
+                      {getCubeElement(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (() => {
+                        const s = ELEMENT_STYLES[getCubeElement(marker.spellName)!];
+                        return <CubeAoEParticles size={(marker.aoeSize / 5) * ppg} palette={s.palette} glow={s.glow} />;
+                      })()}
                       {/* Invisible expanded hit area so the marker is easy to grab/drag on touch */}
                       <Circle
                         radius={Math.max(markerRadius * 3, effectPx > 0 ? Math.min(effectPx, markerRadius * 5) : markerRadius * 3)}
