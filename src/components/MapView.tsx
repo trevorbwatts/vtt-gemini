@@ -6139,7 +6139,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   {token.avatar && (
                     <Group
                       opacity={(token.invisible || token.illusory) ? 0.5 : token.hidden ? 0.4 : 1}
-                      rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0}
+                      rotation={
+                        playerSides?.[token.combatantId ?? ''] === 'top' ? 180 :
+                        (isPlayerView && (token.type === 'enemy' || token.type === 'npc')) ? 90 : 0
+                      }
                       listening={false}
                     >
                       <TokenAvatar
@@ -7412,7 +7415,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     {token.avatar && (
                       <Group
                         opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
-                        rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0}
+                        rotation={
+                          playerSides?.[token.combatantId ?? ''] === 'top' ? 180 :
+                          (isPlayerView && (token.type === 'enemy' || token.type === 'npc')) ? 90 : 0
+                        }
                         listening={false}
                       >
                         <TokenAvatar url={token.avatar} radius={r - tokenScale} />
