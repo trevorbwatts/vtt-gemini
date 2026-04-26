@@ -68,6 +68,12 @@ interface FloorMapContainerProps {
   onMoveAllPlayersHere?: (x: number, y: number, floorId: string, spacingPx: number) => void;
   spellMarkers?: import('../types').SpellMarker[];
   onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
+  /** Called when persistent drawings on a floor change. */
+  onDrawingsChange?: (floorId: string, drawings: import('../types').Stroke[]) => void;
+  startDrawingRef?: React.MutableRefObject<((opts: { mode: 'persistent' | 'ephemeral' | 'eraser'; color: string; ownerId?: string }) => void) | null>;
+  cancelDrawingRef?: React.MutableRefObject<(() => void) | null>;
+  clearDrawingSessionRef?: React.MutableRefObject<(() => void) | null>;
+  setDrawingOptionsRef?: React.MutableRefObject<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
   activeEmanations?: import('../types').ActiveEmanation[];
@@ -196,6 +202,8 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onMoveAllPlayersHere: props.onMoveAllPlayersHere,
     spellMarkers: props.spellMarkers,
     onSpellMarkersChange: isPrimary ? props.onSpellMarkersChange : undefined,
+    drawings: floor.drawings || [],
+    onDrawingsChange: (next: import('../types').Stroke[]) => props.onDrawingsChange?.(floor.id, next),
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
@@ -229,6 +237,10 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       startMeasuringRef: props.startMeasuringRef,
       cancelMeasuringRef: props.cancelMeasuringRef,
       onMeasureDistanceChange: props.onMeasureDistanceChange,
+      startDrawingRef: props.startDrawingRef,
+      cancelDrawingRef: props.cancelDrawingRef,
+      clearDrawingSessionRef: props.clearDrawingSessionRef,
+      setDrawingOptionsRef: props.setDrawingOptionsRef,
       clearRemoteAoeRef: props.clearRemoteAoeRef,
       onAoeHighlightsChange: props.onAoeHighlightsChange,
       clearMovementPathsRef: props.clearMovementPathsRef,

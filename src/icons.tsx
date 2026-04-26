@@ -77,6 +77,8 @@ export {
   Link,
   Undo2,
   GripHorizontal,
+  Pencil,
+  Eraser,
 
   // Monitor
   MonitorUp,

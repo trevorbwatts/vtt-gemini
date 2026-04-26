@@ -66,6 +66,17 @@ declare global {
       sendPlayerImageRotation?: (data: { noteId: string; rotation: number }) => void;
       onPlayerImageRotation?: (callback: (data: { noteId: string; rotation: number }) => void) => void;
       removePlayerImageRotationListener?: () => void;
+      // Persistent drawings (per-floor) sync — DM <-> Player
+      sendDMDrawingsUpdate?: (data: { floorId: string; drawings: Stroke[] }) => void;
+      onDMDrawingsUpdate?: (callback: (data: { floorId: string; drawings: Stroke[] }) => void) => void;
+      removeDMDrawingsUpdateListener?: () => void;
+      sendPlayerDrawingsUpdate?: (data: { floorId: string; drawings: Stroke[] }) => void;
+      onPlayerDrawingsUpdate?: (callback: (data: { floorId: string; drawings: Stroke[] }) => void) => void;
+      removePlayerDrawingsUpdateListener?: () => void;
+      // Ephemeral stroke broadcast — fades automatically, never persisted
+      sendEphemeralStroke?: (stroke: Stroke & { floorId: string }) => void;
+      onEphemeralStroke?: (callback: (stroke: Stroke & { floorId: string }) => void) => void;
+      removeEphemeralStrokeListener?: () => void;
     }
   }
 }
@@ -342,6 +353,23 @@ export interface TransitionZone {
   locked?: boolean;
 }
 
+/**
+ * A single freehand drawing stroke placed by a player on the map.
+ * Stored on Floor.drawings when persistent. Ephemeral strokes are never persisted —
+ * they are broadcast over IPC and faded out by each viewer's local timer.
+ */
+export interface Stroke {
+  id: string;
+  /** combatantId of the player who drew it (used for attribution / colors). */
+  ownerId?: string;
+  /** Hex color, e.g. '#ffffff'. */
+  color: string;
+  /** Flat array of map-coordinate points: [x1,y1, x2,y2, ...]. */
+  points: number[];
+  /** Stroke thickness in map pixels. */
+  width: number;
+}
+
 export interface Floor {
   id: string;
   name: string;
@@ -357,6 +385,8 @@ export interface Floor {
   spellMarkers?: SpellMarker[];
   viewpoints?: Viewpoint[];
   transitionZones?: TransitionZone[];
+  /** Persistent freehand drawings on this floor. Survives app restart; per-floor scope. */
+  drawings?: Stroke[];
 }
 
 export interface Scenario {

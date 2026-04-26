@@ -900,6 +900,26 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerSpellMarkerUpdateListener?.(); };
   }, []);
 
+  // Listen for drawings from the Player screen (per-floor)
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerDrawingsUpdate) return;
+    window.electronAPI.onPlayerDrawingsUpdate(({ floorId, drawings }: { floorId: string; drawings: any[] }) => {
+      setCampaign(prev => {
+        const scenarioId = selectedScenarioIdRef.current;
+        if (!prev || !scenarioId) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s =>
+            s.id === scenarioId
+              ? { ...s, floors: s.floors?.map(f => f.id === floorId ? { ...f, drawings } : f) }
+              : s
+          ),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerDrawingsUpdateListener?.(); };
+  }, []);
+
   const addEnemyToMap = useCallback((monster: any, x: number, y: number) => {
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const newEnemyId = `e-${uniqueId}`;
@@ -1685,6 +1705,10 @@ export function DMScreen() {
                       ),
                     };
                   });
+                }}
+                onDrawingsChange={(floorId, nextDrawings) => {
+                  updateFloorById(floorId, f => ({ ...f, drawings: nextDrawings }));
+                  try { window.electronAPI?.sendDMDrawingsUpdate?.({ floorId, drawings: nextDrawings }); } catch (_e) { /* */ }
                 }}
                 onWallDataChange={updateWallData}
                 onPortalToggle={togglePortal}

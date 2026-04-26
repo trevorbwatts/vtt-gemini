@@ -295,6 +295,30 @@ ipcMain.on('player-image-rotation', (_event, data) => {
   }
 });
 
+// ── Drawings sync ──
+// DM drawings → Player
+ipcMain.on('dm-drawings-update', (_event, data) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dm-drawings-update', data);
+  }
+});
+// Player drawings → DM
+ipcMain.on('player-drawings-update', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-drawings-update', data);
+  }
+});
+// Ephemeral strokes — broadcast to the *other* window only
+ipcMain.on('ephemeral-stroke', (event, stroke) => {
+  const sender = event.sender;
+  if (dmWindow && dmWindow.webContents !== sender) {
+    dmWindow.webContents.send('ephemeral-stroke', stroke);
+  }
+  if (playerWindow && playerWindow.webContents !== sender) {
+    playerWindow.webContents.send('ephemeral-stroke', stroke);
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

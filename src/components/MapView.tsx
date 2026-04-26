@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight } from '../types';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
 import { Lock, Unlock } from 'lucide-react';
@@ -135,6 +135,20 @@ interface MapViewProps {
   activeTimers?: import('../types').TokenTimer[];
   /** Maps combatantId → which side of the table the player signed in on, for avatar rotation */
   playerSides?: Record<string, 'top' | 'bottom'>;
+
+  // ── Drawings (freehand) ──
+  /** Persistent strokes for the current floor. */
+  drawings?: Stroke[];
+  /** Called when persistent drawings change (for the active floor). */
+  onDrawingsChange?: (drawings: Stroke[]) => void;
+  /** Ref MapView populates so the player banner can enter drawing mode. */
+  startDrawingRef?: React.MutableRefObject<((opts: { mode: 'persistent' | 'ephemeral' | 'eraser'; color: string; ownerId?: string }) => void) | null>;
+  /** Ref MapView populates so the player banner can leave drawing mode. */
+  cancelDrawingRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref MapView populates so the banner can clear all strokes drawn in the current pencil session. */
+  clearDrawingSessionRef?: React.MutableRefObject<(() => void) | null>;
+  /** Ref MapView populates so the banner can update the active drawing color/mode without re-entering. */
+  setDrawingOptionsRef?: React.MutableRefObject<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -2333,6 +2347,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
   seeInvisibility,
   activeTimers = [],
   playerSides,
+  drawings = [],
+  onDrawingsChange,
+  startDrawingRef,
+  cancelDrawingRef,
+  clearDrawingSessionRef,
+  setDrawingOptionsRef,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2421,6 +2441,131 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [measureEdge, setMeasureEdge] = useState<'top' | 'bottom' | 'left'>('bottom');
   const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
+
+  // ── Drawing State ──
+  // 'off' = drawing tool inactive. While any other mode is active, token drag/select is suppressed.
+  const [drawingMode, setDrawingMode] = useState<'off' | 'persistent' | 'ephemeral' | 'eraser'>('off');
+  const [drawingColor, setDrawingColor] = useState<string>('#ffffff');
+  const [drawingOwnerId, setDrawingOwnerId] = useState<string | undefined>(undefined);
+  // The stroke currently being drawn (touch/mouse down → up). Renders alongside committed strokes.
+  const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  // IDs of strokes added since the pencil tool was opened — "clear all" only nukes these.
+  // A new Set is created each time the player enters drawing mode (via startDrawingRef).
+  const sessionStrokeIdsRef = useRef<Set<string>>(new Set());
+  // Local-only ephemeral strokes (this device's own + strokes received from the other window).
+  // Each entry has a fade animation driven by setTimeout.
+  const [ephemeralStrokes, setEphemeralStrokes] = useState<Stroke[]>([]);
+  const ephemeralTimersRef = useRef<Record<string, number>>({});
+
+  // Drawing constants — feel-tuned defaults
+  const STROKE_WIDTH_PX = 4;        // map-pixel thickness (will be visually scaled with zoom)
+  const ERASER_RADIUS_PX = 18;      // hit radius used by rub-to-erase
+  const EPHEMERAL_FADE_MS = 3000;   // total fade time after stroke is finished
+
+  /** Schedule an ephemeral stroke to be removed after EPHEMERAL_FADE_MS. */
+  const scheduleEphemeralFade = (strokeId: string) => {
+    const existing = ephemeralTimersRef.current[strokeId];
+    if (existing) window.clearTimeout(existing);
+    ephemeralTimersRef.current[strokeId] = window.setTimeout(() => {
+      setEphemeralStrokes(prev => prev.filter(s => s.id !== strokeId));
+      delete ephemeralTimersRef.current[strokeId];
+    }, EPHEMERAL_FADE_MS);
+  };
+
+  /** Squared distance from point (px,py) to segment (ax,ay)-(bx,by). */
+  const distSqPointToSegment = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
+    const dx = bx - ax, dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) {
+      const ex = px - ax, ey = py - ay;
+      return ex * ex + ey * ey;
+    }
+    let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    const ex = px - cx, ey = py - cy;
+    return ex * ex + ey * ey;
+  };
+
+  /**
+   * Erase any stroke vertices within `radius` of (x,y). Strokes are split into
+   * multiple shorter strokes wherever an erased gap appears. Operates on the
+   * provided list and returns a new list. Used for both persistent and ephemeral.
+   */
+  const eraseAt = (strokes: Stroke[], x: number, y: number, radius: number): { next: Stroke[]; changed: boolean } => {
+    const r2 = radius * radius;
+    let changed = false;
+    const next: Stroke[] = [];
+    for (const stroke of strokes) {
+      const pts = stroke.points;
+      // Find runs of consecutive points that survive erasure
+      const surviving: number[][] = [];
+      let current: number[] = [];
+      for (let i = 0; i < pts.length; i += 2) {
+        const px = pts[i], py = pts[i + 1];
+        const ax = px - x, ay = py - y;
+        const inside = (ax * ax + ay * ay) <= r2;
+        if (inside) {
+          if (current.length >= 4) surviving.push(current);
+          current = [];
+          changed = true;
+        } else {
+          current.push(px, py);
+        }
+      }
+      if (current.length >= 4) surviving.push(current);
+      if (!changed && surviving.length === 1 && surviving[0].length === pts.length) {
+        // Untouched
+        next.push(stroke);
+        continue;
+      }
+      if (surviving.length === 0) {
+        // Whole stroke erased
+        changed = true;
+        continue;
+      }
+      surviving.forEach((segPts, idx) => {
+        next.push({
+          ...stroke,
+          id: idx === 0 ? stroke.id : `${stroke.id}-e${Date.now().toString(36)}-${idx}`,
+          points: segPts,
+        });
+      });
+    }
+    return { next, changed };
+  };
+
+  // ── Remote drawings (received from the other window for OTHER floors than the active one) ──
+  // We don't push remote drawings for *this* floor — App.tsx already syncs scenarios via state.
+  // But ephemeral strokes are window-only and broadcast separately.
+  useEffect(() => {
+    const onEphemeral = (data: any) => {
+      // Only render if it's for the floor we're currently displaying
+      if (data?.floorId && activeFloorId && data.floorId !== activeFloorId) return;
+      const stroke: Stroke = {
+        id: data.id,
+        ownerId: data.ownerId,
+        color: data.color,
+        points: data.points,
+        width: data.width,
+      };
+      setEphemeralStrokes(prev => [...prev, stroke]);
+      scheduleEphemeralFade(stroke.id);
+    };
+    try { window.electronAPI?.onEphemeralStroke?.(onEphemeral); } catch (_e) { /* */ }
+    return () => {
+      try { window.electronAPI?.removeEphemeralStrokeListener?.(); } catch (_e) { /* */ }
+    };
+  }, [activeFloorId]);
+
+  // Clean up fade timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(ephemeralTimersRef.current).forEach(id => window.clearTimeout(id));
+      ephemeralTimersRef.current = {};
+    };
+  }, []);
+
 
   // ── Spell Marker Placement State ──
   const [placingSpell, setPlacingSpell] = useState<{
@@ -2870,6 +3015,49 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setMeasureStart(null);
       setMeasureEnd(null);
       onMeasureDistanceChange?.(null);
+    };
+  }
+
+  if (startDrawingRef) {
+    startDrawingRef.current = ({ mode, color, ownerId }) => {
+      // Fresh session — "clear all" should only affect strokes drawn from this point on.
+      sessionStrokeIdsRef.current = new Set();
+      setDrawingMode(mode);
+      setDrawingColor(color);
+      setDrawingOwnerId(ownerId);
+      setCurrentStroke(null);
+    };
+  }
+  if (cancelDrawingRef) {
+    cancelDrawingRef.current = () => {
+      setDrawingMode('off');
+      setCurrentStroke(null);
+    };
+  }
+  if (setDrawingOptionsRef) {
+    setDrawingOptionsRef.current = ({ mode, color }) => {
+      if (mode) setDrawingMode(mode);
+      if (color) setDrawingColor(color);
+    };
+  }
+  if (clearDrawingSessionRef) {
+    clearDrawingSessionRef.current = () => {
+      const ids = sessionStrokeIdsRef.current;
+      if (ids.size === 0) return;
+      // Drop persistent session strokes
+      const nextDrawings = drawings.filter(s => !ids.has(s.id));
+      if (nextDrawings.length !== drawings.length) {
+        onDrawingsChange?.(nextDrawings);
+      }
+      // Drop ephemeral session strokes
+      setEphemeralStrokes(prev => prev.filter(s => !ids.has(s.id)));
+      // Cancel their fade timers
+      ids.forEach(id => {
+        const t = ephemeralTimersRef.current[id];
+        if (t) { window.clearTimeout(t); delete ephemeralTimersRef.current[id]; }
+      });
+      // Reset the session — anything drawn after this is the start of a new "this time"
+      sessionStrokeIdsRef.current = new Set();
     };
   }
 
@@ -3729,6 +3917,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const handleDragStart = (id: string) => {
     // Block token drag while measuring
     if (isMeasuringActive) return;
+    // Block token drag while drawing
+    if (drawingMode !== 'off') return;
     // Block token drag if a two-finger pan is active
     if (twoFingerPanRef.current) return;
     isTokenDraggingRef.current = true;
@@ -4470,6 +4660,28 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const tokenTapConsumedRef = useRef(false);
 
   const handleTouchStart = (e: any) => {
+    // Drawing mode intercepts ALL touches first — same precedence as measure mode.
+    if (drawingMode !== 'off' && e.evt.touches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      if (drawingMode === 'eraser') {
+        // Erase under the initial touch
+        const erased = eraseAt(drawings, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (erased.changed) onDrawingsChange?.(erased.next);
+        const eErased = eraseAt(ephemeralStrokes, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (eErased.changed) setEphemeralStrokes(eErased.next);
+      } else {
+        const id = `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        sessionStrokeIdsRef.current.add(id);
+        setCurrentStroke({
+          id, color: drawingColor, ownerId: drawingOwnerId,
+          width: STROKE_WIDTH_PX, points: [pos.x, pos.y],
+        });
+      }
+      e.evt.preventDefault();
+      return;
+    }
+
     // Measure mode intercepts ALL touches first — must come before the drag guard
     // so that touching your own token doesn't start a drag instead of measuring.
     if (isMeasuringActive && e.evt.touches.length === 1) {
@@ -4504,6 +4716,29 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchMove = (e: any) => {
+    // Drawing mode update — runs before any other touch logic
+    if (drawingMode !== 'off' && e.evt.touches.length === 1) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      if (drawingMode === 'eraser') {
+        const erased = eraseAt(drawings, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (erased.changed) onDrawingsChange?.(erased.next);
+        const eErased = eraseAt(ephemeralStrokes, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (eErased.changed) setEphemeralStrokes(eErased.next);
+      } else if (currentStroke) {
+        // Append point only if it's far enough from the previous point — keeps the
+        // stroke smooth without exploding the points array.
+        const last = currentStroke.points;
+        const lx = last[last.length - 2], ly = last[last.length - 1];
+        const dx = pos.x - lx, dy = pos.y - ly;
+        if (dx * dx + dy * dy > 4) {
+          setCurrentStroke({ ...currentStroke, points: [...last, pos.x, pos.y] });
+        }
+      }
+      e.evt.preventDefault();
+      return;
+    }
+
     if (isTokenDraggingRef.current) return;
 
     // AoE casting on player view: update preview position as finger moves
@@ -4538,6 +4773,28 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleTouchEnd = (e: any) => {
+    // Drawing mode: finish the in-progress stroke.
+    if (drawingMode !== 'off') {
+      if (currentStroke && currentStroke.points.length >= 2) {
+        if (drawingMode === 'persistent') {
+          onDrawingsChange?.([...drawings, currentStroke]);
+        } else if (drawingMode === 'ephemeral') {
+          setEphemeralStrokes(prev => [...prev, currentStroke]);
+          scheduleEphemeralFade(currentStroke.id);
+          // Broadcast ephemeral stroke to the other window
+          try {
+            window.electronAPI?.sendEphemeralStroke?.({
+              ...currentStroke,
+              floorId: activeFloorId || '',
+            } as any);
+          } catch (_e) { /* */ }
+        }
+      }
+      setCurrentStroke(null);
+      e.evt.preventDefault();
+      return;
+    }
+
     // Enlarge/Reduce token targeting on touch: tap a token to select it as the target
     if (targetingEnlargeReduce && e.evt.changedTouches.length === 1) {
       const stage = e.target.getStage();
@@ -4701,6 +4958,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
       return;
     }
 
+    // Drawing mode: mouse down (desktop fallback)
+    if (drawingMode !== 'off' && e.evt.button === 0) {
+      const pos = getCanvasPos(e.target.getStage());
+      if (drawingMode === 'eraser') {
+        const erased = eraseAt(drawings, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (erased.changed) onDrawingsChange?.(erased.next);
+        const eErased = eraseAt(ephemeralStrokes, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (eErased.changed) setEphemeralStrokes(eErased.next);
+      } else {
+        const id = `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        sessionStrokeIdsRef.current.add(id);
+        setCurrentStroke({
+          id, color: drawingColor, ownerId: drawingOwnerId,
+          width: STROKE_WIDTH_PX, points: [pos.x, pos.y],
+        });
+      }
+      return;
+    }
+
     // Enlarge/Reduce token targeting: click a token to select it as the target
     if (targetingEnlargeReduce && e.evt.button === 0) {
       const pos = getCanvasPos(e.target.getStage());
@@ -4861,6 +5137,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
       return;
     }
 
+    // Drawing mode: extend the active stroke as the mouse moves while dragging
+    if (drawingMode !== 'off') {
+      // Mouse-drawing only when button is held — currentStroke acts as the "is dragging" flag.
+      if (drawingMode === 'eraser' && (e.evt.buttons & 1)) {
+        const pos = getCanvasPos(e.target.getStage());
+        const erased = eraseAt(drawings, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (erased.changed) onDrawingsChange?.(erased.next);
+        const eErased = eraseAt(ephemeralStrokes, pos.x, pos.y, ERASER_RADIUS_PX);
+        if (eErased.changed) setEphemeralStrokes(eErased.next);
+      } else if (currentStroke) {
+        const pos = getCanvasPos(e.target.getStage());
+        const last = currentStroke.points;
+        const lx = last[last.length - 2], ly = last[last.length - 1];
+        const dx = pos.x - lx, dy = pos.y - ly;
+        if (dx * dx + dy * dy > 4) {
+          setCurrentStroke({ ...currentStroke, points: [...last, pos.x, pos.y] });
+        }
+      }
+      return;
+    }
+
     if (isPanning) {
       const dx = e.evt.clientX - lastPos.x;
       const dy = e.evt.clientY - lastPos.y;
@@ -4881,6 +5178,26 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseUp = () => {
+    // Drawing mode: commit the in-progress stroke
+    if (drawingMode !== 'off' && currentStroke) {
+      if (currentStroke.points.length >= 2) {
+        if (drawingMode === 'persistent') {
+          onDrawingsChange?.([...drawings, currentStroke]);
+        } else if (drawingMode === 'ephemeral') {
+          setEphemeralStrokes(prev => [...prev, currentStroke]);
+          scheduleEphemeralFade(currentStroke.id);
+          try {
+            window.electronAPI?.sendEphemeralStroke?.({
+              ...currentStroke,
+              floorId: activeFloorId || '',
+            } as any);
+          } catch (_e) { /* */ }
+        }
+      }
+      setCurrentStroke(null);
+      return;
+    }
+
     // Finish transition zone drawing
     if (drawingZone) {
       const x = Math.min(drawingZone.startX, drawingZone.endX);
@@ -5628,7 +5945,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   key={token.id}
                   x={livePlayerPos[token.id]?.x ?? token.x}
                   y={livePlayerPos[token.id]?.y ?? token.y}
-                  draggable={isPlayerView ? (token.type === 'player' && !activeAoe && !isMeasuringActive) : true}
+                  draggable={isPlayerView ? (token.type === 'player' && !activeAoe && !isMeasuringActive && drawingMode === 'off') : (drawingMode === 'off')}
                   onMouseDown={(e) => {
                     if (castingSpell && !isPlayerView) {
                       // Let stage mousedown fire so the AoE gets placed
@@ -7004,7 +7321,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     key={token.id}
                     x={livePlayerPos[token.id]?.x ?? token.x}
                     y={livePlayerPos[token.id]?.y ?? token.y}
-                    draggable={!activeAoe && !isMeasuringActive}
+                    draggable={!activeAoe && !isMeasuringActive && drawingMode === 'off'}
                     onMouseDown={(e) => { e.cancelBubble = true; }}
                     onDragStart={() => handleDragStart(token.id)}
                     onDragMove={(e) => handleDragMove(token.id, e)}
@@ -8390,6 +8707,48 @@ const MapViewInner: React.FC<MapViewProps> = ({
               </>
             );
           })()}
+
+          {/* ── Drawings — above fog of war so players can scribble on dark areas ── */}
+          {(drawings.length > 0 || ephemeralStrokes.length > 0 || currentStroke) && (
+            <Layer listening={false}>
+              {drawings.map(s => (
+                <Line
+                  key={s.id}
+                  points={s.points}
+                  stroke={s.color}
+                  strokeWidth={s.width / stageScale}
+                  lineCap="round"
+                  lineJoin="round"
+                  tension={0.4}
+                  perfectDrawEnabled={false}
+                />
+              ))}
+              {ephemeralStrokes.map(s => (
+                <Line
+                  key={s.id}
+                  points={s.points}
+                  stroke={s.color}
+                  strokeWidth={s.width / stageScale}
+                  lineCap="round"
+                  lineJoin="round"
+                  tension={0.4}
+                  opacity={0.85}
+                  perfectDrawEnabled={false}
+                />
+              ))}
+              {currentStroke && (
+                <Line
+                  points={currentStroke.points}
+                  stroke={currentStroke.color}
+                  strokeWidth={currentStroke.width / stageScale}
+                  lineCap="round"
+                  lineJoin="round"
+                  tension={0.4}
+                  perfectDrawEnabled={false}
+                />
+              )}
+            </Layer>
+          )}
 
           {/* ── Measure / Ruler — above fog of war ── */}
           {isMeasuringActive && measureStart && measureEnd && (() => {

@@ -5,7 +5,7 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { ImageNoteOverlay } from './ImageNoteOverlay';
 import { Campaign, Token, Combatant, Monster, cn, ActiveEmanation } from '../types';
 import { searchSpells } from '../data/spellDatabase';
-import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame, Ruler } from '../icons';
+import { User, Search, X, LogOut, Circle, Cone, Cylinder, Box, Slash, BookOpen, Zap, ChevronRight, ChevronDown, Flame, Ruler, Pencil, Eraser, Trash2 } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import actionsData from '../data/actions.json';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
@@ -414,6 +414,7 @@ const SpellsPanel: React.FC<{
   isTorchLit: boolean;
   onToggleTorch: () => void;
   onMeasure: () => void;
+  onDraw: () => void;
   isPlayersTurn: boolean;
   onEndTurn: () => void;
   onWildShape?: (creature: Monster) => void;
@@ -425,7 +426,7 @@ const SpellsPanel: React.FC<{
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, onDraw, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const enrich = (spell: any) => {
       const db = lookupSpell(spell.name);
@@ -621,6 +622,13 @@ const SpellsPanel: React.FC<{
             className="p-1.5 rounded hover:bg-white/10 transition-colors"
           >
             <Ruler size={14} className="text-yellow-500/60" />
+          </button>
+          <button
+            onPointerDown={(e) => { e.stopPropagation(); onDraw(); }}
+            title="Draw on map"
+            className="p-1.5 rounded hover:bg-white/10 transition-colors"
+          >
+            <Pencil size={14} className="text-sky-400/70" />
           </button>
           <div className="w-px h-4 bg-white/10 mx-0.5" />
           <button onPointerDown={(e) => { e.stopPropagation(); onClose(); }} className="p-1.5 hover:bg-white/10 rounded transition-colors">
@@ -1286,12 +1294,28 @@ export function PlayerScreen() {
   const confirmCastRef = useRef<(() => boolean) | null>(null);
   const startMeasuringRef = useRef<((edge: 'top' | 'bottom' | 'left') => void) | null>(null);
   const cancelMeasuringRef = useRef<(() => void) | null>(null);
+  const startDrawingRef = useRef<((opts: { mode: 'persistent' | 'ephemeral' | 'eraser'; color: string; ownerId?: string }) => void) | null>(null);
+  const cancelDrawingRef = useRef<(() => void) | null>(null);
+  const clearDrawingSessionRef = useRef<(() => void) | null>(null);
+  const setDrawingOptionsRef = useRef<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>(null);
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string; aoeType?: string } | null>(null);
   // Track active measuring (for banner positioning)
   const [activeMeasuring, setActiveMeasuring] = useState<{ spotId: SpotId } | null>(null);
   const [measureDistanceFeet, setMeasureDistanceFeet] = useState<number | null>(null);
+
+  // ── Drawing tool state ──
+  // When set, the player has the pencil tool open. The banner sits where the spell banner usually does,
+  // and lets them switch between persistent / ephemeral / eraser, change color, clear, or close.
+  const [activeDrawing, setActiveDrawing] = useState<{
+    spotId: SpotId;
+    mode: 'persistent' | 'ephemeral' | 'eraser';
+    color: string;
+  } | null>(null);
+  // Last-used color persists across openings of the pencil tool.
+  const [lastDrawColor, setLastDrawColor] = useState<string>('#ffffff');
+  const DRAW_PALETTE = ['#ffffff', '#ef4444', '#f59e0b', '#facc15', '#22c55e', '#3b82f6'];
 
   // AoE highlights received from MapView
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string } | null>(null);
@@ -2508,6 +2532,25 @@ export function PlayerScreen() {
           startMeasuringRef={startMeasuringRef}
           cancelMeasuringRef={cancelMeasuringRef}
           onMeasureDistanceChange={(feet) => setMeasureDistanceFeet(feet)}
+          startDrawingRef={startDrawingRef}
+          cancelDrawingRef={cancelDrawingRef}
+          clearDrawingSessionRef={clearDrawingSessionRef}
+          setDrawingOptionsRef={setDrawingOptionsRef}
+          onDrawingsChange={(floorId, nextDrawings) => {
+            // Update local campaign so the player view re-renders + push to DM
+            setCampaign(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                scenarios: prev.scenarios.map(s =>
+                  s.id === currentScenarioId
+                    ? { ...s, floors: s.floors?.map(f => f.id === floorId ? { ...f, drawings: nextDrawings } : f) }
+                    : s
+                ),
+              };
+            });
+            try { window.electronAPI?.sendPlayerDrawingsUpdate?.({ floorId, drawings: nextDrawings }); } catch (_e) { /* */ }
+          }}
           onAoeHighlightsChange={setAoeHighlights}
           activeCombatantId={activeCombatantId}
           onPlayerTokenDoubleTap={handlePlayerTokenDoubleTap}
@@ -2583,6 +2626,99 @@ export function PlayerScreen() {
                   Cancel
                 </button>
               )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Drawing Banner — sits in the spell-banner spot when the pencil tool is open */}
+      {activeDrawing && (() => {
+        const config = spotConfigs[activeDrawing.spotId];
+        const edge = config.edge;
+        const posClass = edge === 'top'
+          ? 'top-4 left-1/2 -translate-x-1/2 rotate-180'
+          : edge === 'left'
+          ? 'left-4 top-1/2 -translate-y-1/2 origin-left rotate-90'
+          : 'bottom-4 left-1/2 -translate-x-1/2';
+        const closeDrawing = () => {
+          cancelDrawingRef.current?.();
+          setActiveDrawing(null);
+        };
+        const setMode = (mode: 'persistent' | 'ephemeral' | 'eraser') => {
+          setActiveDrawing(prev => prev ? { ...prev, mode } : prev);
+          setDrawingOptionsRef.current?.({ mode });
+        };
+        const setColor = (color: string) => {
+          setLastDrawColor(color);
+          setActiveDrawing(prev => prev ? { ...prev, color, mode: prev.mode === 'eraser' ? 'persistent' : prev.mode } : prev);
+          // Picking a color while in eraser mode should switch back to drawing
+          setDrawingOptionsRef.current?.({ color, mode: activeDrawing.mode === 'eraser' ? 'persistent' : undefined });
+        };
+        return (
+          <div className={cn('absolute z-50 pointer-events-auto', posClass)}>
+            <div className="bg-black/85 border border-sky-500/50 rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg shadow-sky-500/10">
+              <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+              {/* Mode buttons */}
+              <button
+                onClick={() => setMode('persistent')}
+                onPointerDown={(e) => e.preventDefault()}
+                title="Draw (persistent)"
+                className={cn('p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest',
+                  activeDrawing.mode === 'persistent' ? 'bg-sky-500/30 text-sky-200 border border-sky-400/50' : 'text-white/50 hover:bg-white/10')}
+              >
+                <Pencil size={12} /> Keep
+              </button>
+              <button
+                onClick={() => setMode('ephemeral')}
+                onPointerDown={(e) => e.preventDefault()}
+                title="Draw (ephemeral — fades after a few seconds)"
+                className={cn('p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest',
+                  activeDrawing.mode === 'ephemeral' ? 'bg-sky-500/30 text-sky-200 border border-sky-400/50' : 'text-white/50 hover:bg-white/10')}
+              >
+                <Pencil size={12} /> Fade
+              </button>
+              <button
+                onClick={() => setMode('eraser')}
+                onPointerDown={(e) => e.preventDefault()}
+                title="Eraser (rub to erase)"
+                className={cn('p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest',
+                  activeDrawing.mode === 'eraser' ? 'bg-rose-500/30 text-rose-200 border border-rose-400/50' : 'text-white/50 hover:bg-white/10')}
+              >
+                <Eraser size={12} /> Erase
+              </button>
+              <div className="w-px h-5 bg-white/15 mx-0.5" />
+              {/* Color palette */}
+              <div className="flex items-center gap-1">
+                {DRAW_PALETTE.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setColor(c)}
+                    onPointerDown={(e) => e.preventDefault()}
+                    title={c}
+                    className={cn('w-5 h-5 rounded-full border transition-all',
+                      activeDrawing.color === c && activeDrawing.mode !== 'eraser'
+                        ? 'border-white scale-110 ring-2 ring-white/30'
+                        : 'border-white/30 hover:border-white/60')}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+              <div className="w-px h-5 bg-white/15 mx-0.5" />
+              <button
+                onClick={() => clearDrawingSessionRef.current?.()}
+                onPointerDown={(e) => e.preventDefault()}
+                title="Clear everything you've drawn this session"
+                className="p-1.5 rounded text-[10px] uppercase font-bold tracking-widest text-amber-300 hover:bg-amber-500/20 transition-colors flex items-center gap-1"
+              >
+                <Trash2 size={12} /> Clear All
+              </button>
+              <button
+                onClick={closeDrawing}
+                onPointerDown={(e) => e.preventDefault()}
+                className="ml-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-widest bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         );
@@ -2665,6 +2801,15 @@ export function PlayerScreen() {
               startMeasuringRef.current?.(edge);
               setActiveMeasuring({ spotId });
               setMeasureDistanceFeet(null);
+            }}
+            onDraw={() => {
+              const spotId = actionRing.spotId;
+              setActionRing(null);
+              setOpenPanel(null);
+              const initialMode: 'persistent' | 'ephemeral' | 'eraser' = 'persistent';
+              const color = lastDrawColor;
+              startDrawingRef.current?.({ mode: initialMode, color, ownerId: playerId || undefined });
+              setActiveDrawing({ spotId, mode: initialMode, color });
             }}
             isPlayersTurn={isPlayersTurn}
             onEndTurn={() => { window.electronAPI?.sendPlayerEndTurn?.(); setActionRing(null); setOpenPanel(null); }}

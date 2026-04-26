@@ -145,4 +145,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerImageRotationListener: () => {
     ipcRenderer.removeAllListeners('player-image-rotation');
   },
+
+  // ── Drawings ──
+  sendDMDrawingsUpdate: (data: { floorId: string; drawings: any[] }) =>
+    ipcRenderer.send('dm-drawings-update', data),
+  onDMDrawingsUpdate: (callback: (data: { floorId: string; drawings: any[] }) => void) => {
+    ipcRenderer.on('dm-drawings-update', (_event, data) => callback(data));
+  },
+  removeDMDrawingsUpdateListener: () => {
+    ipcRenderer.removeAllListeners('dm-drawings-update');
+  },
+  sendPlayerDrawingsUpdate: (data: { floorId: string; drawings: any[] }) =>
+    ipcRenderer.send('player-drawings-update', data),
+  onPlayerDrawingsUpdate: (callback: (data: { floorId: string; drawings: any[] }) => void) => {
+    ipcRenderer.on('player-drawings-update', (_event, data) => callback(data));
+  },
+  removePlayerDrawingsUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-drawings-update');
+  },
+  sendEphemeralStroke: (stroke: any) => ipcRenderer.send('ephemeral-stroke', stroke),
+  onEphemeralStroke: (callback: (stroke: any) => void) => {
+    ipcRenderer.on('ephemeral-stroke', (_event, stroke) => callback(stroke));
+  },
+  removeEphemeralStrokeListener: () => {
+    ipcRenderer.removeAllListeners('ephemeral-stroke');
+  },
 });
