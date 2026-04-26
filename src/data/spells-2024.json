@@ -1365,8 +1365,9 @@
     "desc": "You attempt to craft an illusion in the mind of a creature you can see within range. The target makes an Intelligence saving throw. On a failed save, you create a phantasmal object, creature, or other phenomenon that is no larger than a 10-foot Cube and that is perceivable only to the target for the duration. The phantasm includes sound, temperature, and other stimuli.\n\nThe target can take a Study action to examine the phantasm with an Intelligence (Investigation) check against your spell save DC. If the check succeeds, the target realizes that the phantasm is an illusion, and the spell ends.\n\nWhile affected by the spell, the target treats the phantasm as if it were real and rationalizes any illogical outcomes from interacting with it. For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.\n\nAn affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard. On each of your turns, such a phantasm can deal 2d8 Psychic damage to the target if it is in the phantasm's area or within 5 feet of the phantasm. The target perceives the damage as a type appropriate to the illusion.",
     "range": 60,
     "source": "2024",
-    "saveAbility": "int",
-    "damageType": "Psychic"
+    "aoeSize": 10,
+    "aoeType": "cube",
+    "mapInteraction": "place"
   },
   {
     "name": "Prayer of Healing",
@@ -1752,10 +1753,8 @@
     "range": 0,
     "source": "2024",
     "aoeType": "sphere",
-    "aoeSize": 20,
-    "saveAbility": "dex",
-    "halfDamageOnSave": true,
-    "damageType": "Thunder"
+    "aoeSize": 10,
+    "mapInteraction": "place"
   },
   {
     "name": "Haste",
@@ -2300,9 +2299,9 @@
     "desc": "A Large spectral guardian appears and hovers for the duration in an unoccupied space that you can see within range. The guardian occupies that space and is invulnerable, and it appears in a form appropriate for your deity or pantheon.\n\nAny enemy that moves to a space within 10 feet of the guardian for the first time on a turn or starts its turn there makes a Dexterity saving throw, taking 20 Radiant damage on a failed save or half as much damage on a successful one. The guardian vanishes when it has dealt a total of 60 damage.",
     "range": 30,
     "source": "2024",
-    "saveAbility": "dex",
-    "halfDamageOnSave": true,
-    "damageType": "Radiant"
+    "aoeSize": 10,
+    "aoeType": "sphere",
+    "mapInteraction": "place"
   },
   {
     "name": "Hallucinatory Terrain",
@@ -2320,9 +2319,7 @@
     "source": "2024",
     "aoeType": "cylinder",
     "aoeSize": 20,
-    "saveAbility": "dex",
-    "halfDamageOnSave": true,
-    "damageType": "Bludgeoning"
+    "mapInteraction": "place"
   },
   {
     "name": "Leomund's Secret Chest",
@@ -2612,7 +2609,10 @@
     "school": "Illusion",
     "desc": "You pull wisps of shadow material from the Shadowfell to create an object within range. It is either an object of vegetable matter (soft goods, rope, wood, and the like) or mineral matter (stone, crystal, metal, and the like). The object must be no larger than a 5-foot Cube, and the object must be of a form and material that you have seen.\n\nThe spell's duration depends on the object's material, as shown in the Materials table. If the object is composed of multiple materials, use the shortest duration. Using any object created by this spell as another spell's Material component causes the other spell to fail.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "place",
+    "aoeSize": 5,
+    "aoeType": "cube"
   },
   {
     "name": "Destructive Wave",
@@ -2718,7 +2718,8 @@
     "aoeSize": 20,
     "saveAbility": "con",
     "halfDamageOnSave": true,
-    "damageType": "Piercing"
+    "damageType": "Piercing",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Jallarzi's Storm of Radiance",
