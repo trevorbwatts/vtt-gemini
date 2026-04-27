@@ -3160,29 +3160,26 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-6 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-4 min-w-[280px]">
+            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-5 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-3 min-w-[320px] max-w-[420px]">
               <div className="flex items-center gap-2">
                 <span className="text-teal-400 text-lg">✦</span>
                 <span className="text-white font-bold text-sm tracking-wide">{spell.name}</span>
               </div>
               <p className="text-white/50 text-xs text-center">Choose a creature to summon</p>
-              <div className="flex flex-col gap-2 w-full">
+              <div className="grid grid-cols-2 gap-2 w-full">
                 {options.map(option => (
                   <button
                     key={option.name}
                     onPointerDown={() => handleSummonChoice(option)}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/15 text-teal-300 border border-teal-500/30 active:bg-teal-500/30 transition-colors flex items-center justify-between gap-3"
+                    className="py-2 px-3 rounded-xl bg-teal-500/15 text-teal-300 border border-teal-500/30 active:bg-teal-500/30 transition-colors flex flex-col items-start gap-1"
                   >
-                    <span className="text-sm normal-case font-semibold">{option.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                    <span className="text-xs normal-case font-semibold leading-tight">{option.name}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-red-500/10 text-red-400">
                         HP {option.hp}
                       </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">
                         AC {option.ac}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300">
-                        Summon
                       </span>
                     </div>
                   </button>
