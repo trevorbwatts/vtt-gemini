@@ -685,7 +685,7 @@
     "source": "2014",
     "saveAbility": "dex",
     "damageType": "Bludgeoning",
-    "aoeSize": 10,
+    "aoeSize": 5,
     "aoeType": "cylinder",
     "mapInteraction": "cast-and-place",
     "saveEffect": "condition",
