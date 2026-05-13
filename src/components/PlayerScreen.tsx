@@ -3155,6 +3155,7 @@ export function PlayerScreen() {
               casterId: playerId,
               playerColor: player?.color || '#3b82f6',
               size: option.size,
+              ...(option.avatar ? { avatar: option.avatar } : {}),
             },
           } as any, playerId);
         };
