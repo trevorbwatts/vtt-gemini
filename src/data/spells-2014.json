@@ -76,7 +76,10 @@
     "school": "Transmutation",
     "desc": "Whispering to the spirits of nature, you create one of the following effects within range:\n\n\u00e2\u20ac\u00a2 You create a tiny, harmless sensory effect that predicts what the weather will be at your location for the next 24 hours. The effect might manifest as a golden orb for clear skies, a cloud for rain, falling snowflakes for snow, and so on. This effect persists for 1 round.\n\u00e2\u20ac\u00a2 You instantly make a flower blossom, a seed pod open, or a leaf bud bloom.\n\u00e2\u20ac\u00a2 You create an instantaneous, harmless sensory effect, such as falling leaves, a puff of wind, the sound of a small animal, or the faint odor of skunk. The effect must fit in a 5-foot cube.\n\u00e2\u20ac\u00a2 You instantly light or snuff out a candle, a torch, or a small campfire.",
     "range": 30,
-    "source": "2014"
+    "source": "2014",
+    "aoeType": "cube",
+    "aoeSize": 5,
+    "mapInteraction": "place"
   },
   {
     "name": "Eldritch Blast",
@@ -237,7 +240,9 @@
     "desc": "You choose a portion of dirt or stone that you can see within range and that fits within a 5-foot cube. You manipulate it in one of the following ways:\n\n\u00e2\u20ac\u00a2 If you target an area of loose earth, you can instantaneously excavate it, move it along the ground, and deposit it up to 5 feet away. This movement doesn't involve enough force to cause damage.\n\u00e2\u20ac\u00a2 You cause shapes, colors, or both to appear on the dirt or stone, spelling out words, creating images, or shaping patterns. The changes last for 1 hour.\n\u00e2\u20ac\u00a2 If the dirt or stone you target is on the ground, you cause it to become difficult terrain. Alternatively, you can cause the ground to become normal terrain if it is already difficult terrain. This change lasts for 1 hour.\n\nIf you cast this spell multiple times, you can have no more than two of its non-instantaneous effects active at a time, and you can dismiss such an effect as an action.",
     "range": 30,
     "source": "2014",
-    "aoeType": "cone"
+    "aoeType": "cube",
+    "aoeSize": 5,
+    "mapInteraction": "place"
   },
   {
     "name": "Poison Spray",
@@ -676,10 +681,15 @@
     "level": 1,
     "school": "Evocation",
     "desc": "You cause a tremor in the ground within range. Each creature other than you in that area must make a Dexterity saving throw. On a failed save, a creature takes 1d6 bludgeoning damage and is knocked prone. If the ground in that area is loose earth or stone, it becomes difficult terrain until cleared, with each 5-foot-diameter portion requiring at least 1 minute to clear by hand.",
-    "range": 10,
+    "range": 0,
     "source": "2014",
     "saveAbility": "dex",
-    "damageType": "Bludgeoning"
+    "damageType": "Bludgeoning",
+    "aoeSize": 10,
+    "aoeType": "cylinder",
+    "mapInteraction": "cast-and-place",
+    "saveEffect": "condition",
+    "condition": "prone"
   },
   {
     "name": "Ensnaring Strike",

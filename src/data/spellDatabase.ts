@@ -46,13 +46,18 @@ allSpells.forEach(spell => {
   spellMapByEdition.set(`${spell.name.toLowerCase()}|${spell.source}`, spell);
 });
 
-/** Look up a spell by name (case-insensitive). Returns undefined if not found. */
-export function lookupSpell(name: string): SpellEntry | undefined {
-  return spellMap.get(name.toLowerCase().trim());
+/** Look up a spell by name (case-insensitive). When `source` is provided, prefer that edition. */
+export function lookupSpell(name: string, source?: '2014' | '2024'): SpellEntry | undefined {
+  const key = name.toLowerCase().trim();
+  if (source) {
+    const editionMatch = spellMapByEdition.get(`${key}|${source}`);
+    if (editionMatch) return editionMatch;
+  }
+  return spellMap.get(key);
 }
 
 /** Look up multiple spell names and return structured Combatant-compatible spell objects */
-export function resolveSpells(spellNames: string[]): {
+export function resolveSpells(spellNames: string[], source?: '2014' | '2024'): {
   name: string;
   level: number;
   desc: string;
@@ -84,7 +89,7 @@ export function resolveSpells(spellNames: string[]): {
     if (!cleanName || cleanName.length < 3 || seen.has(cleanName.toLowerCase())) continue;
     seen.add(cleanName.toLowerCase());
 
-    const entry = lookupSpell(cleanName);
+    const entry = lookupSpell(cleanName, source);
     if (entry) {
       results.push({
         name: entry.name,

@@ -259,7 +259,7 @@ function getAtWillSpells(data: any): NonNullable<Combatant['atWillSpells']> {
   return atWill;
 }
 
-function getSpells(data: any): NonNullable<Combatant['spells']> {
+function getSpells(data: any, ruleset?: '2014' | '2024'): NonNullable<Combatant['spells']> {
   const spells: NonNullable<Combatant['spells']> = [];
   const seen = new Set<string>();
 
@@ -338,7 +338,7 @@ function getSpells(data: any): NonNullable<Combatant['spells']> {
         for (const name of names) {
           if (seen.has(name)) continue;
           seen.add(name);
-          const entry = lookupSpell(name);
+          const entry = lookupSpell(name, ruleset);
           if (entry) {
             spells.push({
               name: entry.name,
@@ -404,9 +404,20 @@ function getPlayerActions(data: any): MonsterAction[] | undefined {
 
 // --- Main Parser ---
 
+function getRuleset(data: any): '2014' | '2024' {
+  if (data.gameVersionId === 2) return '2024';
+  if (data.gameVersionId === 1) return '2014';
+  // Heuristic: 2024 characters use sourceId 145 (2024 PHB) on their classes
+  for (const cls of (data.classes || [])) {
+    if (cls.definition?.sourceId === 145) return '2024';
+  }
+  return '2014';
+}
+
 export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
   const data = response?.data || response;
   const level = getLevel(data);
+  const ruleset = getRuleset(data);
 
   return {
     name: data.name || 'Unknown Character',
@@ -421,6 +432,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
     darkvision: getDarkvision(data),
     classes: getClasses(data),
     dndBeyondId: String(data.id || ''),
+    ruleset,
     proficiencyBonus: PROFICIENCY_BY_LEVEL[level] || 2,
     stats: {
       str: getStatValue(data, STAT_IDS.STR),
@@ -431,7 +443,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
       cha: getStatValue(data, STAT_IDS.CHA),
     },
     spellSaveDc: getSpellSaveDc(data),
-    spells: getSpells(data),
+    spells: getSpells(data, ruleset),
     atWillSpells: getAtWillSpells(data),
     actions: getPlayerActions(data),
     avatar: data.decorations?.avatarUrl || undefined,

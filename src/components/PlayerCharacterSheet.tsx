@@ -235,7 +235,7 @@ export const PlayerCharacterSheet: React.FC<PlayerCharacterSheetProps> = ({
               const manualSpells = player.spells || [];
               const manualNames = new Set(manualSpells.map(s => s.name.toLowerCase()));
               const atWillEntries = (player.atWillSpells || []).flatMap(({ spellName, source }) => {
-                const found = lookupSpell(spellName);
+                const found = lookupSpell(spellName, player.ruleset);
                 if (!found) return [];
                 return [{ ...found, atWill: true as const, source }];
               }).filter(s => !manualNames.has(s.name.toLowerCase()));

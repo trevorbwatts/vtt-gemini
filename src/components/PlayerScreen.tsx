@@ -428,8 +428,9 @@ const SpellsPanel: React.FC<{
   onDismissSeeInvisibility?: () => void;
 }> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, onDraw, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
+    const rs = player.ruleset;
     const enrich = (spell: any) => {
-      const db = lookupSpell(spell.name);
+      const db = lookupSpell(spell.name, rs);
       return {
         ...spell,
         aoeType: spell.aoeType ?? db?.aoeType,
@@ -441,7 +442,7 @@ const SpellsPanel: React.FC<{
     };
     const base = (player.spells || []).map(enrich);
     const atWill = (player.atWillSpells || []).flatMap(({ spellName, source }) => {
-      const found = lookupSpell(spellName);
+      const found = lookupSpell(spellName, rs);
       if (!found) return [];
       return [enrich({ ...found, atWill: true as const, source })];
     });
@@ -449,7 +450,7 @@ const SpellsPanel: React.FC<{
     const manualNames = new Set(base.map((s: any) => s.name.toLowerCase()));
     return [...atWill.filter((s: any) => !manualNames.has(s.name.toLowerCase())), ...base]
       .sort((a: any, b: any) => a.name.localeCompare(b.name));
-  }, [player.spells, player.atWillSpells]);
+  }, [player.spells, player.atWillSpells, player.ruleset]);
 
   const spellSaveDc = useMemo(() => {
     if (player.spellSaveDc) return player.spellSaveDc;
@@ -704,7 +705,7 @@ const SpellsPanel: React.FC<{
             onPlace={() => onPlace(spell)}
             onSummon={() => onSummon(spell)}
             onRoll={(mode) => {
-              const localDesc = lookupSpell(spell.name)?.desc || '';
+              const localDesc = lookupSpell(spell.name, player.ruleset)?.desc || '';
               const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
               if (!groups) return;
               const bonus = spellAttackBonus ?? 0;
@@ -2158,7 +2159,7 @@ export function PlayerScreen() {
 
     // Detect wall-shape spell (fallback to spell DB lookup if the spell object
     // passed in doesn't carry shapeType)
-    const dbEntry = lookupSpell(spell?.name || '');
+    const dbEntry = lookupSpell(spell?.name || '', player.ruleset);
     const isWallSpell = spell?.shapeType === 'wall' || dbEntry?.shapeType === 'wall';
     // Merge in DB metadata so MapView gets maxLength/maxThickness/blocksVision/shapeType
     const enrichedSpell = isWallSpell

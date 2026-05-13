@@ -205,6 +205,7 @@ export interface Combatant {
   classes?: ClassDefinition[];
   dndBeyondId?: string;
   dndBeyondUrl?: string;
+  ruleset?: '2014' | '2024';
   proficiencyBonus?: number;
   description?: string;
   stats?: {
