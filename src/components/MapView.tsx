@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
@@ -10416,7 +10417,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         )}
 
         {/* Context Menu / Note Creator */}
-        {contextMenu && (
+        {contextMenu && createPortal(
           <div
             className={cn(
               "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
@@ -11004,7 +11005,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               </div>
             )}
           </div>
-        )}
+        , document.body)}
 
 
         {/* On-map undo buttons for movement paths */}

@@ -4,18 +4,40 @@ import { ChevronDown, Dices } from '../icons';
 import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import type { RollMode } from '../utils/actionParser';
 
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<\/p>\s*<p>/gi, '\n\n')
+    .replace(/<\/?p>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<strong><em>(.*?)<\/em><\/strong>/gi, '**$1**')
+    .replace(/<em><\/em>/gi, '')
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+    .replace(/<i>(.*?)<\/i>/gi, '*$1*')
+    .replace(/<li>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/?[uo]l>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function renderInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*)/);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/);
   if (parts.length === 1) return text;
-  return parts.map((part, i) =>
-    part.startsWith('**') && part.endsWith('**')
-      ? <strong key={i} className="text-white/80 font-semibold">{part.slice(2, -2)}</strong>
-      : part
-  );
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**'))
+      return <strong key={i} className="text-white/80 font-semibold">{part.slice(2, -2)}</strong>;
+    if (part.startsWith('*') && part.endsWith('*'))
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    return part;
+  });
 }
 
 function renderDesc(desc: string): React.ReactNode[] {
-  return desc.split('\n\n').map((block, i) => {
+  const normalized = desc.includes('<') ? htmlToMarkdown(desc) : desc;
+  return normalized.split('\n\n').map((block, i) => {
     const lines = block.split('\n');
     if (lines.length > 1 && lines.every(l => l.startsWith('• '))) {
       return (
