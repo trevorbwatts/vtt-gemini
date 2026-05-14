@@ -14,16 +14,31 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Data Sources ────────────────────────────────────────────────────────────
+// Each entry may list multiple { url, sourceCode } pairs — all are merged into
+// one output file under the shared sourceLabel.
 const SOURCES = [
   {
-    url: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/bestiary/bestiary-mm.json',
-    sourceCode: 'MM',
+    books: [
+      {
+        url: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/bestiary/bestiary-mm.json',
+        sourceCode: 'MM',
+      },
+    ],
     sourceLabel: '2014',
     outFile: resolve(__dirname, '../src/data/bestiary-2014.json'),
   },
   {
-    url: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/bestiary/bestiary-xmm.json',
-    sourceCode: 'XMM',
+    books: [
+      {
+        url: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/bestiary/bestiary-xmm.json',
+        sourceCode: 'XMM',
+      },
+      {
+        // Mordenkainen's Presents: Monsters of the Multiverse — treated as 2024/non-legacy
+        url: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/bestiary/bestiary-mpmm.json',
+        sourceCode: 'MPMM',
+      },
+    ],
     sourceLabel: '2024',
     outFile: resolve(__dirname, '../src/data/bestiary-2024.json'),
   },
@@ -324,32 +339,37 @@ function stripUndefined(obj) {
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   for (const source of SOURCES) {
-    console.log(`Fetching ${source.sourceLabel} Monster Manual from 5e.tools...`);
-    const res = await fetch(source.url);
-    if (!res.ok) {
-      console.error(`  Failed to fetch: ${res.status} ${res.statusText}`);
-      continue;
+    console.log(`Building ${source.sourceLabel} bestiary...`);
+    const allTransformed = [];
+
+    for (const book of source.books) {
+      console.log(`  Fetching ${book.sourceCode} from 5e.tools...`);
+      const res = await fetch(book.url);
+      if (!res.ok) {
+        console.error(`    Failed to fetch: ${res.status} ${res.statusText}`);
+        continue;
+      }
+
+      const data = await res.json();
+      const rawMonsters = data.monster || [];
+      console.log(`    Raw entries: ${rawMonsters.length}`);
+
+      // Filter to only monsters from this specific source book
+      const filtered = rawMonsters.filter((m) => m.source === book.sourceCode);
+      console.log(`    Filtered to source "${book.sourceCode}": ${filtered.length}`);
+
+      // Skip monsters with "_copy" that have no stats (they're references to other entries)
+      const valid = filtered.filter((m) => m.hp && !m._isCopy);
+      console.log(`    Valid (has HP, not a copy): ${valid.length}`);
+
+      allTransformed.push(...valid.map((m) => stripUndefined(transformMonster(m, source.sourceLabel))));
     }
 
-    const data = await res.json();
-    const rawMonsters = data.monster || [];
-    console.log(`  Raw entries: ${rawMonsters.length}`);
+    // Sort alphabetically across all merged books
+    allTransformed.sort((a, b) => a.name.localeCompare(b.name));
 
-    // Filter to only monsters from this specific source book
-    const filtered = rawMonsters.filter((m) => m.source === source.sourceCode);
-    console.log(`  Filtered to source "${source.sourceCode}": ${filtered.length}`);
-
-    // Skip monsters with "_copy" that have no stats (they're references to other entries)
-    const valid = filtered.filter((m) => m.hp && !m._isCopy);
-    console.log(`  Valid (has HP, not a copy): ${valid.length}`);
-
-    const transformed = valid.map((m) => stripUndefined(transformMonster(m, source.sourceLabel)));
-
-    // Sort alphabetically
-    transformed.sort((a, b) => a.name.localeCompare(b.name));
-
-    writeFileSync(source.outFile, JSON.stringify(transformed, null, 2), 'utf-8');
-    console.log(`  ✓ Wrote ${transformed.length} monsters to ${source.outFile}\n`);
+    writeFileSync(source.outFile, JSON.stringify(allTransformed, null, 2), 'utf-8');
+    console.log(`  ✓ Wrote ${allTransformed.length} monsters to ${source.outFile}\n`);
   }
 
   console.log('Done!');
