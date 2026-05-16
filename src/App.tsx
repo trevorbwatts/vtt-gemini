@@ -1290,8 +1290,19 @@ export function DMScreen() {
                 {campaign.npcs.map((n) => (
                   <div key={n.id} className="flex items-center gap-3 px-1 py-1 rounded-lg transition-all group">
                     <div className="flex items-center gap-5 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-black/20 border border-[var(--line)]/30 flex items-center justify-center text-[13px] font-bold text-white shrink-0">
-                        {n.name[0]}
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0 overflow-hidden"
+                        style={{
+                          background: n.avatar ? 'transparent' : 'rgba(0,0,0,0.2)',
+                          border: n.avatar ? 'none' : '1px solid rgba(var(--line-rgb, 255,255,255), 0.3)',
+                          outline: n.avatar ? `2px solid ${n.color || 'var(--accent)'}` : 'none',
+                          outlineOffset: n.avatar ? '2px' : undefined,
+                        }}
+                      >
+                        {n.avatar
+                          ? <img src={n.avatar} alt={n.name} className="w-full h-full object-cover" />
+                          : n.name[0]
+                        }
                       </div>
                       <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{n.name}</span>
                     </div>
