@@ -2698,10 +2698,10 @@ export function PlayerScreen() {
               <span className="text-sm font-bold text-orange-400">Casting {activeCasting.spellName}</span>
               {!aoeHighlights?.saveResults && (
                 <span className="text-xs text-white/40">
-                  {activeCasting.aoeType === 'emanation' ? 'Centered on you' : 'Drag to place'}
+                  {activeCasting.aoeType === 'emanation' ? 'Centered on you' : 'Tap to place'}
                 </span>
               )}
-              {!aoeHighlights?.saveResults && (
+              {!aoeHighlights?.saveResults && (activeCasting.saveAbility || activeCasting.aoeType === 'emanation') && (
                 <button
                   onClick={() => {
                     const keepBanner = confirmCastRef.current?.() ?? false;
@@ -2713,7 +2713,7 @@ export function PlayerScreen() {
                   onPointerDown={(e) => e.preventDefault()}
                   className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
                 >
-                  {(activeCasting.saveAbility || activeCasting.aoeType === 'emanation') ? 'Confirm Cast' : 'Place'}
+                  Confirm Cast
                 </button>
               )}
               {aoeHighlights?.saveResults && (

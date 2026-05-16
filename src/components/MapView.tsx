@@ -2112,6 +2112,18 @@ const isFireConeSpell = (n?: string) => !!n && FIRE_SPELLS_CONE.has(n);
 const isFireLineSpell = (n?: string) => !!n && FIRE_SPELLS_LINE.has(n);
 const isFireCubeSpell = (n?: string) => !!n && FIRE_SPELLS_CUBE.has(n);
 
+const THUNDER_SPELLS_SPHERE = new Set<string>(['Shatter', 'Storm of Vengeance']);
+const THUNDER_SPELLS_CUBE = new Set<string>(['Thunderwave']);
+const THUNDER_SPELLS_EMANATION = new Set<string>(['Thunderclap']);
+const isThunderSphereSpell = (n?: string) => !!n && THUNDER_SPELLS_SPHERE.has(n);
+const isThunderCubeSpell = (n?: string) => !!n && THUNDER_SPELLS_CUBE.has(n);
+const isThunderEmanationSpell = (n?: string) => !!n && THUNDER_SPELLS_EMANATION.has(n);
+
+const LIGHTNING_SPELLS_SPHERE = new Set<string>(['Call Lightning', 'Lightning Arrow', 'Lightning Lure']);
+const LIGHTNING_SPELLS_LINE = new Set<string>(['Lightning Bolt']);
+const isLightningSphereSpell = (n?: string) => !!n && LIGHTNING_SPELLS_SPHERE.has(n);
+const isLightningLineSpell = (n?: string) => !!n && LIGHTNING_SPELLS_LINE.has(n);
+
 /**
  * Fire particles filling a cone (Burning Hands). Cone is rendered in a local
  * frame where +x is forward; halfAngle bounds it on each side. Particles flow
@@ -2595,6 +2607,361 @@ const RadialAoEParticles: React.FC<{
   return <>{particles}</>;
 };
 
+const THUNDER_PALETTE: [string, string, string] = ['#f9fafb', '#9ca3af', '#374151'];
+const THUNDER_GRADIENT = [0, 'rgba(156,163,175,0.40)', 0.35, 'rgba(107,114,128,0.28)', 0.7, 'rgba(55,65,81,0.14)', 1, 'rgba(31,41,55,0)'];
+
+const ThunderShockwaveParticles: React.FC<{ radius: number }> = ({ radius }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const RING_COUNT = 6;
+  const RING_PERIOD = 2000;
+  const DEBRIS_COUNT = 50;
+  const DEBRIS_PERIOD = 2400;
+
+  const elements: React.ReactElement[] = [];
+
+  for (let i = 0; i < RING_COUNT; i++) {
+    const offset = i / RING_COUNT;
+    const phase = ((tick / RING_PERIOD) + offset) % 1;
+    const r = phase * radius;
+    const strokeW = Math.max(0.5, radius * 0.025 * (1 - phase * 0.8));
+    const opacity = (1 - phase) * 0.7;
+    const shade = rand(i, 1);
+    const stroke = shade > 0.5 ? '#f9fafb' : '#d1d5db';
+    elements.push(
+      <Circle
+        key={`tr${i}`}
+        x={0} y={0} radius={r} fill="" stroke={stroke} strokeWidth={strokeW}
+        shadowColor="#e5e7eb" shadowBlur={strokeW * 4} shadowOpacity={0.6}
+        opacity={Math.max(0, opacity)}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+
+  for (let i = 0; i < DEBRIS_COUNT; i++) {
+    const period = DEBRIS_PERIOD * (0.6 + rand(i, 1) * 0.8);
+    const offset = rand(i, 2);
+    const baseAngle = rand(i, 3) * Math.PI * 2;
+    const rBase = radius * (0.2 + rand(i, 4) * 0.75);
+    const drift = radius * 0.08 * (rand(i, 5) - 0.5);
+    const sizeMul = 0.3 + rand(i, 6) * 0.7;
+
+    const phase = ((tick / period) + offset) % 1;
+    const wobble = Math.sin(tick * 0.002 + i * 1.7) * radius * 0.03;
+    const r = rBase + phase * drift + wobble;
+    const x = Math.cos(baseAngle + phase * 0.3) * r;
+    const y = Math.sin(baseAngle + phase * 0.3) * r;
+
+    const fadeIn = 0.15;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.25 + rand(i, 7) * 0.3);
+    const size = Math.max(0.5, radius * 0.007 * sizeMul);
+    const shade = rand(i, 8);
+    const fill = shade > 0.6 ? '#6b7280' : shade > 0.3 ? '#4b5563' : '#374151';
+
+    elements.push(
+      <Circle
+        key={`td${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor="#9ca3af" shadowBlur={size * 2} shadowOpacity={0.4}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{elements}</>;
+};
+
+const ThunderCubeParticles: React.FC<{ size: number }> = ({ size }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const RING_COUNT = 5;
+  const RING_PERIOD = 1800;
+  const DEBRIS_COUNT = 45;
+  const DEBRIS_PERIOD = 2200;
+  const half = size / 2;
+  const maxRing = half * 0.95;
+
+  const elements: React.ReactElement[] = [];
+
+  for (let i = 0; i < RING_COUNT; i++) {
+    const offset = i / RING_COUNT;
+    const phase = ((tick / RING_PERIOD) + offset) % 1;
+    const r = phase * maxRing;
+    const strokeW = Math.max(0.5, size * 0.015 * (1 - phase * 0.8));
+    const opacity = (1 - phase) * 0.65;
+    const shade = rand(i, 1);
+    const stroke = shade > 0.5 ? '#f9fafb' : '#d1d5db';
+    elements.push(
+      <Circle
+        key={`tcr${i}`}
+        x={0} y={0} radius={r} fill="" stroke={stroke} strokeWidth={strokeW}
+        shadowColor="#e5e7eb" shadowBlur={strokeW * 3.5} shadowOpacity={0.5}
+        opacity={Math.max(0, opacity)}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+
+  for (let i = 0; i < DEBRIS_COUNT; i++) {
+    const period = DEBRIS_PERIOD * (0.55 + rand(i, 1) * 0.9);
+    const offset = rand(i, 2);
+    const cx = (rand(i, 3) - 0.5) * size * 0.9;
+    const cy = (rand(i, 4) - 0.5) * size * 0.9;
+    const rise = size * (0.04 + rand(i, 5) * 0.08);
+    const sizeMul = 0.3 + rand(i, 6) * 0.7;
+
+    const phase = ((tick / period) + offset) % 1;
+    const x = cx;
+    const y = cy - phase * rise;
+
+    if (Math.abs(x) > half || Math.abs(y) > half) continue;
+
+    const fadeIn = 0.12;
+    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
+    const opacity = Math.max(0, fade) * (0.2 + rand(i, 7) * 0.3);
+    const sizePx = Math.max(0.5, size * 0.006 * sizeMul);
+    const shade = rand(i, 8);
+    const fill = shade > 0.6 ? '#6b7280' : shade > 0.3 ? '#4b5563' : '#374151';
+
+    elements.push(
+      <Circle
+        key={`tcd${i}`}
+        x={x} y={y} radius={sizePx} fill={fill}
+        shadowColor="#9ca3af" shadowBlur={sizePx * 2} shadowOpacity={0.4}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+  return <>{elements}</>;
+};
+
+const LIGHTNING_GRADIENT = [0, 'rgba(254,249,195,0.55)', 0.3, 'rgba(253,224,71,0.38)', 0.65, 'rgba(96,165,250,0.18)', 1, 'rgba(30,30,120,0)'];
+
+const LightningSphereParticles: React.FC<{ radius: number }> = ({ radius }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const SPARK_COUNT = 70;
+  const ARC_COUNT = 4;
+  const SPARK_PERIOD = 1200;
+
+  const elements: React.ReactElement[] = [];
+
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const period = SPARK_PERIOD * (0.5 + rand(i, 1) * 0.6);
+    const offset = rand(i, 2);
+    const angle = rand(i, 3) * Math.PI * 2;
+    const startR = radius * (0.05 + rand(i, 4) * 0.3);
+    const travel = radius * (0.3 + rand(i, 9) * 0.55);
+
+    const phase = ((tick / period) + offset) % 1;
+    const eased = 1 - (1 - phase) * (1 - phase);
+    const r = startR + eased * travel;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+
+    if (r > radius) continue;
+
+    const decay = 1 - phase;
+    const opacity = Math.max(0, decay * decay) * (0.7 + rand(i, 5) * 0.3);
+    const baseSize = radius * 0.012 * (0.6 + rand(i, 6) * 0.5);
+    const size = Math.max(0.4, baseSize * decay);
+    const fill = phase < 0.15 ? '#ffffff' : phase < 0.4 ? '#fefce8' : '#fde047';
+    const glowColor = phase < 0.3 ? '#ffffff' : '#facc15';
+
+    elements.push(
+      <Circle
+        key={`ls${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor={glowColor}
+        shadowBlur={size * 4} shadowOpacity={0.9}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+
+  for (let a = 0; a < ARC_COUNT; a++) {
+    const arcSeed = Math.floor(tick / 200) + a * 37;
+    const arcPhase = ((tick % 200) / 200);
+    const visible = rand(a, arcSeed) > 0.3;
+    if (!visible) continue;
+
+    const startAngle = rand(a, arcSeed + 1) * Math.PI * 2;
+    const startR = radius * (0.15 + rand(a, arcSeed + 2) * 0.5);
+    const endAngle = startAngle + (rand(a, arcSeed + 3) - 0.5) * 2.5;
+    const endR = radius * (0.2 + rand(a, arcSeed + 4) * 0.65);
+    const sx = Math.cos(startAngle) * startR;
+    const sy = Math.sin(startAngle) * startR;
+    const ex = Math.cos(endAngle) * endR;
+    const ey = Math.sin(endAngle) * endR;
+
+    const segments = 8;
+    const points: number[] = [sx, sy];
+    for (let s = 1; s < segments; s++) {
+      const t = s / segments;
+      const perpX = -(ey - sy);
+      const perpY = (ex - sx);
+      const pLen = Math.sqrt(perpX * perpX + perpY * perpY) || 1;
+      const jag = (rand(a, arcSeed + s * 10 + 5) - 0.5) * radius * 0.3;
+      const mx = sx + (ex - sx) * t + (perpX / pLen) * jag;
+      const my = sy + (ey - sy) * t + (perpY / pLen) * jag;
+      points.push(mx, my);
+    }
+    points.push(ex, ey);
+
+    const arcOpacity = (1 - arcPhase) * 0.7;
+    elements.push(
+      <Line
+        key={`la${a}`}
+        points={points}
+        stroke="#fefce8"
+        strokeWidth={Math.max(0.5, radius * 0.008)}
+        shadowColor="#facc15"
+        shadowBlur={radius * 0.04}
+        shadowOpacity={0.8}
+        opacity={Math.max(0, arcOpacity)}
+        listening={false} perfectDrawEnabled={false}
+        lineJoin="bevel"
+      />
+    );
+  }
+
+  return <>{elements}</>;
+};
+
+const LightningLineParticles: React.FC<{ length: number; width: number }> = ({ length, width }) => {
+  const [tick, setTick] = useState(0);
+  const startRef = useRef(Date.now());
+  useEffect(() => {
+    let raf: number;
+    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const rand = (i: number, salt: number) => {
+    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const SPARK_COUNT = 80;
+  const ARC_COUNT = 3;
+  const SPARK_PERIOD = 1000;
+  const halfW = width * 0.45;
+
+  const elements: React.ReactElement[] = [];
+
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const period = SPARK_PERIOD * (0.45 + rand(i, 1) * 0.6);
+    const offset = rand(i, 2);
+    const spawnX = rand(i, 3) * length;
+    const spawnY = (rand(i, 8) - 0.5) * width * 0.3;
+    const ejAngle = (rand(i, 9) - 0.5) * Math.PI * 0.8;
+    const ejDist = width * (0.3 + rand(i, 10) * 0.6);
+
+    const phase = ((tick / period) + offset) % 1;
+    const eased = 1 - (1 - phase) * (1 - phase);
+    const x = spawnX + Math.cos(ejAngle) * eased * ejDist * 0.3;
+    const y = spawnY + Math.sin(ejAngle) * eased * ejDist;
+
+    if (Math.abs(y) > halfW) continue;
+
+    const decay = 1 - phase;
+    const opacity = Math.max(0, decay * decay) * (0.65 + rand(i, 5) * 0.35);
+    const baseSize = Math.min(length, width * 4) * 0.011 * (0.5 + rand(i, 6) * 0.6);
+    const size = Math.max(0.4, baseSize * decay);
+    const fill = phase < 0.15 ? '#ffffff' : phase < 0.4 ? '#fefce8' : '#fde047';
+    const glowColor = phase < 0.3 ? '#ffffff' : '#facc15';
+
+    elements.push(
+      <Circle
+        key={`lls${i}`}
+        x={x} y={y} radius={size} fill={fill}
+        shadowColor={glowColor}
+        shadowBlur={size * 4} shadowOpacity={0.9}
+        opacity={opacity}
+        listening={false} perfectDrawEnabled={false}
+      />
+    );
+  }
+
+  for (let a = 0; a < ARC_COUNT; a++) {
+    const arcSeed = Math.floor(tick / 180) + a * 41;
+    const arcPhase = ((tick % 180) / 180);
+    const visible = rand(a, arcSeed) > 0.25;
+    if (!visible) continue;
+
+    const sx = rand(a, arcSeed + 1) * length * 0.8;
+    const sy = (rand(a, arcSeed + 2) - 0.5) * width * 0.4;
+    const ex = sx + (rand(a, arcSeed + 3) - 0.3) * length * 0.3;
+    const ey = (rand(a, arcSeed + 4) - 0.5) * width * 0.6;
+
+    const segments = 7;
+    const points: number[] = [sx, sy];
+    for (let s = 1; s < segments; s++) {
+      const t = s / segments;
+      const jag = (rand(a, arcSeed + s * 10 + 5) - 0.5) * width * 0.7;
+      const mx = sx + (ex - sx) * t + (rand(a, arcSeed + s * 10 + 6) - 0.5) * width * 0.15;
+      const my = sy + (ey - sy) * t + jag;
+      points.push(mx, my);
+    }
+    points.push(ex, ey);
+
+    const arcOpacity = (1 - arcPhase) * 0.65;
+    elements.push(
+      <Line
+        key={`lla${a}`}
+        points={points}
+        stroke="#fefce8"
+        strokeWidth={Math.max(0.5, width * 0.04)}
+        shadowColor="#facc15"
+        shadowBlur={width * 0.15}
+        shadowOpacity={0.8}
+        opacity={Math.max(0, arcOpacity)}
+        listening={false} perfectDrawEnabled={false}
+        lineJoin="bevel"
+      />
+    );
+  }
+
+  return <>{elements}</>;
+};
+
 /** Generic cone particle component, parameterized by palette/glow. */
 const ConeAoEParticles: React.FC<{
   length: number;
@@ -2792,7 +3159,7 @@ const NECROTIC_GRADIENT = [0, 'rgba(168,85,247,0.45)', 0.5, 'rgba(126,34,206,0.3
  * Force) routed through a single style table. Each entry provides palette,
  * glow color, radial gradient, and tuning for the generic particle components.
  */
-type ElementKey = 'lightning' | 'thunder' | 'radiant' | 'psychic' | 'force';
+type ElementKey = 'radiant' | 'psychic' | 'force';
 const ELEMENT_STYLES: Record<ElementKey, {
   palette: [string, string, string];
   glow: string;
@@ -2801,22 +3168,6 @@ const ELEMENT_STYLES: Record<ElementKey, {
   inwardChance: number;
   shape: 'circle' | 'triangle';
 }> = {
-  lightning: {
-    palette: ['#fef9c3', '#fde047', '#60a5fa'],
-    glow: '#facc15',
-    gradient: [0, 'rgba(254,240,138,0.55)', 0.45, 'rgba(250,204,21,0.34)', 0.85, 'rgba(96,165,250,0.16)', 1, 'rgba(30,60,180,0)'],
-    basePeriod: 850,
-    inwardChance: 0.35,
-    shape: 'circle',
-  },
-  thunder: {
-    palette: ['#ffffff', '#a5f3fc', '#0ea5e9'],
-    glow: '#67e8f9',
-    gradient: [0, 'rgba(224,250,255,0.55)', 0.5, 'rgba(165,243,252,0.32)', 0.85, 'rgba(14,165,233,0.16)', 1, 'rgba(8,80,150,0)'],
-    basePeriod: 1300,
-    inwardChance: 0.25,
-    shape: 'circle',
-  },
   radiant: {
     palette: ['#fffbeb', '#fde047', '#eab308'],
     glow: '#facc15',
@@ -2844,11 +3195,6 @@ const ELEMENT_STYLES: Record<ElementKey, {
 };
 
 const SPHERE_ELEMENT_MAP: Record<string, ElementKey> = {
-  'Call Lightning': 'lightning',
-  'Lightning Arrow': 'lightning',
-  'Lightning Lure': 'lightning',
-  'Shatter': 'thunder',
-  'Storm of Vengeance': 'thunder',
   'Sunburst': 'radiant',
   'Sickening Radiance': 'radiant',
   'Moonbeam': 'radiant',
@@ -2864,11 +3210,9 @@ const CONE_ELEMENT_MAP: Record<string, ElementKey> = {
   'Conjure Barrage': 'force',
 };
 const LINE_ELEMENT_MAP: Record<string, ElementKey> = {
-  'Lightning Bolt': 'lightning',
   'Sunbeam': 'radiant',
 };
 const CUBE_ELEMENT_MAP: Record<string, ElementKey> = {
-  'Thunderwave': 'thunder',
 };
 const getSphereElement = (n?: string) => (n && SPHERE_ELEMENT_MAP[n]) || null;
 const getConeElement = (n?: string) => (n && CONE_ELEMENT_MAP[n]) || null;
@@ -3159,13 +3503,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
     y: number,
     stageX: number,
     stageY: number,
+    clientY: number,
     view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc' | 'spell-marker',
     viewpointId?: string,
     markerId?: string,
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
-  const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, tokenId: string } | null>(null);
-  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
+  const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, clientY: number, tokenId: string } | null>(null);
+  const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, clientY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string }>({ type: 'quote', content: '' });
   const noteImageInputRef = useRef<HTMLInputElement>(null);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
@@ -3173,9 +3518,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [activeViewpointId, setActiveViewpointId] = useState<string | null>(null);
   const viewpointReturnRef = useRef<{ scale: number; x: number; y: number } | null>(null);
   const zoomAnimRef = useRef<number | null>(null);
-  const [viewpointContextMenu, setViewpointContextMenu] = useState<{ screenX: number; screenY: number; viewpointId: string } | null>(null);
-  const [zoneContextMenu, setZoneContextMenu] = useState<{ screenX: number; screenY: number; zoneId: string } | null>(null);
-  const [showChangeMapModal, setShowChangeMapModal] = useState(false);
+  const [viewpointContextMenu, setViewpointContextMenu] = useState<{ screenX: number; screenY: number; clientY: number; viewpointId: string } | null>(null);
+  const [zoneContextMenu, setZoneContextMenu] = useState<{ screenX: number; screenY: number; clientY: number; zoneId: string } | null>(null);
   const [monsterSearch, setMonsterSearch] = useState('');
   const [showSource2014, setShowSource2014] = useState(false);
   const [showSource2024, setShowSource2024] = useState(true);
@@ -5187,6 +5531,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       y: pos.y,
       stageX: e.evt.clientX,
       stageY: e.evt.clientY,
+      clientY: e.evt.clientY,
       view: 'root'
     });
     setMonsterSearch('');
@@ -5206,6 +5551,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setTokenContextMenu({
       x: pointerPosition.x,
       y: pointerPosition.y,
+      clientY: e.evt.clientY,
       tokenId
     });
   };
@@ -6232,11 +6578,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         <button
                           onClick={() => {
                             setIsMapMenuOpen(false);
-                            if (mapImage && (tokens.length > 0 || mapNotes.length > 0)) {
-                              setShowChangeMapModal(true);
-                            } else {
-                              fileInputRef.current?.click();
-                            }
+                            fileInputRef.current?.click();
                           }}
                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
                         >
@@ -6417,6 +6759,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           setZoneContextMenu({
                             screenX: rect.left + ptr.x,
                             screenY: rect.top + ptr.y,
+                            clientY: rect.top + ptr.y,
                             zoneId: zone.id,
                           });
                         }
@@ -7369,17 +7712,33 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
                 {/* Emanation — non-draggable circle locked to caster origin */}
                 {placedAoe.aoeType === 'emanation' && (
-                  <Circle
-                    x={placedAoe.originX}
-                    y={placedAoe.originY}
-                    radius={sizePx + placedAoe.casterRadiusPx}
-                    fill={fillColor}
-                    stroke={strokeColor}
-                    strokeWidth={strokeW}
-                    dash={[6 / stageScale, 4 / stageScale]}
-                    draggable={false}
-                    listening={false}
-                  />
+                  <>
+                    <Circle
+                      x={placedAoe.originX}
+                      y={placedAoe.originY}
+                      radius={sizePx + placedAoe.casterRadiusPx}
+                      fill={isThunderEmanationSpell(placedAoe.name) ? 'transparent' : fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={strokeW}
+                      dash={[6 / stageScale, 4 / stageScale]}
+                      draggable={false}
+                      listening={false}
+                    />
+                    {isThunderEmanationSpell(placedAoe.name) && (
+                      <Circle
+                        x={placedAoe.originX}
+                        y={placedAoe.originY}
+                        radius={sizePx + placedAoe.casterRadiusPx}
+                        fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                        fillRadialGradientStartRadius={0}
+                        fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                        fillRadialGradientEndRadius={sizePx + placedAoe.casterRadiusPx}
+                        fillRadialGradientColorStops={THUNDER_GRADIENT}
+                        listening={false}
+                        perfectDrawEnabled={false}
+                      />
+                    )}
+                  </>
                 )}
 
                 {/* Sphere / Cylinder — circle at target position */}
@@ -7397,7 +7756,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         x={cx}
                         y={cy}
                         radius={sizePx}
-                        fill={isFireSphereSpell(placedAoe.name) || isIceSphereSpell(placedAoe.name) || isPoisonSphereSpell(placedAoe.name) || isAcidSphereSpell(placedAoe.name) || isNecroticSphereSpell(placedAoe.name) || getSphereElement(placedAoe.name) ? 'transparent' : fillColor}
+                        fill={isFireSphereSpell(placedAoe.name) || isIceSphereSpell(placedAoe.name) || isPoisonSphereSpell(placedAoe.name) || isAcidSphereSpell(placedAoe.name) || isNecroticSphereSpell(placedAoe.name) || isThunderSphereSpell(placedAoe.name) || isLightningSphereSpell(placedAoe.name) || getSphereElement(placedAoe.name) ? 'transparent' : fillColor}
                         stroke={strokeColor}
                         strokeWidth={strokeW}
                         dash={[6 / stageScale, 4 / stageScale]}
@@ -7443,6 +7802,34 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           fillRadialGradientEndPoint={{ x: 0, y: 0 }}
                           fillRadialGradientEndRadius={sizePx}
                           fillRadialGradientColorStops={isNecroticSphereSpell(placedAoe.name) ? NECROTIC_GRADIENT : isAcidSphereSpell(placedAoe.name) ? ACID_GRADIENT : POISON_GRADIENT}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {isLightningSphereSpell(placedAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={LIGHTNING_GRADIENT}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {isThunderSphereSpell(placedAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={THUNDER_GRADIENT}
                           listening={false}
                           perfectDrawEnabled={false}
                         />
@@ -7679,6 +8066,45 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </Group>
                 </Layer>
               )}
+              {isThunderEmanationSpell(placedAoe.name) && placedAoe.aoeType === 'emanation' && (
+                <Layer listening={false}>
+                  <Group x={placedAoe.originX} y={placedAoe.originY}>
+                    <ThunderShockwaveParticles radius={sizePx + placedAoe.casterRadiusPx} />
+                  </Group>
+                </Layer>
+              )}
+              {isLightningSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <LightningSphereParticles radius={sizePx} />
+                  </Group>
+                </Layer>
+              )}
+              {isLightningLineSpell(placedAoe.name) && placedAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(angleRad * 180) / Math.PI}>
+                    <LightningLineParticles length={sizePx} width={feetToPx(5)} />
+                  </Group>
+                </Layer>
+              )}
+              {isThunderSphereSpell(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (
+                <Layer listening={false}>
+                  <Group x={fireballCx} y={fireballCy}>
+                    <ThunderShockwaveParticles radius={sizePx} />
+                  </Group>
+                </Layer>
+              )}
+              {isThunderCubeSpell(placedAoe.name) && placedAoe.aoeType === 'cube' && (() => {
+                const groupX = placedAoe.selfOrigin ? edgeX + Math.cos(angleRad) * sizePx / 2 : placedAoe.x;
+                const groupY = placedAoe.selfOrigin ? edgeY + Math.sin(angleRad) * sizePx / 2 : placedAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={groupX} y={groupY}>
+                      <ThunderCubeParticles size={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
               {getSphereElement(placedAoe.name) && (placedAoe.aoeType === 'sphere' || placedAoe.aoeType === 'cylinder') && (() => {
                 const s = ELEMENT_STYLES[getSphereElement(placedAoe.name)!];
                 return (
@@ -7764,7 +8190,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         x={cx}
                         y={cy}
                         radius={sizePx}
-                        fill={isFireSphereSpell(remoteAoe.name) || isIceSphereSpell(remoteAoe.name) || isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name) || getSphereElement(remoteAoe.name) ? 'transparent' : fillColor}
+                        fill={isFireSphereSpell(remoteAoe.name) || isIceSphereSpell(remoteAoe.name) || isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name) || isThunderSphereSpell(remoteAoe.name) || isLightningSphereSpell(remoteAoe.name) || getSphereElement(remoteAoe.name) ? 'transparent' : fillColor}
                         stroke={strokeColor} strokeWidth={strokeW}
                         dash={[6 / stageScale, 4 / stageScale]}
                       />
@@ -7792,6 +8218,34 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           fillRadialGradientEndPoint={{ x: 0, y: 0 }}
                           fillRadialGradientEndRadius={sizePx}
                           fillRadialGradientColorStops={isNecroticSphereSpell(remoteAoe.name) ? NECROTIC_GRADIENT : isAcidSphereSpell(remoteAoe.name) ? ACID_GRADIENT : POISON_GRADIENT}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {isLightningSphereSpell(remoteAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={LIGHTNING_GRADIENT}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      )}
+                      {isThunderSphereSpell(remoteAoe.name) && (
+                        <Circle
+                          x={cx}
+                          y={cy}
+                          radius={sizePx}
+                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientStartRadius={0}
+                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                          fillRadialGradientEndRadius={sizePx}
+                          fillRadialGradientColorStops={THUNDER_GRADIENT}
                           listening={false}
                           perfectDrawEnabled={false}
                         />
@@ -7955,6 +8409,46 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </Group>
                 </Layer>
               )}
+              {isLightningSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
+                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={rcx} y={rcy}>
+                      <LightningSphereParticles radius={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {isLightningLineSpell(remoteAoe.name) && remoteAoe.aoeType === 'line' && (
+                <Layer listening={false}>
+                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
+                    <LightningLineParticles length={sizePx} width={feetToPx(5)} />
+                  </Group>
+                </Layer>
+              )}
+              {isThunderSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
+                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
+                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={rcx} y={rcy}>
+                      <ThunderShockwaveParticles radius={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
+              {isThunderCubeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cube' && (() => {
+                const groupX = remoteAoe.selfOrigin ? edgeX + Math.cos(aRad) * sizePx / 2 : remoteAoe.x;
+                const groupY = remoteAoe.selfOrigin ? edgeY + Math.sin(aRad) * sizePx / 2 : remoteAoe.y;
+                return (
+                  <Layer listening={false}>
+                    <Group x={groupX} y={groupY}>
+                      <ThunderCubeParticles size={sizePx} />
+                    </Group>
+                  </Layer>
+                );
+              })()}
               {getSphereElement(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
                 const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
                 const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
@@ -8079,6 +8573,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       setPortalContextMenu({
                         screenX: pos.x,
                         screenY: pos.y,
+                        clientY: e.evt.clientY,
                         portalId: portal.id,
                         portalType: (portal.portalType ?? 'door') as 'door' | 'window' | 'secret',
                         locked: !!portal.locked,
@@ -8156,6 +8651,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       setViewpointContextMenu({
                         screenX: pos.x,
                         screenY: pos.y,
+                        clientY: e.evt.clientY,
                         viewpointId: vp.id,
                       });
                     } : undefined}
@@ -8661,6 +9157,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             y: marker.y,
                             stageX: pos?.x ?? e.evt.clientX,
                             stageY: pos?.y ?? e.evt.clientY,
+                            clientY: e.evt.clientY,
                             view: 'spell-marker',
                             markerId: marker.id,
                           });
@@ -8712,6 +9209,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                               y: marker.y,
                               stageX: pos?.x ?? e.evt.clientX,
                               stageY: pos?.y ?? e.evt.clientY,
+                              clientY: e.evt.clientY,
                               view: 'spell-marker',
                               markerId: marker.id,
                             });
@@ -8779,6 +9277,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         x: marker.x, y: marker.y,
                         stageX: pos?.x ?? e.evt.clientX,
                         stageY: pos?.y ?? e.evt.clientY,
+                        clientY: e.evt.clientY,
                         view: 'spell-marker',
                         markerId: marker.id,
                       });
@@ -8897,6 +9396,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           y: marker.y,
                           stageX: pos?.x ?? e.evt.clientX,
                           stageY: pos?.y ?? e.evt.clientY,
+                          clientY: e.evt.clientY,
                           view: 'spell-marker',
                           markerId: marker.id,
                         });
@@ -8974,6 +9474,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       )}
                       {isNecroticSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
                         <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={NECROTIC_PALETTE} glow="#7e22ce" inwardChance={0.5} basePeriod={2200} shape="triangle" />
+                      )}
+                      {isLightningSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                        <LightningSphereParticles radius={(marker.aoeSize / 5) * ppg} />
+                      )}
+                      {isThunderSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                        <ThunderShockwaveParticles radius={(marker.aoeSize / 5) * ppg} />
+                      )}
+                      {isThunderCubeSpell(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (
+                        <ThunderCubeParticles size={(marker.aoeSize / 5) * ppg} />
                       )}
                       {getSphereElement(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (() => {
                         const s = ELEMENT_STYLES[getSphereElement(marker.spellName)!];
@@ -9414,7 +9923,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             const feetToPx2 = (ft: number) => (ft / 5) * ppg2;
             const sizePx2 = feetToPx2(placedAoe.aoeSize);
             const angleRad2 = placedAoe.angle * (Math.PI / 180);
-            const isAnchored2 = placedAoe.aoeType === 'cone' || placedAoe.aoeType === 'line' || !!placedAoe.selfOrigin;
+            const isAnchored2 = placedAoe.aoeType === 'cone' || placedAoe.aoeType === 'line' || placedAoe.aoeType === 'emanation' || !!placedAoe.selfOrigin;
             if (isAnchored2) return null;
             const casterR2 = placedAoe.casterRadiusPx ?? 0;
             const rangeEdgeX2 = placedAoe.originX + Math.cos(angleRad2) * casterR2;
@@ -9996,7 +10505,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
         {/* Placing spell indicator — hidden for wall/ring-shape spells and summon placements in player view
             (which use their own banners in PlayerScreen instead). */}
-        {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && (placingSpell.shapeType as any) !== 'ring' && !(isPlayerView && placingSpell.summonData) && (
+        {placingSpell && !pendingMarkerPos && !isPlayerView && placingSpell.shapeType !== 'wall' && (placingSpell.shapeType as any) !== 'ring' && !(isPlayerView && placingSpell.summonData) && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
             <div className="bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10">
               <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
@@ -10127,7 +10636,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
             />
             <div
               className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[160px]"
-              style={{ left: portalContextMenu.screenX, top: portalContextMenu.screenY }}
+              style={portalContextMenu.clientY > window.innerHeight / 2
+                ? { left: portalContextMenu.screenX, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - portalContextMenu.screenY }
+                : { left: portalContextMenu.screenX, top: portalContextMenu.screenY }
+              }
             >
               <div className="px-3 py-2 border-b border-[var(--line)]">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Portal Type</p>
@@ -10216,7 +10728,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
             />
             <div
               className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[160px]"
-              style={{ left: viewpointContextMenu.screenX, top: viewpointContextMenu.screenY }}
+              style={viewpointContextMenu.clientY > window.innerHeight / 2
+                ? { left: viewpointContextMenu.screenX, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - viewpointContextMenu.screenY }
+                : { left: viewpointContextMenu.screenX, top: viewpointContextMenu.screenY }
+              }
             >
               <div className="px-3 py-2 border-b border-[var(--line)]">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Viewpoint</p>
@@ -10232,6 +10747,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       y: vp.y,
                       stageX: viewpointContextMenu.screenX,
                       stageY: viewpointContextMenu.screenY,
+                      clientY: viewpointContextMenu.clientY,
                       view: 'viewpoint',
                       viewpointId: vp.id
                     });
@@ -10425,7 +10941,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
             style={
               contextMenu.view === 'add-enemy'
                 ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
-                : { left: contextMenu.stageX, top: contextMenu.stageY }
+                : contextMenu.clientY > window.innerHeight / 2
+                  ? { left: contextMenu.stageX, bottom: window.innerHeight - contextMenu.stageY }
+                  : { left: contextMenu.stageX, top: contextMenu.stageY }
             }
             onMouseLeave={() => setActiveSubmenu(null)}
             onClick={(e) => e.stopPropagation()}
@@ -11034,7 +11552,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {tokenContextMenu && (
           <div
             className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden w-48 animate-in fade-in zoom-in-95 duration-150"
-            style={{ left: tokenContextMenu.x, top: tokenContextMenu.y }}
+            style={tokenContextMenu.clientY > window.innerHeight / 2
+              ? { left: tokenContextMenu.x, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - tokenContextMenu.y }
+              : { left: tokenContextMenu.x, top: tokenContextMenu.y }
+            }
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-2 border-b border-[var(--line)] bg-black/10">
@@ -11166,78 +11687,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     className="py-1.5 px-4 rounded-lg text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
                   >
                     DELETE
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Change Map Warning Modal */}
-        <AnimatePresence>
-          {showChangeMapModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowChangeMapModal(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.92, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl w-[420px] p-6 mx-4"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-start gap-4 mb-5">
-                  <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <Upload size={18} className="text-yellow-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base font-serif mb-1">Change Map?</h3>
-                    <p className="text-sm opacity-60 leading-relaxed">
-                      This scenario has {tokens.length > 0 && mapNotes.length > 0
-                        ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''} and ${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
-                        : tokens.length > 0
-                          ? `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`
-                          : `${mapNotes.length} note${mapNotes.length !== 1 ? 's' : ''}`
-                      } placed on the current map. Uploading a new map will remove all of them.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-black/20 border border-[var(--line)] rounded-xl p-3 mb-5 text-xs opacity-60 leading-relaxed">
-                  If you want to keep this scenario's content, consider creating a new scenario instead.
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => {
-                      setShowChangeMapModal(false);
-                      fileInputRef.current?.click();
-                    }}
-                    className="btn-filled py-2.5 rounded-xl"
-                  >
-                    Change Map Anyway
-                  </button>
-                  {onAddScenario && (
-                    <button
-                      onClick={() => {
-                        setShowChangeMapModal(false);
-                        onAddScenario();
-                      }}
-                      className="btn-ghost py-2.5 rounded-xl"
-                    >
-                      Create New Scenario Instead
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowChangeMapModal(false)}
-                    className="py-2 text-xs opacity-40 hover:opacity-70 transition-opacity"
-                  >
-                    Cancel
                   </button>
                 </div>
               </motion.div>
@@ -11495,7 +11944,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
           return (
             <div
               className="fixed z-[80] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 min-w-[160px]"
-              style={{ left: zoneContextMenu.screenX, top: zoneContextMenu.screenY }}
+              style={zoneContextMenu.clientY > window.innerHeight / 2
+                ? { left: zoneContextMenu.screenX, bottom: window.innerHeight - zoneContextMenu.screenY }
+                : { left: zoneContextMenu.screenX, top: zoneContextMenu.screenY }
+              }
               onMouseLeave={() => setZoneContextMenu(null)}
             >
               <button

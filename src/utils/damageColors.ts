@@ -17,7 +17,7 @@ const RGB_MAP: Record<string, string> = {
   poison:       '140, 180, 40',
   necrotic:     '140, 50, 180',
   radiant:      '255, 230, 120',
-  thunder:      '130, 150, 200',
+  thunder:      '156, 163, 175',
   force:        '200, 80, 255',
   psychic:      '255, 100, 180',
   bludgeoning:  '160, 120, 80',
@@ -25,7 +25,7 @@ const RGB_MAP: Record<string, string> = {
   slashing:     '170, 170, 190',
 };
 
-const DEFAULT_RGB = '255, 120, 30'; // Fire/orange
+const DEFAULT_RGB = '180, 185, 190';
 
 /** Get the base RGB string for a damage type. Callers apply their own alpha. */
 export function getDamageRgb(damageType: string | null | undefined): string {
