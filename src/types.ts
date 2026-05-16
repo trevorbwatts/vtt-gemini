@@ -254,6 +254,7 @@ export interface Combatant {
   senses?: string;
   languages?: string;
   creatureType?: string;
+  size?: string;
   /** When this combatant is an activeCombatant copy, stores the id of the original source combatant */
   sourceCombatantId?: string;
   /** combatantId of the caster who summoned this creature. Used for initiative ordering and dismissal. */

@@ -3525,6 +3525,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [showSource2024, setShowSource2024] = useState(true);
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [monsterQuantity, setMonsterQuantity] = useState(1);
+  const [monsterSizeChoice, setMonsterSizeChoice] = useState<string>('Medium');
   const [internalSelectedTokenId, setInternalSelectedTokenId] = useState<string | null>(null);
   const selectedTokenId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedTokenId;
   const setSelectedTokenId = externalSelectedId !== undefined && onSelectedTokenIdChange ? onSelectedTokenIdChange : setInternalSelectedTokenId;
@@ -5537,6 +5538,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setMonsterSearch('');
     setSelectedMonster(null);
     setMonsterQuantity(1);
+    setMonsterSizeChoice('Medium');
     setActiveSubmenu(null);
   };
 
@@ -5608,6 +5610,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         color: combatant.color || colors[type],
         avatar: combatant.avatar,
         floorId: activeFloorId || undefined,
+        ...(combatant.size ? { size: combatant.size as Token['size'] } : {}),
       };
       onTokensChange([...tokens, newToken]);
     }
@@ -11329,7 +11332,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       ).map(m => (
                         <button
                           key={m.id}
-                          onClick={() => setSelectedMonster(m)}
+                          onClick={() => { setSelectedMonster(m); setMonsterSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}
                           className={cn(
                             "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between group",
                             selectedMonster?.id === m.id ? "bg-[var(--accent)] text-white" : "hover:bg-white/5"
@@ -11475,6 +11478,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           )}
                         </div>
                         <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] space-y-3">
+                          {selectedMonster.size?.includes('/') && (
+                            <div className="flex items-center justify-between px-1">
+                              <span className="text-xs font-bold uppercase tracking-widest opacity-50">Size</span>
+                              <div className="flex items-center bg-black/20 rounded-lg p-1 gap-0.5">
+                                {selectedMonster.size.split('/').map(s => s.trim()).map(s => (
+                                  <button
+                                    key={s}
+                                    onClick={() => setMonsterSizeChoice(s)}
+                                    className={cn(
+                                      "px-3 py-1 rounded text-xs font-bold transition-colors",
+                                      monsterSizeChoice === s ? "bg-[var(--accent)] text-white" : "opacity-50 hover:opacity-100"
+                                    )}
+                                  >
+                                    {s}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between px-1">
                             <span className="text-xs font-bold uppercase tracking-widest opacity-50">Quantity</span>
                             <div className="flex items-center gap-3 bg-black/20 rounded-lg p-1">
@@ -11495,12 +11517,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           </div>
                           <button
                             onClick={() => {
-                              const offsetPx = 10 * getTokenSizeMultiplier(
-                                (selectedMonster.size?.split('/')[0]?.trim() as Token['size']) || 'Medium'
-                              );
+                              const chosenSize = selectedMonster.size?.includes('/') ? monsterSizeChoice : (selectedMonster.size || 'Medium');
+                              const offsetPx = 10 * getTokenSizeMultiplier(chosenSize as Token['size']);
                               for (let i = 0; i < monsterQuantity; i++) {
-                                // Add a small offset for each subsequent token so they aren't perfectly stacked
-                                onAddEnemy(selectedMonster, contextMenu.x + (i * offsetPx), contextMenu.y + (i * offsetPx));
+                                onAddEnemy({ ...selectedMonster, size: chosenSize }, contextMenu.x + (i * offsetPx), contextMenu.y + (i * offsetPx));
                               }
                               setContextMenu(null);
                             }}

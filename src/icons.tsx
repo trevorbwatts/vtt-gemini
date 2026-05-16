@@ -31,6 +31,9 @@ export {
   ImagePlus,
   Image,
   RotateCw,
+  ZoomIn,
+  ZoomOut,
+  Check,
 
   // Combat / D&D
   Swords,

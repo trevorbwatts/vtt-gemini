@@ -4,6 +4,7 @@ import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, Ale
 import { Combatant, Monster, cn } from '../types';
 import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 import { BESTIARY } from '../data/bestiary';
+import { ImageCropper } from './ImageCropper';
 
 const CURATED_COLORS = [
   '#3b82f6', // Blue
@@ -43,14 +44,17 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [monsterSearch, setMonsterSearch] = useState('');
   const [showSource2014, setShowSource2014] = useState(false);
   const [showSource2024, setShowSource2024] = useState(true);
+  const [rawImage, setRawImage] = useState<string | null>(null);
+  const [sizeChoice, setSizeChoice] = useState<string>('Medium');
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setAvatar(ev.target?.result as string);
+    reader.onload = (ev) => setRawImage(ev.target?.result as string);
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleManualAdd = () => {
@@ -66,7 +70,8 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
       actions: [],
       darkvision,
       color,
-      ...(avatar ? { avatar } : {})
+      ...(avatar ? { avatar } : {}),
+      ...(type !== 'player' ? { size: sizeChoice } : {}),
     });
     resetAndClose();
   };
@@ -78,6 +83,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     // - Monster.speed is a string (e.g. "30 ft.") → Combatant.speedText
     // - Monster.source and Monster.id are not Combatant fields
     const { type: creatureType, speed: speedText, source: _source, id: _id, ...monsterRest } = selectedMonster;
+    const resolvedSize = selectedMonster.size?.includes('/') ? sizeChoice : (selectedMonster.size || 'Medium');
     onAdd({
       ...monsterRest,
       name,
@@ -86,6 +92,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
       type,
       creatureType,
       speedText,
+      size: resolvedSize,
       color,
       avatar: avatar ?? undefined,
     });
@@ -132,9 +139,11 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     setColor(type === 'player' ? '#3b82f6' : '#059669');
     setUrl('');
     setAvatar(null);
+    setRawImage(null);
     setImportError(null);
     setSelectedMonster(null);
     setMonsterSearch('');
+    setSizeChoice('Medium');
     onClose();
   };
 
@@ -297,6 +306,27 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                       />
                     </div>
                   </div>
+                  {type !== 'player' && (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
+                        Size
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {(['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'] as const).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => setSizeChoice(s)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                              sizeChoice === s ? "bg-[var(--accent)] text-white" : "bg-black/20 opacity-50 hover:opacity-100"
+                            )}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
                       Color
@@ -367,7 +397,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                       {filteredMonsters.map(m => (
                         <button
                           key={m.id}
-                          onClick={() => setSelectedMonster(m)}
+                          onClick={() => { setSelectedMonster(m); setSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}
                           className={cn(
                             "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between",
                             selectedMonster?.id === m.id ? "bg-[var(--accent)] text-white" : "hover:bg-white/5"
@@ -413,6 +443,26 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                             <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs font-bold self-end">CR {selectedMonster.cr}</div>
                           </div>
                         </div>
+
+                        {selectedMonster.size?.includes('/') && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Size</span>
+                            <div className="flex items-center bg-black/20 rounded-lg p-0.5 gap-0.5">
+                              {selectedMonster.size.split('/').map(s => s.trim()).map(s => (
+                                <button
+                                  key={s}
+                                  onClick={() => setSizeChoice(s)}
+                                  className={cn(
+                                    "px-3 py-1 rounded text-xs font-bold transition-colors",
+                                    sizeChoice === s ? "bg-[var(--accent)] text-white" : "opacity-50 hover:opacity-100"
+                                  )}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Speed / Senses / Languages */}
                         {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (
@@ -723,6 +773,13 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
           </div>
         </motion.div>
       </div>
+      {rawImage && (
+        <ImageCropper
+          imageSrc={rawImage}
+          onConfirm={(cropped) => { setAvatar(cropped); setRawImage(null); }}
+          onCancel={() => setRawImage(null)}
+        />
+      )}
     </AnimatePresence>
   );
 };
