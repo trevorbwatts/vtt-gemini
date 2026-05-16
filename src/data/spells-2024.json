@@ -67,7 +67,7 @@
     "source": "2024",
     "aoeType": "cube",
     "aoeSize": 5,
-    "mapInteraction": "place"
+    "mapInteraction": "exception"
   },
   {
     "name": "Fire Bolt",

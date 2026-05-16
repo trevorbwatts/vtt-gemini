@@ -424,6 +424,7 @@ export function DMScreen() {
           scenarios: prev.scenarios.map(s => ({
             ...s,
             activeCombatants: s.activeCombatants.map(c => (c.id === playerId || c.sourceCombatantId === playerId) ? { ...c, color } : c),
+            tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, color } : t),
           })),
         };
       });
@@ -1813,6 +1814,7 @@ export function DMScreen() {
                 const parsed = parseDndBeyondCharacter(result.data);
                 setCampaign(prev => {
                   if (!prev) return prev;
+                  const newAvatar = parsed.avatar ?? prev.players.find(p => p.id === playerId)?.avatar;
                   return {
                     ...prev,
                     players: prev.players.map(p => p.id === playerId ? {
@@ -1835,6 +1837,10 @@ export function DMScreen() {
                       avatar: parsed.avatar ?? p.avatar,
                       dndBeyondId: parsed.dndBeyondId ?? p.dndBeyondId,
                     } : p),
+                    scenarios: prev.scenarios.map(s => ({
+                      ...s,
+                      tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, avatar: newAvatar ?? t.avatar } : t),
+                    })),
                   };
                 });
               }}

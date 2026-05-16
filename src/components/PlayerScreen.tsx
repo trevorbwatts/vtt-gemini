@@ -411,6 +411,8 @@ const SpellsPanel: React.FC<{
   onTremorsenseChange?: (data: { playerId: string; rangeFt: number } | null) => void;
   activeAbilities: Set<string>;
   onToggleAbility: (entry: AbilityEntry) => void;
+  onCastAbility: (entry: AbilityEntry) => void;
+  tremorsenseActive: boolean;
   isTorchLit: boolean;
   onToggleTorch: () => void;
   onMeasure: () => void;
@@ -426,7 +428,7 @@ const SpellsPanel: React.FC<{
   onDismissInvisibility?: () => void;
   seeInvisibilityActive?: boolean;
   onDismissSeeInvisibility?: () => void;
-}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, isTorchLit, onToggleTorch, onMeasure, onDraw, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
+}> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, onCastAbility, tremorsenseActive, isTorchLit, onToggleTorch, onMeasure, onDraw, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
     const rs = player.ruleset;
     const enrich = (spell: any) => {
@@ -497,6 +499,9 @@ const SpellsPanel: React.FC<{
 
   const handleToggleAbility = (entry: AbilityEntry) => {
     onToggleAbility(entry);
+  };
+  const handleCastAbility = (entry: AbilityEntry) => {
+    onCastAbility(entry);
   };
 
   const [showKeyboard, setShowKeyboard] = useState(false);
@@ -764,6 +769,32 @@ const SpellsPanel: React.FC<{
                       )}
                     >
                       {isActive ? 'On' : 'Off'}
+                    </button>
+                  </div>
+                )];
+              }
+
+              if (entry.behavior === 'cast-tremorsense') {
+                const isActive = tremorsenseActive;
+                return [(
+                  <div key={entry.id} className="flex items-center gap-2 py-2">
+                    <span className={cn('font-bold flex-1 min-w-0 truncate text-xs', isActive ? 'text-teal-300' : 'text-white/40')}>
+                      {entry.name}
+                    </span>
+                    <button
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        if (isActive) return;
+                        handleCastAbility(entry);
+                      }}
+                      className={cn(
+                        'shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border transition-colors',
+                        isActive
+                          ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
+                          : 'bg-orange-500/20 border-orange-500/40 text-orange-300 active:bg-orange-500/30'
+                      )}
+                    >
+                      {isActive ? 'Active' : 'Cast'}
                     </button>
                   </div>
                 )];
@@ -1126,7 +1157,7 @@ interface AbilityEntry {
   levelRequired: number;
   actionType: string;
   description: string;
-  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'display' | 'wip' | 'cast' | 'wildshape';
+  behavior: 'toggle' | 'darkvision' | 'darkvisionSet' | 'tremorsense' | 'cast-tremorsense' | 'display' | 'wip' | 'cast' | 'wildshape';
   darkvisionBonus?: number;
   darkvisionValue?: number;
   tremorsenseRange?: number;
@@ -1335,6 +1366,8 @@ export function PlayerScreen() {
   const [forcecagePicker, setForcecagePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
   // Enlarge/Reduce picker — shown when player casts Enlarge/Reduce so they can choose Enlarge vs Reduce before targeting a token
   const [enlargeReducePicker, setEnlargeReducePicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
+  // Elementalism variant picker — shown when player casts Elementalism before choosing which element
+  const [elementalismPicker, setElementalismPicker] = useState<{ spotId: SpotId; playerId: string } | null>(null);
 
   // Summon creature picker — shown when player casts a Summon spell (e.g. Summon Aberration)
   const [summonPicker, setSummonPicker] = useState<{ spotId: SpotId; playerId: string; spell: any; options: SummonOption[] } | null>(null);
@@ -1368,6 +1401,27 @@ export function PlayerScreen() {
   const [playerActiveAbilities, setPlayerActiveAbilities] = useState<Record<string, Set<string>>>({});
   // Active timers for abilities with durationMs (Array mapping mapped by playerId)
   const [activeTimers, setActiveTimers] = useState<import('../types').TokenTimer[]>([]);
+
+  // Clear tremorsense (Stonecunning) when its timer expires
+  useEffect(() => {
+    if (!tremorsenseData) return;
+    const timer = activeTimers.find(t => t.playerId === tremorsenseData.playerId && t.abilityId === 'stonecunning');
+    if (!timer) {
+      setTremorsenseData(null);
+      return;
+    }
+    const remaining = timer.durationMs - (Date.now() - timer.startTime);
+    if (remaining <= 0) {
+      setTremorsenseData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === tremorsenseData.playerId && t.abilityId === 'stonecunning')));
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setTremorsenseData(null);
+      setActiveTimers(prev => prev.filter(t => !(t.playerId === tremorsenseData.playerId && t.abilityId === 'stonecunning')));
+    }, remaining);
+    return () => clearTimeout(timeout);
+  }, [tremorsenseData, activeTimers]);
 
   // Clear detect magic when its timer expires
   useEffect(() => {
@@ -1477,6 +1531,22 @@ export function PlayerScreen() {
       setActiveTimers(timers);
       return { ...prev, [playerId]: next };
     });
+  };
+
+  const handleCastPlayerAbility = (playerId: string, entry: AbilityEntry) => {
+    if (entry.behavior === 'cast-tremorsense' && entry.tremorsenseRange != null) {
+      setTremorsenseData({ playerId, rangeFt: entry.tremorsenseRange });
+      setActiveTimers(prev => [
+        ...prev.filter(t => !(t.playerId === playerId && t.abilityId === 'stonecunning')),
+        {
+          playerId,
+          abilityId: 'stonecunning',
+          startTime: Date.now(),
+          durationMs: entry.durationMs || 600000,
+          color: '#fbbf24',
+        }
+      ]);
+    }
   };
 
   // ── IPC ──
@@ -1673,6 +1743,11 @@ export function PlayerScreen() {
       return {
         ...prev,
         players: prev.players.map(p => p.id === playerId ? { ...p, color } : p),
+        scenarios: prev.scenarios.map(s => ({
+          ...s,
+          activeCombatants: s.activeCombatants.map(c => (c.id === playerId || c.sourceCombatantId === playerId) ? { ...c, color } : c),
+          tokens: s.tokens.map(t => t.combatantId === playerId ? { ...t, color } : t),
+        })),
       };
     });
   }, []);
@@ -1690,6 +1765,24 @@ export function PlayerScreen() {
     if (!playerId || !campaign) return;
     const player = campaign.players.find(p => p.id === playerId);
     if (!player) return;
+
+    // Stonecunning: activate tremorsense + start 10-minute timer
+    if (spell?.name === 'Stonecunning') {
+      setActionRing(null);
+      setOpenPanel(null);
+      setTremorsenseData({ playerId: player.id, rangeFt: 60 });
+      setActiveTimers(prev => [
+        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'stonecunning')),
+        {
+          playerId: player.id,
+          abilityId: 'stonecunning',
+          startTime: Date.now(),
+          durationMs: 600000, // 10 minutes
+          color: '#fbbf24',   // gold
+        }
+      ]);
+      return;
+    }
 
     // Detect Magic exception: activate detect magic emanation + start 10-minute timer
     if (spell?.name === 'Detect Magic') {
@@ -1721,7 +1814,7 @@ export function PlayerScreen() {
           abilityId: 'detect-poison-and-disease',
           startTime: Date.now(),
           durationMs: 600000, // 10 minutes
-          color: '#4ade80',   // green to match poison note color
+          color: '#16a34a',   // green to match poison note color
         }
       ]);
       return;
@@ -2032,6 +2125,14 @@ export function PlayerScreen() {
         if (bestMod !== -Infinity) woiSaveDc = 8 + (player as any).proficiencyBonus + bestMod;
       }
       setWallOfIcePicker({ spotId, playerId, saveDc: woiSaveDc });
+      setOpenPanel(null);
+      setActionRing(null);
+      return;
+    }
+
+    // Elementalism exception: show element picker before placement
+    if (spell?.name === 'Elementalism') {
+      setElementalismPicker({ spotId, playerId });
       setOpenPanel(null);
       setActionRing(null);
       return;
@@ -2789,6 +2890,8 @@ export function PlayerScreen() {
             onTremorsenseChange={setTremorsenseData}
             activeAbilities={playerActiveAbilities[player.id] || new Set()}
             onToggleAbility={(entry) => handleTogglePlayerAbility(player.id, entry, handleDarkvisionChange)}
+            onCastAbility={(entry) => handleCastPlayerAbility(player.id, entry)}
+            tremorsenseActive={!!tremorsenseData && tremorsenseData.playerId === player.id}
             isTorchLit={isTorchLit}
             onToggleTorch={() => {
               if (isTorchLit) handleDouseTorch(actionRing.spotId);
@@ -2880,6 +2983,71 @@ export function PlayerScreen() {
               </div>
               <button
                 onPointerDown={() => setWallOfFirePicker(null)}
+                className="text-white/25 text-xs hover:text-white/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Elementalism variant picker */}
+      {elementalismPicker && (() => {
+        const { spotId, playerId } = elementalismPicker;
+        const handleVariant = (element: string, emoji: string) => {
+          setElementalismPicker(null);
+          const spellName = `Elementalism (${element})`;
+          startPlacingRef.current?.({ name: spellName, school: 'Transmutation', aoeType: 'cube', aoeSize: 5 }, playerId);
+          setActiveCasting({ spotId, spellName });
+        };
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
+            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-6 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-4 min-w-[260px]">
+              <div className="flex items-center gap-2">
+                <span className="text-teal-400 text-lg">✨</span>
+                <span className="text-white font-bold text-sm tracking-wide">Elementalism</span>
+              </div>
+              <p className="text-white/50 text-xs text-center">Choose an element</p>
+              <div className="grid grid-cols-3 gap-3 w-full">
+                <button
+                  onPointerDown={() => handleVariant('Air', '💨')}
+                  className="py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/40 active:bg-teal-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">💨</span>
+                  Air
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('Earth', '🪨')}
+                  className="py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/40 active:bg-teal-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">🪨</span>
+                  Earth
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('Fire', '🔥')}
+                  className="py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/40 active:bg-teal-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">🔥</span>
+                  Fire
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('Water', '💧')}
+                  className="py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/40 active:bg-teal-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">💧</span>
+                  Water
+                </button>
+                <button
+                  onPointerDown={() => handleVariant('Sculpt', '🗿')}
+                  className="py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/40 active:bg-teal-500/40 transition-colors flex flex-col items-center gap-1"
+                >
+                  <span className="text-base">🗿</span>
+                  Sculpt
+                </button>
+              </div>
+              <button
+                onPointerDown={() => setElementalismPicker(null)}
                 className="text-white/25 text-xs hover:text-white/50 transition-colors"
               >
                 Cancel

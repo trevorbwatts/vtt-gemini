@@ -143,24 +143,39 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   const prevSplitRef = useRef(splitFloorIds);
   const [showOverlay, setShowOverlay] = useState(false);
   const [secondaryCenter, setSecondaryCenter] = useState<{ x: number; y: number } | null>(null);
+  const [primaryCenterOverride, setPrimaryCenterOverride] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const prev = prevSplitRef.current;
     if (splitFloorIds && !prev) {
       setShowOverlay(true);
-      setTimeout(() => setShowOverlay(false), 800); // fade out after slide finishes
-      
+      setTimeout(() => setShowOverlay(false), 800);
+
+      // Center the secondary panel on the player that just arrived
       const secondaryId = splitFloorIds[1];
       const secondaryTokens = allTokens.filter(t => t.floorId === secondaryId && t.type === 'player' && !t.hidden);
       if (secondaryTokens.length > 0) {
         setSecondaryCenter({ x: secondaryTokens[0].x, y: secondaryTokens[0].y });
       }
+
+      // Center the primary panel on the remaining player(s)
+      const primaryId = splitFloorIds[0];
+      const primaryTokens = allTokens.filter(t =>
+        (t.floorId === primaryId || (!t.floorId && primaryId === firstFloorId)) && t.type === 'player' && !t.hidden
+      );
+      if (primaryTokens.length > 0) {
+        const avgX = primaryTokens.reduce((s, t) => s + t.x, 0) / primaryTokens.length;
+        const avgY = primaryTokens.reduce((s, t) => s + t.y, 0) / primaryTokens.length;
+        setPrimaryCenterOverride({ x: avgX, y: avgY });
+        setTimeout(() => setPrimaryCenterOverride(null), 100);
+      }
     } else if (!splitFloorIds && prev) {
       setShowOverlay(false);
       setSecondaryCenter(null);
+      setPrimaryCenterOverride(null);
     }
     prevSplitRef.current = splitFloorIds;
-  }, [splitFloorIds, allTokens]);
+  }, [splitFloorIds, allTokens, firstFloorId]);
 
   const buildMapViewProps = (floor: Floor, floorTokens: Token[], isPrimary: boolean) => ({
     tokens: floorTokens,
@@ -225,7 +240,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       onAddScenario: props.onAddScenario,
       panToNote: props.panToNote,
       onViewportCenter: props.onViewportCenter,
-      viewportCenter: props.viewportCenter,
+      viewportCenter: primaryCenterOverride || props.viewportCenter,
       startCastingRef: props.startCastingRef,
       startPlacingRef: props.startPlacingRef,
       addMarkersDirectlyRef: props.addMarkersDirectlyRef,

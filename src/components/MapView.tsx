@@ -4506,7 +4506,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       case 'treasure': return '#CD7F32';
       case 'warning': return '#ef4444';
       case 'magic': return '#22d3ee';
-      case 'poison': return '#4ade80';
+      case 'poison': return '#16a34a';
       case 'image': return '#a78bfa';
       default: return '#ffffff';
     }
@@ -4550,10 +4550,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
         case 'poison':
           return (
             <Group>
-              <Path data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 7 20v1a1 1 0 0 0 1 1z" {...{ ...sp, stroke: '#4ade80', fill: '' }} />
-              <Path data="m12.5 17-.5-1-.5 1h1z" {...{ ...sp, stroke: '#4ade80', fill: '#4ade80' }} />
-              <Path data="M9.5 14.5 9 15" {...{ ...sp, stroke: '#4ade80' }} />
-              <Path data="m14.5 14.5.5.5" {...{ ...sp, stroke: '#4ade80' }} />
+              <Path data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z" {...sp} />
+              <Path data="m12.5 17-.5-1-.5 1h1z" {...{ ...sp, fill: 'white' }} />
+              <Circle x={15} y={12} radius={1} fill="white" stroke="white" strokeWidth={1} />
+              <Circle x={9} y={12} radius={1} fill="white" stroke="white" strokeWidth={1} />
             </Group>
           );
         case 'magic':
@@ -8048,9 +8048,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   bgFill = 'rgba(37,99,235,0.45)';
                   bgStroke = 'rgba(96,165,250,0.5)';
                 } else {
-                  iconColor = '#4ade80';
-                  bgFill = 'rgba(22,163,74,0.45)';
-                  bgStroke = 'rgba(74,222,128,0.5)';
+                  iconColor = '#16a34a';
+                  bgFill = 'rgba(22,101,52,0.45)';
+                  bgStroke = 'rgba(22,163,74,0.5)';
                 }
 
                 const nodes = isSecret
@@ -8243,7 +8243,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     <Circle
                       radius={noteR}
                       fill={getNoteColor('poison')}
-                      stroke="rgba(74,222,128,0.6)"
+                      stroke="rgba(22,163,74,0.6)"
                       strokeWidth={2 * tokenScale}
                       opacity={0.85}
                       perfectDrawEnabled={false}
@@ -8383,14 +8383,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
               return false;
             };
 
-            // Find enemy/NPC tokens within range that are NOT visible
+            // Find enemy/NPC tokens within range that are NOT already visible to players
             const sensedTokens = tokens.filter(t => {
               if (t.type === 'player') return false;
               const pos = livePlayerPos[t.id] ?? t;
               const dx = pos.x - casterPos.x;
               const dy = pos.y - casterPos.y;
               if (Math.sqrt(dx * dx + dy * dy) > rangePx) return false;
-              // Only show tremorsense circle if the token is NOT already visible
+              // Hidden or invisible tokens are always sensed (they're not rendered on the player map)
+              if (t.hidden || t.invisible) return true;
+              // Otherwise only show if behind walls / outside player vision
               return !isVisibleToPlayers(pos.x, pos.y);
             });
             if (sensedTokens.length === 0) return null;
@@ -9995,21 +9997,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {/* Placing spell indicator — hidden for wall/ring-shape spells and summon placements in player view
             (which use their own banners in PlayerScreen instead). */}
         {placingSpell && !pendingMarkerPos && placingSpell.shapeType !== 'wall' && (placingSpell.shapeType as any) !== 'ring' && !(isPlayerView && placingSpell.summonData) && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
-            <div className="flex items-center gap-3 px-4 py-2 rounded-xl shadow-2xl border"
-              style={{
-                background: `${getSchoolColor(placingSpell.school)}20`,
-                borderColor: `${getSchoolColor(placingSpell.school)}40`,
-              }}
-            >
-              <span className="text-xs font-bold" style={{ color: getSchoolColor(placingSpell.school) }}>
-                {`Placing: ${placingSpell.name}`}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+            <div className="bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10">
+              <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+              <span className="text-sm font-bold text-orange-400">
+                {`Casting ${placingSpell.name}`}
               </span>
+              <span className="text-xs text-white/40">Tap to place</span>
               <button
                 onClick={() => { setPlacingSpell(null); setPendingMarkerPos(null); setEditingWall(null); setEditingRing(null); onCastingDismissed?.(); }}
-                className="text-white/40 hover:text-white/80 transition-colors"
+                className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
               >
-                <X size={14} />
+                Cancel
               </button>
             </div>
           </div>
