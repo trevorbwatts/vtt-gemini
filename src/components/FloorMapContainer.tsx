@@ -22,6 +22,7 @@ interface FloorMapContainerProps {
   onAddCondition?: (sourceCombatantId: string, condition: string) => void;
   onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
   onAddEnemy: (monster: Monster, x: number, y: number) => void;
+  onAddSummonCombatant?: (combatant: Combatant, tokenId: string) => void;
   onStartCombat: (tokenIds: string[]) => void;
   leftSidebarOpen: boolean;
   setLeftSidebarOpen: (open: boolean) => void;
@@ -198,6 +199,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onAddCondition: props.onAddCondition,
     onRemoveCondition: props.onRemoveCondition,
     onAddEnemy: props.onAddEnemy,
+    onAddSummonCombatant: props.onAddSummonCombatant,
     onStartCombat: props.onStartCombat,
     leftSidebarOpen: props.leftSidebarOpen,
     setLeftSidebarOpen: props.setLeftSidebarOpen,

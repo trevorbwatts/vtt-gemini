@@ -288,6 +288,12 @@ ipcMain.on('player-invisible-toggle', (_event, tokenId) => {
   }
 });
 
+ipcMain.on('player-summon-combatant', (_event, data) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-summon-combatant', data);
+  }
+});
+
 // Player rotated the image-note overlay: proxy to DM window
 ipcMain.on('player-image-rotation', (_event, data) => {
   if (dmWindow) {

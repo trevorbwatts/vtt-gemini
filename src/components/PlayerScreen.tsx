@@ -12,7 +12,7 @@ import { parseDamageType, DamageTypeBadge } from '../utils/damageColors';
 import { parseActionAoe, ActionAoe, parseSpellDamage, rollAction, RollMode, ActionRollResult } from '../utils/actionParser';
 import { ActionRollModal } from './ActionRollModal';
 import { lookupSpell } from '../data/spellDatabase';
-import { searchBeasts } from '../data/bestiary';
+import { searchBeasts, lookupBeast } from '../data/bestiary';
 import { SUMMON_OPTIONS, SummonOption } from '../data/summonData';
 import { EnlargeReduceModal } from './EnlargeReduceModal';
 
@@ -1185,8 +1185,7 @@ interface StripEntry {
 const InitiativeStrip: React.FC<{
   combatants: Combatant[];
   activeCombatantId?: string | null;
-  wide?: boolean;
-}> = ({ combatants, activeCombatantId, wide = false }) => {
+}> = ({ combatants, activeCombatantId }) => {
   // Sort by initiative desc, then name asc
   const sorted = useMemo(() =>
     [...combatants].sort((a, b) => {
@@ -1221,58 +1220,48 @@ const InitiativeStrip: React.FC<{
   }, [sorted, activeCombatantId]);
 
   const typeColor = (type: string, color?: string) => {
-    if (type === 'player' && color) {
-      return { bg: `${color}14`, text: color, border: `${color}33` };
-    }
-    if (type === 'player') return { bg: 'rgba(34,197,94,0.08)', text: '#22c55e', border: 'rgba(34,197,94,0.2)' };
-    if (type === 'enemy') return { bg: 'rgba(239,68,68,0.08)', text: '#ef4444', border: 'rgba(239,68,68,0.2)' };
-    return { bg: 'rgba(96,165,250,0.08)', text: '#60a5fa', border: 'rgba(96,165,250,0.2)' };
+    if (type === 'player' && color) return color;
+    if (type === 'player') return '#22c55e';
+    if (type === 'enemy') return '#ef4444';
+    return '#60a5fa';
   };
 
   return (
-    <div className={cn("absolute top-0 right-0 bottom-0 bg-black/80 border-l border-white/10 z-20 backdrop-blur-sm", wide ? "w-24 grid grid-cols-2" : "w-12 flex flex-col")}>
+    <div className="absolute top-0 right-0 bottom-0 w-14 bg-black/80 border-l border-white/10 z-20 backdrop-blur-sm flex flex-col items-center justify-center gap-[20px] py-3">
       {entries.map((entry) => {
-        const colors = typeColor(entry.type, entry.color);
+        const color = typeColor(entry.type, entry.color);
         return (
           <div
             key={entry.key}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 border-b border-white/5 last:border-0 transition-all duration-300',
-              entry.isActive && 'ring-2 ring-inset ring-amber-400/80 bg-amber-400/15',
+              'relative flex items-center justify-center transition-all duration-300',
+              entry.isActive && 'scale-110',
             )}
-            style={{ backgroundColor: entry.isActive ? undefined : colors.bg, borderLeft: `2px solid ${entry.isActive ? '#fbbf24' : colors.border}` }}
           >
-            {(entry.avatar || entry.type !== 'npc') && (
-              <div className="flex flex-col items-center gap-1">
-                <div
-                  className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
-                  style={{
-                    background: entry.avatar ? 'transparent' : (entry.color || colors.text),
-                    boxShadow: `0 0 0 1.5px #111, 0 0 0 3px ${entry.isActive ? '#fbbf24' : (entry.color || colors.text)}`,
-                    transform: 'rotate(90deg)',
-                  }}
-                >
-                  {entry.avatar
-                    ? <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
-                    : entry.name[0]?.toUpperCase()
-                  }
-                </div>
-                {entry.type === 'enemy' && entry.count > 1 && (
-                  <span className="text-[9px] font-bold leading-none" style={{ color: colors.text, writingMode: 'vertical-lr' }}>
-                    ×{entry.count}
-                  </span>
-                )}
-              </div>
+            {entry.isActive && (
+              <div
+                className="absolute inset-0 rounded-full animate-pulse"
+                style={{ boxShadow: '0 0 12px 4px rgba(251,191,36,0.5), 0 0 24px 8px rgba(251,191,36,0.2)' }}
+              />
             )}
-            {entry.type !== 'enemy' && (
-              <span
-                className={cn(
-                  'text-[11px] font-bold tracking-wider whitespace-nowrap',
-                  entry.isActive && 'text-amber-300'
-                )}
-                style={{ writingMode: 'vertical-lr', transform: 'rotate(0deg)', color: entry.isActive ? undefined : colors.text, marginTop: '6px' }}
-              >
-                {entry.name.length > 12 ? entry.name.slice(0, 11) + '…' : entry.name}
+            <div
+              className="w-9 h-9 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[11px] font-bold text-white"
+              style={{
+                background: entry.avatar ? 'transparent' : color,
+                boxShadow: entry.isActive
+                  ? '0 0 0 2px #111, 0 0 0 4px #fbbf24'
+                  : `0 0 0 2px #111, 0 0 0 3.5px ${color}`,
+                transform: 'rotate(90deg)',
+              }}
+            >
+              {entry.avatar
+                ? <img src={entry.avatar} alt={entry.name} className="w-full h-full object-cover" />
+                : entry.name[0]?.toUpperCase()
+              }
+            </div>
+            {entry.type === 'enemy' && entry.count > 1 && (
+              <span className="absolute -bottom-1 -right-1 bg-black/80 text-[8px] font-bold rounded-full px-1 leading-tight" style={{ color }}>
+                ×{entry.count}
               </span>
             )}
           </div>
@@ -1719,6 +1708,27 @@ export function PlayerScreen() {
     });
   }, []);
 
+  const handleAddSummonCombatant = useCallback((combatant: Combatant, tokenId: string) => {
+    setCampaign(prev => {
+      const scenarioId = currentScenarioIdRef.current;
+      if (!prev || !scenarioId) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== scenarioId) return s;
+          return {
+            ...s,
+            combatants: [...(s.combatants || []), combatant],
+            tokens: s.tokens.map(t => t.id === tokenId ? { ...t, combatantId: combatant.id } : t),
+          };
+        }),
+      };
+    });
+    if (window.electronAPI?.sendPlayerSummonCombatant) {
+      window.electronAPI.sendPlayerSummonCombatant(combatant, tokenId);
+    }
+  }, []);
+
   const handleDragStatusChange = useCallback((dragging: boolean) => {
     isDraggingRef.current = dragging;
   }, []);
@@ -1763,7 +1773,6 @@ export function PlayerScreen() {
   }, [currentScenario]);
   const activeCombatants = currentScenario?.activeCombatants || [];
   const hasInitiative = activeCombatants.length > 0 && activeCombatantId !== null;
-  const stripWide = hasInitiative && activeCombatants.length >= 8;
 
   // ── Sign-in handlers ──
   const handleSignIn = useCallback((spotId: SpotId, playerId: string) => {
@@ -2607,7 +2616,7 @@ export function PlayerScreen() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-black relative">
       {/* Map View - leaves room for initiative strip on right if active */}
-      <div className={cn('absolute inset-0', hasInitiative && (stripWide ? 'right-24' : 'right-12'))}>
+      <div className={cn('absolute inset-0', hasInitiative && 'right-14')}>
         <FloorMapContainer
           scenario={currentScenario}
           allTokens={currentScenario.tokens || []}
@@ -2620,6 +2629,7 @@ export function PlayerScreen() {
           persistentEnemies={campaign.persistentEnemies || []}
           onUpdateCombatantHp={() => {}}
           onAddEnemy={() => {}}
+          onAddSummonCombatant={handleAddSummonCombatant}
           onStartCombat={() => {}}
           leftSidebarOpen={false}
           setLeftSidebarOpen={() => {}}
@@ -2674,7 +2684,6 @@ export function PlayerScreen() {
           clearDrawingSessionRef={clearDrawingSessionRef}
           setDrawingOptionsRef={setDrawingOptionsRef}
           onDrawingsChange={(floorId, nextDrawings) => {
-            // Update local campaign so the player view re-renders + push to DM
             setCampaign(prev => {
               if (!prev) return prev;
               return {
@@ -3346,7 +3355,7 @@ export function PlayerScreen() {
         const handleSummonChoice = (option: SummonOption) => {
           setSummonPicker(null);
           setActiveSummoning({ spotId, creatureName: option.name });
-          // Pass summon data through starting placing so MapView knows to create a token instead of a spell marker
+          const monster = lookupBeast(option.name);
           startPlacingRef.current?.({
             name: `Summon: ${option.name}`,
             school: spell.school || 'Conjuration',
@@ -3357,6 +3366,7 @@ export function PlayerScreen() {
               playerColor: player?.color || '#3b82f6',
               size: option.size,
               ...(option.avatar ? { avatar: option.avatar } : {}),
+              ...(monster ? { monster } : {}),
             },
           } as any, playerId);
         };
@@ -3443,7 +3453,7 @@ export function PlayerScreen() {
       })()} */}
 
       {/* Initiative Strip */}
-      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} wide={stripWide} />}
+      {hasInitiative && <InitiativeStrip combatants={activeCombatants} activeCombatantId={activeCombatantId} />}
 
       {/* Image-note overlay — DM has pushed an image to the table */}
       {currentScenario?.displayedImageNoteId && (() => {

@@ -513,6 +513,27 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerInvisibleToggleListener?.(); };
   }, []);
 
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerSummonCombatant) return;
+    window.electronAPI.onPlayerSummonCombatant(({ combatant, tokenId }) => {
+      setCampaign(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          scenarios: prev.scenarios.map(s => {
+            if (s.id !== selectedScenarioIdRef.current) return s;
+            return {
+              ...s,
+              combatants: [...(s.combatants || []), combatant],
+              tokens: s.tokens.map(t => t.id === tokenId ? { ...t, combatantId: combatant.id } : t),
+            };
+          }),
+        };
+      });
+    });
+    return () => { window.electronAPI?.removePlayerSummonCombatantListener?.(); };
+  }, []);
+
   // Listen for image-note rotation from the Player screen
   useEffect(() => {
     if (!window.electronAPI?.onPlayerImageRotation) return;
@@ -972,6 +993,23 @@ export function DMScreen() {
       } : s),
       persistentEnemies: monster.isBoss ? [...prev.persistentEnemies, newEnemy] : prev.persistentEnemies
     }) : prev);
+  }, []);
+
+  const addSummonCombatant = useCallback((combatant: Combatant, tokenId: string) => {
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          return {
+            ...s,
+            combatants: [...(s.combatants || []), combatant],
+            tokens: s.tokens.map(t => t.id === tokenId ? { ...t, combatantId: combatant.id } : t),
+          };
+        }),
+      };
+    });
   }, []);
 
   const handleViewportCenter = useCallback((center: { x: number; y: number }) => {
@@ -1696,6 +1734,7 @@ export function DMScreen() {
                 onAddCondition={addConditionToCombatant}
                 onRemoveCondition={removeConditionFromCombatant}
                 onAddEnemy={addEnemyToMap}
+                onAddSummonCombatant={addSummonCombatant}
                 onStartCombat={startCombat}
                 selectedTokenId={selectedTokenId}
                 onSelectedTokenIdChange={setSelectedTokenId}

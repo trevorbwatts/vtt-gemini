@@ -137,6 +137,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerInvisibleToggleListener: () => {
     ipcRenderer.removeAllListeners('player-invisible-toggle');
   },
+  sendPlayerSummonCombatant: (combatant: any, tokenId: string) =>
+    ipcRenderer.send('player-summon-combatant', { combatant, tokenId }),
+  onPlayerSummonCombatant: (callback: (data: { combatant: any; tokenId: string }) => void) => {
+    ipcRenderer.on('player-summon-combatant', (_event, data) => callback(data));
+  },
+  removePlayerSummonCombatantListener: () => {
+    ipcRenderer.removeAllListeners('player-summon-combatant');
+  },
   sendPlayerImageRotation: (data: { noteId: string; rotation: number }) =>
     ipcRenderer.send('player-image-rotation', data),
   onPlayerImageRotation: (callback: (data: { noteId: string; rotation: number }) => void) => {

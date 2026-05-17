@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Combatant, Token, cn, ClassDefinition } from '../types';
-import { Trash2, Zap, Swords, ChevronRight, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder, Dices } from '../icons';
+import { Trash2, Zap, Swords, ChevronRight, ChevronLeft, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder, Dices } from '../icons';
 import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
@@ -235,6 +235,19 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
       }
     }
     // All combatants are dead — don't advance
+  };
+
+  const prevTurn = () => {
+    if (sortedCombatants.length === 0 || !activeCombatantId) return;
+    const currentIndex = sortedCombatants.findIndex(c => c.id === activeCombatantId);
+    if (currentIndex === -1) return;
+    for (let i = 1; i <= sortedCombatants.length; i++) {
+      const candidate = sortedCombatants[(currentIndex - i + sortedCombatants.length) % sortedCombatants.length];
+      if (candidate.hp > 0) {
+        setActiveCombatantId(candidate.id);
+        return;
+      }
+    }
   };
 
   const nextTurnRef = useRef(nextTurn);
@@ -499,11 +512,20 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                     <Trash2 size={11} />
                     Clear
                   </button>
+                  {combatStarted && (
+                    <button
+                      onClick={prevTurn}
+                      className="btn-ghost flex-1 py-1 rounded flex items-center justify-center text-xs"
+                    >
+                      <ChevronLeft size={11} />
+                      Back
+                    </button>
+                  )}
                   <button
                     onClick={nextTurn}
                     className="btn-filled flex-[2] py-1 rounded flex items-center justify-center text-xs"
                   >
-                    {combatStarted ? 'Next Turn' : 'Start Combat'}
+                    {combatStarted ? 'Next' : 'Start Combat'}
                   </button>
                 </>
               )}

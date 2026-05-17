@@ -63,6 +63,9 @@ declare global {
       sendPlayerInvisibleToggle?: (tokenId: string) => void;
       onPlayerInvisibleToggle?: (callback: (tokenId: string) => void) => void;
       removePlayerInvisibleToggleListener?: () => void;
+      sendPlayerSummonCombatant?: (combatant: any, tokenId: string) => void;
+      onPlayerSummonCombatant?: (callback: (data: { combatant: any; tokenId: string }) => void) => void;
+      removePlayerSummonCombatantListener?: () => void;
       sendPlayerImageRotation?: (data: { noteId: string; rotation: number }) => void;
       onPlayerImageRotation?: (callback: (data: { noteId: string; rotation: number }) => void) => void;
       removePlayerImageRotationListener?: () => void;

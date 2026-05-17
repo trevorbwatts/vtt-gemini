@@ -34,6 +34,7 @@ interface MapViewProps {
   onAddCondition?: (sourceCombatantId: string, condition: string) => void;
   onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
   onAddEnemy: (monster: Monster, x: number, y: number) => void;
+  onAddSummonCombatant?: (combatant: Combatant, tokenId: string) => void;
   onStartCombat: (tokenIds: string[]) => void;
   leftSidebarOpen: boolean;
   setLeftSidebarOpen: (open: boolean) => void;
@@ -3423,6 +3424,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onAddCondition,
   onRemoveCondition,
   onAddEnemy,
+  onAddSummonCombatant,
   onStartCombat,
   leftSidebarOpen,
   setLeftSidebarOpen,
@@ -3722,7 +3724,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     maxThickness?: number;
     blocksVision?: boolean;
     // Summon creature data — when present, tap-to-place creates a Token instead of a SpellMarker
-    summonData?: { creatureName: string; spellName: string; casterId: string; playerColor: string; size?: import('../types').Token['size']; avatar?: string; illusory?: boolean };
+    summonData?: { creatureName: string; spellName: string; casterId: string; playerColor: string; size?: import('../types').Token['size']; avatar?: string; illusory?: boolean; monster?: import('../types').Monster };
   } | null>(null);
   const [pendingMarkerPos, setPendingMarkerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
@@ -5959,8 +5961,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
       // Summon creature: create a Token instead of a SpellMarker
       if (placingSpell.summonData) {
         const sd = placingSpell.summonData;
+        const uniqueId = Math.random().toString(36).substr(2, 9);
+        const combatantId = sd.monster ? `sc-${uniqueId}` : undefined;
         const newToken: Token = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: uniqueId,
           name: sd.creatureName,
           type: 'player',
           x: pos.x,
@@ -5972,9 +5976,46 @@ const MapViewInner: React.FC<MapViewProps> = ({
           summonedBy: sd.casterId,
           controlledBy: sd.casterId,
           size: sd.size,
+          ...(combatantId ? { combatantId } : {}),
           ...(sd.avatar ? { avatar: sd.avatar } : {}),
           ...(sd.illusory ? { illusory: true } : {}),
         };
+        if (sd.monster && combatantId && onAddSummonCombatant) {
+          const m = sd.monster;
+          const dvMatch = m.senses?.match(/darkvision\s+(\d+)/i);
+          const darkvision = dvMatch ? parseInt(dvMatch[1], 10) : 0;
+          const combatant: Combatant = {
+            id: combatantId,
+            name: sd.creatureName,
+            hp: m.hp,
+            maxHp: m.hp,
+            ac: m.ac,
+            initiative: 0,
+            type: 'player',
+            description: m.description,
+            stats: m.stats,
+            actions: m.actions,
+            avatar: m.avatar,
+            speedText: m.speed,
+            cr: m.cr,
+            specialAbilities: m.specialAbilities,
+            legendaryActions: m.legendaryActions,
+            reactions: m.reactions,
+            saves: m.saves,
+            skills: m.skills,
+            immunities: m.immunities,
+            resistances: m.resistances,
+            vulnerabilities: m.vulnerabilities,
+            conditionImmunities: m.conditionImmunities,
+            senses: m.senses,
+            languages: m.languages,
+            creatureType: m.type,
+            darkvision,
+            summonedBy: sd.casterId,
+            summonSpellName: sd.spellName,
+          };
+          onAddSummonCombatant(combatant, uniqueId);
+        }
         const updatedTokens = [...tokens, newToken];
         onTokensChange(updatedTokens);
         if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
@@ -6138,8 +6179,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
       // Summon creature: create a Token instead of a SpellMarker
       if (placingSpell.summonData) {
         const sd = placingSpell.summonData;
+        const uniqueId = Math.random().toString(36).substr(2, 9);
+        const combatantId = sd.monster ? `sc-${uniqueId}` : undefined;
         const newToken: Token = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: uniqueId,
           name: sd.creatureName,
           type: 'player',
           x: pos.x,
@@ -6151,9 +6194,46 @@ const MapViewInner: React.FC<MapViewProps> = ({
           summonedBy: sd.casterId,
           controlledBy: sd.casterId,
           size: sd.size,
+          ...(combatantId ? { combatantId } : {}),
           ...(sd.avatar ? { avatar: sd.avatar } : {}),
           ...(sd.illusory ? { illusory: true } : {}),
         };
+        if (sd.monster && combatantId && onAddSummonCombatant) {
+          const m = sd.monster;
+          const dvMatch = m.senses?.match(/darkvision\s+(\d+)/i);
+          const darkvision = dvMatch ? parseInt(dvMatch[1], 10) : 0;
+          const combatant: Combatant = {
+            id: combatantId,
+            name: sd.creatureName,
+            hp: m.hp,
+            maxHp: m.hp,
+            ac: m.ac,
+            initiative: 0,
+            type: 'player',
+            description: m.description,
+            stats: m.stats,
+            actions: m.actions,
+            avatar: m.avatar,
+            speedText: m.speed,
+            cr: m.cr,
+            specialAbilities: m.specialAbilities,
+            legendaryActions: m.legendaryActions,
+            reactions: m.reactions,
+            saves: m.saves,
+            skills: m.skills,
+            immunities: m.immunities,
+            resistances: m.resistances,
+            vulnerabilities: m.vulnerabilities,
+            conditionImmunities: m.conditionImmunities,
+            senses: m.senses,
+            languages: m.languages,
+            creatureType: m.type,
+            darkvision,
+            summonedBy: sd.casterId,
+            summonSpellName: sd.spellName,
+          };
+          onAddSummonCombatant(combatant, uniqueId);
+        }
         const updatedTokens = [...tokens, newToken];
         onTokensChange(updatedTokens);
         if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
