@@ -31,6 +31,8 @@ interface MapViewProps {
   scenarioCombatants: Combatant[];
   activeCombatants: Combatant[];
   onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
+  onAddCondition?: (sourceCombatantId: string, condition: string) => void;
+  onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
   onAddEnemy: (monster: Monster, x: number, y: number) => void;
   onStartCombat: (tokenIds: string[]) => void;
   leftSidebarOpen: boolean;
@@ -3418,6 +3420,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   scenarioCombatants,
   activeCombatants,
   onUpdateCombatantHp,
+  onAddCondition,
+  onRemoveCondition,
   onAddEnemy,
   onStartCombat,
   leftSidebarOpen,
@@ -3510,6 +3514,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, clientY: number, tokenId: string } | null>(null);
+  const [conditionSubmenuOpen, setConditionSubmenuOpen] = useState(false);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, clientY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string }>({ type: 'quote', content: '' });
   const noteImageInputRef = useRef<HTMLInputElement>(null);
@@ -4980,22 +4985,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
   }, [mapImage, gridResolution?.pixelsPerGrid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-centre the player's camera whenever the DM's viewport *coordinates* change.
-  // Compares by value so that a new object reference with the same coordinates
-  // (common after IPC round-trips) does NOT reset a player's two-finger pan.
-  const lastAppliedViewportRef = useRef<{ x: number; y: number } | null>(null);
-  useEffect(() => {
-    const dims = dimensionsRef.current;
-    if (isPlayerView && viewportCenter && stageScale > 0 && dims.width > 0 && !activeViewpointId) {
-      const prev = lastAppliedViewportRef.current;
-      if (prev && prev.x === viewportCenter.x && prev.y === viewportCenter.y) return;
-      lastAppliedViewportRef.current = { x: viewportCenter.x, y: viewportCenter.y };
-      setStagePos({
-        x: dims.width / 2 - viewportCenter.x * stageScale,
-        y: dims.height / 2 - viewportCenter.y * stageScale,
-      });
-    }
-  }, [viewportCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (containerRef.current) {
@@ -5546,6 +5535,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     e.evt.preventDefault();
     e.cancelBubble = true; // Stop propagation to stage
     setContextMenu(null);
+    setConditionSubmenuOpen(false);
 
     const stage = e.target.getStage();
     const pointerPosition = stage.getPointerPosition();

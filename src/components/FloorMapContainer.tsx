@@ -19,6 +19,8 @@ interface FloorMapContainerProps {
   npcs: Combatant[];
   persistentEnemies: Combatant[];
   onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
+  onAddCondition?: (sourceCombatantId: string, condition: string) => void;
+  onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
   onAddEnemy: (monster: Monster, x: number, y: number) => void;
   onStartCombat: (tokenIds: string[]) => void;
   leftSidebarOpen: boolean;
@@ -193,6 +195,8 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     scenarioCombatants: scenario.combatants || [],
     activeCombatants: scenario.activeCombatants || [],
     onUpdateCombatantHp: props.onUpdateCombatantHp,
+    onAddCondition: props.onAddCondition,
+    onRemoveCondition: props.onRemoveCondition,
     onAddEnemy: props.onAddEnemy,
     onStartCombat: props.onStartCombat,
     leftSidebarOpen: props.leftSidebarOpen,

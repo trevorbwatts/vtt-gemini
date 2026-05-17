@@ -712,10 +712,10 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                           }
                           setConditionDropdownOpen(v => !v);
                         }}
-                        className="w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-white/40 hover:bg-purple-500/30 hover:text-purple-300 text-[13px] leading-none transition-colors"
+                        className="flex items-center gap-1 px-2 h-5 rounded-full bg-white/10 text-white/40 hover:bg-purple-500/30 hover:text-purple-300 text-[11px] leading-none transition-colors"
                         title="Add condition"
                       >
-                        +
+                        <span className="text-[13px]">+</span> Add Condition
                       </button>
                       {conditionDropdownOpen && (
                         <div

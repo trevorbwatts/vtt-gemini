@@ -1693,6 +1693,8 @@ export function DMScreen() {
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
                 onUpdateCombatantHp={updateCombatantHp}
+                onAddCondition={addConditionToCombatant}
+                onRemoveCondition={removeConditionFromCombatant}
                 onAddEnemy={addEnemyToMap}
                 onStartCombat={startCombat}
                 selectedTokenId={selectedTokenId}

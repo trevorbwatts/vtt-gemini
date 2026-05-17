@@ -1297,6 +1297,7 @@ export function PlayerScreen() {
 
   // Torch state — tracks which player IDs have an active torch so that DM broadcasts
   // can't accidentally wipe the locally-set darkvision.
+  const viewportCenterAppliedRef = useRef(false);
   const torchLitPlayerIdsRef = useRef<Set<string>>(new Set());
   const [torchLitPlayerIds, setTorchLitPlayerIds] = useState<Set<string>>(new Set());
   // Stores each player's darkvision before the torch was lit so we can restore it on douse.
@@ -1557,23 +1558,57 @@ export function PlayerScreen() {
         const incoming = newState.campaign;
         if (!incoming) return prev;
         if (!incoming.players?.length) return incoming;
+
+        // Preserve player drawings from the local state — DM state updates
+        // don't carry them, so a naive replace would erase in-progress art.
+        const localDrawingsMap = new Map<string, any[]>();
+        if (prev) {
+          const scenId = currentScenarioIdRef.current;
+          const localScenario = prev.scenarios.find(s => s.id === scenId);
+          localScenario?.floors?.forEach(f => {
+            if (f.drawings?.length) localDrawingsMap.set(f.id, f.drawings);
+          });
+        }
+
+        let merged = incoming;
+        if (localDrawingsMap.size > 0) {
+          merged = {
+            ...incoming,
+            scenarios: incoming.scenarios.map(s => {
+              const scenId = currentScenarioIdRef.current;
+              if (s.id !== scenId) return s;
+              return {
+                ...s,
+                floors: s.floors?.map(f => {
+                  const localDrawings = localDrawingsMap.get(f.id);
+                  return localDrawings ? { ...f, drawings: localDrawings } : f;
+                }),
+              };
+            }),
+          };
+        }
+
         // If any players have an active torch, keep their darkvision at 40 so
         // a DM broadcast with stale data can't accidentally extinguish it.
         const litIds = torchLitPlayerIdsRef.current;
-        if (litIds.size === 0) return incoming;
+        if (litIds.size === 0) return merged;
         return {
-          ...incoming,
-          players: incoming.players.map(np =>
+          ...merged,
+          players: merged.players?.map(np =>
             litIds.has(np.id) ? { ...np, darkvision: 40 } : np
           ),
         };
       });
+      if (newState.scenarioId !== currentScenarioIdRef.current) {
+        viewportCenterAppliedRef.current = false;
+      }
       setCurrentScenarioId(newState.scenarioId);
       if (newState.playerMode) {
         setMode(newState.playerMode as 'setup' | 'play');
       }
       setActiveCombatantId(newState.activeCombatantId ?? null);
-      if (newState.viewportCenter) {
+      if (newState.viewportCenter && !viewportCenterAppliedRef.current) {
+        viewportCenterAppliedRef.current = true;
         setViewportCenter(newState.viewportCenter);
       }
       if (newState.targetedCombatantIds) {
@@ -2711,7 +2746,13 @@ export function PlayerScreen() {
                     }
                   }}
                   onPointerDown={(e) => e.preventDefault()}
-                  className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition-colors"
+                  disabled={!aoeHighlights}
+                  className={cn(
+                    "ml-1 px-2 py-0.5 rounded text-xs font-semibold border transition-colors",
+                    aoeHighlights
+                      ? "bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30"
+                      : "bg-white/5 text-white/30 border-white/10 cursor-not-allowed"
+                  )}
                 >
                   Confirm Cast
                 </button>
@@ -2764,20 +2805,11 @@ export function PlayerScreen() {
               <button
                 onClick={() => setMode('persistent')}
                 onPointerDown={(e) => e.preventDefault()}
-                title="Draw (persistent)"
+                title="Draw"
                 className={cn('p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest',
                   activeDrawing.mode === 'persistent' ? 'bg-sky-500/30 text-sky-200 border border-sky-400/50' : 'text-white/50 hover:bg-white/10')}
               >
-                <Pencil size={12} /> Keep
-              </button>
-              <button
-                onClick={() => setMode('ephemeral')}
-                onPointerDown={(e) => e.preventDefault()}
-                title="Draw (ephemeral — fades after a few seconds)"
-                className={cn('p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest',
-                  activeDrawing.mode === 'ephemeral' ? 'bg-sky-500/30 text-sky-200 border border-sky-400/50' : 'text-white/50 hover:bg-white/10')}
-              >
-                <Pencil size={12} /> Fade
+                <Pencil size={12} /> Draw
               </button>
               <button
                 onClick={() => setMode('eraser')}

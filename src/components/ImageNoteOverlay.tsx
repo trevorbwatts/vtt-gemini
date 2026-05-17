@@ -26,20 +26,28 @@ export const ImageNoteOverlay: React.FC<ImageNoteOverlayProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-8"
+          className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-8 overflow-hidden"
+          onClick={onClose}
         >
           <motion.div
+            onClick={(e) => e.stopPropagation()}
             initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="relative max-w-[90vw] max-h-[80vh] flex items-center justify-center"
+            className="relative flex items-center justify-center"
+            style={{ maxWidth: '90vw', maxHeight: 'calc(100vh - 200px)' }}
           >
             <img
               src={imageData}
               alt={caption || ''}
-              className="max-w-[90vw] max-h-[80vh] object-contain shadow-2xl"
-              style={{ transform: `rotate(${rotation}deg)`, transition: 'transform 300ms ease' }}
+              className="object-contain shadow-2xl"
+              style={{
+                maxWidth: rotation % 180 !== 0 ? 'calc(100vh - 200px)' : '90vw',
+                maxHeight: rotation % 180 !== 0 ? '90vw' : 'calc(100vh - 200px)',
+                transform: `rotate(${rotation}deg)`,
+                transition: 'transform 300ms ease',
+              }}
             />
           </motion.div>
 
@@ -48,13 +56,13 @@ export const ImageNoteOverlay: React.FC<ImageNoteOverlayProps> = ({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="mt-6 max-w-2xl text-center text-white/90 font-serif text-lg leading-relaxed px-4"
+              className="mt-4 flex-shrink-0 max-w-2xl text-center text-white/90 font-serif text-lg leading-relaxed px-4"
             >
               {caption}
             </motion.p>
           )}
 
-          <div className="mt-8 flex items-center gap-3">
+          <div className="mt-4 flex-shrink-0 flex items-center gap-3">
             <button
               onClick={onRotate}
               className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-sm uppercase tracking-widest transition-colors"

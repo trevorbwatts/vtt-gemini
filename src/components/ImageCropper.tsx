@@ -39,6 +39,23 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onConfirm,
     img.src = imageSrc;
   }, [imageSrc]);
 
+  const clampOffset = useCallback((ox: number, oy: number, z: number) => {
+    const img = imgRef.current;
+    if (!img) return { x: ox, y: oy };
+    const halfW = (img.width * z) / 2;
+    const halfH = (img.height * z) / 2;
+    return {
+      x: Math.max(-halfW + CROP_RADIUS, Math.min(halfW - CROP_RADIUS, ox)),
+      y: Math.max(-halfH + CROP_RADIUS, Math.min(halfH - CROP_RADIUS, oy)),
+    };
+  }, []);
+
+  const minZoomForImage = useCallback(() => {
+    const img = imgRef.current;
+    if (!img) return MIN_ZOOM;
+    return Math.max(CROP_RADIUS * 2 / img.width, CROP_RADIUS * 2 / img.height);
+  }, []);
+
   const handleReset = () => {
     setZoom(initialZoom.current);
     setOffset({ x: 0, y: 0 });
@@ -88,22 +105,28 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onConfirm,
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
-    setOffset({
-      x: offsetStart.current.x + (e.clientX - dragStart.current.x),
-      y: offsetStart.current.y + (e.clientY - dragStart.current.y),
-    });
+    const rawX = offsetStart.current.x + (e.clientX - dragStart.current.x);
+    const rawY = offsetStart.current.y + (e.clientY - dragStart.current.y);
+    setOffset(clampOffset(rawX, rawY, zoom));
   };
 
   const handlePointerUp = () => setDragging(false);
 
+  const applyZoom = (newZoom: number) => {
+    const floor = minZoomForImage();
+    const clamped = Math.min(MAX_ZOOM, Math.max(floor, newZoom));
+    setZoom(clamped);
+    setOffset(prev => clampOffset(prev.x, prev.y, clamped));
+  };
+
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.95 : 1.05;
-    setZoom(z => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * delta)));
+    applyZoom(zoom * delta);
   };
 
   const adjustZoom = (direction: 1 | -1) => {
-    setZoom(z => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * (1 + direction * 0.15))));
+    applyZoom(zoom * (1 + direction * 0.15));
   };
 
   const handleConfirm = () => {
