@@ -129,8 +129,11 @@ const SignInSpot: React.FC<{
                   onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   onTouchEnd={(e: React.TouchEvent) => e.stopPropagation()}
                 >
-                  <div className="px-3 py-2 border-b border-white/5 text-[10px] uppercase tracking-widest text-white/30 font-bold">
-                    Choose your character
+                  <div className="px-3 py-2 border-b border-white/5 text-[10px] uppercase tracking-widest text-white/30 font-bold flex items-center justify-between">
+                    <span>Choose your character</span>
+                    <button onClick={(e) => { e.stopPropagation(); onTogglePicker(); }} className="p-0.5 rounded hover:bg-white/10 transition-colors">
+                      <X size={12} className="text-white/40" />
+                    </button>
                   </div>
                   {availablePlayers.length === 0 ? (
                     <div className="px-4 py-4 text-white/20 text-xs text-center">All players signed in</div>
@@ -1300,7 +1303,7 @@ export function PlayerScreen() {
     'bottom-left': null, 'bottom-right': null,
     'left': null,
   });
-  const [activePickerSpot, setActivePickerSpot] = useState<SpotId | null>(null);
+  const [activePickerSpots, setActivePickerSpots] = useState<Set<SpotId>>(new Set());
 
 
   // Action ring + panel state (play mode)
@@ -1777,7 +1780,7 @@ export function PlayerScreen() {
   // ── Sign-in handlers ──
   const handleSignIn = useCallback((spotId: SpotId, playerId: string) => {
     setSignedInSpots(prev => ({ ...prev, [spotId]: playerId }));
-    setActivePickerSpot(null);
+    setActivePickerSpots(prev => { const next = new Set(prev); next.delete(spotId); return next; });
   }, []);
 
   const handleColorChange = useCallback((playerId: string, color: string) => {
@@ -2530,25 +2533,6 @@ export function PlayerScreen() {
     return campaign.players.find(p => p.id === playerId) || null;
   };
 
-  // Close picker when clicking/tapping outside
-  useEffect(() => {
-    if (!activePickerSpot) return;
-    const openedAt = Date.now();
-    const handleClick = () => {
-      // Ignore clicks that fire within 300ms of opening (touch event double-fire)
-      if (Date.now() - openedAt < 300) return;
-      setActivePickerSpot(null);
-    };
-    const timer = setTimeout(() => {
-      document.addEventListener('click', handleClick);
-      document.addEventListener('touchend', handleClick);
-    }, 50);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('click', handleClick);
-      document.removeEventListener('touchend', handleClick);
-    };
-  }, [activePickerSpot]);
 
   // ── No campaign yet ──
   if (!campaign) {
@@ -2588,8 +2572,8 @@ export function PlayerScreen() {
               key={spotId}
               player={getPlayerForSpot(spotId)}
               availablePlayers={availablePlayers}
-              showPicker={activePickerSpot === spotId}
-              onTogglePicker={() => setActivePickerSpot(prev => prev === spotId ? null : spotId)}
+              showPicker={activePickerSpots.has(spotId)}
+              onTogglePicker={() => setActivePickerSpots(prev => { const next = new Set(prev); if (next.has(spotId)) next.delete(spotId); else next.add(spotId); return next; })}
               onSignIn={(playerId) => handleSignIn(spotId, playerId)}
               onSignOut={() => handleSignOut(spotId)}
               onColorChange={handleColorChange}
@@ -3466,10 +3450,6 @@ export function PlayerScreen() {
             imageData={note.imageData}
             caption={note.content}
             rotation={rotation}
-            onRotate={() => {
-              const next = (rotation + 90) % 360;
-              window.electronAPI?.sendPlayerImageRotation?.({ noteId: note.id, rotation: next });
-            }}
           />
         );
       })()}
