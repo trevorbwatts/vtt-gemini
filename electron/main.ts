@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, screen, Menu } from 'electron';
 import path from 'path';
+import fs from 'fs';
+import fsp from 'fs/promises';
 
 let dmWindow: BrowserWindow | null = null;
 let playerWindow: BrowserWindow | null = null;
@@ -301,6 +303,13 @@ ipcMain.on('player-image-rotation', (_event, data) => {
   }
 });
 
+// DM ping → Player
+ipcMain.on('dm-ping', (_event, ping) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dm-ping', ping);
+  }
+});
+
 // ── Drawings sync ──
 // DM drawings → Player
 ipcMain.on('dm-drawings-update', (_event, data) => {
@@ -322,6 +331,87 @@ ipcMain.on('ephemeral-stroke', (event, stroke) => {
   }
   if (playerWindow && playerWindow.webContents !== sender) {
     playerWindow.webContents.send('ephemeral-stroke', stroke);
+  }
+});
+
+// ── Extras gallery (global, file-based) ──
+// Reusable background-character avatars committed to git as actual files
+// in <project>/public/extras/ alongside a manifest.json.
+//
+// In dev (__dirname = dist-electron/), the source folder lives one level up.
+// In packaged mode writes will likely fail (asar is read-only) — the user
+// builds up their library in dev, then commits the new files.
+function extrasDir(): string {
+  return path.resolve(__dirname, '..', 'public', 'extras');
+}
+function extrasManifestPath(): string {
+  return path.join(extrasDir(), 'manifest.json');
+}
+async function ensureExtrasDir(): Promise<void> {
+  const dir = extrasDir();
+  if (!fs.existsSync(dir)) {
+    await fsp.mkdir(dir, { recursive: true });
+  }
+}
+
+ipcMain.handle('extras-load-manifest', async () => {
+  try {
+    await ensureExtrasDir();
+    const p = extrasManifestPath();
+    if (!fs.existsSync(p)) return { manifest: [] };
+    const txt = await fsp.readFile(p, 'utf-8');
+    const parsed = JSON.parse(txt);
+    return { manifest: Array.isArray(parsed) ? parsed : [] };
+  } catch (err: any) {
+    return { manifest: [], error: err?.message ?? 'load failed' };
+  }
+});
+
+ipcMain.handle('extras-save-manifest', async (_event, manifest: any) => {
+  try {
+    if (!Array.isArray(manifest)) return { ok: false, error: 'manifest must be an array' };
+    await ensureExtrasDir();
+    const p = extrasManifestPath();
+    await fsp.writeFile(p, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'save failed' };
+  }
+});
+
+ipcMain.handle('extras-save-image', async (_event, payload: { filename: string; dataUrl: string }) => {
+  try {
+    if (!payload?.filename || !payload?.dataUrl) {
+      return { ok: false, error: 'filename and dataUrl are required' };
+    }
+    // Defend against path traversal — filename must be a plain basename.
+    const safeName = path.basename(payload.filename);
+    if (safeName !== payload.filename) {
+      return { ok: false, error: 'invalid filename' };
+    }
+    const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return { ok: false, error: 'expected a base64 data URL' };
+    const buf = Buffer.from(match[2], 'base64');
+    await ensureExtrasDir();
+    const outPath = path.join(extrasDir(), safeName);
+    await fsp.writeFile(outPath, buf);
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'save failed' };
+  }
+});
+
+ipcMain.handle('extras-delete-image', async (_event, filename: string) => {
+  try {
+    const safeName = path.basename(filename);
+    if (safeName !== filename) return { ok: false, error: 'invalid filename' };
+    const target = path.join(extrasDir(), safeName);
+    if (fs.existsSync(target)) {
+      await fsp.unlink(target);
+    }
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'delete failed' };
   }
 });
 

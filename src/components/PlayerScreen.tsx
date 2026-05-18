@@ -1323,6 +1323,7 @@ export function PlayerScreen() {
   const cancelDrawingRef = useRef<(() => void) | null>(null);
   const clearDrawingSessionRef = useRef<(() => void) | null>(null);
   const setDrawingOptionsRef = useRef<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>(null);
+  const triggerPingRef = useRef<((opts: { x: number; y: number; color: string }) => void) | null>(null);
 
   // Track active player casting (for banner positioning)
   const [activeCasting, setActiveCasting] = useState<{ spotId: SpotId; spellName: string; saveAbility?: string; aoeType?: string } | null>(null);
@@ -1654,6 +1655,13 @@ export function PlayerScreen() {
       });
     }
 
+    // Listen for DM ping → trigger pulse on the player map
+    if (window.electronAPI?.onDMPing) {
+      window.electronAPI.onDMPing((ping) => {
+        triggerPingRef.current?.({ x: ping.x, y: ping.y, color: ping.color });
+      });
+    }
+
     // Listen for DM dismiss (after DM applies damage from the modal)
     if (window.electronAPI?.onDismissPlayerAoe) {
       window.electronAPI.onDismissPlayerAoe(() => {
@@ -1674,6 +1682,7 @@ export function PlayerScreen() {
         window.electronAPI.removeDMTokenUpdateListener?.();
         window.electronAPI.removeDismissPlayerAoeListener?.();
         window.electronAPI.removeDMSpellMarkerUpdateListener?.();
+        window.electronAPI.removeDMPingListener?.();
       }
       if (window.electronAPI?.removePlayerModeListener) {
         window.electronAPI.removePlayerModeListener();
@@ -2667,6 +2676,7 @@ export function PlayerScreen() {
           cancelDrawingRef={cancelDrawingRef}
           clearDrawingSessionRef={clearDrawingSessionRef}
           setDrawingOptionsRef={setDrawingOptionsRef}
+          triggerPingRef={triggerPingRef}
           onDrawingsChange={(floorId, nextDrawings) => {
             setCampaign(prev => {
               if (!prev) return prev;
@@ -3340,6 +3350,7 @@ export function PlayerScreen() {
           setSummonPicker(null);
           setActiveSummoning({ spotId, creatureName: option.name });
           const monster = lookupBeast(option.name);
+          const avatar = option.avatar || monster?.avatar;
           startPlacingRef.current?.({
             name: `Summon: ${option.name}`,
             school: spell.school || 'Conjuration',
@@ -3349,7 +3360,7 @@ export function PlayerScreen() {
               casterId: playerId,
               playerColor: player?.color || '#3b82f6',
               size: option.size,
-              ...(option.avatar ? { avatar: option.avatar } : {}),
+              ...(avatar ? { avatar } : {}),
               ...(monster ? { monster } : {}),
             },
           } as any, playerId);

@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
-import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke } from '../types';
+import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke, Extra } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
+import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
+import { useExtras, extraImageUrl, filterExtras, allTags } from '../data/extras';
+import { ManageExtrasModal } from './ManageExtrasModal';
+import { MakeCreatureModal } from './MakeCreatureModal';
 import { Lock, Unlock } from 'lucide-react';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
@@ -153,6 +156,18 @@ interface MapViewProps {
   clearDrawingSessionRef?: React.MutableRefObject<(() => void) | null>;
   /** Ref MapView populates so the banner can update the active drawing color/mode without re-entering. */
   setDrawingOptionsRef?: React.MutableRefObject<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>;
+  /** Promote an Extra token into a real Combatant using the chosen monster's statblock. */
+  onPromoteExtra?: (tokenId: string, monster: Monster, opts: { combatantType: 'enemy' | 'npc'; size: string }) => void;
+
+  // ── Ping ──
+  /** Enter one-shot ping mode — next map click drops a ping. */
+  startPingRef?: React.MutableRefObject<((opts: { color: string }) => void) | null>;
+  /** Exit ping mode without dropping a ping. */
+  cancelPingRef?: React.MutableRefObject<(() => void) | null>;
+  /** Drop a ping at the given canvas coords (used to render pings received from the other window). */
+  triggerPingRef?: React.MutableRefObject<((opts: { x: number; y: number; color: string }) => void) | null>;
+  /** Called when the local user drops a ping by clicking — parent uses this to broadcast. */
+  onPingDrop?: (opts: { x: number; y: number; color: string }) => void;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -3495,6 +3510,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
   cancelDrawingRef,
   clearDrawingSessionRef,
   setDrawingOptionsRef,
+  onPromoteExtra,
+  startPingRef,
+  cancelPingRef,
+  triggerPingRef,
+  onPingDrop,
 }) => {
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3510,11 +3530,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     stageX: number,
     stageY: number,
     clientY: number,
-    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc' | 'spell-marker',
+    view: 'root' | 'note' | 'viewpoint' | 'add-player' | 'add-enemy' | 'add-npc' | 'add-extra' | 'spell-marker',
     viewpointId?: string,
     markerId?: string,
   } | null>(null);
-  const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | 'extras' | null>(null);
+  // ── Extras gallery ──
+  const { extras: extrasList, addExtras, updateExtra, deleteExtra } = useExtras();
+  const [extraSearch, setExtraSearch] = useState('');
+  const [extraSizeChoice, setExtraSizeChoice] = useState<Token['size']>('Medium');
+  const [extraTagFilter, setExtraTagFilter] = useState<string[]>([]);
+  const [manageExtrasOpen, setManageExtrasOpen] = useState(false);
+  const [promoteExtraTokenId, setPromoteExtraTokenId] = useState<string | null>(null);
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, clientY: number, tokenId: string } | null>(null);
   const [conditionSubmenuOpen, setConditionSubmenuOpen] = useState(false);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, clientY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
@@ -3600,6 +3627,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // Each entry has a fade animation driven by setTimeout.
   const [ephemeralStrokes, setEphemeralStrokes] = useState<Stroke[]>([]);
   const ephemeralTimersRef = useRef<Record<string, number>>({});
+
+  // ── Ping state ──
+  // One-shot ping mode: when active, the next map click drops a pulsing marker, then exits.
+  const [pingMode, setPingMode] = useState<{ color: string } | null>(null);
+  type ActivePing = { id: string; x: number; y: number; color: string; startTime: number };
+  const [pings, setPings] = useState<ActivePing[]>([]);
+  const PING_DURATION_MS = 2200;
+  // Drives a per-frame re-render while any ping is on screen so the rings animate.
+  const [pingTick, setPingTick] = useState(0);
+  useEffect(() => {
+    if (pings.length === 0) return;
+    let raf = 0;
+    const loop = () => {
+      const now = Date.now();
+      setPings(prev => prev.filter(p => now - p.startTime < PING_DURATION_MS));
+      setPingTick(t => t + 1);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [pings.length]);
 
   // Drawing constants — feel-tuned defaults
   const STROKE_WIDTH_PX = 4;        // map-pixel thickness (will be visually scaled with zoom)
@@ -4209,6 +4257,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
     clearRemoteAoeRef.current = () => {
       setRemoteAoe(null);
       onAoeHighlightsChange?.(null);
+    };
+  }
+
+  if (startPingRef) {
+    startPingRef.current = ({ color }) => {
+      setPingMode({ color });
+    };
+  }
+  if (cancelPingRef) {
+    cancelPingRef.current = () => {
+      setPingMode(null);
+    };
+  }
+  if (triggerPingRef) {
+    triggerPingRef.current = ({ x, y, color }) => {
+      const id = `ping-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      setPings(prev => [...prev, { id, x, y, color, startTime: Date.now() }]);
     };
   }
 
@@ -5609,6 +5674,26 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setContextMenu(null);
   };
 
+  /** Place an Extra as a bare Token (no Combatant) at the right-click point with the chosen size. */
+  const handleExtraSelect = (extra: Extra) => {
+    if (!contextMenu) return;
+    const newToken: Token = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: extra.name,
+      type: 'npc',
+      x: contextMenu.x,
+      y: contextMenu.y,
+      color: '#94a3b8', // slate — neutral, distinct from npc green / enemy red
+      avatar: extraImageUrl(extra.filename),
+      size: extraSizeChoice,
+      floorId: activeFloorId || undefined,
+      isExtra: true,
+      extraId: extra.id,
+    };
+    onTokensChange([...tokens, newToken]);
+    setContextMenu(null);
+  };
+
   const saveNote = () => {
     if (!contextMenu) return;
     if (noteDraft.type === 'image') {
@@ -5991,7 +6076,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             maxHp: m.hp,
             ac: m.ac,
             initiative: 0,
-            type: 'player',
+            type: 'npc',
             description: m.description,
             stats: m.stats,
             actions: m.actions,
@@ -6115,6 +6200,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseDown = (e: any) => {
+    // Ping mode: next click drops a pulse, then exits the mode.
+    if (pingMode && e.evt.button === 0) {
+      const pos = getCanvasPos(e.target.getStage());
+      const id = `ping-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      setPings(prev => [...prev, { id, x: pos.x, y: pos.y, color: pingMode.color, startTime: Date.now() }]);
+      onPingDrop?.({ x: pos.x, y: pos.y, color: pingMode.color });
+      setPingMode(null);
+      return;
+    }
+
     // Transition zone drawing mode
     if (transitionZoneMode && e.evt.button === 0 && !spaceHeldRef.current) {
       const canvas = getCanvasPos(e.target.getStage());
@@ -6209,7 +6304,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             maxHp: m.hp,
             ac: m.ac,
             initiative: 0,
-            type: 'player',
+            type: 'npc',
             description: m.description,
             stats: m.stats,
             actions: m.actions,
@@ -6544,7 +6639,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   return (
-    <div className={cn("h-full flex flex-col relative", castingSpell && "cursor-crosshair")} ref={containerRef}>
+    <div className={cn("h-full flex flex-col relative", (castingSpell || pingMode) && "cursor-crosshair")} ref={containerRef}>
       {/* Toolbar - Only visible to DM */}
       {!isPlayerView && (
         <div className="h-10 border-b border-[var(--line)] bg-[var(--surface)] flex justify-between items-center shrink-0">
@@ -10543,6 +10638,55 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
+          {/* ── Pings — expanding pulse rings, fade out after ~2s ── */}
+          {pings.length > 0 && (
+            <Layer listening={false}>
+              {pings.map(p => {
+                void pingTick;
+                const elapsed = Date.now() - p.startTime;
+                const t = Math.min(1, elapsed / PING_DURATION_MS);
+                // Two staggered rings for a "pulse" feel
+                const rings = [0, 0.35].map((delay, i) => {
+                  const localT = Math.max(0, Math.min(1, (t - delay) / (1 - delay)));
+                  if (localT <= 0) return null;
+                  const baseR = 18 / stageScale;
+                  const maxR = 70 / stageScale;
+                  const r = baseR + (maxR - baseR) * localT;
+                  const opacity = (1 - localT) * 0.9;
+                  const sw = 3 / stageScale;
+                  return (
+                    <Circle
+                      key={`${p.id}-ring-${i}`}
+                      x={p.x}
+                      y={p.y}
+                      radius={r}
+                      stroke={p.color}
+                      strokeWidth={sw}
+                      opacity={opacity}
+                      listening={false}
+                    />
+                  );
+                });
+                // Solid center dot pulsing in size
+                const dotR = (6 / stageScale) * (1 + 0.4 * Math.sin(t * Math.PI * 4));
+                const dotOpacity = Math.max(0, 1 - t);
+                return (
+                  <React.Fragment key={p.id}>
+                    {rings}
+                    <Circle
+                      x={p.x}
+                      y={p.y}
+                      radius={dotR}
+                      fill={p.color}
+                      opacity={dotOpacity}
+                      listening={false}
+                    />
+                  </React.Fragment>
+                );
+              })}
+            </Layer>
+          )}
+
         </Stage>
 
         {/* Spell marker dismiss bubble — player view double-tap */}
@@ -11009,10 +11153,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
           <div
             className={cn(
               "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
-              contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden" : "w-64"
+              contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden"
+                : contextMenu.view === 'add-extra' ? "w-[640px] overflow-hidden"
+                : "w-64"
             )}
             style={
-              contextMenu.view === 'add-enemy'
+              (contextMenu.view === 'add-enemy' || contextMenu.view === 'add-extra')
                 ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
                 : contextMenu.clientY > window.innerHeight / 2
                   ? { left: contextMenu.stageX, bottom: window.innerHeight - contextMenu.stageY }
@@ -11195,8 +11341,153 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* Add an Extra — background characters from the global gallery */}
+                <button
+                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-extra' } : null)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-slate-500 hover:text-white transition-colors group"
+                >
+                  <Users size={14} className="text-slate-400 group-hover:text-white" />
+                  <span className="flex-1 text-left">Add an Extra</span>
+                  <ChevronRight size={12} className="opacity-30" />
+                </button>
               </div>
             )}
+
+            {contextMenu.view === 'add-extra' && (() => {
+              const tags = allTags(extrasList);
+              const filtered = filterExtras(extrasList, extraSearch, extraTagFilter);
+              const sizes: Token['size'][] = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
+              return (
+                <div className="flex flex-col h-[560px]">
+                  <div className="p-3 border-b border-[var(--line)] bg-black/10 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Users size={14} className="text-slate-400" />
+                      <p className="text-xs font-bold uppercase tracking-widest opacity-50">Extras</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setManageExtrasOpen(true)}
+                        className="text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-opacity"
+                      >
+                        Manage…
+                      </button>
+                      <button
+                        onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)}
+                        className="opacity-50 hover:opacity-100 text-xs uppercase font-bold tracking-tighter"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Controls: search + size + tag chips */}
+                  <div className="p-3 border-b border-[var(--line)] space-y-2 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
+                        <input
+                          autoFocus
+                          type="text"
+                          value={extraSearch}
+                          onChange={(e) => setExtraSearch(e.target.value)}
+                          placeholder="Search…"
+                          className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
+                        />
+                      </div>
+                      <div className="flex items-center bg-black/20 rounded-md p-0.5 gap-0.5">
+                        {sizes.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => setExtraSizeChoice(s)}
+                            className={cn(
+                              "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors",
+                              extraSizeChoice === s ? "bg-[var(--accent)] text-white" : "opacity-50 hover:opacity-100"
+                            )}
+                            title={s}
+                          >
+                            {s[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {tags.map(t => {
+                          const active = extraTagFilter.includes(t);
+                          return (
+                            <button
+                              key={t}
+                              onClick={() => setExtraTagFilter(prev =>
+                                active ? prev.filter(x => x !== t) : [...prev, t]
+                              )}
+                              className={cn(
+                                "px-2 py-0.5 text-[10px] uppercase tracking-wider rounded-full border transition-colors",
+                                active
+                                  ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                                  : "border-[var(--line)] opacity-60 hover:opacity-100"
+                              )}
+                            >
+                              {t}
+                            </button>
+                          );
+                        })}
+                        {extraTagFilter.length > 0 && (
+                          <button
+                            onClick={() => setExtraTagFilter([])}
+                            className="px-2 py-0.5 text-[10px] uppercase tracking-wider opacity-50 hover:opacity-100"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Gallery */}
+                  <div className="flex-1 overflow-y-auto p-3 bg-black/5">
+                    {extrasList.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-50">
+                        <Users size={36} className="mb-3 opacity-50" />
+                        <p className="text-sm">No Extras yet.</p>
+                        <button
+                          onClick={() => setManageExtrasOpen(true)}
+                          className="mt-3 px-3 py-1.5 text-xs uppercase tracking-wider rounded-md bg-[var(--accent)] text-white"
+                        >
+                          Add Some…
+                        </button>
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      <div className="h-full flex items-center justify-center opacity-40 text-sm">
+                        No matches.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
+                        {filtered.map(e => (
+                          <button
+                            key={e.id}
+                            onClick={() => handleExtraSelect(e)}
+                            className="group relative aspect-square bg-black/30 rounded-lg overflow-hidden border border-transparent hover:border-[var(--accent)] transition-all"
+                            title={`${e.name} — click to place as ${extraSizeChoice}`}
+                          >
+                            <img
+                              src={extraImageUrl(e.filename)}
+                              alt={e.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              onError={(ev) => { (ev.target as HTMLImageElement).style.opacity = '0.2'; }}
+                            />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5">
+                              <p className="text-[10px] font-bold truncate text-white">{e.name}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {contextMenu.view === 'note' && (
               <div className="p-3">
@@ -11736,6 +12027,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </>
               ) : null;
             })()}
+            {!isPlayerView && (() => {
+              const ctxToken = tokens.find(t => t.id === tokenContextMenu.tokenId);
+              if (!ctxToken?.isExtra) return null;
+              return (
+                <>
+                  <div className="h-px bg-[var(--line)] my-1" />
+                  <button
+                    onClick={() => {
+                      setPromoteExtraTokenId(ctxToken.id);
+                      setTokenContextMenu(null);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
+                  >
+                    <Skull size={14} /> Make this a creature…
+                  </button>
+                </>
+              );
+            })()}
             <div className="h-px bg-[var(--line)] my-1" />
             <button
               onClick={() => deleteToken(tokenContextMenu.tokenId)}
@@ -11745,6 +12054,33 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </button>
           </div>
         )}
+
+        {/* Extras: gallery management modal */}
+        {manageExtrasOpen && (
+          <ManageExtrasModal
+            extras={extrasList}
+            onClose={() => setManageExtrasOpen(false)}
+            onAdd={addExtras}
+            onUpdate={updateExtra}
+            onDelete={deleteExtra}
+          />
+        )}
+
+        {/* Extras: promote-to-creature modal */}
+        {promoteExtraTokenId && (() => {
+          const t = tokens.find(tt => tt.id === promoteExtraTokenId);
+          if (!t) { setPromoteExtraTokenId(null); return null; }
+          return (
+            <MakeCreatureModal
+              token={t}
+              onClose={() => setPromoteExtraTokenId(null)}
+              onConfirm={(monster, opts) => {
+                onPromoteExtra?.(t.id, monster, opts);
+                setPromoteExtraTokenId(null);
+              }}
+            />
+          );
+        })()}
 
         {/* Custom Confirm Dialog */}
         <AnimatePresence>

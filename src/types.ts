@@ -80,6 +80,15 @@ declare global {
       sendEphemeralStroke?: (stroke: Stroke & { floorId: string }) => void;
       onEphemeralStroke?: (callback: (stroke: Stroke & { floorId: string }) => void) => void;
       removeEphemeralStrokeListener?: () => void;
+      // DM ping → Player
+      sendDMPing?: (ping: { floorId: string; x: number; y: number; color: string }) => void;
+      onDMPing?: (callback: (ping: { floorId: string; x: number; y: number; color: string }) => void) => void;
+      removeDMPingListener?: () => void;
+      // --- Extras gallery (global, file-based) ---
+      extrasLoadManifest?: () => Promise<{ manifest: Extra[]; error?: string }>;
+      extrasSaveManifest?: (manifest: Extra[]) => Promise<{ ok: boolean; error?: string }>;
+      extrasSaveImage?: (data: { filename: string; dataUrl: string }) => Promise<{ ok: boolean; error?: string }>;
+      extrasDeleteImage?: (filename: string) => Promise<{ ok: boolean; error?: string }>;
     }
   }
 }
@@ -114,6 +123,26 @@ export interface Token {
   controlledBy?: string;
   /** Visual-only flag for illusions (Project Image, etc.) — renders translucent with a dashed outline. */
   illusory?: boolean;
+  // --- extras ---
+  /** True when this token is an "Extra" — a background character with an avatar but no statblock. Not a Combatant. */
+  isExtra?: boolean;
+  /** Reference back to the Extra entry in the global gallery (extras manifest id). */
+  extraId?: string;
+}
+
+/**
+ * An "Extra" is a background-character avatar in the global gallery (reusable across campaigns).
+ * Lives on disk in public/extras/, indexed by manifest.json. Not a Combatant — just a face + tags.
+ */
+export interface Extra {
+  /** Stable unique id (slug derived from filename + suffix if needed). */
+  id: string;
+  /** Filename within public/extras/, e.g. "tavern-keeper-01.jpg". */
+  filename: string;
+  /** Display name shown in the gallery. */
+  name: string;
+  /** Freeform tags for filtering (e.g. "tavern", "noble", "guard"). */
+  tags: string[];
 }
 
 export interface MovementPathSegment {

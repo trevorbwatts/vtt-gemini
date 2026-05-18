@@ -6,8 +6,8 @@ import { BottomPanel } from './components/BottomPanel';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
-import { cn, Campaign, Scenario, Combatant, Token, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize } from './icons';
+import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2 } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -144,6 +144,64 @@ export function DMScreen() {
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
   const startPlacingRef = useRef<((spell: { name: string; school?: string; effectRadius?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>(null);
   const startEnlargeReduceRef = useRef<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>(null);
+  const startDrawingRef = useRef<((opts: { mode: 'persistent' | 'ephemeral' | 'eraser'; color: string; ownerId?: string }) => void) | null>(null);
+  const cancelDrawingRef = useRef<(() => void) | null>(null);
+  const clearDrawingSessionRef = useRef<(() => void) | null>(null);
+  const setDrawingOptionsRef = useRef<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>(null);
+  const startPingRef = useRef<((opts: { color: string }) => void) | null>(null);
+  const cancelPingRef = useRef<(() => void) | null>(null);
+  const [isPinging, setIsPinging] = useState(false);
+  const PING_COLOR = '#fde047';
+  const [dmDrawingMode, setDmDrawingMode] = useState<'off' | 'persistent' | 'eraser'>('off');
+  const [dmDrawColor, setDmDrawColor] = useState<string>('#ffffff');
+  const [dmColorPickerOpen, setDmColorPickerOpen] = useState(false);
+  const dmColorPickerRef = useRef<HTMLDivElement | null>(null);
+  const DM_DRAW_PALETTE = ['#ffffff', '#ef4444', '#f59e0b', '#facc15', '#22c55e', '#3b82f6'];
+  const toggleDmDrawing = (mode: 'persistent' | 'eraser') => {
+    if (dmDrawingMode === mode) {
+      cancelDrawingRef.current?.();
+      setDmDrawingMode('off');
+    } else if (dmDrawingMode === 'off') {
+      startDrawingRef.current?.({ mode, color: dmDrawColor, ownerId: 'dm' });
+      setDmDrawingMode(mode);
+    } else {
+      setDrawingOptionsRef.current?.({ mode });
+      setDmDrawingMode(mode);
+    }
+  };
+  const pickDmDrawColor = (color: string) => {
+    setDmDrawColor(color);
+    setDmColorPickerOpen(false);
+    if (dmDrawingMode === 'eraser') {
+      setDrawingOptionsRef.current?.({ color, mode: 'persistent' });
+      setDmDrawingMode('persistent');
+    } else if (dmDrawingMode === 'persistent') {
+      setDrawingOptionsRef.current?.({ color });
+    }
+  };
+  useEffect(() => {
+    if (!dmColorPickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (dmColorPickerRef.current && !dmColorPickerRef.current.contains(e.target as Node)) {
+        setDmColorPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [dmColorPickerOpen]);
+  const toggleDmPing = () => {
+    if (isPinging) {
+      cancelPingRef.current?.();
+      setIsPinging(false);
+    } else {
+      if (dmDrawingMode !== 'off') {
+        cancelDrawingRef.current?.();
+        setDmDrawingMode('off');
+      }
+      startPingRef.current?.({ color: PING_COLOR });
+      setIsPinging(true);
+    }
+  };
   const [enlargeReduceModal, setEnlargeReduceModal] = useState<{ casterId: string } | null>(null);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const activeCombatantIdRef = useRef(activeCombatantId);
@@ -995,6 +1053,71 @@ export function DMScreen() {
     }) : prev);
   }, []);
 
+  /**
+   * Promote an Extra token into a real Combatant. Keeps the token's avatar (the Extra's face)
+   * and replaces everything else with the chosen monster's statblock. After this the token has
+   * a combatantId, can be hit in combat, etc.
+   */
+  const promoteExtra = useCallback((tokenId: string, monster: Monster, opts: { combatantType: 'enemy' | 'npc'; size: string }) => {
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const newCombatantId = `${opts.combatantType === 'enemy' ? 'e' : 'n'}-${uniqueId}`;
+    setCampaign(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenarios: prev.scenarios.map(s => {
+          if (s.id !== selectedScenarioIdRef.current) return s;
+          const targetToken = s.tokens.find(t => t.id === tokenId);
+          if (!targetToken) return s;
+          const newCombatant: Combatant = {
+            id: newCombatantId,
+            name: targetToken.name,
+            hp: monster.hp,
+            maxHp: monster.hp,
+            ac: monster.ac,
+            initiative: 0,
+            type: opts.combatantType,
+            description: monster.description,
+            stats: monster.stats,
+            actions: monster.actions,
+            avatar: targetToken.avatar,
+            speedText: monster.speed,
+            cr: monster.cr,
+            specialAbilities: monster.specialAbilities,
+            legendaryActions: monster.legendaryActions,
+            reactions: monster.reactions,
+            saves: monster.saves,
+            skills: monster.skills,
+            immunities: monster.immunities,
+            resistances: monster.resistances,
+            vulnerabilities: monster.vulnerabilities,
+            conditionImmunities: monster.conditionImmunities,
+            senses: monster.senses,
+            languages: monster.languages,
+            creatureType: monster.type,
+            size: opts.size,
+          };
+          return {
+            ...s,
+            tokens: s.tokens.map(t => t.id === tokenId
+              ? {
+                  ...t,
+                  combatantId: newCombatantId,
+                  type: opts.combatantType,
+                  color: opts.combatantType === 'enemy' ? '#ef4444' : '#059669',
+                  size: opts.size as Token['size'],
+                  isExtra: undefined,
+                  extraId: undefined,
+                }
+              : t
+            ),
+            combatants: [...(s.combatants || []), newCombatant],
+          };
+        }),
+      };
+    });
+  }, []);
+
   const addSummonCombatant = useCallback((combatant: Combatant, tokenId: string) => {
     setCampaign(prev => {
       if (!prev) return prev;
@@ -1633,6 +1756,73 @@ export function DMScreen() {
                 d{sides}
               </button>
             ))}
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <div className="relative" ref={dmColorPickerRef}>
+              <button
+                onClick={() => setDmColorPickerOpen(o => !o)}
+                title="Pencil color"
+                className="p-1 rounded hover:bg-white/10 transition-colors flex items-center"
+              >
+                <span
+                  className="block w-3 h-3 rounded-full border border-white/30"
+                  style={{ background: dmDrawColor }}
+                />
+              </button>
+              {dmColorPickerOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 flex items-center gap-1 p-1.5 rounded-md bg-[#1a1714] border border-white/15 shadow-lg">
+                  {DM_DRAW_PALETTE.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => pickDmDrawColor(c)}
+                      title={c}
+                      className={cn(
+                        'w-5 h-5 rounded-full border transition-all',
+                        dmDrawColor === c
+                          ? 'border-white scale-110 ring-2 ring-white/30'
+                          : 'border-white/30 hover:border-white/60'
+                      )}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => toggleDmDrawing('persistent')}
+              title={dmDrawingMode === 'persistent' ? 'Stop drawing' : 'Draw on map'}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                dmDrawingMode === 'persistent'
+                  ? "bg-white/10 text-white"
+                  : "hover:bg-white/10 text-white/50 hover:text-[var(--accent)]"
+              )}
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={() => toggleDmDrawing('eraser')}
+              title={dmDrawingMode === 'eraser' ? 'Stop erasing' : 'Erase drawings'}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                dmDrawingMode === 'eraser'
+                  ? "bg-rose-500/20 text-rose-300"
+                  : "hover:bg-white/10 text-white/50 hover:text-[var(--accent)]"
+              )}
+            >
+              <Eraser size={14} />
+            </button>
+            <button
+              onClick={toggleDmPing}
+              title={isPinging ? 'Cancel ping' : 'Ping a location on the map'}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                isPinging
+                  ? "bg-yellow-500/20 text-yellow-300"
+                  : "hover:bg-white/10 text-white/50 hover:text-[var(--accent)]"
+              )}
+            >
+              <Disc2 size={14} />
+            </button>
           </div>
 
           <div className="flex items-center gap-2 flex-1 justify-end">
@@ -1735,6 +1925,7 @@ export function DMScreen() {
                 onRemoveCondition={removeConditionFromCombatant}
                 onAddEnemy={addEnemyToMap}
                 onAddSummonCombatant={addSummonCombatant}
+                onPromoteExtra={promoteExtra}
                 onStartCombat={startCombat}
                 selectedTokenId={selectedTokenId}
                 onSelectedTokenIdChange={setSelectedTokenId}
@@ -1772,6 +1963,16 @@ export function DMScreen() {
                 clearRemoteAoeRef={clearRemoteAoeRef}
                 cancelCastingRef={cancelCastingRef}
                 startEnlargeReduceRef={startEnlargeReduceRef}
+                startDrawingRef={startDrawingRef}
+                cancelDrawingRef={cancelDrawingRef}
+                clearDrawingSessionRef={clearDrawingSessionRef}
+                setDrawingOptionsRef={setDrawingOptionsRef}
+                startPingRef={startPingRef}
+                cancelPingRef={cancelPingRef}
+                onPingDrop={(opts) => {
+                  setIsPinging(false);
+                  try { window.electronAPI?.sendDMPing?.({ floorId: opts.floorId, x: opts.x, y: opts.y, color: opts.color }); } catch (_e) { /* */ }
+                }}
                 onAoeHighlightsChange={setAoeHighlights}
                 activeCombatantId={activeCombatantId}
                 targetedCombatantIds={targetedCombatantIds}

@@ -77,6 +77,10 @@ interface FloorMapContainerProps {
   cancelDrawingRef?: React.MutableRefObject<(() => void) | null>;
   clearDrawingSessionRef?: React.MutableRefObject<(() => void) | null>;
   setDrawingOptionsRef?: React.MutableRefObject<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>;
+  startPingRef?: React.MutableRefObject<((opts: { color: string }) => void) | null>;
+  cancelPingRef?: React.MutableRefObject<(() => void) | null>;
+  triggerPingRef?: React.MutableRefObject<((opts: { x: number; y: number; color: string }) => void) | null>;
+  onPingDrop?: (opts: { x: number; y: number; color: string; floorId: string }) => void;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
   activeEmanations?: import('../types').ActiveEmanation[];
@@ -84,6 +88,7 @@ interface FloorMapContainerProps {
   activeTimers?: import('../types').TokenTimer[];
   viewerCasterIds?: string[];
   playerSides?: Record<string, 'top' | 'bottom'>;
+  onPromoteExtra?: (tokenId: string, monster: Monster, opts: { combatantType: 'enemy' | 'npc'; size: string }) => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -237,6 +242,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     activeTimers: props.activeTimers,
     viewerCasterIds: props.viewerCasterIds,
     playerSides: props.playerSides,
+    onPromoteExtra: isPrimary ? props.onPromoteExtra : undefined,
     selectedTokenId: props.selectedTokenId,
     onSelectedTokenIdChange: props.onSelectedTokenIdChange,
     selectedTokenIds: props.selectedTokenIds,
@@ -262,6 +268,13 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       cancelDrawingRef: props.cancelDrawingRef,
       clearDrawingSessionRef: props.clearDrawingSessionRef,
       setDrawingOptionsRef: props.setDrawingOptionsRef,
+      startPingRef: props.startPingRef,
+      cancelPingRef: props.cancelPingRef,
+      triggerPingRef: props.triggerPingRef,
+      onPingDrop: props.onPingDrop
+        ? (opts: { x: number; y: number; color: string }) =>
+            props.onPingDrop?.({ ...opts, floorId: floor.id })
+        : undefined,
       clearRemoteAoeRef: props.clearRemoteAoeRef,
       onAoeHighlightsChange: props.onAoeHighlightsChange,
       clearMovementPathsRef: props.clearMovementPathsRef,

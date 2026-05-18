@@ -360,8 +360,15 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
   // Enrich combatant with original monster data for fields that weren't stored
   const detailSource = useMemo(() => {
-    const combatant = detailCombatant?.combatant;
-    if (!combatant || combatant.type === 'player') return combatant;
+    let combatant = detailCombatant?.combatant;
+    if (!combatant) return combatant;
+    // Summoned creatures (Find Familiar, Conjure Beast, etc.) carry a monster
+    // stat block but may be stored with type 'player' (so their token follows
+    // player vision rules). Render them as creatures so the stat block shows.
+    if (combatant.summonedBy && combatant.type === 'player') {
+      combatant = { ...combatant, type: 'npc' };
+    }
+    if (combatant.type === 'player') return combatant;
     // Look up the original monster by name to fill in missing fields
     // Prefer 2024 source over 2014 when both exist
     const monster = BESTIARY.find(m => m.name === combatant.name && m.source === '2024')

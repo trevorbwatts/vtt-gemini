@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const promises_1 = __importDefault(require("fs/promises"));
 let dmWindow = null;
 let playerWindow = null;
 let lastKnownState = null;
@@ -244,6 +246,142 @@ electron_1.ipcMain.on('dm-spell-marker-update', (_event, markers) => {
 electron_1.ipcMain.on('player-spell-marker-update', (_event, markers) => {
     if (dmWindow) {
         dmWindow.webContents.send('player-spell-marker-update', markers);
+    }
+});
+// Player Wild Shape updates: proxy to DM window
+electron_1.ipcMain.on('player-wild-shape', (_event, data) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-wild-shape', data);
+    }
+});
+// Player Invisible toggle: proxy to DM window
+electron_1.ipcMain.on('player-invisible-toggle', (_event, tokenId) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-invisible-toggle', tokenId);
+    }
+});
+electron_1.ipcMain.on('player-summon-combatant', (_event, data) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-summon-combatant', data);
+    }
+});
+// Player rotated the image-note overlay: proxy to DM window
+electron_1.ipcMain.on('player-image-rotation', (_event, data) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-image-rotation', data);
+    }
+});
+// DM ping → Player
+electron_1.ipcMain.on('dm-ping', (_event, ping) => {
+    if (playerWindow) {
+        playerWindow.webContents.send('dm-ping', ping);
+    }
+});
+// ── Drawings sync ──
+// DM drawings → Player
+electron_1.ipcMain.on('dm-drawings-update', (_event, data) => {
+    if (playerWindow) {
+        playerWindow.webContents.send('dm-drawings-update', data);
+    }
+});
+// Player drawings → DM
+electron_1.ipcMain.on('player-drawings-update', (_event, data) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-drawings-update', data);
+    }
+});
+// Ephemeral strokes — broadcast to the *other* window only
+electron_1.ipcMain.on('ephemeral-stroke', (event, stroke) => {
+    const sender = event.sender;
+    if (dmWindow && dmWindow.webContents !== sender) {
+        dmWindow.webContents.send('ephemeral-stroke', stroke);
+    }
+    if (playerWindow && playerWindow.webContents !== sender) {
+        playerWindow.webContents.send('ephemeral-stroke', stroke);
+    }
+});
+// ── Extras gallery (global, file-based) ──
+// Reusable background-character avatars committed to git as actual files
+// in <project>/public/extras/ alongside a manifest.json.
+//
+// In dev (__dirname = dist-electron/), the source folder lives one level up.
+// In packaged mode writes will likely fail (asar is read-only) — the user
+// builds up their library in dev, then commits the new files.
+function extrasDir() {
+    return path_1.default.resolve(__dirname, '..', 'public', 'extras');
+}
+function extrasManifestPath() {
+    return path_1.default.join(extrasDir(), 'manifest.json');
+}
+async function ensureExtrasDir() {
+    const dir = extrasDir();
+    if (!fs_1.default.existsSync(dir)) {
+        await promises_1.default.mkdir(dir, { recursive: true });
+    }
+}
+electron_1.ipcMain.handle('extras-load-manifest', async () => {
+    try {
+        await ensureExtrasDir();
+        const p = extrasManifestPath();
+        if (!fs_1.default.existsSync(p))
+            return { manifest: [] };
+        const txt = await promises_1.default.readFile(p, 'utf-8');
+        const parsed = JSON.parse(txt);
+        return { manifest: Array.isArray(parsed) ? parsed : [] };
+    }
+    catch (err) {
+        return { manifest: [], error: err?.message ?? 'load failed' };
+    }
+});
+electron_1.ipcMain.handle('extras-save-manifest', async (_event, manifest) => {
+    try {
+        if (!Array.isArray(manifest))
+            return { ok: false, error: 'manifest must be an array' };
+        await ensureExtrasDir();
+        const p = extrasManifestPath();
+        await promises_1.default.writeFile(p, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: err?.message ?? 'save failed' };
+    }
+});
+electron_1.ipcMain.handle('extras-save-image', async (_event, payload) => {
+    try {
+        if (!payload?.filename || !payload?.dataUrl) {
+            return { ok: false, error: 'filename and dataUrl are required' };
+        }
+        // Defend against path traversal — filename must be a plain basename.
+        const safeName = path_1.default.basename(payload.filename);
+        if (safeName !== payload.filename) {
+            return { ok: false, error: 'invalid filename' };
+        }
+        const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match)
+            return { ok: false, error: 'expected a base64 data URL' };
+        const buf = Buffer.from(match[2], 'base64');
+        await ensureExtrasDir();
+        const outPath = path_1.default.join(extrasDir(), safeName);
+        await promises_1.default.writeFile(outPath, buf);
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: err?.message ?? 'save failed' };
+    }
+});
+electron_1.ipcMain.handle('extras-delete-image', async (_event, filename) => {
+    try {
+        const safeName = path_1.default.basename(filename);
+        if (safeName !== filename)
+            return { ok: false, error: 'invalid filename' };
+        const target = path_1.default.join(extrasDir(), safeName);
+        if (fs_1.default.existsSync(target)) {
+            await promises_1.default.unlink(target);
+        }
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: err?.message ?? 'delete failed' };
     }
 });
 // D&D Beyond character import

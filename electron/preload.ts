@@ -178,4 +178,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeEphemeralStrokeListener: () => {
     ipcRenderer.removeAllListeners('ephemeral-stroke');
   },
+
+  // ── Ping (DM → Player) ──
+  sendDMPing: (ping: { floorId: string; x: number; y: number; color: string }) =>
+    ipcRenderer.send('dm-ping', ping),
+  onDMPing: (callback: (ping: { floorId: string; x: number; y: number; color: string }) => void) => {
+    ipcRenderer.on('dm-ping', (_event, ping) => callback(ping));
+  },
+  removeDMPingListener: () => {
+    ipcRenderer.removeAllListeners('dm-ping');
+  },
+
+  // ── Extras gallery (global, file-based) ──
+  extrasLoadManifest: () => ipcRenderer.invoke('extras-load-manifest'),
+  extrasSaveManifest: (manifest: any) => ipcRenderer.invoke('extras-save-manifest', manifest),
+  extrasSaveImage: (data: { filename: string; dataUrl: string }) =>
+    ipcRenderer.invoke('extras-save-image', data),
+  extrasDeleteImage: (filename: string) => ipcRenderer.invoke('extras-delete-image', filename),
 });

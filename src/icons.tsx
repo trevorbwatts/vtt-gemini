@@ -82,6 +82,7 @@ export {
   GripHorizontal,
   Pencil,
   Eraser,
+  Disc2,
 
   // Monitor
   MonitorUp,
