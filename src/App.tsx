@@ -112,6 +112,10 @@ export function DMScreen() {
   const [wallErasing, setWallErasing] = useState(false);
   /** When true, painted wall vertices snap to the nearest grid intersection. */
   const [wallSnapToGrid, setWallSnapToGrid] = useState(false);
+  /** When non-null, the user is placing a new portal of this type by two-click span. */
+  const [portalPlacementMode, setPortalPlacementMode] = useState<'door' | 'window' | null>(null);
+  /** When true, the user is calibrating the map's grid (two-click opposite corners of one square). */
+  const [gridCalibrating, setGridCalibrating] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [dicePopover, setDicePopover] = useState<{ die: string; roll: number; x: number; y: number } | null>(null);
   // Listen for both browser fullscreen and Electron fullscreen changes
@@ -964,6 +968,18 @@ export function DMScreen() {
 
   const updateWalls = useCallback((walls: WallSegment[]) => {
     updateActiveFloor(f => ({ ...f, walls }));
+  }, [updateActiveFloor]);
+
+  const updateWallsAndPortals = useCallback((walls: WallSegment[], portals: Portal[]) => {
+    updateActiveFloor(f => ({ ...f, walls, portals }));
+  }, [updateActiveFloor]);
+
+  const updatePortals = useCallback((portals: Portal[]) => {
+    updateActiveFloor(f => ({ ...f, portals }));
+  }, [updateActiveFloor]);
+
+  const updateGridResolution = useCallback((gr: GridResolution) => {
+    updateActiveFloor(f => ({ ...f, gridResolution: gr }));
   }, [updateActiveFloor]);
 
   const togglePortal = useCallback((portalId: string) => {
@@ -2180,7 +2196,7 @@ export function DMScreen() {
         {wallErasing && !wallPainting && (
           <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-red-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
             <span className="text-xs">
-              <strong>Eraser</strong> — click a wall to delete it.
+              <strong>Eraser</strong> — click a wall or portal to delete it.
             </span>
             <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
             <button
@@ -2189,6 +2205,29 @@ export function DMScreen() {
             >
               exit
             </button>
+          </div>
+        )}
+        {portalPlacementMode && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-blue-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <span className="text-xs">
+              Adding <strong>{portalPlacementMode}</strong> — click on a wall where it starts, then click where it ends.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => setPortalPlacementMode(null)}
+            >
+              exit
+            </button>
+          </div>
+        )}
+        {gridCalibrating && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-yellow-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <span className="text-xs">
+              <strong>Calibrating grid</strong> — drag the Bandit and resize it to match one grid square on your map. Click Apply when it looks right.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <span className="text-[10px] opacity-60">cancel</span>
           </div>
         )}
 
@@ -2338,6 +2377,31 @@ export function DMScreen() {
                 }}
                 onToggleWallSnapToGrid={() => setWallSnapToGrid(v => !v)}
                 onWallsChange={updateWalls}
+                portalPlacementMode={portalPlacementMode}
+                onStartPortalPlacement={(mode) => {
+                  setWallPainting(false);
+                  setWallErasing(false);
+                  setZonePainting(null);
+                  setDarkZonePainting(false);
+                  setPortalPlacementMode(mode);
+                }}
+                onStopPortalPlacement={() => setPortalPlacementMode(null)}
+                onPortalsChange={updatePortals}
+                onWallsAndPortalsChange={updateWallsAndPortals}
+                gridCalibrating={gridCalibrating}
+                onStartGridCalibration={() => {
+                  setWallPainting(false);
+                  setWallErasing(false);
+                  setPortalPlacementMode(null);
+                  setZonePainting(null);
+                  setDarkZonePainting(false);
+                  setGridCalibrating(true);
+                }}
+                onStopGridCalibration={() => setGridCalibrating(false)}
+                onGridResolutionChange={(gr) => {
+                  updateGridResolution(gr);
+                  setGridCalibrating(false);
+                }}
               />
             )}
           </main>

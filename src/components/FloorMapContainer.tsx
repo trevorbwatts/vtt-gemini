@@ -119,6 +119,22 @@ interface FloorMapContainerProps {
   onToggleWallSnapToGrid?: () => void;
   /** Replace the active floor's walls array (just walls, not portals or objectWalls). */
   onWallsChange?: (walls: import('../types').WallSegment[]) => void;
+  // ── Portal placement (two-click span) ──
+  portalPlacementMode?: 'door' | 'window' | null;
+  onStartPortalPlacement?: (mode: 'door' | 'window') => void;
+  onStopPortalPlacement?: () => void;
+  /** Replace the active floor's portals array. */
+  onPortalsChange?: (portals: import('../types').Portal[]) => void;
+  /** Replace walls + portals atomically — used when splitting a wall to add a portal. */
+  onWallsAndPortalsChange?: (
+    walls: import('../types').WallSegment[],
+    portals: import('../types').Portal[]
+  ) => void;
+  // ── Grid calibration ──
+  gridCalibrating?: boolean;
+  onStartGridCalibration?: () => void;
+  onStopGridCalibration?: () => void;
+  onGridResolutionChange?: (gr: import('../types').GridResolution) => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -364,6 +380,15 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onToggleWallErasing: isPrimary ? props.onToggleWallErasing : undefined,
     onToggleWallSnapToGrid: isPrimary ? props.onToggleWallSnapToGrid : undefined,
     onWallsChange: isPrimary ? props.onWallsChange : undefined,
+    portalPlacementMode: isPrimary ? (props.portalPlacementMode ?? null) : null,
+    onStartPortalPlacement: isPrimary ? props.onStartPortalPlacement : undefined,
+    onStopPortalPlacement: isPrimary ? props.onStopPortalPlacement : undefined,
+    onPortalsChange: isPrimary ? props.onPortalsChange : undefined,
+    onWallsAndPortalsChange: isPrimary ? props.onWallsAndPortalsChange : undefined,
+    gridCalibrating: isPrimary ? (props.gridCalibrating ?? false) : false,
+    onStartGridCalibration: isPrimary ? props.onStartGridCalibration : undefined,
+    onStopGridCalibration: isPrimary ? props.onStopGridCalibration : undefined,
+    onGridResolutionChange: isPrimary ? props.onGridResolutionChange : undefined,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,

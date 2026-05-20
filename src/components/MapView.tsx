@@ -214,6 +214,24 @@ interface MapViewProps {
   onToggleWallSnapToGrid?: () => void;
   /** Replace the floor's walls array. */
   onWallsChange?: (walls: WallSegment[]) => void;
+
+  // ── Portal placement ──
+  /** When set, MapView uses a two-click span flow to add a door or window. */
+  portalPlacementMode?: 'door' | 'window' | null;
+  onStartPortalPlacement?: (mode: 'door' | 'window') => void;
+  onStopPortalPlacement?: () => void;
+  /** Replace the floor's portals array (used by eraser to delete a portal). */
+  onPortalsChange?: (portals: Portal[]) => void;
+  /** Replace walls + portals atomically — used when splitting a wall to add a portal. */
+  onWallsAndPortalsChange?: (walls: WallSegment[], portals: Portal[]) => void;
+
+  // ── Grid calibration ──
+  /** When true, MapView captures two clicks (opposite corners of one grid square) to compute the grid. */
+  gridCalibrating?: boolean;
+  onStartGridCalibration?: () => void;
+  onStopGridCalibration?: () => void;
+  /** Called with the new GridResolution once two corners have been clicked. */
+  onGridResolutionChange?: (gr: GridResolution) => void;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -3580,6 +3598,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onToggleWallErasing,
   onToggleWallSnapToGrid,
   onWallsChange,
+  portalPlacementMode = null,
+  onStartPortalPlacement,
+  onStopPortalPlacement,
+  onPortalsChange,
+  onWallsAndPortalsChange,
+  gridCalibrating = false,
+  onStartGridCalibration,
+  onStopGridCalibration,
+  onGridResolutionChange,
 }) => {
   // ── Sound zone painting (Tier 2) ──
   const [zonePaintPoints, setZonePaintPoints] = useState<number[]>([]);
@@ -3589,6 +3616,106 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // ── Wall painting ──
   /** Flat [x1,y1,x2,y2,…] for the wall currently being drawn. */
   const [wallPaintPoints, setWallPaintPoints] = useState<number[]>([]);
+  /** Cursor position in map coords while wall painting — drives the preview line + origin snap. */
+  const [wallPaintHover, setWallPaintHover] = useState<{ x: number; y: number } | null>(null);
+  /** True when the hover position is close enough to the first vertex to snap back to it. */
+  const [wallSnapToOrigin, setWallSnapToOrigin] = useState(false);
+  // ── Portal placement (two-click span) ──
+  /** First click anchor: identifies which wall edge and parametric position the span starts at. */
+  const [portalPlaceStart, setPortalPlaceStart] = useState<
+    { wallId: string; edgeIndex: number; t: number; point: { x: number; y: number } } | null
+  >(null);
+  /** Live projection of the cursor onto the nearest (or constrained) wall edge. */
+  const [portalPlaceHover, setPortalPlaceHover] = useState<
+    { wallId: string; edgeIndex: number; t: number; point: { x: number; y: number } } | null
+  >(null);
+  // Reset placement state whenever the mode toggles off.
+  useEffect(() => {
+    setPortalPlaceStart(null);
+    setPortalPlaceHover(null);
+  }, [portalPlacementMode]);
+  // Esc cancels portal placement.
+  useEffect(() => {
+    if (!portalPlacementMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (portalPlaceStart) {
+          setPortalPlaceStart(null);
+        } else {
+          onStopPortalPlacement?.();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [portalPlacementMode, portalPlaceStart, onStopPortalPlacement]);
+
+  // ── Grid calibration via a draggable/resizable Bandit token ──
+  /** Live draft of where the calibration bandit sits and how big it is.
+   *  ppg = pixels per 5 ft (one grid square). The bandit is Medium = 1 square = ppg wide. */
+  const [calibrationDraft, setCalibrationDraft] = useState<{ x: number; y: number; ppg: number } | null>(null);
+  // When calibration mode toggles on, drop a starter bandit at the viewport center,
+  // sized to the current pixelsPerGrid (or a sensible default).
+  useEffect(() => {
+    if (!gridCalibrating) {
+      setCalibrationDraft(null);
+      return;
+    }
+    const startPpg = gridResolution?.pixelsPerGrid ?? 70;
+    // Place near the center of the loaded map, falling back to (200,200).
+    const cx = loadedImage ? loadedImage.width / 2 : 200;
+    const cy = loadedImage ? loadedImage.height / 2 : 200;
+    setCalibrationDraft({ x: cx, y: cy, ppg: startPpg });
+  }, [gridCalibrating]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Esc cancels calibration.
+  useEffect(() => {
+    if (!gridCalibrating) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onStopGridCalibration?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gridCalibrating, onStopGridCalibration]);
+
+  /**
+   * Project a map-coord point onto the nearest wall edge within `threshold` pixels.
+   * If `constrainTo` is given, only that wall edge is considered (used for the second
+   * portal click so the span stays on the same edge as the start anchor).
+   */
+  const projectToWallEdge = (
+    p: { x: number; y: number },
+    threshold: number,
+    constrainTo?: { wallId: string; edgeIndex: number }
+  ): { wallId: string; edgeIndex: number; t: number; point: { x: number; y: number } } | null => {
+    let best: { wallId: string; edgeIndex: number; t: number; point: { x: number; y: number }; distSq: number } | null = null;
+    const thresholdSq = threshold * threshold;
+    const consider = (w: WallSegment, edgeIndex: number) => {
+      const a = w.points[edgeIndex];
+      const b = w.points[edgeIndex + 1];
+      if (!a || !b) return;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const lenSq = dx * dx + dy * dy;
+      let t = lenSq > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq : 0;
+      t = Math.max(0, Math.min(1, t));
+      const cx = a.x + t * dx, cy = a.y + t * dy;
+      const ex = p.x - cx, ey = p.y - cy;
+      const d2 = ex * ex + ey * ey;
+      if (d2 <= thresholdSq && (!best || d2 < best.distSq)) {
+        best = { wallId: w.id, edgeIndex, t, point: { x: cx, y: cy }, distSq: d2 };
+      }
+    };
+    if (constrainTo) {
+      const w = (walls || []).find(w => w.id === constrainTo.wallId);
+      if (w) consider(w, constrainTo.edgeIndex);
+    } else {
+      for (const w of walls || []) {
+        for (let i = 0; i + 1 < w.points.length; i++) consider(w, i);
+      }
+    }
+    if (!best) return null;
+    const { wallId, edgeIndex, t, point } = best;
+    return { wallId, edgeIndex, t, point };
+  };
   // Reset paint points whenever the painting session starts or ends.
   useEffect(() => {
     setZonePaintPoints([]);
@@ -3613,6 +3740,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // Reset wall paint points whenever paint mode toggles.
   useEffect(() => {
     setWallPaintPoints([]);
+    setWallPaintHover(null);
+    setWallSnapToOrigin(false);
   }, [wallPainting]);
   // Keyboard for wall painting: Enter commits the current wall and chains a new one;
   // Esc exits paint mode (commits any pending wall first).
@@ -6644,6 +6773,37 @@ const MapViewInner: React.FC<MapViewProps> = ({
   };
 
   const handleStageMouseMove = (e: any) => {
+    // Portal placement: project cursor onto a wall edge for the hover preview.
+    if (portalPlacementMode) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      const scale = stage?.scaleX() || 1;
+      const threshold = 14 / scale;
+      const projection = portalPlaceStart
+        ? projectToWallEdge(pos, threshold * 6, { wallId: portalPlaceStart.wallId, edgeIndex: portalPlaceStart.edgeIndex })
+        : projectToWallEdge(pos, threshold);
+      setPortalPlaceHover(projection);
+      return;
+    }
+    // Wall painting: track hover so we can draw a preview line + origin-snap indicator.
+    if (wallPainting) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      let snap = false;
+      if (wallPaintPoints.length >= 4) {
+        const ox = wallPaintPoints[0];
+        const oy = wallPaintPoints[1];
+        // Snap threshold scales with zoom so it always feels ~14 screen pixels.
+        const scale = stage?.scaleX() || 1;
+        const thresh = 14 / scale;
+        const dx = pos.x - ox;
+        const dy = pos.y - oy;
+        if (dx * dx + dy * dy <= thresh * thresh) snap = true;
+      }
+      setWallSnapToOrigin(snap);
+      setWallPaintHover(snap ? { x: wallPaintPoints[0], y: wallPaintPoints[1] } : pos);
+      // Fall through — other modes shouldn't be active simultaneously, but be safe.
+    }
     // Transition zone drawing
     if (drawingZone) {
       const canvas = getCanvasPos(e.target.getStage());
@@ -6864,6 +7024,67 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   return (
     <div className={cn("h-full flex flex-col relative", (castingSpell || pingMode) && "cursor-crosshair")} ref={containerRef}>
+      {/* Grid calibration floating panel — appears in the bottom-center while calibrating. */}
+      {!isPlayerView && gridCalibrating && calibrationDraft && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[160] bg-[#1a1512] border border-yellow-400/50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto">
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] uppercase tracking-wider opacity-50">Bandit size</span>
+            <span className="text-xl font-bold text-yellow-400 tabular-nums">{Math.round(calibrationDraft.ppg)} px</span>
+            <span className="text-[10px] opacity-60">= 5 ft (one square)</span>
+          </div>
+          <div className="h-10 w-px bg-white/15 mx-2" />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCalibrationDraft(prev => prev ? { ...prev, ppg: Math.max(8, prev.ppg - 2) } : prev)}
+                className="w-6 h-6 rounded bg-black/40 hover:bg-black/60 text-xs leading-none"
+                title="Smaller"
+              >
+                −
+              </button>
+              <button
+                onClick={() => setCalibrationDraft(prev => prev ? { ...prev, ppg: prev.ppg + 2 } : prev)}
+                className="w-6 h-6 rounded bg-black/40 hover:bg-black/60 text-xs leading-none"
+                title="Bigger"
+              >
+                +
+              </button>
+            </div>
+            <span className="text-[9px] opacity-50 leading-tight max-w-[100px]">Drag corners or use ±</span>
+          </div>
+          <div className="h-10 w-px bg-white/15 mx-2" />
+          <button
+            onClick={() => onStopGridCalibration?.()}
+            className="px-3 py-1.5 text-xs rounded bg-black/40 hover:bg-black/60 text-white/80"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (!calibrationDraft) return;
+              const ppg = Math.max(8, calibrationDraft.ppg);
+              const imgW = loadedImage?.width ?? 0;
+              const imgH = loadedImage?.height ?? 0;
+              // Origin aligned so the bandit sits centered in a grid square.
+              const mox = (((calibrationDraft.x - ppg / 2) % ppg) + ppg) % ppg;
+              const moy = (((calibrationDraft.y - ppg / 2) % ppg) + ppg) % ppg;
+              const gr: GridResolution = {
+                pixelsPerGrid: ppg,
+                mapOrigin: { x: mox, y: moy },
+                mapSize: {
+                  x: imgW > 0 ? Math.max(1, Math.floor((imgW - mox) / ppg)) : 0,
+                  y: imgH > 0 ? Math.max(1, Math.floor((imgH - moy) / ppg)) : 0,
+                },
+              };
+              onGridResolutionChange?.(gr);
+            }}
+            className="px-4 py-1.5 text-xs rounded bg-yellow-500/80 hover:bg-yellow-500 text-black font-semibold"
+          >
+            Apply
+          </button>
+        </div>
+      )}
+
       {/* Toolbar - Only visible to DM */}
       {!isPlayerView && (
         <div className="h-10 border-b border-[var(--line)] bg-[var(--surface)] flex justify-between items-center shrink-0">
@@ -6977,7 +7198,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           <Upload size={14} /> Change Map
                         </button>
 
-                        {walls && walls.length > 0 && (
+                        {loadedImage && (
                           <button
                             onClick={() => {
                               setShowWalls(!showWalls);
@@ -6990,7 +7211,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           </button>
                         )}
 
-                        {hasFogData && (
+                        {loadedImage && (
                           <button
                             onClick={() => {
                               setWallCollisionEnabled(!wallCollisionEnabled);
@@ -7003,7 +7224,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           </button>
                         )}
 
-                        {hasFogData && (
+                        {loadedImage && (
                           <button
                             onClick={() => {
                               setShowFog(!showFog);
@@ -7036,6 +7257,41 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             ))}
                           </div>
                         </div>
+
+                        {onStartGridCalibration && loadedImage && (
+                          <>
+                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Grid</p>
+                              <button
+                                onClick={() => {
+                                  onStartGridCalibration();
+                                  setIsMapMenuOpen(false);
+                                }}
+                                disabled={gridCalibrating}
+                                className={cn(
+                                  'w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors disabled:opacity-40',
+                                  gridCalibrating
+                                    ? 'bg-yellow-500/30 border-yellow-400/50 text-yellow-200'
+                                    : 'bg-yellow-500/15 hover:bg-yellow-500/25 border-yellow-400/30'
+                                )}
+                              >
+                                <SquareDashed size={11} />
+                                {gridCalibrating ? 'Calibrating…' : 'Calibrate Grid'}
+                              </button>
+                              {gridResolution && !gridCalibrating && (
+                                <p className="text-[10px] opacity-50 mt-1.5 text-center">
+                                  Current: {Math.round(gridResolution.pixelsPerGrid)} px / 5 ft
+                                </p>
+                              )}
+                              {!gridResolution && !gridCalibrating && (
+                                <p className="text-[10px] opacity-40 mt-1 leading-snug">
+                                  Tell the app how big one square is so distances and snap-to-grid stay accurate.
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
 
                         {onStartWallPainting && (
                           <>
@@ -7075,6 +7331,40 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                   {wallErasing ? 'Erasing' : 'Eraser'}
                                 </button>
                               </div>
+                              {onStartPortalPlacement && (
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <button
+                                    onClick={() => {
+                                      onStartPortalPlacement('door');
+                                      setIsMapMenuOpen(false);
+                                    }}
+                                    className={cn(
+                                      'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors',
+                                      portalPlacementMode === 'door'
+                                        ? 'bg-green-500/30 border-green-400/50 text-green-200'
+                                        : 'bg-green-500/15 hover:bg-green-500/25 border-green-400/30'
+                                    )}
+                                  >
+                                    <DoorClosed size={11} />
+                                    {portalPlacementMode === 'door' ? 'Placing…' : 'Add Door'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      onStartPortalPlacement('window');
+                                      setIsMapMenuOpen(false);
+                                    }}
+                                    className={cn(
+                                      'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors',
+                                      portalPlacementMode === 'window'
+                                        ? 'bg-blue-500/30 border-blue-400/50 text-blue-200'
+                                        : 'bg-blue-500/15 hover:bg-blue-500/25 border-blue-400/30'
+                                    )}
+                                  >
+                                    <Blinds size={11} />
+                                    {portalPlacementMode === 'window' ? 'Placing…' : 'Add Window'}
+                                  </button>
+                                </div>
+                              )}
                               {gridResolution && (
                                 <button
                                   onClick={() => onToggleWallSnapToGrid?.()}
@@ -7093,7 +7383,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           </>
                         )}
 
-                        {hasFogData && (onStartDarkZonePainting || darkZones.length > 0) && (
+                        {loadedImage && (onStartDarkZonePainting || darkZones.length > 0) && (
                           <>
                             <div className="h-px bg-[var(--line)] mx-2 my-1" />
                             <div className="px-3 py-1.5">
@@ -7209,6 +7499,71 @@ const MapViewInner: React.FC<MapViewProps> = ({
               }
               return;
             }
+            // Grid calibration uses a draggable Bandit token (see below) — no click handler needed here.
+            if (gridCalibrating) return;
+            // Portal placement (two-click span on a wall).
+            if (portalPlacementMode && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              if (!stage) return;
+              const pos = getCanvasPos(stage);
+              const scale = stage.scaleX() || 1;
+              const threshold = 14 / scale;
+              if (!portalPlaceStart) {
+                // First click — must land on a wall edge.
+                const proj = projectToWallEdge(pos, threshold);
+                if (!proj) return;
+                setPortalPlaceStart(proj);
+                setPortalPlaceHover(proj);
+                return;
+              }
+              // Second click — constrained to the same edge as the start anchor.
+              const endProj = projectToWallEdge(pos, threshold * 6, {
+                wallId: portalPlaceStart.wallId,
+                edgeIndex: portalPlaceStart.edgeIndex,
+              });
+              if (!endProj) return;
+              if (!onWallsAndPortalsChange) return;
+              // Reject if start and end coincide.
+              const ddx = endProj.point.x - portalPlaceStart.point.x;
+              const ddy = endProj.point.y - portalPlaceStart.point.y;
+              if (ddx * ddx + ddy * ddy < 4) return;
+              // Split the wall: remove the affected edge and insert (before, portal, after) pieces.
+              const w = (walls || []).find(w => w.id === portalPlaceStart.wallId);
+              if (!w) return;
+              const ei = portalPlaceStart.edgeIndex;
+              const tA = Math.min(portalPlaceStart.t, endProj.t);
+              const tB = Math.max(portalPlaceStart.t, endProj.t);
+              const a = w.points[ei];
+              const b = w.points[ei + 1];
+              const startPt = { x: a.x + tA * (b.x - a.x), y: a.y + tA * (b.y - a.y) };
+              const endPt = { x: a.x + tB * (b.x - a.x), y: a.y + tB * (b.y - a.y) };
+              const beforeBase = w.points.slice(0, ei + 1);          // p0..p_ei
+              const afterBase = w.points.slice(ei + 1);              // p_{ei+1}..end
+              const beforePoints: WallPoint[] = tA > 0.001 ? [...beforeBase, startPt] : beforeBase;
+              const afterPoints: WallPoint[] = tB < 0.999 ? [endPt, ...afterBase] : afterBase;
+              const newWalls: WallSegment[] = [];
+              for (const ww of walls || []) {
+                if (ww.id !== w.id) { newWalls.push(ww); continue; }
+                if (beforePoints.length >= 2) {
+                  newWalls.push({ id: `${w.id}-a-${Date.now().toString(36)}`, points: beforePoints });
+                }
+                if (afterPoints.length >= 2) {
+                  newWalls.push({ id: `${w.id}-b-${Date.now().toString(36)}`, points: afterPoints });
+                }
+              }
+              const newPortal: Portal = {
+                id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                bounds: [startPt, endPt],
+                closed: true,
+                freestanding: false,
+                portalType: portalPlacementMode,
+              };
+              const newPortals = [...(portals || []), newPortal];
+              onWallsAndPortalsChange(newWalls, newPortals);
+              setPortalPlaceStart(null);
+              setPortalPlaceHover(null);
+              return;
+            }
             // Wall painting: clicks add polyline vertices for the current wall.
             if (wallPainting && e.evt.button === 0) {
               const stage = e.target.getStage();
@@ -7217,6 +7572,26 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
                 let p = tx.point(ptr);
+                // Origin snap takes priority: clicking near the first vertex closes
+                // the loop by snapping the new vertex exactly to it, then committing.
+                if (wallSnapToOrigin && wallPaintPoints.length >= 4 && onWallsChange) {
+                  const ox = wallPaintPoints[0];
+                  const oy = wallPaintPoints[1];
+                  const closedPts: WallPoint[] = [];
+                  for (let i = 0; i < wallPaintPoints.length; i += 2) {
+                    closedPts.push({ x: wallPaintPoints[i], y: wallPaintPoints[i + 1] });
+                  }
+                  closedPts.push({ x: ox, y: oy });
+                  const newSeg: WallSegment = {
+                    id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    points: closedPts,
+                  };
+                  onWallsChange([...(walls || []), newSeg]);
+                  setWallPaintPoints([]);
+                  setWallSnapToOrigin(false);
+                  setWallPaintHover(null);
+                  return;
+                }
                 if (wallSnapToGrid && gridResolution) {
                   const g = gridResolution.pixelsPerGrid;
                   const ox = gridResolution.mapOrigin?.x ?? 0;
@@ -7244,11 +7619,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
               }
               return;
             }
-            // Wall erasing: click near an existing wall to delete it.
+            // Wall erasing: click near an existing wall OR portal to delete it.
             if (wallErasing && !wallPainting && e.evt.button === 0) {
               const stage = e.target.getStage();
               const ptr = stage?.getPointerPosition();
-              if (stage && ptr && onWallsChange) {
+              if (stage && ptr) {
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
                 const p = tx.point(ptr);
@@ -7266,9 +7641,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   return ex * ex + ey * ey;
                 };
                 const thresholdSq = hitDist * hitDist;
-                // Find the wall whose closest segment is nearest to the click.
-                let hitId: string | null = null;
+                // Try portals first (they're drawn on top of walls).
+                let portalHitId: string | null = null;
                 let bestDistSq = thresholdSq;
+                for (const portal of portals || []) {
+                  const a = portal.bounds[0], b = portal.bounds[1];
+                  const d2 = distSqToSeg(p.x, p.y, a.x, a.y, b.x, b.y);
+                  if (d2 < bestDistSq) {
+                    bestDistSq = d2;
+                    portalHitId = portal.id;
+                  }
+                }
+                if (portalHitId && onPortalsChange) {
+                  onPortalsChange((portals || []).filter(p => p.id !== portalHitId));
+                  return;
+                }
+                // Otherwise look for a wall to delete.
+                if (!onWallsChange) return;
+                let hitId: string | null = null;
+                bestDistSq = thresholdSq;
                 for (const w of walls || []) {
                   for (let i = 0; i + 1 < w.points.length; i++) {
                     const a = w.points[i], b = w.points[i + 1];
@@ -7510,6 +7901,252 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 />
               );
             })}
+            {/* ── Grid calibration: a draggable/resizable Bandit token ── */}
+            {!isPlayerView && gridCalibrating && calibrationDraft && (() => {
+              const calColor = '#ef4444';      // Bandit red
+              const accentColor = '#fbbf24';   // Yellow for handles + ruler
+              const ppg = Math.max(8, calibrationDraft.ppg);
+              const radius = ppg / 2;
+              const cx = calibrationDraft.x;
+              const cy = calibrationDraft.y;
+              const imgW = loadedImage?.width ?? 0;
+              const imgH = loadedImage?.height ?? 0;
+              // Grid overlay aligned so the token sits centered in a square.
+              const mox = (((cx - ppg / 2) % ppg) + ppg) % ppg;
+              const moy = (((cy - ppg / 2) % ppg) + ppg) % ppg;
+              const gridLines: number[][] = [];
+              if (imgW > 0 && imgH > 0) {
+                const maxLines = 250;
+                const cols = Math.min(maxLines, Math.ceil((imgW - mox) / ppg) + 1);
+                const rows = Math.min(maxLines, Math.ceil((imgH - moy) / ppg) + 1);
+                for (let i = 0; i <= cols; i++) {
+                  const x = mox + i * ppg;
+                  gridLines.push([x, 0, x, imgH]);
+                }
+                for (let j = 0; j <= rows; j++) {
+                  const y = moy + j * ppg;
+                  gridLines.push([0, y, imgW, y]);
+                }
+              }
+              // The 4 corner resize handles, in canvas coords.
+              const handles: { id: string; hx: number; hy: number }[] = [
+                { id: 'nw', hx: cx - radius, hy: cy - radius },
+                { id: 'ne', hx: cx + radius, hy: cy - radius },
+                { id: 'sw', hx: cx - radius, hy: cy + radius },
+                { id: 'se', hx: cx + radius, hy: cy + radius },
+              ];
+              return (
+                <Group>
+                  {/* Faint live grid overlay so the user can compare to the map's actual grid. */}
+                  {gridLines.map((pts, i) => (
+                    <Line key={`calgrid-${i}`} points={pts} stroke={accentColor} strokeWidth={0.6} opacity={0.4} listening={false} />
+                  ))}
+                  {/* The "bounding square" of the bandit — visualizes the 5 ft grid cell. */}
+                  <Rect
+                    x={cx - radius}
+                    y={cy - radius}
+                    width={ppg}
+                    height={ppg}
+                    fill="rgba(251, 191, 36, 0.10)"
+                    stroke={accentColor}
+                    strokeWidth={1.5}
+                    dash={[6, 4]}
+                    listening={false}
+                  />
+                  {/* The bandit token — a draggable circle. */}
+                  <Group
+                    x={cx}
+                    y={cy}
+                    draggable
+                    onDragMove={(e) => {
+                      const node = e.target;
+                      setCalibrationDraft(prev => prev ? { ...prev, x: node.x(), y: node.y() } : prev);
+                    }}
+                  >
+                    <Circle radius={radius} fill={calColor} stroke="white" strokeWidth={2} opacity={0.85} />
+                  </Group>
+                  {/* Resize handles at each corner — drag to change ppg. */}
+                  {handles.map(h => (
+                    <Circle
+                      key={`cal-handle-${h.id}`}
+                      x={h.hx}
+                      y={h.hy}
+                      radius={7}
+                      fill={accentColor}
+                      stroke="white"
+                      strokeWidth={2}
+                      draggable
+                      onDragMove={(e) => {
+                        const node = e.target;
+                        const dx = Math.abs(node.x() - cx);
+                        const dy = Math.abs(node.y() - cy);
+                        // Use the larger axis distance so diagonal drag still feels right.
+                        const half = Math.max(6, Math.max(dx, dy));
+                        setCalibrationDraft(prev => prev ? { ...prev, ppg: half * 2 } : prev);
+                      }}
+                      onDragEnd={(e) => {
+                        // Snap the handle visually back to its computed corner so it doesn't drift.
+                        e.target.x(h.hx);
+                        e.target.y(h.hy);
+                      }}
+                    />
+                  ))}
+                </Group>
+              );
+            })()}
+
+            {/* ── Portal placement preview ── */}
+            {!isPlayerView && portalPlacementMode && (() => {
+              const previewColor = portalPlacementMode === 'window' ? '#60a5fa' : '#4ade80';
+              const ppg = gridResolution?.pixelsPerGrid || 0;
+              // Compute span length + label position when we have a start anchor + hover.
+              let lengthFt: number | null = null;
+              let lengthLabel: string | null = null;
+              let labelX = 0, labelY = 0, labelAngleDeg = 0, midX = 0, midY = 0;
+              let tickPts: number[] | null = null;
+              if (portalPlaceStart && portalPlaceHover && ppg > 0) {
+                const dx = portalPlaceHover.point.x - portalPlaceStart.point.x;
+                const dy = portalPlaceHover.point.y - portalPlaceStart.point.y;
+                const distPx = Math.sqrt(dx * dx + dy * dy);
+                lengthFt = (distPx / ppg) * 5;
+                // Round to one decimal; drop the decimal if it's a whole number.
+                const rounded = Math.round(lengthFt * 10) / 10;
+                lengthLabel = (Math.abs(rounded - Math.round(rounded)) < 0.05)
+                  ? `${Math.round(rounded)} ft`
+                  : `${rounded.toFixed(1)} ft`;
+                midX = (portalPlaceStart.point.x + portalPlaceHover.point.x) / 2;
+                midY = (portalPlaceStart.point.y + portalPlaceHover.point.y) / 2;
+                // Offset the label perpendicular to the span so it doesn't overlap the line.
+                const len = distPx || 1;
+                const nx = -dy / len;       // perpendicular unit vector
+                const ny = dx / len;
+                const offset = 18;
+                labelX = midX + nx * offset;
+                labelY = midY + ny * offset;
+                // Angle for rotated text — keep upright (no upside-down readouts).
+                let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                if (angle > 90) angle -= 180;
+                else if (angle < -90) angle += 180;
+                labelAngleDeg = angle;
+                // End-tick marks (short perpendicular hashes at both ends of the span)
+                const tickLen = 10;
+                const sx = portalPlaceStart.point.x;
+                const sy = portalPlaceStart.point.y;
+                const ex = portalPlaceHover.point.x;
+                const ey = portalPlaceHover.point.y;
+                tickPts = [
+                  sx + nx * tickLen, sy + ny * tickLen, sx - nx * tickLen, sy - ny * tickLen,
+                  ex + nx * tickLen, ey + ny * tickLen, ex - nx * tickLen, ey - ny * tickLen,
+                ];
+              }
+              // Color the label if the length is very close to 5 ft — visual confirmation.
+              const isFiveFt = lengthFt !== null && Math.abs(lengthFt - 5) < 0.15;
+              const labelBg = isFiveFt ? '#fbbf24' : '#0f0c0a';
+              const labelFg = isFiveFt ? '#1a1512' : '#ffffff';
+              const labelText = lengthLabel || '';
+              // Approx label box size (Konva Text doesn't auto-measure synchronously).
+              const labelW = labelText.length * 7 + 12;
+              const labelH = 18;
+              return (
+                <Group listening={false}>
+                  {/* Start anchor dot */}
+                  {portalPlaceStart && (
+                    <>
+                      <Circle
+                        x={portalPlaceStart.point.x}
+                        y={portalPlaceStart.point.y}
+                        radius={9}
+                        stroke={previewColor}
+                        strokeWidth={2}
+                        opacity={0.6}
+                      />
+                      <Circle
+                        x={portalPlaceStart.point.x}
+                        y={portalPlaceStart.point.y}
+                        radius={4}
+                        fill={previewColor}
+                        stroke="white"
+                        strokeWidth={1}
+                      />
+                    </>
+                  )}
+                  {/* Span between start and current hover (along the same wall edge) */}
+                  {portalPlaceStart && portalPlaceHover && (
+                    <Line
+                      points={[
+                        portalPlaceStart.point.x,
+                        portalPlaceStart.point.y,
+                        portalPlaceHover.point.x,
+                        portalPlaceHover.point.y,
+                      ]}
+                      stroke={previewColor}
+                      strokeWidth={5}
+                      lineCap="round"
+                      opacity={0.7}
+                    />
+                  )}
+                  {/* End-tick hashes — short marks perpendicular at both ends of the span */}
+                  {tickPts && (
+                    <>
+                      <Line
+                        points={tickPts.slice(0, 4)}
+                        stroke={previewColor}
+                        strokeWidth={2}
+                        lineCap="round"
+                        opacity={0.85}
+                      />
+                      <Line
+                        points={tickPts.slice(4, 8)}
+                        stroke={previewColor}
+                        strokeWidth={2}
+                        lineCap="round"
+                        opacity={0.85}
+                      />
+                    </>
+                  )}
+                  {/* Ruler label — distance in feet, shown next to the span */}
+                  {lengthLabel && (
+                    <Group x={labelX} y={labelY} rotation={labelAngleDeg}>
+                      <Rect
+                        x={-labelW / 2}
+                        y={-labelH / 2}
+                        width={labelW}
+                        height={labelH}
+                        cornerRadius={4}
+                        fill={labelBg}
+                        stroke={previewColor}
+                        strokeWidth={1}
+                        opacity={0.95}
+                      />
+                      <Text
+                        x={-labelW / 2}
+                        y={-labelH / 2}
+                        width={labelW}
+                        height={labelH}
+                        text={labelText}
+                        fontSize={12}
+                        fontStyle="bold"
+                        fill={labelFg}
+                        align="center"
+                        verticalAlign="middle"
+                      />
+                    </Group>
+                  )}
+                  {/* Hover marker (before first click, or live endpoint during span) */}
+                  {portalPlaceHover && (
+                    <Circle
+                      x={portalPlaceHover.point.x}
+                      y={portalPlaceHover.point.y}
+                      radius={5}
+                      fill="white"
+                      stroke={previewColor}
+                      strokeWidth={2}
+                    />
+                  )}
+                </Group>
+              );
+            })()}
+
             {/* ── In-progress wall polyline ── */}
             {!isPlayerView && wallPainting && wallPaintPoints.length >= 2 && (
               <Group listening={false}>
@@ -7521,17 +8158,47 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   lineJoin="round"
                   opacity={0.9}
                 />
-                {Array.from({ length: wallPaintPoints.length / 2 }).map((_, i) => (
-                  <Circle
-                    key={`wp-${i}`}
-                    x={wallPaintPoints[i * 2]}
-                    y={wallPaintPoints[i * 2 + 1]}
-                    radius={4}
-                    fill="#ff6b35"
-                    stroke="white"
-                    strokeWidth={1}
+                {/* Preview rubber-band line from last vertex to cursor (or to origin when snapping). */}
+                {wallPaintHover && (
+                  <Line
+                    points={[
+                      wallPaintPoints[wallPaintPoints.length - 2],
+                      wallPaintPoints[wallPaintPoints.length - 1],
+                      wallPaintHover.x,
+                      wallPaintHover.y,
+                    ]}
+                    stroke="#ff6b35"
+                    strokeWidth={2}
+                    dash={[6, 4]}
+                    opacity={0.55}
                   />
-                ))}
+                )}
+                {Array.from({ length: wallPaintPoints.length / 2 }).map((_, i) => {
+                  const isOrigin = i === 0;
+                  const highlight = isOrigin && wallSnapToOrigin;
+                  return (
+                    <React.Fragment key={`wp-${i}`}>
+                      {highlight && (
+                        <Circle
+                          x={wallPaintPoints[i * 2]}
+                          y={wallPaintPoints[i * 2 + 1]}
+                          radius={11}
+                          stroke="#fbbf24"
+                          strokeWidth={2}
+                          opacity={0.9}
+                        />
+                      )}
+                      <Circle
+                        x={wallPaintPoints[i * 2]}
+                        y={wallPaintPoints[i * 2 + 1]}
+                        radius={highlight ? 6 : 4}
+                        fill={highlight ? '#fbbf24' : '#ff6b35'}
+                        stroke="white"
+                        strokeWidth={1}
+                      />
+                    </React.Fragment>
+                  );
+                })}
               </Group>
             )}
             {/* In-progress dark zone polygon */}
