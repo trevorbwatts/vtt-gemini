@@ -470,6 +470,22 @@ export interface Floor {
   ambientVolume?: number;
   /** Tier 2: painted sound zones on this floor (e.g. river, fire pit). */
   soundZones?: SoundZone[];
+  /** Polygonal regions that remain dark even when the floor is set to Daylight (caves, houses, etc.). */
+  darkZones?: DarkZone[];
+}
+
+/**
+ * A polygonal region treated as Dark even when the floor's darknessLevel is 'daylight'.
+ * Tokens without darkvision see nothing inside the polygon; tokens with darkvision or
+ * blindsight see up to their sense radius into it. Outside the polygon, normal daylight
+ * vision applies.
+ */
+export interface DarkZone {
+  id: string;
+  /** Polygon vertices in map pixel coordinates, flat: [x1, y1, x2, y2, ...]. */
+  points: number[];
+  /** Optional label shown in the DM panel (e.g. "Cave", "Tavern"). */
+  label?: string;
 }
 
 /**

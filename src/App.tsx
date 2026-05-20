@@ -7,7 +7,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Volume2 } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Volume2, Moon } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -17,7 +17,7 @@ import { SoundZonesPanel } from './components/SoundZonesPanel';
 import { audioEngine, loadMixerSettings, soundUrlFromId } from './services/audioEngine';
 import { loadSoundBindings } from './services/soundBindings';
 import { zoneVolumeAtPoint } from './utils/soundZoneMath';
-import type { SoundZone } from './types';
+import type { SoundZone, DarkZone } from './types';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { EnlargeReduceModal } from './components/EnlargeReduceModal';
@@ -104,6 +104,14 @@ export function DMScreen() {
   const [zonesPanelOpen, setZonesPanelOpen] = useState(false);
   /** When set, the user is painting a new sound zone with this template. */
   const [zonePainting, setZonePainting] = useState<{ soundId: string; falloffPx: number; color: string; label?: string } | null>(null);
+  /** When true, the user is painting a new Dark Zone polygon. */
+  const [darkZonePainting, setDarkZonePainting] = useState(false);
+  /** When true, the user is in Paint Walls mode. */
+  const [wallPainting, setWallPainting] = useState(false);
+  /** When true, clicking a wall deletes it. */
+  const [wallErasing, setWallErasing] = useState(false);
+  /** When true, painted wall vertices snap to the nearest grid intersection. */
+  const [wallSnapToGrid, setWallSnapToGrid] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [dicePopover, setDicePopover] = useState<{ die: string; roll: number; x: number; y: number } | null>(null);
   // Listen for both browser fullscreen and Electron fullscreen changes
@@ -952,6 +960,10 @@ export function DMScreen() {
 
   const updateDarknessLevel = useCallback((level: 'daylight' | 'dark') => {
     updateActiveFloor(f => ({ ...f, darknessLevel: level }));
+  }, [updateActiveFloor]);
+
+  const updateWalls = useCallback((walls: WallSegment[]) => {
+    updateActiveFloor(f => ({ ...f, walls }));
   }, [updateActiveFloor]);
 
   const togglePortal = useCallback((portalId: string) => {
@@ -2132,6 +2144,53 @@ export function DMScreen() {
             </button>
           </div>
         )}
+        {darkZonePainting && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-indigo-400/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <Moon size={14} className="text-indigo-400" />
+            <span className="text-xs">
+              Painting <strong>dark zone</strong> — click points on the map.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
+            <span className="text-[10px] opacity-60">commit</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => setDarkZonePainting(false)}
+            >
+              cancel
+            </button>
+          </div>
+        )}
+        {wallPainting && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-orange-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <span className="text-xs">
+              Painting <strong>walls</strong> — click points to drop corners.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
+            <span className="text-[10px] opacity-60">finish wall</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => setWallPainting(false)}
+            >
+              exit
+            </button>
+          </div>
+        )}
+        {wallErasing && !wallPainting && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-red-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <span className="text-xs">
+              <strong>Eraser</strong> — click a wall to delete it.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => setWallErasing(false)}
+            >
+              exit
+            </button>
+          </div>
+        )}
 
         {/* Dice roll popover */}
         {dicePopover && (
@@ -2244,6 +2303,41 @@ export function DMScreen() {
                   setZonesPanelOpen(true);
                 }}
                 onSoundZonePaintCancel={() => setZonePainting(null)}
+                onDarkZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, darkZones: zones }))}
+                darkZonePainting={darkZonePainting}
+                onStartDarkZonePainting={() => {
+                  setZonePainting(null);
+                  setDarkZonePainting(true);
+                }}
+                onDarkZonePaintCommit={(points) => {
+                  if (!activeFloorId) return;
+                  const newZone: DarkZone = {
+                    id: `dz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    points,
+                  };
+                  updateFloorById(activeFloorId, f => ({
+                    ...f,
+                    darkZones: [...(f.darkZones || []), newZone],
+                  }));
+                  setDarkZonePainting(false);
+                }}
+                onDarkZonePaintCancel={() => setDarkZonePainting(false)}
+                wallPainting={wallPainting}
+                wallErasing={wallErasing}
+                wallSnapToGrid={wallSnapToGrid}
+                onStartWallPainting={() => {
+                  setWallErasing(false);
+                  setZonePainting(null);
+                  setDarkZonePainting(false);
+                  setWallPainting(true);
+                }}
+                onStopWallPainting={() => setWallPainting(false)}
+                onToggleWallErasing={() => {
+                  setWallPainting(false);
+                  setWallErasing(v => !v);
+                }}
+                onToggleWallSnapToGrid={() => setWallSnapToGrid(v => !v)}
+                onWallsChange={updateWalls}
               />
             )}
           </main>

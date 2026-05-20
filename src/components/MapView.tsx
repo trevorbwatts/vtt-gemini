@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke, Extra } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid } from '../icons';
+import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid, Pencil, Eraser } from '../icons';
 import { useExtras, extraImageUrl, filterExtras, allTags } from '../data/extras';
 import { ManageExtrasModal } from './ManageExtrasModal';
 import { MakeCreatureModal } from './MakeCreatureModal';
@@ -186,6 +186,34 @@ interface MapViewProps {
   zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
   onSoundZonePaintCommit?: (points: number[]) => void;
   onSoundZonePaintCancel?: () => void;
+
+  // ── Dark zones ──
+  /** Polygonal regions on the active floor that stay dark even in Daylight. */
+  darkZones?: import('../types').DarkZone[];
+  /** Called when the dark-zone list changes (delete/edit). */
+  onDarkZonesChange?: (zones: import('../types').DarkZone[]) => void;
+  /** When true, MapView captures clicks as polygon vertices for a new dark zone. */
+  darkZonePainting?: boolean;
+  /** Begin a new dark-zone paint session. */
+  onStartDarkZonePainting?: () => void;
+  /** Commit a painted dark-zone polygon (flat points array). */
+  onDarkZonePaintCommit?: (points: number[]) => void;
+  /** Cancel the current dark-zone paint session (Escape pressed or user clicked Cancel). */
+  onDarkZonePaintCancel?: () => void;
+
+  // ── Wall painting / erasing ──
+  /** When true, MapView captures clicks as polyline vertices for a new wall. */
+  wallPainting?: boolean;
+  /** When true, clicking on an existing wall deletes it. */
+  wallErasing?: boolean;
+  /** When true, painted wall vertices snap to the nearest grid intersection. */
+  wallSnapToGrid?: boolean;
+  onStartWallPainting?: () => void;
+  onStopWallPainting?: () => void;
+  onToggleWallErasing?: () => void;
+  onToggleWallSnapToGrid?: () => void;
+  /** Replace the floor's walls array. */
+  onWallsChange?: (walls: WallSegment[]) => void;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -3538,15 +3566,93 @@ const MapViewInner: React.FC<MapViewProps> = ({
   zonePainting = null,
   onSoundZonePaintCommit,
   onSoundZonePaintCancel,
+  darkZones = [],
+  onDarkZonesChange,
+  darkZonePainting = false,
+  onStartDarkZonePainting,
+  onDarkZonePaintCommit,
+  onDarkZonePaintCancel,
+  wallPainting = false,
+  wallErasing = false,
+  wallSnapToGrid = false,
+  onStartWallPainting,
+  onStopWallPainting,
+  onToggleWallErasing,
+  onToggleWallSnapToGrid,
+  onWallsChange,
 }) => {
   // ── Sound zone painting (Tier 2) ──
   const [zonePaintPoints, setZonePaintPoints] = useState<number[]>([]);
   const [zonePaintCursor, setZonePaintCursor] = useState<{ x: number; y: number } | null>(null);
+  // ── Dark zone painting ──
+  const [darkPaintPoints, setDarkPaintPoints] = useState<number[]>([]);
+  // ── Wall painting ──
+  /** Flat [x1,y1,x2,y2,…] for the wall currently being drawn. */
+  const [wallPaintPoints, setWallPaintPoints] = useState<number[]>([]);
   // Reset paint points whenever the painting session starts or ends.
   useEffect(() => {
     setZonePaintPoints([]);
     setZonePaintCursor(null);
   }, [zonePainting]);
+  useEffect(() => {
+    setDarkPaintPoints([]);
+  }, [darkZonePainting]);
+  // Keyboard: Esc cancels, Enter commits a dark-zone paint session.
+  useEffect(() => {
+    if (!darkZonePainting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onDarkZonePaintCancel?.();
+      } else if (e.key === 'Enter' && darkPaintPoints.length >= 6) {
+        onDarkZonePaintCommit?.(darkPaintPoints);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [darkZonePainting, darkPaintPoints, onDarkZonePaintCommit, onDarkZonePaintCancel]);
+  // Reset wall paint points whenever paint mode toggles.
+  useEffect(() => {
+    setWallPaintPoints([]);
+  }, [wallPainting]);
+  // Keyboard for wall painting: Enter commits the current wall and chains a new one;
+  // Esc exits paint mode (commits any pending wall first).
+  useEffect(() => {
+    if (!wallPainting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Commit any pending segment of 2+ points before exiting.
+        if (wallPaintPoints.length >= 4 && onWallsChange) {
+          const pts: WallPoint[] = [];
+          for (let i = 0; i < wallPaintPoints.length; i += 2) {
+            pts.push({ x: wallPaintPoints[i], y: wallPaintPoints[i + 1] });
+          }
+          const newSeg: WallSegment = {
+            id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            points: pts,
+          };
+          onWallsChange([...(walls || []), newSeg]);
+        }
+        setWallPaintPoints([]);
+        onStopWallPainting?.();
+      } else if (e.key === 'Enter') {
+        // Commit current wall (needs at least 2 points) and start a new one.
+        if (wallPaintPoints.length >= 4 && onWallsChange) {
+          const pts: WallPoint[] = [];
+          for (let i = 0; i < wallPaintPoints.length; i += 2) {
+            pts.push({ x: wallPaintPoints[i], y: wallPaintPoints[i + 1] });
+          }
+          const newSeg: WallSegment = {
+            id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            points: pts,
+          };
+          onWallsChange([...(walls || []), newSeg]);
+          setWallPaintPoints([]);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [wallPainting, wallPaintPoints, walls, onWallsChange, onStopWallPainting]);
   // Keyboard: Esc cancels, Enter commits a paint session.
   useEffect(() => {
     if (!zonePainting) return;
@@ -4960,6 +5066,49 @@ const MapViewInner: React.FC<MapViewProps> = ({
       computeVisibilityPolygon({ x: t.x, y: t.y }, blockingSegments, mapW, mapH)
     );
   }, [isPlayerView, loadedImage, lightPolygons.length, playerTokenPositions, blockingSegments]);
+
+  // ── Dark Zones ──
+  // In Daylight, dark-zone polygons should re-fog the area inside them. Only
+  // applies on the player view; the DM sees the zone outline regardless.
+  const darkZonePolygons = useMemo((): WallPoint[][] => {
+    if (!isPlayerView) return [];
+    if ((darknessLevel ?? 'dark') !== 'daylight') return [];
+    if (!darkZones.length) return [];
+    return darkZones
+      .filter(z => z.points.length >= 6)
+      .map(z => {
+        const pts: WallPoint[] = [];
+        for (let i = 0; i < z.points.length; i += 2) {
+          pts.push({ x: z.points[i], y: z.points[i + 1] });
+        }
+        return pts;
+      });
+  }, [isPlayerView, darknessLevel, darkZones]);
+
+  // Darkvision-radius-limited LOS polygons for every player token that has
+  // darkvision or blindsight. Used to re-erase fog inside dark zones so tokens
+  // with darkvision can see partway into them.
+  const darkvisionRevealPolygons = useMemo((): WallPoint[][] => {
+    if (!isPlayerView || !loadedImage || !darkZonePolygons.length) return [];
+    const { width: mapW, height: mapH } = loadedImage;
+    const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const result: WallPoint[][] = [];
+    for (const t of playerTokenPositions) {
+      const combatant = allCombatants.find(c => c.id === t.combatantId);
+      const blindsightMatch = combatant?.senses?.match(/blindsight\s+(\d+)/i);
+      const blindsightFt = blindsightMatch ? parseInt(blindsightMatch[1], 10) : 0;
+      const visionFt = Math.max(combatant?.darkvision ?? 0, blindsightFt);
+      if (visionFt <= 0) continue;
+      const visionPx = gridResolution
+        ? (visionFt / 5) * gridResolution.pixelsPerGrid
+        : visionFt * 4;
+      const origin = { x: t.x, y: t.y };
+      const fullPoly = computeVisibilityPolygon(origin, blockingSegments, mapW, mapH);
+      result.push(clipPolygonToCircle(fullPoly, origin, visionPx));
+    }
+    return result;
+  }, [isPlayerView, loadedImage, darkZonePolygons.length, playerTokenPositions, blockingSegments,
+    players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
   const hasFogData = blockingSegments.length > 0;
 
@@ -6816,7 +6965,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         initial={{ opacity: 0, y: -5 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -5 }}
-                        className="absolute top-full left-0 mt-2 z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[180px] flex flex-col items-stretch"
+                        className="absolute top-full left-0 mt-2 z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[240px] flex flex-col items-stretch"
                       >
                         <button
                           onClick={() => {
@@ -6887,6 +7036,110 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             ))}
                           </div>
                         </div>
+
+                        {onStartWallPainting && (
+                          <>
+                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Edit Walls</p>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <button
+                                  onClick={() => {
+                                    onStartWallPainting();
+                                    setIsMapMenuOpen(false);
+                                  }}
+                                  disabled={wallPainting}
+                                  className={cn(
+                                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors disabled:opacity-40',
+                                    wallPainting
+                                      ? 'bg-orange-500/30 border-orange-400/50 text-orange-200'
+                                      : 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-400/30'
+                                  )}
+                                >
+                                  <Pencil size={11} />
+                                  {wallPainting ? 'Painting…' : 'Paint Walls'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    onToggleWallErasing?.();
+                                    setIsMapMenuOpen(false);
+                                  }}
+                                  className={cn(
+                                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors',
+                                    wallErasing
+                                      ? 'bg-red-500/30 border-red-400/50 text-red-200'
+                                      : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
+                                  )}
+                                >
+                                  <Eraser size={11} />
+                                  {wallErasing ? 'Erasing' : 'Eraser'}
+                                </button>
+                              </div>
+                              {gridResolution && (
+                                <button
+                                  onClick={() => onToggleWallSnapToGrid?.()}
+                                  className={cn(
+                                    'w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] rounded-md border transition-colors',
+                                    wallSnapToGrid
+                                      ? 'bg-white/15 border-white/30 text-white'
+                                      : 'bg-black/30 border-white/10 opacity-70 hover:opacity-100'
+                                  )}
+                                >
+                                  <SquareDashed size={10} />
+                                  Snap to Grid {wallSnapToGrid ? 'ON' : 'OFF'}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        {hasFogData && (onStartDarkZonePainting || darkZones.length > 0) && (
+                          <>
+                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Dark Zones</p>
+                              {darkZones.length > 0 && (
+                                <div className="flex flex-col gap-1 mb-1.5">
+                                  {darkZones.map((z, i) => (
+                                    <div key={z.id} className="flex items-center gap-1.5 text-[11px] bg-black/30 rounded px-2 py-1">
+                                      <Moon size={10} className="text-indigo-400 shrink-0" />
+                                      <span className="flex-1 truncate opacity-80">
+                                        {z.label || `Zone ${i + 1}`}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          onDarkZonesChange?.(darkZones.filter(d => d.id !== z.id));
+                                        }}
+                                        className="opacity-50 hover:opacity-100 hover:text-red-400 transition-colors"
+                                        title="Delete zone"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {onStartDarkZonePainting && (
+                                <button
+                                  onClick={() => {
+                                    onStartDarkZonePainting();
+                                    setIsMapMenuOpen(false);
+                                  }}
+                                  disabled={darkZonePainting}
+                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-md transition-colors disabled:opacity-40"
+                                >
+                                  <PlusCircle size={11} />
+                                  {darkZonePainting ? 'Painting…' : 'Paint Dark Zone'}
+                                </button>
+                              )}
+                              {darkZones.length === 0 && !darkZonePainting && (
+                                <p className="text-[10px] opacity-40 mt-1 leading-snug">
+                                  Mark caves & rooms that stay dark in Daylight.
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </motion.div>
                     </>
                   )}
@@ -6953,6 +7206,98 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   return;
                 }
                 setZonePaintPoints(prev => [...prev, p.x, p.y]);
+              }
+              return;
+            }
+            // Wall painting: clicks add polyline vertices for the current wall.
+            if (wallPainting && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              if (stage && ptr) {
+                const tx = stage.getAbsoluteTransform().copy();
+                tx.invert();
+                let p = tx.point(ptr);
+                if (wallSnapToGrid && gridResolution) {
+                  const g = gridResolution.pixelsPerGrid;
+                  const ox = gridResolution.mapOrigin?.x ?? 0;
+                  const oy = gridResolution.mapOrigin?.y ?? 0;
+                  p = {
+                    x: Math.round((p.x - ox) / g) * g + ox,
+                    y: Math.round((p.y - oy) / g) * g + oy,
+                  };
+                }
+                // Double-click commits the current wall and starts a new one.
+                if (e.evt.detail >= 2 && wallPaintPoints.length >= 4 && onWallsChange) {
+                  const pts: WallPoint[] = [];
+                  for (let i = 0; i < wallPaintPoints.length; i += 2) {
+                    pts.push({ x: wallPaintPoints[i], y: wallPaintPoints[i + 1] });
+                  }
+                  const newSeg: WallSegment = {
+                    id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    points: pts,
+                  };
+                  onWallsChange([...(walls || []), newSeg]);
+                  setWallPaintPoints([]);
+                  return;
+                }
+                setWallPaintPoints(prev => [...prev, p.x, p.y]);
+              }
+              return;
+            }
+            // Wall erasing: click near an existing wall to delete it.
+            if (wallErasing && !wallPainting && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              if (stage && ptr && onWallsChange) {
+                const tx = stage.getAbsoluteTransform().copy();
+                tx.invert();
+                const p = tx.point(ptr);
+                // Hit threshold: ~10 map pixels (a bit wider than the wall stroke).
+                const stageScale = stage.scaleX() || 1;
+                const hitDist = Math.max(8, 12 / stageScale);
+                // Point-to-segment distance squared.
+                const distSqToSeg = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
+                  const dx = bx - ax, dy = by - ay;
+                  const lenSq = dx * dx + dy * dy;
+                  let t = lenSq > 0 ? ((px - ax) * dx + (py - ay) * dy) / lenSq : 0;
+                  t = Math.max(0, Math.min(1, t));
+                  const cx = ax + t * dx, cy = ay + t * dy;
+                  const ex = px - cx, ey = py - cy;
+                  return ex * ex + ey * ey;
+                };
+                const thresholdSq = hitDist * hitDist;
+                // Find the wall whose closest segment is nearest to the click.
+                let hitId: string | null = null;
+                let bestDistSq = thresholdSq;
+                for (const w of walls || []) {
+                  for (let i = 0; i + 1 < w.points.length; i++) {
+                    const a = w.points[i], b = w.points[i + 1];
+                    const d2 = distSqToSeg(p.x, p.y, a.x, a.y, b.x, b.y);
+                    if (d2 < bestDistSq) {
+                      bestDistSq = d2;
+                      hitId = w.id;
+                    }
+                  }
+                }
+                if (hitId) {
+                  onWallsChange((walls || []).filter(w => w.id !== hitId));
+                }
+              }
+              return;
+            }
+            // Dark-zone painting: clicks add polygon vertices.
+            if (darkZonePainting && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              if (stage && ptr) {
+                const tx = stage.getAbsoluteTransform().copy();
+                tx.invert();
+                const p = tx.point(ptr);
+                if (e.evt.detail >= 2 && darkPaintPoints.length >= 6) {
+                  onDarkZonePaintCommit?.(darkPaintPoints);
+                  return;
+                }
+                setDarkPaintPoints(prev => [...prev, p.x, p.y]);
               }
               return;
             }
@@ -7149,6 +7494,70 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 />
               );
             })}
+            {/* ── Dark zones — DM only, hidden when walls are hidden ── */}
+            {!isPlayerView && showWalls && darkZones.length > 0 && darkZones.map(z => {
+              if (z.points.length < 6) return null;
+              return (
+                <Line
+                  key={`darkzone-${z.id}`}
+                  points={z.points}
+                  closed
+                  fill="rgba(20, 24, 60, 0.32)"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dash={[8, 4]}
+                  listening={false}
+                />
+              );
+            })}
+            {/* ── In-progress wall polyline ── */}
+            {!isPlayerView && wallPainting && wallPaintPoints.length >= 2 && (
+              <Group listening={false}>
+                <Line
+                  points={wallPaintPoints}
+                  stroke="#ff6b35"
+                  strokeWidth={3}
+                  lineCap="round"
+                  lineJoin="round"
+                  opacity={0.9}
+                />
+                {Array.from({ length: wallPaintPoints.length / 2 }).map((_, i) => (
+                  <Circle
+                    key={`wp-${i}`}
+                    x={wallPaintPoints[i * 2]}
+                    y={wallPaintPoints[i * 2 + 1]}
+                    radius={4}
+                    fill="#ff6b35"
+                    stroke="white"
+                    strokeWidth={1}
+                  />
+                ))}
+              </Group>
+            )}
+            {/* In-progress dark zone polygon */}
+            {!isPlayerView && darkZonePainting && darkPaintPoints.length >= 2 && (
+              <Group listening={false}>
+                <Line
+                  points={darkPaintPoints}
+                  closed={darkPaintPoints.length >= 6}
+                  fill={darkPaintPoints.length >= 6 ? 'rgba(20, 24, 60, 0.22)' : undefined}
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dash={[6, 4]}
+                />
+                {Array.from({ length: darkPaintPoints.length / 2 }).map((_, i) => (
+                  <Circle
+                    key={`dp-${i}`}
+                    x={darkPaintPoints[i * 2]}
+                    y={darkPaintPoints[i * 2 + 1]}
+                    radius={5}
+                    fill={i === 0 ? 'white' : '#6366f1'}
+                    stroke="#6366f1"
+                    strokeWidth={1.5}
+                  />
+                ))}
+              </Group>
+            )}
             {/* In-progress sound zone polygon */}
             {!isPlayerView && zonePainting && zonePaintPoints.length >= 2 && (() => {
               const color = zonePainting.color;
@@ -9136,6 +9545,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 visibilityPolygons={isPlayerView ? playerVisionData : visibilityPolygons}
                 playerLOSPolygons={playerFullLOSPolygons}
                 lightPolygons={lightPolygons}
+                darkZonePolygons={darkZonePolygons}
+                darkvisionRevealPolygons={darkvisionRevealPolygons}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
                 opacity={isPlayerView ? 1.0 : 0.7}
@@ -9357,6 +9768,30 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       dash={(token.invisible || token.illusory) ? [6 * tokenScale, 4 * tokenScale] : undefined}
                       perfectDrawEnabled={false}
                     />
+                    {/* Engaged range ring — shown when within 5ft of an opposing token during combat. Dark halo behind red for contrast. */}
+                    {engagedTokenIds.has(token.id) && (
+                      <>
+                        <Circle
+                          radius={r + 5 / stageScale}
+                          fill="transparent"
+                          stroke="#000000"
+                          strokeWidth={4 / stageScale}
+                          opacity={0.5}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                        <Circle
+                          radius={r + 5 / stageScale}
+                          fill="transparent"
+                          stroke="#FF4444"
+                          strokeWidth={2 / stageScale}
+                          opacity={0.9}
+                          dash={[6 / stageScale, 4 / stageScale]}
+                          listening={false}
+                          perfectDrawEnabled={false}
+                        />
+                      </>
+                    )}
                     {tokensInAoe.has(token.id) && !activeAoe?.saveResults && (() => {
                       const hlRgb2 = getDamageRgb(activeAoe?.damageType);
                       return <>

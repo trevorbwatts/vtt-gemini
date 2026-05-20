@@ -102,6 +102,23 @@ interface FloorMapContainerProps {
   zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
   onSoundZonePaintCommit?: (points: number[]) => void;
   onSoundZonePaintCancel?: () => void;
+  /** Per-floor updates to the list of Dark Zones. */
+  onDarkZonesChange?: (floorId: string, zones: import('../types').DarkZone[]) => void;
+  /** When true, the primary MapView captures clicks as polygon vertices for a new dark zone. */
+  darkZonePainting?: boolean;
+  onStartDarkZonePainting?: () => void;
+  onDarkZonePaintCommit?: (points: number[]) => void;
+  onDarkZonePaintCancel?: () => void;
+  // ── Wall painting/erasing ──
+  wallPainting?: boolean;
+  wallErasing?: boolean;
+  wallSnapToGrid?: boolean;
+  onStartWallPainting?: () => void;
+  onStopWallPainting?: () => void;
+  onToggleWallErasing?: () => void;
+  onToggleWallSnapToGrid?: () => void;
+  /** Replace the active floor's walls array (just walls, not portals or objectWalls). */
+  onWallsChange?: (walls: import('../types').WallSegment[]) => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -333,6 +350,20 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     zonePainting: isPrimary ? (props.zonePainting ?? null) : null,
     onSoundZonePaintCommit: isPrimary ? props.onSoundZonePaintCommit : undefined,
     onSoundZonePaintCancel: isPrimary ? props.onSoundZonePaintCancel : undefined,
+    darkZones: floor.darkZones || [],
+    onDarkZonesChange: (next: import('../types').DarkZone[]) => props.onDarkZonesChange?.(floor.id, next),
+    darkZonePainting: isPrimary ? (props.darkZonePainting ?? false) : false,
+    onStartDarkZonePainting: isPrimary ? props.onStartDarkZonePainting : undefined,
+    onDarkZonePaintCommit: isPrimary ? props.onDarkZonePaintCommit : undefined,
+    onDarkZonePaintCancel: isPrimary ? props.onDarkZonePaintCancel : undefined,
+    wallPainting: isPrimary ? (props.wallPainting ?? false) : false,
+    wallErasing: isPrimary ? (props.wallErasing ?? false) : false,
+    wallSnapToGrid: isPrimary ? (props.wallSnapToGrid ?? false) : false,
+    onStartWallPainting: isPrimary ? props.onStartWallPainting : undefined,
+    onStopWallPainting: isPrimary ? props.onStopWallPainting : undefined,
+    onToggleWallErasing: isPrimary ? props.onToggleWallErasing : undefined,
+    onToggleWallSnapToGrid: isPrimary ? props.onToggleWallSnapToGrid : undefined,
+    onWallsChange: isPrimary ? props.onWallsChange : undefined,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,

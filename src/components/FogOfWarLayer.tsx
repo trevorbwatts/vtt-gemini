@@ -6,6 +6,12 @@ interface FogOfWarLayerProps {
   visibilityPolygons: WallPoint[][];
   playerLOSPolygons: WallPoint[][];
   lightPolygons: WallPoint[][];
+  /** Polygonal regions that should be re-fogged on top of the daylight reveal
+   *  (e.g. caves/houses marked as Dark Zones). */
+  darkZonePolygons?: WallPoint[][];
+  /** Darkvision-limited LOS polygons used to re-erase fog inside dark zones —
+   *  so a token with darkvision can still see partway into a dark room. */
+  darkvisionRevealPolygons?: WallPoint[][];
   mapWidth: number;
   mapHeight: number;
   opacity: number;
@@ -15,6 +21,8 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
   visibilityPolygons,
   playerLOSPolygons,
   lightPolygons,
+  darkZonePolygons = [],
+  darkvisionRevealPolygons = [],
   mapWidth,
   mapHeight,
   opacity,
@@ -74,6 +82,40 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
               c.fillStyle = 'black';
               c.fill();
               c.restore();
+            }
+          }
+        }
+
+        // ── Dark Zones ──
+        // Re-paint fog inside any dark-zone polygons so the floor goes dark
+        // even though the LOS reveal above cleared it. Then erase again using
+        // darkvision-limited LOS so tokens with darkvision can see partway in.
+        if (darkZonePolygons.length) {
+          c.globalCompositeOperation = 'source-over';
+          c.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+          for (const polygon of darkZonePolygons) {
+            if (polygon.length < 3) continue;
+            c.beginPath();
+            c.moveTo(polygon[0].x, polygon[0].y);
+            for (let i = 1; i < polygon.length; i++) {
+              c.lineTo(polygon[i].x, polygon[i].y);
+            }
+            c.closePath();
+            c.fill();
+          }
+
+          if (darkvisionRevealPolygons.length) {
+            c.globalCompositeOperation = 'destination-out';
+            for (const polygon of darkvisionRevealPolygons) {
+              if (polygon.length < 3) continue;
+              c.beginPath();
+              c.moveTo(polygon[0].x, polygon[0].y);
+              for (let i = 1; i < polygon.length; i++) {
+                c.lineTo(polygon[i].x, polygon[i].y);
+              }
+              c.closePath();
+              c.fillStyle = 'black';
+              c.fill();
             }
           }
         }
