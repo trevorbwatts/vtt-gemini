@@ -1776,6 +1776,19 @@ export function PlayerScreen() {
     return result;
   }, [signedInSpots]);
 
+  // Quad-split: map combatantId -> the spot they signed into, so FloorMapContainer
+  // can place each floor's panel in the quadrant nearest its player.
+  const playerSpots = useMemo<Record<string, 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>>(() => {
+    const result: Record<string, 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'> = {};
+    for (const [spotId, playerId] of Object.entries(signedInSpots)) {
+      if (!playerId) continue;
+      if (spotId === 'top-left' || spotId === 'top-right' || spotId === 'bottom-left' || spotId === 'bottom-right') {
+        result[playerId] = spotId;
+      }
+    }
+    return result;
+  }, [signedInSpots]);
+
   const [viewportCenter, setViewportCenter] = useState<{ x: number; y: number } | null>(null);
 
   const currentScenario = campaign?.scenarios.find(s => s.id === currentScenarioId) ?? null;
@@ -2629,6 +2642,7 @@ export function PlayerScreen() {
           isPlayerView={true}
           viewerCasterIds={Object.values(signedInSpots).filter(Boolean) as string[]}
           playerSides={playerSides}
+          playerSpots={playerSpots}
           onPortalToggle={(portalId) => {
             // Check if the portal is locked — if so, ignore the tap entirely.
             const scenarioId = currentScenarioIdRef.current;

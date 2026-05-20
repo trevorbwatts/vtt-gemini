@@ -7,10 +7,17 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2 } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Volume2 } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
+import { MixerPanel } from './components/MixerPanel';
+import { SoundPicker } from './components/SoundPicker';
+import { SoundZonesPanel } from './components/SoundZonesPanel';
+import { audioEngine, loadMixerSettings, soundUrlFromId } from './services/audioEngine';
+import { loadSoundBindings } from './services/soundBindings';
+import { zoneVolumeAtPoint } from './utils/soundZoneMath';
+import type { SoundZone } from './types';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { EnlargeReduceModal } from './components/EnlargeReduceModal';
@@ -88,6 +95,15 @@ export function DMScreen() {
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
+  const [mixerOpen, setMixerOpen] = useState(false);
+  /** When set, an ambient sound picker is open for this floor id. */
+  const [ambientPickerFor, setAmbientPickerFor] = useState<string | null>(null);
+  /** Manual override: when non-null, only this floor's ambient/zone audio plays. */
+  const [audioFocusFloorId, setAudioFocusFloorId] = useState<string | null>(null);
+  /** When set, the Sound Zones panel is open. */
+  const [zonesPanelOpen, setZonesPanelOpen] = useState(false);
+  /** When set, the user is painting a new sound zone with this template. */
+  const [zonePainting, setZonePainting] = useState<{ soundId: string; falloffPx: number; color: string; label?: string } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [dicePopover, setDicePopover] = useState<{ die: string; roll: number; x: number; y: number } | null>(null);
   // Listen for both browser fullscreen and Electron fullscreen changes
@@ -139,6 +155,12 @@ export function DMScreen() {
   const skipStateBroadcastRef = useRef(false);
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
   const clearMovementPathsRef = useRef<(() => void) | null>(null);
+  /** Tracks the keys we've set on each audio loop bus, so the orchestration
+   *  effect can release stale ones when a floor or zone is removed. */
+  const prevAudioKeysRef = useRef<{ ambient: Set<string>; zones: Set<string> }>({
+    ambient: new Set(),
+    zones: new Set(),
+  });
   const clearRemoteAoeRef = useRef<(() => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
@@ -933,12 +955,38 @@ export function DMScreen() {
   }, [updateActiveFloor]);
 
   const togglePortal = useCallback((portalId: string) => {
+    // Determine the *current* state of the portal (before toggling) so we can
+    // play the right interaction sound. Doors/windows that are locked do not toggle.
+    let opening: boolean | null = null;
+    let portalType: 'door' | 'window' | 'secret' | undefined;
+    const scenario = campaignRef.current?.scenarios.find(s => s.id === selectedScenarioIdRef.current);
+    const floor = scenario?.floors?.find(f => f.id === activeFloorIdRef.current);
+    const portal = floor?.portals?.find(p => p.id === portalId);
+    if (portal && !portal.locked) {
+      opening = portal.closed === true;  // it WAS closed, so this toggle opens it
+      portalType = portal.portalType;
+    }
+
     updateActiveFloor(f => ({
       ...f,
       portals: f.portals?.map(p =>
         p.id === portalId && !p.locked ? { ...p, closed: !p.closed } : p
       )
     }));
+
+    if (opening !== null && (portalType === 'door' || portalType === 'window' || !portalType)) {
+      const bindings = loadSoundBindings();
+      // Default to 'door' bindings when portalType is undefined (legacy portals).
+      const kind: 'door' | 'window' = portalType === 'window' ? 'window' : 'door';
+      const key = (kind === 'door')
+        ? (opening ? 'doorOpen' : 'doorClose')
+        : (opening ? 'windowOpen' : 'windowClose');
+      const soundId = bindings[key];
+      if (soundId) {
+        audioEngine.ensure();
+        audioEngine.playOneShot(soundUrlFromId(soundId), 'sfx', 1).catch(() => { /* ignore */ });
+      }
+    }
   }, [updateActiveFloor]);
 
   const changePortalType = useCallback((portalId: string, type: 'door' | 'window' | 'secret', locked?: boolean) => {
@@ -961,6 +1009,99 @@ export function DMScreen() {
     });
     return () => { window.electronAPI?.removePlayerPortalToggleListener?.(); };
   }, [togglePortal]);
+
+  // ─── Audio: floor ambient + sound-zone orchestration ───────────────────────
+  // Recomputes ambient (Tier 1) and zone (Tier 2) volumes based on player-token
+  // distribution. The engine de-duplicates by soundId within each bus so two
+  // floors using the same file collapse to a single stream.
+  useEffect(() => {
+    // Apply saved mixer settings to the engine on every render path — cheap, idempotent.
+    audioEngine.setSettings(loadMixerSettings());
+
+    // If the player screen isn't open, nothing should be playing.
+    if (!playerScreenOpen) {
+      audioEngine.clearAmbient();
+      audioEngine.clearZones();
+      return;
+    }
+    const scenario = campaign?.scenarios.find(s => s.id === selectedScenarioId);
+    const floors = scenario?.floors ?? [];
+    if (floors.length === 0) {
+      audioEngine.clearAmbient();
+      audioEngine.clearZones();
+      return;
+    }
+
+    // Tally player tokens per floor and compute centroid per floor.
+    const tokens = scenario?.tokens ?? [];
+    const playerTokens = tokens.filter(t => t.type === 'player');
+    const countsByFloor = new Map<string, number>();
+    const centroidByFloor = new Map<string, { x: number; y: number }>();
+    const sums = new Map<string, { x: number; y: number; n: number }>();
+    playerTokens.forEach(t => {
+      const fid = t.floorId || floors[0]?.id;
+      if (!fid) return;
+      countsByFloor.set(fid, (countsByFloor.get(fid) ?? 0) + 1);
+      const s = sums.get(fid) ?? { x: 0, y: 0, n: 0 };
+      s.x += t.x; s.y += t.y; s.n += 1;
+      sums.set(fid, s);
+    });
+    sums.forEach((s, fid) => centroidByFloor.set(fid, { x: s.x / s.n, y: s.y / s.n }));
+    const totalPlayers = playerTokens.length;
+
+    // If the DM forced a focus floor, only that floor plays at full weight.
+    const focused = audioFocusFloorId && floors.some(f => f.id === audioFocusFloorId)
+      ? audioFocusFloorId
+      : null;
+
+    // Tier 1 — ambient beds.
+    const newAmbientKeys = new Set<string>();
+    floors.forEach(floor => {
+      const soundId = floor.ambientSoundId;
+      const floorVol = floor.ambientVolume ?? 1;
+      let weight = 0;
+      if (focused) {
+        if (floor.id === focused) weight = floorVol;
+      } else if (totalPlayers > 0) {
+        const count = countsByFloor.get(floor.id) ?? 0;
+        if (count > 0) weight = (count / totalPlayers) * floorVol;
+      }
+      audioEngine.setAmbientRequest(floor.id, soundId ?? null, weight);
+      newAmbientKeys.add(floor.id);
+    });
+    // Release any ambient keys (floors) that no longer exist.
+    prevAudioKeysRef.current.ambient.forEach(k => {
+      if (!newAmbientKeys.has(k)) audioEngine.setAmbientRequest(k, null, 0);
+    });
+    prevAudioKeysRef.current.ambient = newAmbientKeys;
+
+    // Tier 2 — sound zones. Volume = zoneVolumeAtPoint(centroid, polygon, falloff)
+    // scaled by floor weight (so a zone on a half-empty floor is half-volume)
+    // and the zone's own per-zone volume slider. Engine de-dupes by soundId.
+    const newZoneKeys = new Set<string>();
+    floors.forEach(floor => {
+      const zones = floor.soundZones ?? [];
+      const floorWeight = focused
+        ? (floor.id === focused ? 1 : 0)
+        : (totalPlayers > 0 ? (countsByFloor.get(floor.id) ?? 0) / totalPlayers : 0);
+      const centroid = centroidByFloor.get(floor.id);
+      zones.forEach(zone => {
+        const key = `${floor.id}:${zone.id}`;
+        newZoneKeys.add(key);
+        let volume = 0;
+        if (floorWeight > 0 && centroid) {
+          const proximity = zoneVolumeAtPoint(centroid.x, centroid.y, zone.points, zone.falloffPx);
+          volume = proximity * (zone.volume ?? 1) * floorWeight;
+        }
+        audioEngine.setZoneRequest(key, zone.soundId, volume);
+      });
+    });
+    // Release any zone keys that no longer exist.
+    prevAudioKeysRef.current.zones.forEach(k => {
+      if (!newZoneKeys.has(k)) audioEngine.setZoneRequest(k, null, 0);
+    });
+    prevAudioKeysRef.current.zones = newZoneKeys;
+  }, [campaign, selectedScenarioId, playerScreenOpen, audioFocusFloorId]);
 
   // Listen for spell marker updates from the Player screen
   useEffect(() => {
@@ -1270,7 +1411,8 @@ export function DMScreen() {
           roll = groupInitiative.get(baseCombatant.name)!;
         } else {
           const dexMod = baseCombatant.stats ? Math.floor((baseCombatant.stats.dex - 10) / 2) : 0;
-          roll = Math.floor(Math.random() * 20) + 1 + dexMod;
+          const bonus = baseCombatant.initiativeBonus ?? dexMod;
+          roll = Math.floor(Math.random() * 20) + 1 + bonus;
           if (baseCombatant.type !== 'player') {
             groupInitiative.set(baseCombatant.name, roll);
           }
@@ -1614,6 +1756,18 @@ export function DMScreen() {
                               </button>
                             )}
                             <button
+                              onClick={() => setAmbientPickerFor(floor.id)}
+                              className={cn(
+                                'p-1 transition-opacity',
+                                floor.ambientSoundId
+                                  ? 'opacity-70 hover:opacity-100 text-[var(--accent)]'
+                                  : 'opacity-0 group-hover/floor:opacity-40 hover:!opacity-100'
+                              )}
+                              title={floor.ambientSoundId ? `Ambient: ${floor.ambientSoundId}` : 'Set ambient sound'}
+                            >
+                              <Volume2 size={10} />
+                            </button>
+                            <button
                               onClick={() => setEditingName({ type: 'floor', scenarioId: s.id, floorId: floor.id, value: floor.name })}
                               className="p-1 opacity-0 group-hover/floor:opacity-40 hover:!opacity-100 transition-opacity"
                               title="Rename floor"
@@ -1873,6 +2027,22 @@ export function DMScreen() {
               <span>{playerScreenOpen ? 'Close Player Screen' : 'Launch Player Screen'}</span>
             </button>
             <button
+              onClick={() => setMixerOpen(true)}
+              className="btn-ghost px-2"
+              title="Sound Mixer"
+            >
+              <Music size={14} />
+            </button>
+            {currentScenario?.floors && currentScenario.floors.length > 0 && (
+              <button
+                onClick={() => setZonesPanelOpen(true)}
+                className="btn-ghost px-2"
+                title="Sound Zones (active floor)"
+              >
+                <Volume2 size={14} />
+              </button>
+            )}
+            <button
               onClick={() => {
                 if (window.electronAPI?.toggleFullscreen) {
                   window.electronAPI.toggleFullscreen();
@@ -1889,6 +2059,79 @@ export function DMScreen() {
             </button>
           </div>
         </header>
+        {mixerOpen && (
+          <MixerPanel
+            onClose={() => setMixerOpen(false)}
+            currentScenarioFloors={currentScenario?.floors || []}
+            audioFocusFloorId={audioFocusFloorId}
+            onAudioFocusChange={setAudioFocusFloorId}
+          />
+        )}
+        {ambientPickerFor && (() => {
+          const floor = currentScenario?.floors?.find(f => f.id === ambientPickerFor);
+          if (!floor) return null;
+          return (
+            <SoundPicker
+              title="Floor Ambient Sound"
+              subtitle={`${floor.name} — Tier 1 (floor bed)`}
+              selectedId={floor.ambientSoundId ?? null}
+              defaultCategory="ambient"
+              allowClear
+              onPick={(soundId) => {
+                setCampaign(prev => prev ? ({
+                  ...prev,
+                  scenarios: prev.scenarios.map(sc => sc.id !== currentScenario?.id ? sc : {
+                    ...sc,
+                    floors: sc.floors?.map(f =>
+                      f.id === floor.id
+                        ? { ...f, ambientSoundId: soundId ?? undefined }
+                        : f
+                    ),
+                  }),
+                }) : prev);
+              }}
+              onClose={() => setAmbientPickerFor(null)}
+            />
+          );
+        })()}
+        {zonesPanelOpen && activeFloor && (
+          <SoundZonesPanel
+            floor={activeFloor}
+            onUpdateZones={(zones) => {
+              setCampaign(prev => prev ? ({
+                ...prev,
+                scenarios: prev.scenarios.map(sc => sc.id !== currentScenario?.id ? sc : {
+                  ...sc,
+                  floors: sc.floors?.map(f =>
+                    f.id === activeFloor.id ? { ...f, soundZones: zones } : f
+                  ),
+                }),
+              }) : prev);
+            }}
+            onStartPainting={(tpl) => {
+              setZonePainting(tpl);
+              setZonesPanelOpen(false);
+            }}
+            onClose={() => setZonesPanelOpen(false)}
+          />
+        )}
+        {zonePainting && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-[var(--accent)]/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <Music size={14} className="text-[var(--accent)]" />
+            <span className="text-xs">
+              Painting <strong>{zonePainting.label ?? 'new zone'}</strong> — click points on the map.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
+            <span className="text-[10px] opacity-60">commit</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => setZonePainting(null)}
+            >
+              cancel
+            </button>
+          </div>
+        )}
 
         {/* Dice roll popover */}
         {dicePopover && (
@@ -1980,6 +2223,27 @@ export function DMScreen() {
                 onSwitchFloor={setActiveFloorId}
                 onUpdateFloorById={updateFloorById}
                 onMoveAllPlayersHere={moveAllPlayersHere}
+                onSoundZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, soundZones: zones }))}
+                zonePainting={zonePainting}
+                onSoundZonePaintCommit={(points) => {
+                  if (!zonePainting || !activeFloorId) return;
+                  const newZone: SoundZone = {
+                    id: `sz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    points,
+                    soundId: zonePainting.soundId,
+                    falloffPx: zonePainting.falloffPx,
+                    color: zonePainting.color,
+                    label: zonePainting.label,
+                    volume: 1,
+                  };
+                  updateFloorById(activeFloorId, f => ({
+                    ...f,
+                    soundZones: [...(f.soundZones || []), newZone],
+                  }));
+                  setZonePainting(null);
+                  setZonesPanelOpen(true);
+                }}
+                onSoundZonePaintCancel={() => setZonePainting(null)}
               />
             )}
           </main>
@@ -2081,6 +2345,7 @@ export function DMScreen() {
                       darkvision: parsed.darkvision ?? p.darkvision,
                       classes: parsed.classes ?? p.classes,
                       initiative: parsed.initiative ?? p.initiative,
+                      initiativeBonus: parsed.initiativeBonus ?? p.initiativeBonus,
                       stats: parsed.stats ?? p.stats,
                       proficiencyBonus: parsed.proficiencyBonus ?? p.proficiencyBonus,
                       spells: parsed.spells ?? p.spells,

@@ -84,6 +84,28 @@ function getLevel(data: any): number {
   return (data.classes || []).reduce((total: number, c: any) => total + (c.level || 0), 0);
 }
 
+// --- Initiative ---
+
+/**
+ * Total initiative bonus = Dex mod + any modifiers with subType 'initiative'.
+ * Covers Alert (flat bonus), Jack of All Trades (half-proficiency),
+ * and 2024 features that grant full proficiency to initiative.
+ */
+function getInitiativeBonus(data: any): number {
+  const dex = getStatValue(data, STAT_IDS.DEX);
+  const dexMod = STAT_BONUS[dex] ?? 0;
+
+  const flatBonus = sumModifiers(data, 'bonus', 'initiative');
+
+  const prof = PROFICIENCY_BY_LEVEL[getLevel(data)] || 2;
+  const mods = getAllModifiers(data);
+  const hasHalfProf = mods.some(m => m.type === 'half-proficiency' && m.subType === 'initiative');
+  const hasFullProf = mods.some(m => m.type === 'proficiency' && m.subType === 'initiative');
+  const profBonus = hasFullProf ? prof : hasHalfProf ? Math.floor(prof / 2) : 0;
+
+  return dexMod + flatBonus + profBonus;
+}
+
 // --- HP Calculations ---
 
 function getMaxHp(data: any): number {
@@ -419,9 +441,12 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
   const level = getLevel(data);
   const ruleset = getRuleset(data);
 
+  const initBonus = getInitiativeBonus(data);
+
   return {
     name: data.name || 'Unknown Character',
-    initiative: getStatBonus(data, STAT_IDS.DEX),
+    initiative: initBonus,
+    initiativeBonus: initBonus,
     hp: getCurrentHp(data),
     maxHp: getMaxHp(data),
     ac: getArmorClass(data),

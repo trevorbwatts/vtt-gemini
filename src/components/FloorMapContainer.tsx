@@ -6,8 +6,12 @@ import type { SaveResult } from './MapView';
 
 /**
  * FloorMapContainer handles split-screen rendering when player tokens
- * occupy multiple floors. It renders one or two MapView instances.
+ * occupy multiple floors. Renders 1, 2, or 4 (GoldenEye-style quad) MapView
+ * instances depending on how many distinct floors are occupied.
  */
+
+export type QuadSpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+const QUAD_SPOT_ORDER: QuadSpotId[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 interface FloorMapContainerProps {
   scenario: Scenario;
@@ -88,7 +92,16 @@ interface FloorMapContainerProps {
   activeTimers?: import('../types').TokenTimer[];
   viewerCasterIds?: string[];
   playerSides?: Record<string, 'top' | 'bottom'>;
+  /** Map from combatantId -> the spot (quadrant) where that player signed in.
+   *  Used to position quadrants in 4-up GoldenEye-style split. */
+  playerSpots?: Record<string, QuadSpotId>;
   onPromoteExtra?: (tokenId: string, monster: Monster, opts: { combatantType: 'enemy' | 'npc'; size: string }) => void;
+  /** Tier 2 sound zones: per-floor updates. */
+  onSoundZonesChange?: (floorId: string, zones: import('../types').SoundZone[]) => void;
+  /** Tier 2 zone painting template (active only on the primary panel). */
+  zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
+  onSoundZonePaintCommit?: (points: number[]) => void;
+  onSoundZonePaintCancel?: () => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -108,15 +121,18 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     return ids;
   }, [allTokens, floors]);
 
-  // Decide if we need split screen
-  const needsSplit = occupiedFloorIds.size >= 2;
+  // Layout mode based on how many floors players occupy
+  const layoutMode: 'full' | 'split' | 'quad' =
+    occupiedFloorIds.size >= 3 ? 'quad'
+    : occupiedFloorIds.size === 2 ? 'split'
+    : 'full';
 
-  // Independent floor selection for the right (secondary) panel
+  // Independent floor selection for the right (secondary) panel (2-up only)
   const [secondaryFloorOverride, setSecondaryFloorOverride] = useState<string | null>(null);
 
-  // Get the two floors to display in split mode
+  // Get the two floors to display in 2-up split mode
   const splitFloorIds = useMemo(() => {
-    if (!needsSplit) return null;
+    if (layoutMode !== 'split') return null;
     const ids = [...occupiedFloorIds];
     // Primary: the active (left) floor
     let primaryId = (activeFloorId && ids.includes(activeFloorId)) ? activeFloorId : ids[0];
@@ -126,11 +142,58 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       ? secondaryFloorOverride
       : defaultSecondaryId;
     return [primaryId, secondaryId];
-  }, [needsSplit, occupiedFloorIds, activeFloorId, secondaryFloorOverride, floors]);
+  }, [layoutMode, occupiedFloorIds, activeFloorId, secondaryFloorOverride, floors]);
 
   const activeFloor = floors.find(f => f.id === activeFloorId) || floors[0] || null;
 
   const firstFloorId = floors[0]?.id;
+
+  // Quad (4-up) assignment: maps each spot (top-left, top-right, …) to a floorId.
+  // Floors are placed into the quadrant matching where their player signed in.
+  // Floors with no signed-in player (or with conflicts) fall back to filling free spots.
+  const quadAssignments = useMemo<Record<QuadSpotId, string | null> | null>(() => {
+    if (layoutMode !== 'quad') return null;
+    const result: Record<QuadSpotId, string | null> = {
+      'top-left': null, 'top-right': null, 'bottom-left': null, 'bottom-right': null,
+    };
+    const ids = [...occupiedFloorIds];
+
+    // Build floor -> player-spot preferences using tokens currently on that floor
+    const floorToSpots = new Map<string, QuadSpotId[]>();
+    for (const id of ids) {
+      const spots: QuadSpotId[] = [];
+      for (const t of allTokens) {
+        const onFloor = t.floorId === id || (!t.floorId && id === firstFloorId);
+        if (!onFloor || t.type !== 'player' || t.hidden) continue;
+        const spot = props.playerSpots?.[t.combatantId ?? ''];
+        if (spot && !spots.includes(spot)) spots.push(spot);
+      }
+      floorToSpots.set(id, spots);
+    }
+
+    // Place constrained floors first (fewer preference options → claim earlier)
+    const placed = new Set<string>();
+    const ordered = [...ids].sort((a, b) =>
+      (floorToSpots.get(a)?.length || 99) - (floorToSpots.get(b)?.length || 99)
+    );
+    for (const id of ordered) {
+      const prefs = floorToSpots.get(id) || [];
+      const free = prefs.find(s => result[s] === null);
+      if (free) {
+        result[free] = id;
+        placed.add(id);
+      }
+    }
+    // Fill any remaining unplaced floors into remaining quadrants in spot order
+    for (const id of ordered) {
+      if (placed.has(id)) continue;
+      const freeSpot = QUAD_SPOT_ORDER.find(s => result[s] === null);
+      if (!freeSpot) break;
+      result[freeSpot] = id;
+      placed.add(id);
+    }
+    return result;
+  }, [layoutMode, occupiedFloorIds, allTokens, firstFloorId, props.playerSpots]);
 
   // Produce stable token arrays per floor — without memoization, .filter() creates a new array
   // reference on every render, which causes MapView's tokensInAoe useMemo to always invalidate,
@@ -148,42 +211,77 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
 
   const getFloorTokens = (floorId: string) => floorTokensMap.get(floorId) ?? [];
 
-  const prevSplitRef = useRef(splitFloorIds);
+  const prevOccupiedRef = useRef<Set<string>>(new Set());
   const [showOverlay, setShowOverlay] = useState(false);
-  const [secondaryCenter, setSecondaryCenter] = useState<{ x: number; y: number } | null>(null);
+  // Per-floor camera-center override. Set when a new floor becomes occupied or
+  // when a floor's player set changes, so the panel re-centers on its players.
+  const [floorCenters, setFloorCenters] = useState<Record<string, { x: number; y: number } | null>>({});
+  // One-shot center override for the active/primary floor (e.g. on re-center after split).
   const [primaryCenterOverride, setPrimaryCenterOverride] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    const prev = prevSplitRef.current;
-    if (splitFloorIds && !prev) {
+    const prev = prevOccupiedRef.current;
+    const next = occupiedFloorIds;
+    const newlyAdded = [...next].filter(id => !prev.has(id));
+    const removed = [...prev].filter(id => !next.has(id));
+
+    if (newlyAdded.length > 0) {
       setShowOverlay(true);
       setTimeout(() => setShowOverlay(false), 800);
 
-      // Center the secondary panel on the player that just arrived
-      const secondaryId = splitFloorIds[1];
-      const secondaryTokens = allTokens.filter(t => t.floorId === secondaryId && t.type === 'player' && !t.hidden);
-      if (secondaryTokens.length > 0) {
-        setSecondaryCenter({ x: secondaryTokens[0].x, y: secondaryTokens[0].y });
+      const updates: Record<string, { x: number; y: number }> = {};
+
+      // Center each newly occupied floor on its first arriving player
+      for (const id of newlyAdded) {
+        const tokens = allTokens.filter(t =>
+          (t.floorId === id || (!t.floorId && id === firstFloorId)) && t.type === 'player' && !t.hidden
+        );
+        if (tokens.length > 0) {
+          updates[id] = { x: tokens[0].x, y: tokens[0].y };
+        }
       }
 
-      // Center the primary panel on the remaining player(s)
-      const primaryId = splitFloorIds[0];
-      const primaryTokens = allTokens.filter(t =>
-        (t.floorId === primaryId || (!t.floorId && primaryId === firstFloorId)) && t.type === 'player' && !t.hidden
-      );
-      if (primaryTokens.length > 0) {
-        const avgX = primaryTokens.reduce((s, t) => s + t.x, 0) / primaryTokens.length;
-        const avgY = primaryTokens.reduce((s, t) => s + t.y, 0) / primaryTokens.length;
-        setPrimaryCenterOverride({ x: avgX, y: avgY });
-        setTimeout(() => setPrimaryCenterOverride(null), 100);
+      // Re-center previously-occupied floors on their remaining players
+      // (a player may have just moved off them onto the new floor).
+      for (const id of next) {
+        if (newlyAdded.includes(id)) continue;
+        const tokens = allTokens.filter(t =>
+          (t.floorId === id || (!t.floorId && id === firstFloorId)) && t.type === 'player' && !t.hidden
+        );
+        if (tokens.length === 0) continue;
+        const avgX = tokens.reduce((s, t) => s + t.x, 0) / tokens.length;
+        const avgY = tokens.reduce((s, t) => s + t.y, 0) / tokens.length;
+        // For the active floor, use the one-shot override path so the DM-driven viewportCenter takes back over after a tick.
+        if (id === activeFloorId) {
+          setPrimaryCenterOverride({ x: avgX, y: avgY });
+          setTimeout(() => setPrimaryCenterOverride(null), 100);
+        } else {
+          updates[id] = { x: avgX, y: avgY };
+        }
       }
-    } else if (!splitFloorIds && prev) {
-      setShowOverlay(false);
-      setSecondaryCenter(null);
-      setPrimaryCenterOverride(null);
+
+      if (Object.keys(updates).length > 0) {
+        setFloorCenters(prev => ({ ...prev, ...updates }));
+      }
     }
-    prevSplitRef.current = splitFloorIds;
-  }, [splitFloorIds, allTokens, firstFloorId]);
+
+    if (removed.length > 0) {
+      setFloorCenters(prev => {
+        const updated = { ...prev };
+        let changed = false;
+        for (const id of removed) {
+          if (id in updated) { delete updated[id]; changed = true; }
+        }
+        return changed ? updated : prev;
+      });
+    }
+
+    if (next.size <= 1) {
+      setShowOverlay(false);
+    }
+
+    prevOccupiedRef.current = new Set(next);
+  }, [occupiedFloorIds, allTokens, firstFloorId, activeFloorId]);
 
   const buildMapViewProps = (floor: Floor, floorTokens: Token[], isPrimary: boolean) => ({
     tokens: floorTokens,
@@ -230,6 +328,11 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onSpellMarkersChange: isPrimary ? props.onSpellMarkersChange : undefined,
     drawings: floor.drawings || [],
     onDrawingsChange: (next: import('../types').Stroke[]) => props.onDrawingsChange?.(floor.id, next),
+    soundZones: floor.soundZones || [],
+    onSoundZonesChange: (next: import('../types').SoundZone[]) => props.onSoundZonesChange?.(floor.id, next),
+    zonePainting: isPrimary ? (props.zonePainting ?? null) : null,
+    onSoundZonePaintCommit: isPrimary ? props.onSoundZonePaintCommit : undefined,
+    onSoundZonePaintCancel: isPrimary ? props.onSoundZonePaintCancel : undefined,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
@@ -287,11 +390,67 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
   const primaryFloor = splitFloorIds ? floors.find(f => f.id === splitFloorIds[0]) : activeFloor;
   const secondaryFloor = splitFloorIds ? floors.find(f => f.id === splitFloorIds[1]) : null;
 
+  // ── Quad (4-up) render path ─────────────────────────────────────────────
+  if (layoutMode === 'quad' && quadAssignments) {
+    // The "primary" panel is the one for the active floor (gets full DM controls).
+    // If the active floor isn't among the occupied ones, pick the first placed floor as primary.
+    const activeIsPlaced = activeFloorId && Object.values(quadAssignments).includes(activeFloorId);
+    const fallbackPrimaryId = QUAD_SPOT_ORDER.map(s => quadAssignments[s]).find(id => id) || null;
+    const primaryId = activeIsPlaced ? activeFloorId : fallbackPrimaryId;
+
+    return (
+      <div className="grid grid-cols-2 grid-rows-2 w-full h-full overflow-hidden bg-black">
+        {QUAD_SPOT_ORDER.map(spot => {
+          const floorId = quadAssignments[spot];
+          const floor = floorId ? floors.find(f => f.id === floorId) : null;
+          const isTopRow = spot === 'top-left' || spot === 'top-right';
+          const isLeftCol = spot === 'top-left' || spot === 'bottom-left';
+          const borderClasses = [
+            !isTopRow ? 'border-t border-[var(--line)]' : '',
+            isLeftCol ? 'border-r border-[var(--line)]' : '',
+          ].filter(Boolean).join(' ');
+
+          if (!floor) {
+            // Empty quadrant (e.g. only 3 floors occupied) — leave dark.
+            return <div key={spot} className={`relative overflow-hidden bg-black ${borderClasses}`} />;
+          }
+
+          const isPrimary = floor.id === primaryId;
+          const center = isPrimary
+            ? (primaryCenterOverride || floorCenters[floor.id] || props.viewportCenter || undefined)
+            : (floorCenters[floor.id] || undefined);
+
+          return (
+            <div key={spot} className={`relative overflow-hidden ${borderClasses}`}>
+              <MapView
+                {...buildMapViewProps(floor, getFloorTokens(floor.id), isPrimary)}
+                viewportCenter={center}
+              />
+              <AnimatePresence>
+                {showOverlay && (
+                  <motion.div
+                    className="absolute inset-0 bg-black z-40 pointer-events-none"
+                    initial={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4 }}
+                  />
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Full / 2-up (split) render path ────────────────────────────────────
   if (!primaryFloor) return null;
+
+  const secondaryCenter = secondaryFloor ? floorCenters[secondaryFloor.id] : null;
 
   return (
     <div className="flex w-full h-full overflow-hidden bg-black">
-      <motion.div 
+      <motion.div
         className={`h-full relative z-10 ${splitFloorIds ? 'border-r border-[var(--line)]' : ''}`}
         initial={{ width: '100%' }}
         animate={{ width: splitFloorIds ? '50%' : '100%' }}
@@ -301,7 +460,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       </motion.div>
       <AnimatePresence>
         {splitFloorIds && secondaryFloor && (
-          <motion.div 
+          <motion.div
             className="h-full relative overflow-hidden shrink-0"
             initial={{ width: '0%', opacity: 1 }}
             animate={{ width: '50%', opacity: 1 }}
@@ -309,15 +468,15 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="absolute inset-0 min-w-[50vw]">
-              <MapView 
-                {...buildMapViewProps(secondaryFloor, getFloorTokens(secondaryFloor.id), false)} 
+              <MapView
+                {...buildMapViewProps(secondaryFloor, getFloorTokens(secondaryFloor.id), false)}
                 viewportCenter={secondaryCenter || undefined}
               />
             </div>
-            
+
             <AnimatePresence>
               {showOverlay && (
-                <motion.div 
+                <motion.div
                   className="absolute inset-0 bg-black z-40 pointer-events-none"
                   initial={{ opacity: 1 }}
                   exit={{ opacity: 0 }}

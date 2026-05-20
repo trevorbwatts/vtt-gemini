@@ -16,6 +16,7 @@ import {
   EyeOff,
   RotateCw,
   Upload,
+  Music,
 } from '../icons';
 
 interface DMNotesProps {
@@ -40,6 +41,7 @@ export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteTyp
     case 'magic': return <Sparkles size={size} className={`text-cyan-400 ${className}`} />;
     case 'poison': return <Skull size={size} className={`text-green-600 ${className}`} />;
     case 'image': return <ImageIcon size={size} className={`text-purple-400 ${className}`} />;
+    case 'sound': return <Music size={size} className={`text-amber-400 ${className}`} />;
     default: return null;
   }
 };

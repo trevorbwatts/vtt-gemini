@@ -195,4 +195,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   extrasSaveImage: (data: { filename: string; dataUrl: string }) =>
     ipcRenderer.invoke('extras-save-image', data),
   extrasDeleteImage: (filename: string) => ipcRenderer.invoke('extras-delete-image', filename),
+
+  // ── Sound library (global, file-based) ──
+  soundsLoadManifest: () => ipcRenderer.invoke('sounds-load-manifest'),
+  soundsSaveManifest: (manifest: any) => ipcRenderer.invoke('sounds-save-manifest', manifest),
+  soundsSaveAudio: (data: { filename: string; dataUrl: string }) =>
+    ipcRenderer.invoke('sounds-save-audio', data),
+  soundsDeleteAudio: (filename: string) => ipcRenderer.invoke('sounds-delete-audio', filename),
 });

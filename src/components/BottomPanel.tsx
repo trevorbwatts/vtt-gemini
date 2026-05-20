@@ -1194,15 +1194,16 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                       if (detailSource.spells && detailSource.spells.length > 0) {
                         return detailSource.spells.map((spell, i) => {
                           const hasAoe = !!(spell.aoeType && spell.aoeSize);
+                          const spellWithDc = { ...spell, saveDc: detailSource.spellSaveDc };
                           return (
                           <SpellAccordion key={i} name={spell.name} desc={spell.desc}
                             badge={spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
                             rangeBadge={makeRangeBadge(spell.range)}
                             aoeBadge={makeAoeBadge(spell.aoeType, spell.aoeSize)}
-                            saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE` : undefined}
+                            saveBadge={spell.saveAbility ? `${spell.saveAbility.toUpperCase()} SAVE${detailSource.spellSaveDc ? ` ${detailSource.spellSaveDc}` : ''}` : undefined}
                             onCast={
                               (getSpellMi(spell) === 'cast' || getSpellMi(spell) === 'cast-and-place')
-                                ? () => startCasting(spell)
+                                ? () => startCasting(spellWithDc)
                                 : (getSpellMi(spell) === 'exception' && detailSourceId && onExceptionSpellCast)
                                 ? () => onExceptionSpellCast(spell.name, detailSourceId)
                                 : undefined

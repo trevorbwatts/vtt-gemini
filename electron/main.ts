@@ -415,6 +415,83 @@ ipcMain.handle('extras-delete-image', async (_event, filename: string) => {
   }
 });
 
+// ── Sound library (global, file-based) ──
+// Reusable audio files for the Sound Mixer feature. Same on-disk pattern as
+// Extras: actual files in <project>/public/sounds/ + manifest.json, intended
+// to be committed to git so they ship with the app.
+function soundsDir(): string {
+  return path.resolve(__dirname, '..', 'public', 'sounds');
+}
+function soundsManifestPath(): string {
+  return path.join(soundsDir(), 'manifest.json');
+}
+async function ensureSoundsDir(): Promise<void> {
+  const dir = soundsDir();
+  if (!fs.existsSync(dir)) {
+    await fsp.mkdir(dir, { recursive: true });
+  }
+}
+
+ipcMain.handle('sounds-load-manifest', async () => {
+  try {
+    await ensureSoundsDir();
+    const p = soundsManifestPath();
+    if (!fs.existsSync(p)) return { manifest: [] };
+    const txt = await fsp.readFile(p, 'utf-8');
+    const parsed = JSON.parse(txt);
+    return { manifest: Array.isArray(parsed) ? parsed : [] };
+  } catch (err: any) {
+    return { manifest: [], error: err?.message ?? 'load failed' };
+  }
+});
+
+ipcMain.handle('sounds-save-manifest', async (_event, manifest: any) => {
+  try {
+    if (!Array.isArray(manifest)) return { ok: false, error: 'manifest must be an array' };
+    await ensureSoundsDir();
+    const p = soundsManifestPath();
+    await fsp.writeFile(p, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'save failed' };
+  }
+});
+
+ipcMain.handle('sounds-save-audio', async (_event, payload: { filename: string; dataUrl: string }) => {
+  try {
+    if (!payload?.filename || !payload?.dataUrl) {
+      return { ok: false, error: 'filename and dataUrl are required' };
+    }
+    const safeName = path.basename(payload.filename);
+    if (safeName !== payload.filename) {
+      return { ok: false, error: 'invalid filename' };
+    }
+    const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return { ok: false, error: 'expected a base64 data URL' };
+    const buf = Buffer.from(match[2], 'base64');
+    await ensureSoundsDir();
+    const outPath = path.join(soundsDir(), safeName);
+    await fsp.writeFile(outPath, buf);
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'save failed' };
+  }
+});
+
+ipcMain.handle('sounds-delete-audio', async (_event, filename: string) => {
+  try {
+    const safeName = path.basename(filename);
+    if (safeName !== filename) return { ok: false, error: 'invalid filename' };
+    const target = path.join(soundsDir(), safeName);
+    if (fs.existsSync(target)) {
+      await fsp.unlink(target);
+    }
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'delete failed' };
+  }
+});
+
 // D&D Beyond character import
 ipcMain.handle('fetch-dndb-character', async (_event, url: string) => {
   try {

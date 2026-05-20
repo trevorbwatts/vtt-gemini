@@ -14,6 +14,10 @@ import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle,
 import { FogOfWarLayer } from './FogOfWarLayer';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
+import { audioEngine, soundUrlFromId } from '../services/audioEngine';
+import { SoundPicker } from './SoundPicker';
+import { useSounds } from '../data/sounds';
+import { loadSoundBindings } from '../services/soundBindings';
 import { BESTIARY } from '../data/bestiary';
 import { lookupSpell } from '../data/spellDatabase';
 import { parseDamageType, getDamageRgb } from '../utils/damageColors';
@@ -168,6 +172,20 @@ interface MapViewProps {
   triggerPingRef?: React.MutableRefObject<((opts: { x: number; y: number; color: string }) => void) | null>;
   /** Called when the local user drops a ping by clicking — parent uses this to broadcast. */
   onPingDrop?: (opts: { x: number; y: number; color: string }) => void;
+
+  // ── Sound zones (Tier 2) ──
+  /** Painted sound zones on the active floor — rendered as DM-only polygon overlays. */
+  soundZones?: import('../types').SoundZone[];
+  /** Called when zones change (commit/edit/delete from inside MapView). */
+  onSoundZonesChange?: (zones: import('../types').SoundZone[]) => void;
+  /**
+   * When non-null, MapView captures clicks as polygon vertices to paint a new zone.
+   * On commit (Enter or 4+ vertices double-click), MapView calls onSoundZonePaintCommit
+   * with the points; on cancel (Escape), it calls onSoundZonePaintCancel.
+   */
+  zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
+  onSoundZonePaintCommit?: (points: number[]) => void;
+  onSoundZonePaintCancel?: () => void;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -3515,7 +3533,33 @@ const MapViewInner: React.FC<MapViewProps> = ({
   cancelPingRef,
   triggerPingRef,
   onPingDrop,
+  soundZones = [],
+  onSoundZonesChange,
+  zonePainting = null,
+  onSoundZonePaintCommit,
+  onSoundZonePaintCancel,
 }) => {
+  // ── Sound zone painting (Tier 2) ──
+  const [zonePaintPoints, setZonePaintPoints] = useState<number[]>([]);
+  const [zonePaintCursor, setZonePaintCursor] = useState<{ x: number; y: number } | null>(null);
+  // Reset paint points whenever the painting session starts or ends.
+  useEffect(() => {
+    setZonePaintPoints([]);
+    setZonePaintCursor(null);
+  }, [zonePainting]);
+  // Keyboard: Esc cancels, Enter commits a paint session.
+  useEffect(() => {
+    if (!zonePainting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onSoundZonePaintCancel?.();
+      } else if (e.key === 'Enter' && zonePaintPoints.length >= 6) {
+        onSoundZonePaintCommit?.(zonePaintPoints);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zonePainting, zonePaintPoints, onSoundZonePaintCommit, onSoundZonePaintCancel]);
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -3545,7 +3589,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, clientY: number, tokenId: string } | null>(null);
   const [conditionSubmenuOpen, setConditionSubmenuOpen] = useState(false);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, clientY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
-  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string }>({ type: 'quote', content: '' });
+  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string, soundId?: string }>({ type: 'quote', content: '' });
+  const [noteSoundPickerOpen, setNoteSoundPickerOpen] = useState(false);
+  const { sounds: librarySoundsForNotes } = useSounds();
   const noteImageInputRef = useRef<HTMLInputElement>(null);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
@@ -4416,6 +4462,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const ppgLocal = gridResolution?.pixelsPerGrid || 40;
     const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
 
+    // Tier 3: spell sound binding — play one-shot if the DM has bound this spell.
+    const castingSpellName: string | undefined =
+      editingWall?.spellName ?? editingRing?.spellName ?? placedAoe?.name ?? placingSpell?.name;
+    if (castingSpellName) {
+      const bindings = loadSoundBindings();
+      const spellSoundId = bindings.spells[castingSpellName];
+      if (spellSoundId) {
+        audioEngine.ensure();
+        audioEngine.playOneShot(soundUrlFromId(spellSoundId), 'sfx', 1).catch(() => { /* ignore */ });
+      }
+    }
+
     /** Roll saves for a set of tokens and return results. */
     const rollSaves = (
       affectedTokens: typeof tokens,
@@ -4831,21 +4889,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     for (const t of playerTokenPositions) {
       const combatant = allCombatants.find(c => c.id === t.combatantId);
-      const darkvisionFt = combatant?.darkvision ?? 0;
-      const darkvisionPx = gridResolution
-        ? (darkvisionFt / 5) * gridResolution.pixelsPerGrid
-        : darkvisionFt * 4;
+      // Blindsight functions like darkvision for fog-of-war reveal (e.g. a summoned Bat
+      // has Blindsight 60 ft but no darkvision — it should still light up the map).
+      const blindsightMatch = combatant?.senses?.match(/blindsight\s+(\d+)/i);
+      const blindsightFt = blindsightMatch ? parseInt(blindsightMatch[1], 10) : 0;
+      const visionFt = Math.max(combatant?.darkvision ?? 0, blindsightFt);
+      const visionPx = gridResolution
+        ? (visionFt / 5) * gridResolution.pixelsPerGrid
+        : visionFt * 4;
       const origin = { x: t.x, y: t.y };
       const fullPoly = computeVisibilityPolygon(origin, blockingSegments, mapW, mapH);
 
       if (level === 'daylight') {
         fogPolygons.push(fullPoly);
       } else {
-        // Dark: only darkvision tokens can see, within their radius
-        if (darkvisionFt > 0) {
-          fogPolygons.push(clipPolygonToCircle(fullPoly, origin, darkvisionPx));
+        // Dark: only tokens with darkvision or blindsight see, within their radius
+        if (visionFt > 0) {
+          fogPolygons.push(clipPolygonToCircle(fullPoly, origin, visionPx));
         }
-        // 0 darkvision = no vision
+        // no vision range = no reveal
       }
     }
 
@@ -4925,6 +4987,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       case 'magic': return '#22d3ee';
       case 'poison': return '#16a34a';
       case 'image': return '#a78bfa';
+      case 'sound': return '#f59e0b';
       default: return '#ffffff';
     }
   };
@@ -4989,6 +5052,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <Path data="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10" {...sp} />
               <Circle x={9} y={9} radius={2} {...sp} />
               <Path data="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" {...sp} />
+            </Group>
+          );
+        case 'sound':
+          // Lucide Music icon paths
+          return (
+            <Group>
+              <Path data="M9 18V5l12-2v13" {...sp} />
+              <Circle x={6} y={18} radius={3} {...sp} />
+              <Circle x={18} y={16} radius={3} {...sp} />
             </Group>
           );
         default:
@@ -5698,6 +5770,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (!contextMenu) return;
     if (noteDraft.type === 'image') {
       if (!noteDraft.imageData) return;
+    } else if (noteDraft.type === 'sound') {
+      if (!noteDraft.soundId) return;
     } else if (!noteDraft.content.trim()) {
       return;
     }
@@ -5709,6 +5783,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       x: contextMenu.x,
       y: contextMenu.y,
       ...(noteDraft.type === 'image' && noteDraft.imageData ? { imageData: noteDraft.imageData, imageRotation: 0 } : {}),
+      ...(noteDraft.type === 'sound' && noteDraft.soundId ? { soundId: noteDraft.soundId } : {}),
     };
 
     onMapNotesChange([...mapNotes, newNote]);
@@ -6864,6 +6939,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
               }
               return;
             }
+            // Sound zone painting (Tier 2): clicks add polygon vertices.
+            if (zonePainting && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              if (stage && ptr) {
+                const tx = stage.getAbsoluteTransform().copy();
+                tx.invert();
+                const p = tx.point(ptr);
+                // Double-click on or near the first vertex commits.
+                if (e.evt.detail >= 2 && zonePaintPoints.length >= 6) {
+                  onSoundZonePaintCommit?.(zonePaintPoints);
+                  return;
+                }
+                setZonePaintPoints(prev => [...prev, p.x, p.y]);
+              }
+              return;
+            }
             if (e.evt.button === 0) {
               if (didMarqueeRef.current) {
                 didMarqueeRef.current = false;
@@ -7035,6 +7127,57 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   </Group>
                 );
               });
+            })()}
+
+            {/* ── Sound zones (Tier 2) — DM only ── */}
+            {!isPlayerView && soundZones.length > 0 && soundZones.map(z => {
+              if (z.points.length < 6) return null;
+              const color = z.color ?? '#f59e0b';
+              const r = parseInt(color.slice(1, 3), 16);
+              const g = parseInt(color.slice(3, 5), 16);
+              const b = parseInt(color.slice(5, 7), 16);
+              return (
+                <Line
+                  key={`soundzone-${z.id}`}
+                  points={z.points}
+                  closed
+                  fill={`rgba(${r}, ${g}, ${b}, 0.18)`}
+                  stroke={color}
+                  strokeWidth={2}
+                  dash={[10, 6]}
+                  listening={false}
+                />
+              );
+            })}
+            {/* In-progress sound zone polygon */}
+            {!isPlayerView && zonePainting && zonePaintPoints.length >= 2 && (() => {
+              const color = zonePainting.color;
+              const r = parseInt(color.slice(1, 3), 16);
+              const g = parseInt(color.slice(3, 5), 16);
+              const b = parseInt(color.slice(5, 7), 16);
+              return (
+                <Group listening={false}>
+                  <Line
+                    points={zonePaintPoints}
+                    closed={zonePaintPoints.length >= 6}
+                    fill={zonePaintPoints.length >= 6 ? `rgba(${r}, ${g}, ${b}, 0.12)` : undefined}
+                    stroke={color}
+                    strokeWidth={2}
+                    dash={[6, 4]}
+                  />
+                  {Array.from({ length: zonePaintPoints.length / 2 }).map((_, i) => (
+                    <Circle
+                      key={`zp-${i}`}
+                      x={zonePaintPoints[i * 2]}
+                      y={zonePaintPoints[i * 2 + 1]}
+                      radius={5}
+                      fill={i === 0 ? 'white' : color}
+                      stroke={color}
+                      strokeWidth={1.5}
+                    />
+                  ))}
+                </Group>
+              );
             })()}
 
             {/* Render drawing-in-progress transition zone */}
@@ -7220,18 +7363,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
               );
             })}
 
-            {/* Engaged range lines — rendered UNDER tokens */}
+            {/* Engaged range lines — rendered UNDER tokens. Dark halo behind red for contrast on any map. */}
             {engagedPairs.map(pair => (
-              <Line
-                key={pair.key}
-                points={[pair.px1, pair.py1, pair.px2, pair.py2]}
-                stroke="#FF4444"
-                strokeWidth={2 / stageScale}
-                opacity={0.6}
-                dash={[8 / stageScale, 5 / stageScale]}
-                listening={false}
-                perfectDrawEnabled={false}
-              />
+              <React.Fragment key={pair.key}>
+                <Line
+                  points={[pair.px1, pair.py1, pair.px2, pair.py2]}
+                  stroke="#000000"
+                  strokeWidth={4 / stageScale}
+                  opacity={0.5}
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+                <Line
+                  points={[pair.px1, pair.py1, pair.px2, pair.py2]}
+                  stroke="#FF4444"
+                  strokeWidth={2 / stageScale}
+                  opacity={0.85}
+                  dash={[8 / stageScale, 5 / stageScale]}
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+              </React.Fragment>
             ))}
 
             {tokens.filter(t => {
@@ -7359,18 +7511,29 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     dash={(token.invisible || token.illusory) ? [6 * tokenScale, 4 * tokenScale] : undefined}
                     perfectDrawEnabled={false}
                   />
-                  {/* Engaged range ring — shown when within 5ft of an opposing token during combat */}
+                  {/* Engaged range ring — shown when within 5ft of an opposing token during combat. Dark halo behind red for contrast. */}
                   {engagedTokenIds.has(token.id) && (
-                    <Circle
-                      radius={r + 5 / stageScale}
-                      fill="transparent"
-                      stroke="#FF4444"
-                      strokeWidth={2 / stageScale}
-                      opacity={0.75}
-                      dash={[6 / stageScale, 4 / stageScale]}
-                      listening={false}
-                      perfectDrawEnabled={false}
-                    />
+                    <>
+                      <Circle
+                        radius={r + 5 / stageScale}
+                        fill="transparent"
+                        stroke="#000000"
+                        strokeWidth={4 / stageScale}
+                        opacity={0.5}
+                        listening={false}
+                        perfectDrawEnabled={false}
+                      />
+                      <Circle
+                        radius={r + 5 / stageScale}
+                        fill="transparent"
+                        stroke="#FF4444"
+                        strokeWidth={2 / stageScale}
+                        opacity={0.9}
+                        dash={[6 / stageScale, 4 / stageScale]}
+                        listening={false}
+                        perfectDrawEnabled={false}
+                      />
+                    </>
                   )}
                   {selectedTokenIds.includes(token.id) && !isPlayerView && (
                     /* Inner rim — above drop shadow */
@@ -10071,7 +10234,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   onMouseEnter={() => setHoveredNoteId(note.id)}
                   onMouseLeave={() => setHoveredNoteId(null)}
                   onMouseDown={(e) => { e.cancelBubble = true; }}
-                  onClick={(e) => { e.cancelBubble = true; setLeftSidebarOpen(true); onNoteClick?.(note.id); }}
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    if (note.type === 'sound') {
+                      if (note.soundId) {
+                        audioEngine.ensure();
+                        audioEngine.playOneShot(soundUrlFromId(note.soundId), 'notes', 1).catch(() => { /* ignore */ });
+                      }
+                      return;
+                    }
+                    setLeftSidebarOpen(true);
+                    onNoteClick?.(note.id);
+                  }}
                 >
                   <Circle
                     radius={tokenRadius * 0.6}
@@ -11497,7 +11671,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
 
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
-                  {(['quote', 'treasure', 'warning', 'magic', 'poison', 'image'] as MapNoteType[]).map(type => (
+                  {(['quote', 'treasure', 'warning', 'magic', 'poison', 'image', 'sound'] as MapNoteType[]).map(type => (
                     <button
                       key={type}
                       onClick={() => setNoteDraft(prev => ({ ...prev, type, imageData: type === 'image' ? prev.imageData : undefined }))}
@@ -11512,7 +11686,47 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   ))}
                 </div>
 
-                {noteDraft.type === 'image' ? (
+                {noteDraft.type === 'sound' ? (
+                  <>
+                    {noteDraft.soundId ? (() => {
+                      const picked = librarySoundsForNotes.find(s => s.id === noteDraft.soundId);
+                      return (
+                        <div className="mb-3 rounded-lg overflow-hidden border border-[var(--line)] bg-black/30 p-3">
+                          <div className="text-[10px] uppercase tracking-widest opacity-50 mb-1">Sound</div>
+                          <div className="text-sm font-medium truncate">{picked?.name ?? noteDraft.soundId}</div>
+                          {picked && (
+                            <div className="text-[10px] opacity-50 truncate mt-0.5">{picked.filename}</div>
+                          )}
+                          <button
+                            onClick={() => setNoteSoundPickerOpen(true)}
+                            className="mt-2 text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100"
+                          >
+                            Change sound
+                          </button>
+                        </div>
+                      );
+                    })() : (
+                      <button
+                        onClick={() => setNoteSoundPickerOpen(true)}
+                        className="w-full mb-3 py-6 rounded-lg border border-dashed border-[var(--line)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors text-xs uppercase tracking-widest opacity-60 hover:opacity-100"
+                      >
+                        Choose Sound…
+                      </button>
+                    )}
+                    <input
+                      value={noteDraft.content}
+                      onChange={(e) => setNoteDraft(prev => ({ ...prev, content: e.target.value }))}
+                      placeholder="Label (optional)"
+                      className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors mb-3"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          saveNote();
+                        }
+                      }}
+                    />
+                  </>
+                ) : noteDraft.type === 'image' ? (
                   <>
                     <input
                       ref={noteImageInputRef}
@@ -11569,7 +11783,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 )}
 
                 <button
-                  disabled={noteDraft.type === 'image' ? !noteDraft.imageData : !noteDraft.content.trim()}
+                  disabled={
+                    noteDraft.type === 'image'
+                      ? !noteDraft.imageData
+                      : noteDraft.type === 'sound'
+                      ? !noteDraft.soundId
+                      : !noteDraft.content.trim()
+                  }
                   onClick={saveNote}
                   className="btn-filled w-full py-2 rounded-lg disabled:opacity-30"
                 >
@@ -12063,6 +12283,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
             onAdd={addExtras}
             onUpdate={updateExtra}
             onDelete={deleteExtra}
+          />
+        )}
+
+        {/* Sound picker for sound-type map notes */}
+        {noteSoundPickerOpen && (
+          <SoundPicker
+            title="Pick a Sound for this Note"
+            subtitle="Tier 4 — tap on the map to play"
+            selectedId={noteDraft.soundId ?? null}
+            defaultCategory="note"
+            onPick={(soundId) => setNoteDraft(prev => ({ ...prev, soundId: soundId ?? undefined }))}
+            onClose={() => setNoteSoundPickerOpen(false)}
           />
         )}
 

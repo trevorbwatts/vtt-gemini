@@ -118,6 +118,15 @@ export {
 
   // Secret door
   SquareDashedTopSolid,
+
+  // Audio
+  Volume2,
+  VolumeX,
+  Volume1,
+  Play,
+  Pause,
+  Music,
+  StopCircle,
 } from 'lucide-react';
 
 // Treasure chest — lucide's Gem icon
