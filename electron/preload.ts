@@ -101,6 +101,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removePlayerPortalToggleListener: () => {
     ipcRenderer.removeAllListeners('player-portal-toggle');
   },
+  sendPlayerFloorChange: (floorId: string) =>
+    ipcRenderer.send('player-floor-change', floorId),
+  onPlayerFloorChange: (callback: (floorId: string) => void) => {
+    ipcRenderer.on('player-floor-change', (_event, floorId) => callback(floorId));
+  },
+  removePlayerFloorChangeListener: () => {
+    ipcRenderer.removeAllListeners('player-floor-change');
+  },
   sendPlayerDarkvisionUpdate: (playerId: string, darkvision: number) =>
     ipcRenderer.send('player-darkvision-update', { playerId, darkvision }),
   onPlayerDarkvisionUpdate: (callback: (data: { playerId: string; darkvision: number }) => void) => {

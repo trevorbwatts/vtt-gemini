@@ -98,6 +98,13 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     removePlayerPortalToggleListener: () => {
         electron_1.ipcRenderer.removeAllListeners('player-portal-toggle');
     },
+    sendPlayerFloorChange: (floorId) => electron_1.ipcRenderer.send('player-floor-change', floorId),
+    onPlayerFloorChange: (callback) => {
+        electron_1.ipcRenderer.on('player-floor-change', (_event, floorId) => callback(floorId));
+    },
+    removePlayerFloorChangeListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-floor-change');
+    },
     sendPlayerDarkvisionUpdate: (playerId, darkvision) => electron_1.ipcRenderer.send('player-darkvision-update', { playerId, darkvision }),
     onPlayerDarkvisionUpdate: (callback) => {
         electron_1.ipcRenderer.on('player-darkvision-update', (_event, data) => callback(data));
@@ -182,4 +189,9 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     extrasSaveManifest: (manifest) => electron_1.ipcRenderer.invoke('extras-save-manifest', manifest),
     extrasSaveImage: (data) => electron_1.ipcRenderer.invoke('extras-save-image', data),
     extrasDeleteImage: (filename) => electron_1.ipcRenderer.invoke('extras-delete-image', filename),
+    // ── Sound library (global, file-based) ──
+    soundsLoadManifest: () => electron_1.ipcRenderer.invoke('sounds-load-manifest'),
+    soundsSaveManifest: (manifest) => electron_1.ipcRenderer.invoke('sounds-save-manifest', manifest),
+    soundsSaveAudio: (data) => electron_1.ipcRenderer.invoke('sounds-save-audio', data),
+    soundsDeleteAudio: (filename) => electron_1.ipcRenderer.invoke('sounds-delete-audio', filename),
 });

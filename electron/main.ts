@@ -262,6 +262,13 @@ ipcMain.on('player-portal-toggle', (_event, portalId) => {
   }
 });
 
+// Player floor change: proxy to DM window (when a player uses a transition zone)
+ipcMain.on('player-floor-change', (_event, floorId) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-floor-change', floorId);
+  }
+});
+
 // Spell marker sync between DM and Player
 ipcMain.on('dm-spell-marker-update', (_event, markers) => {
   if (playerWindow) {

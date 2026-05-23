@@ -7,7 +7,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Volume2, Moon } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Moon } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -25,6 +25,7 @@ import { ImageNoteOverlay } from './components/ImageNoteOverlay';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
 import { lookupSpell } from './data/spellDatabase';
+import { initImageStore, isImageStoreReady, getImage, setImage, removeImage } from './utils/imageStore';
 
 // Load persisted panel states from localStorage
 function loadPanelStates(): { left: boolean; nav: boolean } {
@@ -134,6 +135,18 @@ export function DMScreen() {
   const [playerMode, setPlayerMode] = useState<'setup' | 'play'>('setup');
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
+
+  // Image store readiness — IndexedDB warmup + legacy localStorage migration
+  // must finish before we let the splash hydrate any map images.
+  const [imageStoreReady, setImageStoreReady] = useState<boolean>(isImageStoreReady());
+  useEffect(() => {
+    if (imageStoreReady) return;
+    let cancelled = false;
+    initImageStore().finally(() => {
+      if (!cancelled) setImageStoreReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [imageStoreReady]);
 
   // Campaign State
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -326,8 +339,9 @@ export function DMScreen() {
     savePanelStates(leftSidebarOpen, navSidebarOpen);
   }, [leftSidebarOpen, navSidebarOpen]);
 
-  // Persistence — store map images separately to avoid serializing multi-MB base64 strings
-  // into the main campaign JSON on every state change
+  // Persistence — store map images separately in IndexedDB (not localStorage)
+  // to avoid the ~5–10MB localStorage quota that silently kills uploads past
+  // ~12 floors of maps. The campaign JSON itself stays in localStorage.
   useEffect(() => {
     if (campaign) {
       // Save map images separately, keyed by scenario ID + floor ID
@@ -335,19 +349,19 @@ export function DMScreen() {
         if (s.floors) {
           for (const f of s.floors) {
             if (f.mapImage) {
-              try { localStorage.setItem(`map_img_${s.id}_${f.id}`, f.mapImage); } catch { /* quota */ }
+              setImage(`map_img_${s.id}_${f.id}`, f.mapImage);
             }
             // Note images on this floor
             for (const n of f.mapNotes || []) {
               if (n.type === 'image' && n.imageData) {
-                try { localStorage.setItem(`note_img_${n.id}`, n.imageData); } catch { /* quota */ }
+                setImage(`note_img_${n.id}`, n.imageData);
               }
             }
           }
         }
         // Legacy fallback for non-migrated scenarios
         if (s.mapImage && !s.floors) {
-          try { localStorage.setItem(`map_img_${s.id}`, s.mapImage); } catch { /* quota */ }
+          setImage(`map_img_${s.id}`, s.mapImage);
         }
       }
       // Strip mapImage and note imageData from all scenarios/floors/notes before persisting the campaign JSON
@@ -701,7 +715,7 @@ export function DMScreen() {
         // Migrate legacy flat-map scenario into floors structure
         if (!scenario.floors || scenario.floors.length === 0) {
           const defaultFloorId = `floor-${s.id}-0`;
-          const legacyMapImage = s.mapImage || localStorage.getItem(`map_img_${s.id}`) || undefined;
+          const legacyMapImage = s.mapImage || getImage(`map_img_${s.id}`) || undefined;
           scenario.floors = [{
             id: defaultFloorId,
             name: 'Floor 1',
@@ -717,9 +731,9 @@ export function DMScreen() {
             transitionZones: [],
           }];
           scenario.activeFloorId = defaultFloorId;
-          // Migrate localStorage key
+          // Migrate to image store
           if (legacyMapImage) {
-            try { localStorage.setItem(`map_img_${s.id}_${defaultFloorId}`, legacyMapImage); } catch { /* quota */ }
+            setImage(`map_img_${s.id}_${defaultFloorId}`, legacyMapImage);
           }
           // Set floorId on all existing tokens
           for (const t of scenario.tokens) {
@@ -729,12 +743,12 @@ export function DMScreen() {
           // Rehydrate floor map images and note images from separate storage
           scenario.floors = scenario.floors.map(f => ({
             ...f,
-            mapImage: f.mapImage || localStorage.getItem(`map_img_${s.id}_${f.id}`) || undefined,
+            mapImage: f.mapImage || getImage(`map_img_${s.id}_${f.id}`) || undefined,
             mapNotes: (f.mapNotes || []).map(n => {
               if (n.type !== 'image') return n;
               return {
                 ...n,
-                imageData: n.imageData || localStorage.getItem(`note_img_${n.id}`) || undefined,
+                imageData: n.imageData || getImage(`note_img_${n.id}`) || undefined,
               };
             }),
           }));
@@ -1038,6 +1052,17 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerPortalToggleListener?.(); };
   }, [togglePortal]);
 
+  // Listen for floor change from the Player screen (e.g. transition zone use)
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerFloorChange) return;
+    window.electronAPI.onPlayerFloorChange((floorId) => {
+      // Player already applied this optimistically — skip the rebroadcast.
+      skipStateBroadcastRef.current = true;
+      setActiveFloorId(floorId);
+    });
+    return () => { window.electronAPI?.removePlayerFloorChangeListener?.(); };
+  }, [setActiveFloorId]);
+
   // ─── Audio: floor ambient + sound-zone orchestration ───────────────────────
   // Recomputes ambient (Tier 1) and zone (Tier 2) volumes based on player-token
   // distribution. The engine de-duplicates by soundId within each bus so two
@@ -1319,6 +1344,10 @@ export function DMScreen() {
     if (!currentScenario?.floors) return null;
     return currentScenario.floors.find(f => f.id === activeFloorId) || currentScenario.floors[0] || null;
   }, [currentScenario, activeFloorId]);
+
+  if (!imageStoreReady) {
+    return <div className="fixed inset-0 bg-[var(--bg)]" />;
+  }
 
   if (!campaign) {
     return <SplashScreen onSelectCampaign={handleSelectCampaign} onCreateCampaign={handleCreateCampaign} />;
@@ -1712,6 +1741,39 @@ export function DMScreen() {
                       >
                         <Edit2 size={12} />
                       </button>
+                      {campaign.scenarios.length > 1 && (
+                        <button
+                          onClick={() => {
+                            setConfirmDialog({
+                              message: `Delete scenario "${s.name}"? This will also remove all of its floors, maps, and tokens.`,
+                              onConfirm: () => {
+                                // Clean up persisted images for every floor + image note in this scenario
+                                for (const f of s.floors || []) {
+                                  removeImage(`map_img_${s.id}_${f.id}`);
+                                  for (const n of f.mapNotes || []) {
+                                    if (n.type === 'image') removeImage(`note_img_${n.id}`);
+                                  }
+                                }
+                                // Legacy single-map key
+                                removeImage(`map_img_${s.id}`);
+
+                                setCampaign(prev => {
+                                  if (!prev) return prev;
+                                  const remaining = prev.scenarios.filter(sc => sc.id !== s.id);
+                                  if (selectedScenarioId === s.id) {
+                                    setSelectedScenarioId(remaining[0]?.id || null);
+                                  }
+                                  return { ...prev, scenarios: remaining };
+                                });
+                              }
+                            });
+                          }}
+                          className="p-1.5 opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity text-red-400"
+                          title="Delete scenario"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
                     </div>
                     {/* Floor list — shown when this scenario is selected */}
                     {selectedScenarioId === s.id && s.floors && s.floors.length > 0 && (
@@ -1783,18 +1845,6 @@ export function DMScreen() {
                                 )}
                               </button>
                             )}
-                            <button
-                              onClick={() => setAmbientPickerFor(floor.id)}
-                              className={cn(
-                                'p-1 transition-opacity',
-                                floor.ambientSoundId
-                                  ? 'opacity-70 hover:opacity-100 text-[var(--accent)]'
-                                  : 'opacity-0 group-hover/floor:opacity-40 hover:!opacity-100'
-                              )}
-                              title={floor.ambientSoundId ? `Ambient: ${floor.ambientSoundId}` : 'Set ambient sound'}
-                            >
-                              <Volume2 size={10} />
-                            </button>
                             <button
                               onClick={() => setEditingName({ type: 'floor', scenarioId: s.id, floorId: floor.id, value: floor.name })}
                               className="p-1 opacity-0 group-hover/floor:opacity-40 hover:!opacity-100 transition-opacity"
@@ -2061,15 +2111,6 @@ export function DMScreen() {
             >
               <Music size={14} />
             </button>
-            {currentScenario?.floors && currentScenario.floors.length > 0 && (
-              <button
-                onClick={() => setZonesPanelOpen(true)}
-                className="btn-ghost px-2"
-                title="Sound Zones (active floor)"
-              >
-                <Volume2 size={14} />
-              </button>
-            )}
             <button
               onClick={() => {
                 if (window.electronAPI?.toggleFullscreen) {
@@ -2321,6 +2362,7 @@ export function DMScreen() {
                 onSwitchFloor={setActiveFloorId}
                 onUpdateFloorById={updateFloorById}
                 onMoveAllPlayersHere={moveAllPlayersHere}
+                onOpenSoundZones={() => setZonesPanelOpen(true)}
                 onSoundZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, soundZones: zones }))}
                 zonePainting={zonePainting}
                 onSoundZonePaintCommit={(points) => {
@@ -2402,6 +2444,8 @@ export function DMScreen() {
                   updateGridResolution(gr);
                   setGridCalibrating(false);
                 }}
+                onOpenFloorAudioPicker={(floorId) => setAmbientPickerFor(floorId)}
+                onClearFloorAudio={(floorId) => updateFloorById(floorId, f => ({ ...f, ambientSoundId: undefined }))}
               />
             )}
           </main>

@@ -2627,6 +2627,21 @@ export function PlayerScreen() {
           scenario={currentScenario}
           allTokens={currentScenario.tokens || []}
           activeFloorId={currentScenario.activeFloorId || null}
+          onSwitchFloor={(floorId) => {
+            // Optimistic local update so the player screen swaps to the new floor
+            // immediately when a token transitions; also notify DM to keep activeFloorId in sync.
+            const scenarioId = currentScenarioIdRef.current;
+            setCampaign(prev => {
+              if (!prev || !scenarioId) return prev;
+              return {
+                ...prev,
+                scenarios: prev.scenarios.map(s =>
+                  s.id === scenarioId ? { ...s, activeFloorId: floorId } : s
+                ),
+              };
+            });
+            window.electronAPI?.sendPlayerFloorChange?.(floorId);
+          }}
           onTokensChange={handleTokensChange}
           onMapChange={() => {}}
           onMapNotesChange={() => {}}

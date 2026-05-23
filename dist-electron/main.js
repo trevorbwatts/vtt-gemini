@@ -237,6 +237,12 @@ electron_1.ipcMain.on('player-portal-toggle', (_event, portalId) => {
         dmWindow.webContents.send('player-portal-toggle', portalId);
     }
 });
+// Player floor change: proxy to DM window (when a player uses a transition zone)
+electron_1.ipcMain.on('player-floor-change', (_event, floorId) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-floor-change', floorId);
+    }
+});
 // Spell marker sync between DM and Player
 electron_1.ipcMain.on('dm-spell-marker-update', (_event, markers) => {
     if (playerWindow) {
@@ -375,6 +381,86 @@ electron_1.ipcMain.handle('extras-delete-image', async (_event, filename) => {
         if (safeName !== filename)
             return { ok: false, error: 'invalid filename' };
         const target = path_1.default.join(extrasDir(), safeName);
+        if (fs_1.default.existsSync(target)) {
+            await promises_1.default.unlink(target);
+        }
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: err?.message ?? 'delete failed' };
+    }
+});
+// ── Sound library (global, file-based) ──
+// Reusable audio files for the Sound Mixer feature. Same on-disk pattern as
+// Extras: actual files in <project>/public/sounds/ + manifest.json, intended
+// to be committed to git so they ship with the app.
+function soundsDir() {
+    return path_1.default.resolve(__dirname, '..', 'public', 'sounds');
+}
+function soundsManifestPath() {
+    return path_1.default.join(soundsDir(), 'manifest.json');
+}
+async function ensureSoundsDir() {
+    const dir = soundsDir();
+    if (!fs_1.default.existsSync(dir)) {
+        await promises_1.default.mkdir(dir, { recursive: true });
+    }
+}
+electron_1.ipcMain.handle('sounds-load-manifest', async () => {
+    try {
+        await ensureSoundsDir();
+        const p = soundsManifestPath();
+        if (!fs_1.default.existsSync(p))
+            return { manifest: [] };
+        const txt = await promises_1.default.readFile(p, 'utf-8');
+        const parsed = JSON.parse(txt);
+        return { manifest: Array.isArray(parsed) ? parsed : [] };
+    }
+    catch (err) {
+        return { manifest: [], error: err?.message ?? 'load failed' };
+    }
+});
+electron_1.ipcMain.handle('sounds-save-manifest', async (_event, manifest) => {
+    try {
+        if (!Array.isArray(manifest))
+            return { ok: false, error: 'manifest must be an array' };
+        await ensureSoundsDir();
+        const p = soundsManifestPath();
+        await promises_1.default.writeFile(p, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: err?.message ?? 'save failed' };
+    }
+});
+electron_1.ipcMain.handle('sounds-save-audio', async (_event, payload) => {
+    try {
+        if (!payload?.filename || !payload?.dataUrl) {
+            return { ok: false, error: 'filename and dataUrl are required' };
+        }
+        const safeName = path_1.default.basename(payload.filename);
+        if (safeName !== payload.filename) {
+            return { ok: false, error: 'invalid filename' };
+        }
+        const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match)
+            return { ok: false, error: 'expected a base64 data URL' };
+        const buf = Buffer.from(match[2], 'base64');
+        await ensureSoundsDir();
+        const outPath = path_1.default.join(soundsDir(), safeName);
+        await promises_1.default.writeFile(outPath, buf);
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: err?.message ?? 'save failed' };
+    }
+});
+electron_1.ipcMain.handle('sounds-delete-audio', async (_event, filename) => {
+    try {
+        const safeName = path_1.default.basename(filename);
+        if (safeName !== filename)
+            return { ok: false, error: 'invalid filename' };
+        const target = path_1.default.join(soundsDir(), safeName);
         if (fs_1.default.existsSync(target)) {
             await promises_1.default.unlink(target);
         }

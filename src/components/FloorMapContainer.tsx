@@ -135,6 +135,11 @@ interface FloorMapContainerProps {
   onStartGridCalibration?: () => void;
   onStopGridCalibration?: () => void;
   onGridResolutionChange?: (gr: import('../types').GridResolution) => void;
+  // ── Floor audio (ambient sound) ──
+  onOpenFloorAudioPicker?: (floorId: string) => void;
+  onClearFloorAudio?: (floorId: string) => void;
+  // ── Sound zones panel ──
+  onOpenSoundZones?: () => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -355,6 +360,10 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     floors: floors,
     onTransitionZonesChange: isPrimary ? props.onTransitionZonesChange : undefined,
     onSwitchFloor: isPrimary ? props.onSwitchFloor : (floorId: string) => setSecondaryFloorOverride(floorId),
+    // Transition zones must always change the *real* active floor (never the
+    // secondary-panel-only override) — otherwise a player who triggers a
+    // transition from the secondary panel ends up with the view not following.
+    onTransitionToFloor: props.onSwitchFloor,
     onUpdateFloorById: props.onUpdateFloorById,
     onMoveAllPlayersHere: props.onMoveAllPlayersHere,
     spellMarkers: props.spellMarkers,
@@ -389,6 +398,9 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onStartGridCalibration: isPrimary ? props.onStartGridCalibration : undefined,
     onStopGridCalibration: isPrimary ? props.onStopGridCalibration : undefined,
     onGridResolutionChange: isPrimary ? props.onGridResolutionChange : undefined,
+    onOpenFloorAudioPicker: isPrimary ? props.onOpenFloorAudioPicker : undefined,
+    onClearFloorAudio: isPrimary ? props.onClearFloorAudio : undefined,
+    onOpenSoundZones: isPrimary ? props.onOpenSoundZones : undefined,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
@@ -411,7 +423,10 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
       onAddScenario: props.onAddScenario,
       panToNote: props.panToNote,
       onViewportCenter: props.onViewportCenter,
-      viewportCenter: primaryCenterOverride || props.viewportCenter,
+      // Prefer (in order): a one-shot recenter override, the per-floor center
+      // that gets set when a transition makes this floor newly occupied (so the
+      // camera lands on the arriving player), and finally the DM-driven center.
+      viewportCenter: primaryCenterOverride || floorCenters[floor.id] || props.viewportCenter,
       startCastingRef: props.startCastingRef,
       startPlacingRef: props.startPlacingRef,
       addMarkersDirectlyRef: props.addMarkersDirectlyRef,
@@ -504,10 +519,25 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
 
   const secondaryCenter = secondaryFloor ? floorCenters[secondaryFloor.id] : null;
 
+  // Place the new (secondary) panel on the side of the table where its players
+  // are sitting — mirrors the quad-mode behavior. Defaults to the right.
+  let secondaryOnLeft = false;
+  if (secondaryFloor) {
+    let leftCount = 0;
+    let rightCount = 0;
+    for (const t of allTokens) {
+      if (t.type !== 'player' || t.floorId !== secondaryFloor.id) continue;
+      const spot = props.playerSpots?.[t.combatantId ?? ''];
+      if (spot === 'top-left' || spot === 'bottom-left') leftCount++;
+      else if (spot === 'top-right' || spot === 'bottom-right') rightCount++;
+    }
+    secondaryOnLeft = leftCount > rightCount;
+  }
+
   return (
-    <div className="flex w-full h-full overflow-hidden bg-black">
+    <div className={`flex w-full h-full overflow-hidden bg-black ${secondaryOnLeft ? 'flex-row-reverse' : ''}`}>
       <motion.div
-        className={`h-full relative z-10 ${splitFloorIds ? 'border-r border-[var(--line)]' : ''}`}
+        className={`h-full relative z-10 ${splitFloorIds ? (secondaryOnLeft ? 'border-l' : 'border-r') + ' border-[var(--line)]' : ''}`}
         initial={{ width: '100%' }}
         animate={{ width: splitFloorIds ? '50%' : '100%' }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}

@@ -3,6 +3,7 @@ import { Campaign } from '../types';
 import { Plus, FolderOpen, Sword, Trash2, ChevronRight, Sparkles, Upload } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { readCampaignFile } from '../utils/campaignFile';
+import { removeImage } from '../utils/imageStore';
 
 interface SplashScreenProps {
   onSelectCampaign: (campaign: Campaign) => void;
@@ -47,7 +48,15 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
     const toDelete = all.find((c: Campaign) => c.id === id);
     if (toDelete) {
       for (const s of toDelete.scenarios || []) {
-        localStorage.removeItem(`map_img_${s.id}`);
+        // Legacy single-map key
+        removeImage(`map_img_${s.id}`);
+        // Per-floor map images + image-note data
+        for (const f of s.floors || []) {
+          removeImage(`map_img_${s.id}_${f.id}`);
+          for (const n of f.mapNotes || []) {
+            if (n.type === 'image') removeImage(`note_img_${n.id}`);
+          }
+        }
       }
     }
     const updated = all.filter((c: Campaign) => c.id !== id);

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke, Extra } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid, Pencil, Eraser } from '../icons';
+import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid, Pencil, Eraser, Volume2 } from '../icons';
 import { useExtras, extraImageUrl, filterExtras, allTags } from '../data/extras';
 import { ManageExtrasModal } from './ManageExtrasModal';
 import { MakeCreatureModal } from './MakeCreatureModal';
@@ -122,6 +122,11 @@ interface MapViewProps {
   onTransitionZonesChange?: (zones: TransitionZone[]) => void;
   /** Switch the active floor (for two-step transition zone drawing) */
   onSwitchFloor?: (floorId: string) => void;
+  /** Always switch the *real* active floor when a token transitions through a zone.
+   *  Distinct from `onSwitchFloor` because secondary panels in split view rewire
+   *  `onSwitchFloor` to only change their own panel; transitions must affect the
+   *  whole view regardless of which panel they fire from. */
+  onTransitionToFloor?: (floorId: string) => void;
   /** Update a specific floor by ID (for cross-floor operations) */
   onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
   /** Move every player token (across all floors) to a 2×2 grid around the given point */
@@ -232,6 +237,14 @@ interface MapViewProps {
   onStopGridCalibration?: () => void;
   /** Called with the new GridResolution once two corners have been clicked. */
   onGridResolutionChange?: (gr: GridResolution) => void;
+
+  // ── Floor audio (ambient sound) ──
+  /** Open the SoundPicker for the active floor's ambient ("floor bed") sound. */
+  onOpenFloorAudioPicker?: (floorId: string) => void;
+  /** Clear the active floor's ambient sound. */
+  onClearFloorAudio?: (floorId: string) => void;
+  /** Open the Sound Zones panel for the active floor. */
+  onOpenSoundZones?: () => void;
 }
 
 const SCHOOL_COLORS: Record<string, string> = {
@@ -3556,6 +3569,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   floors,
   onTransitionZonesChange,
   onSwitchFloor,
+  onTransitionToFloor,
   onUpdateFloorById,
   onMoveAllPlayersHere,
   isPrimary = true,
@@ -3607,6 +3621,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onStartGridCalibration,
   onStopGridCalibration,
   onGridResolutionChange,
+  onOpenFloorAudioPicker,
+  onClearFloorAudio,
+  onOpenSoundZones,
 }) => {
   // ── Sound zone painting (Tier 2) ──
   const [zonePaintPoints, setZonePaintPoints] = useState<number[]>([]);
@@ -3796,6 +3813,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [zonePainting, zonePaintPoints, onSoundZonePaintCommit, onSoundZonePaintCancel]);
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+  // Tracks which mapImage URL is actually painted on the canvas. While this lags
+  // behind the mapImage prop (e.g. during a floor transition while the new image
+  // is still loading), we hide the stage behind a black overlay so the user
+  // never sees the old map background with the new floor's tokens layered on it.
+  const [displayedMapImage, setDisplayedMapImage] = useState<string | undefined>(mapImage);
+  // Ref mirror of viewportCenter so the asynchronous image .onload callback can
+  // read the latest target center (which may have been updated by the parent
+  // between when the load began and when it completed).
+  const viewportCenterRef = useRef(viewportCenter);
+  useEffect(() => { viewportCenterRef.current = viewportCenter; }, [viewportCenter]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<{ tokenId: string; time: number } | null>(null);
@@ -5354,53 +5381,86 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const img = new Image();
       img.src = mapImage;
       img.onload = () => {
-        setLoadedImage(img);
-        // Defer scale/position calculation to the next animation frame so the
-        // ResizeObserver has had a chance to fire and dimensionsRef is current.
+        // Defer EVERY state update (image + scale + position + reveal flag) to
+        // the same animation frame, so the new map, the new camera, and the
+        // overlay reveal all happen atomically in a single render. Without
+        // this, the stage can briefly render the new image with the old
+        // camera transform, causing a visible jump as the transition
+        // overlay fades out.
         requestAnimationFrame(() => {
           const dims = dimensionsRef.current;
-          if (dims.width > 0 && dims.height > 0) {
-            // Target a consistent token screen size of ~40px radius
-            const targetTokenScreenRadius = 18;
-            let scale: number;
+          if (dims.width <= 0 || dims.height <= 0) {
+            // Dimensions aren't ready yet — at minimum, swap in the new
+            // image and mark the transition complete so the overlay fades.
+            // A later ResizeObserver tick will set the camera.
+            setLoadedImage(img);
+            setDisplayedMapImage(mapImage);
+            return;
+          }
+          // Target a consistent token screen size of ~40px radius
+          const targetTokenScreenRadius = 18;
+          let scale: number;
 
-            if (gridResolution && gridResolution.pixelsPerGrid > 0) {
-              // Token radius in source image = pixelsPerGrid * 0.4
-              // We want (pixelsPerGrid * 0.4) * scale = targetTokenScreenRadius
-              const sourceTokenRadius = gridResolution.pixelsPerGrid * 0.4;
-              scale = targetTokenScreenRadius / sourceTokenRadius;
-            } else {
-              // No grid info: fit the map snugly in the viewport
-              const padding = 80;
-              scale = Math.min(
-                (dims.width - padding) / img.width,
-                (dims.height - padding) / img.height,
-                1
-              );
-            }
+          if (gridResolution && gridResolution.pixelsPerGrid > 0) {
+            // Token radius in source image = pixelsPerGrid * 0.4
+            // We want (pixelsPerGrid * 0.4) * scale = targetTokenScreenRadius
+            const sourceTokenRadius = gridResolution.pixelsPerGrid * 0.4;
+            scale = targetTokenScreenRadius / sourceTokenRadius;
+          } else {
+            // No grid info: fit the map snugly in the viewport
+            const padding = 80;
+            scale = Math.min(
+              (dims.width - padding) / img.width,
+              (dims.height - padding) / img.height,
+              1
+            );
+          }
 
-            const clampedScale = Math.min(Math.max(scale, 0.05), 5);
-            const finalScale = isPlayerView ? clampedScale * 1.15 : clampedScale;
-            setStageScale(finalScale);
-            if (isPlayerView && viewportCenter) {
-              // Center the player's view on the same map-space point the DM is looking at
-              setStagePos({
-                x: dims.width / 2 - viewportCenter.x * finalScale,
-                y: dims.height / 2 - viewportCenter.y * finalScale,
-              });
-            } else {
-              setStagePos({
+          const clampedScale = Math.min(Math.max(scale, 0.05), 5);
+          const finalScale = isPlayerView ? clampedScale * 1.15 : clampedScale;
+          // Use the ref so we pick up any viewportCenter updates the parent
+          // pushed between when this load started and when it finished
+          // (e.g. a floor-transition's arrival-position update).
+          const vc = viewportCenterRef.current;
+          const nextPos = (isPlayerView && vc)
+            ? {
+                x: dims.width / 2 - vc.x * finalScale,
+                y: dims.height / 2 - vc.y * finalScale,
+              }
+            : {
                 x: (dims.width - img.width * finalScale) / 2,
                 y: (dims.height - img.height * finalScale) / 2,
-              });
-            }
-          }
+              };
+          setLoadedImage(img);
+          setStageScale(finalScale);
+          setStagePos(nextPos);
+          setDisplayedMapImage(mapImage);
         });
       };
     } else {
       setLoadedImage(null);
+      setDisplayedMapImage(undefined);
     }
   }, [mapImage, gridResolution?.pixelsPerGrid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the player-view target center changes after the image is already
+  // loaded (e.g. parent set floorCenters[newFloor]=arrival just after a
+  // transition), re-center the camera on the new spot. This catches the case
+  // where the image .onload fires before the parent's effect can update
+  // viewportCenter — without this, the camera would land at a stale spot.
+  useEffect(() => {
+    if (!isPlayerView) return;
+    if (!viewportCenter || !loadedImage) return;
+    const dims = dimensionsRef.current;
+    if (dims.width <= 0 || dims.height <= 0) return;
+    setStagePos({
+      x: dims.width / 2 - viewportCenter.x * stageScale,
+      y: dims.height / 2 - viewportCenter.y * stageScale,
+    });
+    // intentionally only depends on the center coords + image identity — we
+    // don't want this to retrigger on stageScale changes the user makes by
+    // pinching.
+  }, [viewportCenter?.x, viewportCenter?.y, loadedImage]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   useEffect(() => {
@@ -5556,21 +5616,32 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
   };
 
+  // Clamp a token center to within the map image bounds, so the token can't
+  // be dragged off into the black margins. Player view only — the DM may
+  // legitimately want to stage tokens off-map.
+  const clampToMapBounds = (p: { x: number; y: number }, radius: number) => {
+    if (!isPlayerView || !loadedImage) return p;
+    return {
+      x: Math.max(radius, Math.min(loadedImage.width - radius, p.x)),
+      y: Math.max(radius, Math.min(loadedImage.height - radius, p.y)),
+    };
+  };
+
   const handleDragMove = (id: string, e: any) => {
     let pos = { x: e.target.x(), y: e.target.y() };
 
     // Wall collision: constrain token position against blocking segments
     const shouldCollide = (isPlayerView || wallCollisionEnabled) && blockingSegments.length > 0;
+    const radius = dragTokenRadiusRef.current[id] ?? 20;
     if (shouldCollide) {
-      const radius = dragTokenRadiusRef.current[id] ?? 20;
       const prevPos = lastValidPosRef.current[id] ?? pos;
       pos = constrainPositionAgainstWalls(pos, prevPos, radius, blockingSegments);
-      e.target.x(pos.x);
-      e.target.y(pos.y);
-      lastValidPosRef.current[id] = pos;
-    } else {
-      lastValidPosRef.current[id] = pos;
     }
+    // Keep the token on the map (player view only)
+    pos = clampToMapBounds(pos, radius);
+    e.target.x(pos.x);
+    e.target.y(pos.y);
+    lastValidPosRef.current[id] = pos;
 
     draggingPositionsRef.current[id] = pos;
 
@@ -5581,12 +5652,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const dy = pos.y - multi.draggedStart.y;
       Object.entries(multi.othersStart).forEach(([tid, start]) => {
         let otherPos = { x: start.x + dx, y: start.y + dy };
+        const otherRadius = dragTokenRadiusRef.current[tid] ?? 20;
         if (shouldCollide) {
-          const otherRadius = dragTokenRadiusRef.current[tid] ?? 20;
           const otherPrev = lastValidPosRef.current[tid] ?? otherPos;
           otherPos = constrainPositionAgainstWalls(otherPos, otherPrev, otherRadius, blockingSegments);
-          lastValidPosRef.current[tid] = otherPos;
         }
+        otherPos = clampToMapBounds(otherPos, otherRadius);
+        lastValidPosRef.current[tid] = otherPos;
         draggingPositionsRef.current[tid] = otherPos;
       });
     }
@@ -5658,13 +5730,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     // Apply wall collision to the final position
     const shouldCollide = (isPlayerView || wallCollisionEnabled) && blockingSegments.length > 0;
+    const radius = dragTokenRadiusRef.current[id] ?? 20;
     if (shouldCollide) {
-      const radius = dragTokenRadiusRef.current[id] ?? 20;
       const prevPos = lastValidPosRef.current[id] ?? finalPos;
       finalPos = constrainPositionAgainstWalls(finalPos, prevPos, radius, blockingSegments);
-      e.target.x(finalPos.x);
-      e.target.y(finalPos.y);
     }
+    // Keep the token on the map (player view only)
+    finalPos = clampToMapBounds(finalPos, radius);
+    e.target.x(finalPos.x);
+    e.target.y(finalPos.y);
 
     const multi = multiDragStartRef.current;
 
@@ -7022,13 +7096,172 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
   };
 
+  // Transition-zone overlay is rebuilt only when its own inputs change,
+  // not on every pan / zoom / token tick.
+  const transitionZonesNodes = useMemo(() => {
+    if (isPlayerView) return null;
+    const PAIR_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#f97316'];
+    const currentFloor = floors?.find(f => f.id === activeFloorId);
+    const zones = currentFloor?.transitionZones || [];
+    return zones.map(zone => {
+      const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
+      const color = PAIR_COLORS[(zone.pairIndex ?? 0) % PAIR_COLORS.length];
+      const r = parseInt(color.slice(1, 3), 16);
+      const g = parseInt(color.slice(3, 5), 16);
+      const b = parseInt(color.slice(5, 7), 16);
+      return (
+        <Group key={zone.id}>
+          <Rect
+            ref={(node) => { if (node) zoneRectRefs.current[zone.id] = node; }}
+            x={zone.rect.x}
+            y={zone.rect.y}
+            width={zone.rect.width}
+            height={zone.rect.height}
+            fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
+            stroke={selectedZoneId === zone.id ? color : color}
+            strokeWidth={selectedZoneId === zone.id ? 3 : 2}
+            dash={[8, 4]}
+            listening={true}
+            draggable={!transitionZoneMode}
+            onClick={(e) => {
+              e.cancelBubble = true;
+              setSelectedZoneId(prev => prev === zone.id ? null : zone.id);
+            }}
+            onContextMenu={(e) => {
+              e.evt.preventDefault();
+              e.cancelBubble = true;
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              const rect = containerRef.current?.getBoundingClientRect();
+              if (ptr && rect) {
+                setZoneContextMenu({
+                  screenX: rect.left + ptr.x,
+                  screenY: rect.top + ptr.y,
+                  clientY: rect.top + ptr.y,
+                  zoneId: zone.id,
+                });
+              }
+            }}
+            onDragEnd={(e) => {
+              const node = e.target;
+              const newRect = { ...zone.rect, x: node.x(), y: node.y() };
+              const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
+              onTransitionZonesChange?.(updated);
+            }}
+            onTransformEnd={(e) => {
+              const node = e.target;
+              const scaleX = node.scaleX();
+              const scaleY = node.scaleY();
+              node.scaleX(1);
+              node.scaleY(1);
+              const newRect = {
+                x: node.x(),
+                y: node.y(),
+                width: Math.max(20, node.width() * scaleX),
+                height: Math.max(20, node.height() * scaleY),
+              };
+              node.width(newRect.width);
+              node.height(newRect.height);
+              const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
+              onTransitionZonesChange?.(updated);
+            }}
+          />
+          {(() => {
+            const line1 = targetFloor?.name || '?';
+            const line2 = zone.label || '';
+            const labelText = line2 ? `${line1}\n${line2}` : line1;
+            const maxW = Math.max(40, zone.rect.width - 24);
+            const bgH = line2 ? 34 : 20;
+            return (
+              <>
+                <Rect
+                  x={zone.rect.x + 4}
+                  y={zone.rect.y + 4}
+                  width={maxW}
+                  height={bgH}
+                  fill="rgba(0,0,0,0.55)"
+                  cornerRadius={4}
+                  listening={false}
+                />
+                <Text
+                  x={zone.rect.x + 8}
+                  y={zone.rect.y + 7}
+                  text={labelText}
+                  fontSize={11}
+                  lineHeight={1.4}
+                  fill={color}
+                  fontStyle="bold"
+                  width={maxW - 8}
+                  ellipsis={true}
+                  listening={false}
+                />
+              </>
+            );
+          })()}
+          {zone.locked && (
+            <>
+              <Circle
+                x={zone.rect.x + zone.rect.width / 2}
+                y={zone.rect.y + zone.rect.height / 2}
+                radius={18}
+                fill="rgba(0,0,0,0.65)"
+                listening={false}
+              />
+              <Path
+                x={zone.rect.x + zone.rect.width / 2}
+                y={zone.rect.y + zone.rect.height / 2}
+                data="M5 11 L19 11 Q21 11 21 13 L21 20 Q21 22 19 22 L5 22 Q3 22 3 20 L3 13 Q3 11 5 11 Z M7 11 L7 7 A5 5 0 0 1 17 7 L17 11"
+                stroke="white"
+                strokeWidth={2}
+                fill="transparent"
+                offsetX={12}
+                offsetY={12}
+                scaleX={0.95}
+                scaleY={0.95}
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            </>
+          )}
+          {zone.pairIndex != null && (
+            <>
+              <Circle
+                x={zone.rect.x + zone.rect.width - 2}
+                y={zone.rect.y + 2}
+                radius={10}
+                fill={color}
+                listening={false}
+              />
+              <Text
+                x={zone.rect.x + zone.rect.width - 2}
+                y={zone.rect.y + 2}
+                text={String(zone.pairIndex)}
+                fontSize={11}
+                fill="white"
+                fontStyle="bold"
+                align="center"
+                verticalAlign="middle"
+                offsetX={10}
+                offsetY={10}
+                width={20}
+                height={20}
+                listening={false}
+              />
+            </>
+          )}
+        </Group>
+      );
+    });
+  }, [isPlayerView, floors, activeFloorId, selectedZoneId, transitionZoneMode, onTransitionZonesChange]);
+
   return (
     <div className={cn("h-full flex flex-col relative", (castingSpell || pingMode) && "cursor-crosshair")} ref={containerRef}>
       {/* Grid calibration floating panel — appears in the bottom-center while calibrating. */}
       {!isPlayerView && gridCalibrating && calibrationDraft && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[160] bg-[#1a1512] border border-yellow-400/50 rounded-lg shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto">
           <div className="flex flex-col items-center">
-            <span className="text-[10px] uppercase tracking-wider opacity-50">Bandit size</span>
+            <span className="text-[10px] uppercase tracking-wider opacity-50">Token size</span>
             <span className="text-xl font-bold text-yellow-400 tabular-nums">{Math.round(calibrationDraft.ppg)} px</span>
             <span className="text-[10px] opacity-60">= 5 ft (one square)</span>
           </div>
@@ -7262,7 +7495,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           <>
                             <div className="h-px bg-[var(--line)] mx-2 my-1" />
                             <div className="px-3 py-1.5">
-                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Grid</p>
+                              <div className="flex items-baseline justify-between mb-1.5">
+                                <p className="text-[10px] opacity-40 uppercase tracking-wider">Grid</p>
+                                {gridResolution && !gridCalibrating && (
+                                  <p className="text-[10px] opacity-50">
+                                    Current: {Math.round(gridResolution.pixelsPerGrid)} px / 5 ft
+                                  </p>
+                                )}
+                              </div>
                               <button
                                 onClick={() => {
                                   onStartGridCalibration();
@@ -7279,11 +7519,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                 <SquareDashed size={11} />
                                 {gridCalibrating ? 'Calibrating…' : 'Calibrate Grid'}
                               </button>
-                              {gridResolution && !gridCalibrating && (
-                                <p className="text-[10px] opacity-50 mt-1.5 text-center">
-                                  Current: {Math.round(gridResolution.pixelsPerGrid)} px / 5 ft
-                                </p>
-                              )}
                               {!gridResolution && !gridCalibrating && (
                                 <p className="text-[10px] opacity-40 mt-1 leading-snug">
                                   Tell the app how big one square is so distances and snap-to-grid stay accurate.
@@ -7422,14 +7657,74 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                   {darkZonePainting ? 'Painting…' : 'Paint Dark Zone'}
                                 </button>
                               )}
-                              {darkZones.length === 0 && !darkZonePainting && (
-                                <p className="text-[10px] opacity-40 mt-1 leading-snug">
-                                  Mark caves & rooms that stay dark in Daylight.
-                                </p>
-                              )}
                             </div>
                           </>
                         )}
+
+                        {onOpenFloorAudioPicker && activeFloorId && (() => {
+                          const activeFloor = floors?.find(f => f.id === activeFloorId);
+                          if (!activeFloor) return null;
+                          const ambientId = activeFloor.ambientSoundId;
+                          const ambientSound = ambientId
+                            ? librarySoundsForNotes.find(s => s.id === ambientId)
+                            : null;
+                          const ambientLabel = ambientSound?.name ?? ambientId ?? null;
+                          return (
+                            <>
+                              <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                              <div className="px-3 py-1.5">
+                                <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Floor Audio</p>
+                                {ambientLabel ? (
+                                  <div className="flex items-center gap-1.5 text-[11px] bg-black/30 rounded px-2 py-1">
+                                    <Volume2 size={11} className="text-[var(--accent)] shrink-0" />
+                                    <span className="flex-1 truncate text-[var(--accent)]">{ambientLabel}</span>
+                                    <button
+                                      onClick={() => {
+                                        onOpenFloorAudioPicker(activeFloorId);
+                                        setIsMapMenuOpen(false);
+                                      }}
+                                      className="opacity-60 hover:opacity-100 transition-opacity"
+                                      title="Change sound"
+                                    >
+                                      <Edit2 size={11} />
+                                    </button>
+                                    <button
+                                      onClick={() => onClearFloorAudio?.(activeFloorId)}
+                                      className="opacity-60 hover:opacity-100 hover:text-red-400 transition-colors"
+                                      title="Clear sound"
+                                    >
+                                      <X size={11} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      onOpenFloorAudioPicker(activeFloorId);
+                                      setIsMapMenuOpen(false);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border border-[var(--accent)]/30 rounded-md transition-colors"
+                                  >
+                                    <Volume2 size={11} />
+                                    Set Ambient Sound
+                                  </button>
+                                )}
+                                {onOpenSoundZones && (
+                                  <button
+                                    onClick={() => {
+                                      onOpenSoundZones();
+                                      setIsMapMenuOpen(false);
+                                    }}
+                                    className="w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border border-[var(--accent)]/30 rounded-md transition-colors"
+                                    title="Sound Zones (active floor)"
+                                  >
+                                    <Volume2 size={11} />
+                                    Sound Zones
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </motion.div>
                     </>
                   )}
@@ -7443,7 +7738,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       )}
 
       <div className="flex-1 bg-black relative overflow-hidden" style={{ cursor: isPanning && spaceHeld ? 'grabbing' : spaceHeld ? 'grab' : undefined }}>
-        {!loadedImage && (
+        {!loadedImage && !mapImage && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10">
             <div className="max-w-md space-y-6">
               <h2 className="text-6xl font-serif font-bold tracking-tight">Scenario Map</h2>
@@ -7458,6 +7753,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </div>
           </div>
         )}
+        {/* Floor-transition cover: while the new map image is loading and the
+            camera hasn't repositioned yet, hide the canvas so the user doesn't
+            see the old map background with new-floor tokens placed on it. */}
+        <AnimatePresence>
+          {mapImage && displayedMapImage !== mapImage && (
+            <motion.div
+              key="map-transition-cover"
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0 bg-black z-30 pointer-events-none"
+            />
+          )}
+        </AnimatePresence>
         <Stage
           width={dimensions.width}
           height={dimensions.height}
@@ -7716,154 +8026,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
               />
             )}
 
-            {/* Render Transition Zones — DM only */}
-            {!isPlayerView && (() => {
-              const PAIR_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#f97316'];
-              const currentFloor = floors?.find(f => f.id === activeFloorId);
-              const zones = currentFloor?.transitionZones || [];
-              return zones.map(zone => {
-                const targetFloor = floors?.find(f => f.id === zone.targetFloorId);
-                const color = PAIR_COLORS[(zone.pairIndex ?? 0) % PAIR_COLORS.length];
-                const r = parseInt(color.slice(1, 3), 16);
-                const g = parseInt(color.slice(3, 5), 16);
-                const b = parseInt(color.slice(5, 7), 16);
-                return (
-                  <Group key={zone.id}>
-                    <Rect
-                      ref={(node) => { if (node) zoneRectRefs.current[zone.id] = node; }}
-                      x={zone.rect.x}
-                      y={zone.rect.y}
-                      width={zone.rect.width}
-                      height={zone.rect.height}
-                      fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
-                      stroke={selectedZoneId === zone.id ? color : color}
-                      strokeWidth={selectedZoneId === zone.id ? 3 : 2}
-                      dash={[8, 4]}
-                      listening={true}
-                      draggable={!transitionZoneMode}
-                      onClick={(e) => {
-                        e.cancelBubble = true;
-                        setSelectedZoneId(prev => prev === zone.id ? null : zone.id);
-                      }}
-                      onContextMenu={(e) => {
-                        e.evt.preventDefault();
-                        e.cancelBubble = true;
-                        const stage = e.target.getStage();
-                        const ptr = stage?.getPointerPosition();
-                        const rect = containerRef.current?.getBoundingClientRect();
-                        if (ptr && rect) {
-                          setZoneContextMenu({
-                            screenX: rect.left + ptr.x,
-                            screenY: rect.top + ptr.y,
-                            clientY: rect.top + ptr.y,
-                            zoneId: zone.id,
-                          });
-                        }
-                      }}
-                      onDragEnd={(e) => {
-                        const node = e.target;
-                        const newRect = { ...zone.rect, x: node.x(), y: node.y() };
-                        const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
-                        onTransitionZonesChange?.(updated);
-                      }}
-                      onTransformEnd={(e) => {
-                        const node = e.target;
-                        const scaleX = node.scaleX();
-                        const scaleY = node.scaleY();
-                        node.scaleX(1);
-                        node.scaleY(1);
-                        const newRect = {
-                          x: node.x(),
-                          y: node.y(),
-                          width: Math.max(20, node.width() * scaleX),
-                          height: Math.max(20, node.height() * scaleY),
-                        };
-                        node.width(newRect.width);
-                        node.height(newRect.height);
-                        const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
-                        onTransitionZonesChange?.(updated);
-                      }}
-                    />
-                    {(() => {
-                      const line1 = targetFloor?.name || '?';
-                      const line2 = zone.label || '';
-                      const labelText = line2 ? `${line1}\n${line2}` : line1;
-                      const maxW = Math.max(40, zone.rect.width - 24);
-                      const bgH = line2 ? 34 : 20;
-                      return (
-                        <>
-                          <Rect
-                            x={zone.rect.x + 4}
-                            y={zone.rect.y + 4}
-                            width={maxW}
-                            height={bgH}
-                            fill="rgba(0,0,0,0.55)"
-                            cornerRadius={4}
-                            listening={false}
-                          />
-                          <Text
-                            x={zone.rect.x + 8}
-                            y={zone.rect.y + 7}
-                            text={labelText}
-                            fontSize={11}
-                            lineHeight={1.4}
-                            fill={color}
-                            fontStyle="bold"
-                            width={maxW - 8}
-                            ellipsis={true}
-                            listening={false}
-                          />
-                        </>
-                      );
-                    })()}
-                    {zone.locked && (
-                      <>
-                        <Circle
-                          x={zone.rect.x + zone.rect.width / 2}
-                          y={zone.rect.y + zone.rect.height / 2}
-                          radius={14}
-                          fill="rgba(0,0,0,0.55)"
-                          listening={false}
-                        />
-                        <Text
-                          x={zone.rect.x + zone.rect.width / 2 - 7}
-                          y={zone.rect.y + zone.rect.height / 2 - 7}
-                          text="🔒"
-                          fontSize={14}
-                          listening={false}
-                        />
-                      </>
-                    )}
-                    {zone.pairIndex != null && (
-                      <>
-                        <Circle
-                          x={zone.rect.x + zone.rect.width - 2}
-                          y={zone.rect.y + 2}
-                          radius={10}
-                          fill={color}
-                          listening={false}
-                        />
-                        <Text
-                          x={zone.rect.x + zone.rect.width - 2}
-                          y={zone.rect.y + 2}
-                          text={String(zone.pairIndex)}
-                          fontSize={11}
-                          fill="white"
-                          fontStyle="bold"
-                          align="center"
-                          verticalAlign="middle"
-                          offsetX={10}
-                          offsetY={10}
-                          width={20}
-                          height={20}
-                          listening={false}
-                        />
-                      </>
-                    )}
-                  </Group>
-                );
-              });
-            })()}
+            {/* Render Transition Zones — DM only (memoized above) */}
+            {transitionZonesNodes}
 
             {/* ── Sound zones (Tier 2) — DM only ── */}
             {!isPlayerView && soundZones.length > 0 && soundZones.map(z => {
@@ -13512,7 +13676,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
                               transition={{ duration: 0.12 }}
-                              className="absolute top-full left-0 right-0 mt-1 z-20 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden"
+                              className="absolute top-full left-0 right-0 mt-1 z-20 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-y-auto max-h-[180px]"
                             >
                               {floors.filter(f => f.id !== activeFloorId).map(f => (
                                 <button
@@ -13604,15 +13768,26 @@ const MapViewInner: React.FC<MapViewProps> = ({
           {transitionPopup && (() => {
             const popupToken = tokens.find(t => t.id === transitionPopup.tokenId);
             const popupIsTop = playerSides?.[popupToken?.combatantId ?? ''] === 'top';
+            // Place the popup above the token whenever the token is past the
+            // vertical halfway point — that way it never runs off the bottom
+            // (or off the top, for a top-side player whose token sits high).
+            const popupAboveToken = transitionPopup.screenY > window.innerHeight / 2;
+            // Slide-in animation should originate from the token side, so the
+            // popup feels like it's emerging out of the token regardless of
+            // which side of the token it ends up on.
+            const initialY = popupAboveToken ? 4 : -4;
             return (
               <motion.div
-                initial={{ opacity: 0, y: popupIsTop ? 4 : -4 }}
+                initial={{ opacity: 0, y: initialY }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: popupIsTop ? 4 : -4 }}
+                exit={{ opacity: 0 }}
+                // Snap the popup away quickly on dismissal so it doesn't linger
+                // over the map while the floor-transition cover takes over.
+                transition={{ duration: 0.12 }}
                 className="fixed z-[70]"
                 style={{
                   left: transitionPopup.screenX - 90,
-                  ...(popupIsTop
+                  ...(popupAboveToken
                     ? { bottom: `calc(100vh - ${transitionPopup.screenY - 30}px)` }
                     : { top: transitionPopup.screenY + 30 }),
                 }}
@@ -13633,10 +13808,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         arrivalY = partnerZone.rect.y + partnerZone.rect.height / 2;
                       }
                     }
+                    // "Whole Team" only moves players currently on the same floor as
+                    // the triggering token — split parties stay split.
+                    const sourceFloorId = popupToken?.floorId ?? activeFloorId;
+                    const teamCount = tokens.filter(t => t.type === 'player' && t.floorId === sourceFloorId).length;
                     return (
                       <>
                         <p className="text-xs opacity-60 mb-2 text-center">
-                          {zone.label || `Go to ${targetFloor?.name || 'next floor'}`}
+                          {zone.label
+                            ? zone.label
+                            : isPlayerView
+                              ? 'Move to the next area...'
+                              : `Go to ${targetFloor?.name || 'next floor'}`}
                         </p>
                         <div className="flex flex-col gap-1.5">
                           <button
@@ -13650,35 +13833,39 @@ const MapViewInner: React.FC<MapViewProps> = ({
                               if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
                                 window.electronAPI.sendPlayerTokenUpdate(updated);
                               }
+                              (onTransitionToFloor ?? onSwitchFloor)?.(zone.targetFloorId);
                               setTransitionPopup(null);
                             }}
                             className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
                           >
                             <User size={12} className="text-blue-400" /> Move Just Me
                           </button>
-                          <button
-                            onClick={() => {
-                              const spacing = gridResolution?.pixelsPerGrid || 70;
-                              let offsetIndex = 0;
-                              const updated = tokens.map(t => {
-                                if (t.type === 'player') {
-                                  const col = offsetIndex % 2;
-                                  const row = Math.floor(offsetIndex / 2);
-                                  offsetIndex++;
-                                  return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
+                          {teamCount > 1 && (
+                            <button
+                              onClick={() => {
+                                const spacing = gridResolution?.pixelsPerGrid || 70;
+                                let offsetIndex = 0;
+                                const updated = tokens.map(t => {
+                                  if (t.type === 'player' && t.floorId === sourceFloorId) {
+                                    const col = offsetIndex % 2;
+                                    const row = Math.floor(offsetIndex / 2);
+                                    offsetIndex++;
+                                    return { ...t, floorId: zone.targetFloorId, x: arrivalX + (col - 0.5) * spacing, y: arrivalY + (row - 0.5) * spacing };
+                                  }
+                                  return t;
+                                });
+                                onTokensChange(updated);
+                                if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
+                                  window.electronAPI.sendPlayerTokenUpdate(updated);
                                 }
-                                return t;
-                              });
-                              onTokensChange(updated);
-                              if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                                window.electronAPI.sendPlayerTokenUpdate(updated);
-                              }
-                              setTransitionPopup(null);
-                            }}
-                            className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
-                          >
-                            <Layers size={12} className="text-blue-400" /> Move Whole Team
-                          </button>
+                                (onTransitionToFloor ?? onSwitchFloor)?.(zone.targetFloorId);
+                                setTransitionPopup(null);
+                              }}
+                              className="btn-ghost py-2 px-3 rounded-lg text-xs text-left flex items-center gap-2 hover:bg-blue-500/10"
+                            >
+                              <Layers size={12} className="text-blue-400" /> Move Whole Team ({teamCount})
+                            </button>
+                          )}
                         </div>
                         <button
                           onClick={() => setTransitionPopup(null)}
@@ -13716,14 +13903,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     z.id === zone.id ? { ...z, locked: !z.locked } : z
                   );
                   onTransitionZonesChange?.(updated);
-                  if (zone.pairedZoneId && zone.targetFloorId) {
-                    onUpdateFloorById?.(zone.targetFloorId, (f: Floor) => ({
-                      ...f,
-                      transitionZones: (f.transitionZones || []).map(z =>
-                        z.id === zone.pairedZoneId ? { ...z, locked: !zone.locked } : z
-                      ),
-                    }));
-                  }
                   setZoneContextMenu(null);
                 }}
                 className="flex items-center gap-3 w-full px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors text-left"

@@ -1,4 +1,5 @@
 import { Campaign } from '../types';
+import { setImage } from './imageStore';
 
 interface CampaignFile {
   formatVersion: 1;
@@ -32,23 +33,23 @@ export async function readCampaignFile(file: File): Promise<Campaign> {
     throw new Error('This file does not look like a campaign export.');
   }
 
-  // Persist any embedded map images and note images into localStorage so the app's
-  // normal rehydration path picks them up when the campaign is loaded.
+  // Persist any embedded map images and note images into the image store so
+  // the app's normal rehydration path picks them up when the campaign loads.
   for (const s of campaign.scenarios) {
     if (s.floors) {
       for (const f of s.floors) {
         if (f.mapImage) {
-          try { localStorage.setItem(`map_img_${s.id}_${f.id}`, f.mapImage); } catch { /* quota */ }
+          setImage(`map_img_${s.id}_${f.id}`, f.mapImage);
         }
         for (const n of f.mapNotes || []) {
           if (n.type === 'image' && n.imageData) {
-            try { localStorage.setItem(`note_img_${n.id}`, n.imageData); } catch { /* quota */ }
+            setImage(`note_img_${n.id}`, n.imageData);
           }
         }
       }
     }
     if (s.mapImage) {
-      try { localStorage.setItem(`map_img_${s.id}`, s.mapImage); } catch { /* quota */ }
+      setImage(`map_img_${s.id}`, s.mapImage);
     }
   }
 
