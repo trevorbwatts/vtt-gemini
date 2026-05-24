@@ -216,7 +216,7 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
                       {note.content}
                     </p>
                   )}
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => startEdit(note)}
                       className="p-1 hover:bg-[var(--accent)]/10 rounded text-[var(--accent)] transition-all"

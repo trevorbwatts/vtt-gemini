@@ -28,6 +28,13 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
         electron_1.ipcRenderer.removeAllListeners('dm-token-update');
     },
     sendPlayerMode: (mode) => electron_1.ipcRenderer.send('player-mode-update', mode),
+    sendDMViewAsPlayer: (playerId) => electron_1.ipcRenderer.send('dm-view-as-player-update', playerId),
+    onDMViewAsPlayer: (callback) => {
+        electron_1.ipcRenderer.on('dm-view-as-player-update', (_event, playerId) => callback(playerId));
+    },
+    removeDMViewAsPlayerListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('dm-view-as-player-update');
+    },
     onStateUpdate: (callback) => {
         electron_1.ipcRenderer.on('player-state-update', (_event, value) => callback(value));
     },

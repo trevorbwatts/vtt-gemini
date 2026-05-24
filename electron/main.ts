@@ -164,6 +164,14 @@ ipcMain.on('player-mode-update', (_event, mode: string) => {
   }
 });
 
+// DM toggled "View as Player" — proxy to the Player window so the projected
+// map shows just that one player's vision (or null to restore combined vision).
+ipcMain.on('dm-view-as-player-update', (_event, playerId: string | null) => {
+  if (playerWindow) {
+    playerWindow.webContents.send('dm-view-as-player-update', playerId);
+  }
+});
+
 // When the Player moves tokens, proxy it back to the DM window
 ipcMain.on('player-token-update', (_event, tokens) => {
   if (dmWindow) {

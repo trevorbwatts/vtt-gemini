@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Combatant, Token, cn, ClassDefinition } from '../types';
-import { Trash2, Zap, Swords, ChevronRight, ChevronLeft, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder, Dices } from '../icons';
+import { Trash2, Zap, Swords, ChevronRight, ChevronLeft, Skull, X, Footprints, Droplet, Feather, Shovel, Circle, Cone, Slash, Box, Cylinder, Dices, Eye } from '../icons';
 import { SpeedText } from './SpeedText';
 import { SpellAccordion } from './SpellAccordion';
 import { parseSpellcastingTrait } from '../data/spellDatabase';
@@ -106,6 +106,12 @@ interface BottomPanelProps {
 
   // Refresh player from D&D Beyond
   onRefreshPlayer?: (playerId: string) => Promise<void>;
+
+  // DM "view as player" — when set, MapView fog is restricted to this player's vision
+  dmViewAsPlayerId?: string | null;
+  onToggleViewAsPlayer?: (playerId: string) => void;
+  /** Direct setter (used by the auto-perspective-on-turn feature to follow whose turn it is). */
+  onSetViewAsPlayer?: (playerId: string | null) => void;
 }
 
 export const BottomPanel: React.FC<BottomPanelProps> = ({
@@ -135,6 +141,9 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   targetedCombatantIds,
   wildShapeState,
   onRefreshPlayer,
+  dmViewAsPlayerId,
+  onToggleViewAsPlayer,
+  onSetViewAsPlayer,
 }) => {
   // ── Panel height (resizable) ──
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -149,6 +158,16 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   // ── Initiative state ──
   const [activeCombatantId, _setActiveCombatantId] = useState<string | null>(null);
   const activeCardRef = useRef<HTMLDivElement>(null);
+
+  // ── Auto "View as Player" on each player's turn ──
+  // When on, the map fog auto-switches to the active player's perspective during combat,
+  // and reverts to combined vision on monster/NPC turns.
+  const [autoPerspectiveOnTurn, setAutoPerspectiveOnTurn] = useState<boolean>(() => {
+    try { return localStorage.getItem('auto_perspective_on_turn') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('auto_perspective_on_turn', autoPerspectiveOnTurn ? '1' : '0'); } catch { /* */ }
+  }, [autoPerspectiveOnTurn]);
 
   useEffect(() => {
     if (activeCombatantId) {
@@ -266,6 +285,34 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
   const combatStarted = activeCombatantId !== null;
   const combatActive = activeCombatants.length > 0;
+
+  // ── Auto-perspective effect ──
+  // While combat is active and the auto-perspective toggle is on: switch the
+  // map fog to the current player's vision on their turn, and back to combined
+  // vision on monster/NPC turns.
+  useEffect(() => {
+    if (!autoPerspectiveOnTurn || !onSetViewAsPlayer) return;
+    if (!combatActive || !activeCombatantId) {
+      onSetViewAsPlayer(null);
+      return;
+    }
+    const active = sortedCombatants.find(c => c.id === activeCombatantId);
+    if (active && active.type === 'player') {
+      onSetViewAsPlayer(active.sourceCombatantId || active.id);
+    } else {
+      onSetViewAsPlayer(null);
+    }
+  }, [autoPerspectiveOnTurn, combatActive, activeCombatantId, sortedCombatants, onSetViewAsPlayer]);
+
+  // When the auto toggle transitions ON→OFF, clear any auto-driven perspective
+  // so the DM isn't left stuck in one player's view. (Doesn't fire on mount.)
+  const prevAutoRef = useRef(autoPerspectiveOnTurn);
+  useEffect(() => {
+    if (prevAutoRef.current && !autoPerspectiveOnTurn) {
+      onSetViewAsPlayer?.(null);
+    }
+    prevAutoRef.current = autoPerspectiveOnTurn;
+  }, [autoPerspectiveOnTurn, onSetViewAsPlayer]);
 
   // ── Resize handle ──
   const startResize = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -497,6 +544,23 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
             <div className="flex items-center gap-2 px-3 border-b border-[var(--line)] bg-black/20 shrink-0 h-[52px]">
               <Swords size={11} className="opacity-40 text-[var(--ink)]" />
               <span className="text-[11px] uppercase tracking-[0.15em] font-bold opacity-40 text-[var(--ink)]">Initiative Tracker</span>
+              {onSetViewAsPlayer && (
+                <button
+                  onClick={() => setAutoPerspectiveOnTurn(v => !v)}
+                  title={autoPerspectiveOnTurn
+                    ? 'Auto-switching map to the active player’s perspective during their turn. Click to disable.'
+                    : 'Auto-switch the map to each player’s perspective on their turn.'}
+                  className={cn(
+                    'ml-auto flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold transition-opacity px-2 py-1 rounded',
+                    autoPerspectiveOnTurn
+                      ? 'opacity-100 bg-sky-500/20 text-sky-300 hover:bg-sky-500/30'
+                      : 'opacity-40 hover:opacity-100 hover:bg-white/10 text-[var(--ink)]'
+                  )}
+                >
+                  <Eye size={11} />
+                  {autoPerspectiveOnTurn ? 'Auto-View On' : 'Auto-View'}
+                </button>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -770,6 +834,24 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 )}
                 {/* Right-side controls: Refresh (players) + close button */}
                 <div className="ml-auto flex items-center gap-1 shrink-0">
+                  {detailSource.type === 'player' && detailSourceId && onToggleViewAsPlayer && (() => {
+                    const isViewingAsThis = dmViewAsPlayerId === detailSourceId;
+                    return (
+                      <button
+                        onClick={() => onToggleViewAsPlayer(detailSourceId)}
+                        title={isViewingAsThis ? 'Stop viewing as this player' : 'View map from this player’s perspective'}
+                        className={cn(
+                          'flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold transition-opacity px-2 py-1 rounded',
+                          isViewingAsThis
+                            ? 'opacity-100 bg-sky-500/20 text-sky-300 hover:bg-sky-500/30'
+                            : 'opacity-40 hover:opacity-100 hover:bg-white/10'
+                        )}
+                      >
+                        <Eye size={12} />
+                        {isViewingAsThis ? 'Viewing as Player' : 'View as Player'}
+                      </button>
+                    );
+                  })()}
                   {detailSource.type === 'player' && detailSourceId && onRefreshPlayer && (
                     <button
                       onClick={() => onRefreshPlayer(detailSourceId)}

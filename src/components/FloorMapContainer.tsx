@@ -34,6 +34,8 @@ interface FloorMapContainerProps {
   onAddScenario?: () => void;
   panToNote?: MapNote | null;
   isPlayerView?: boolean;
+  /** When set on the DM view, fog of war is restricted to this player's vision. */
+  dmViewAsPlayerId?: string | null;
   onMapChange: (mapImage: string) => void;
   onMapNotesChange: (notes: MapNote[]) => void;
   onViewpointsChange?: (viewpoints: Viewpoint[]) => void;
@@ -345,6 +347,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     leftSidebarOpen: props.leftSidebarOpen,
     setLeftSidebarOpen: props.setLeftSidebarOpen,
     isPlayerView: props.isPlayerView,
+    dmViewAsPlayerId: props.dmViewAsPlayerId,
     walls: floor.walls,
     objectWalls: floor.objectWalls,
     portals: floor.portals,

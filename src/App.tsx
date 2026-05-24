@@ -257,6 +257,14 @@ export function DMScreen() {
   // Player targeting — combatant IDs that players have tapped to target
   const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
 
+  // "View as Player" — when set, the DM map's fog (and the Player Screen's fog) is restricted to that player's vision.
+  const [dmViewAsPlayerId, setDmViewAsPlayerId] = useState<string | null>(null);
+  const dmViewAsPlayerIdRef = useRef(dmViewAsPlayerId);
+  dmViewAsPlayerIdRef.current = dmViewAsPlayerId;
+  useEffect(() => {
+    try { window.electronAPI?.sendDMViewAsPlayer?.(dmViewAsPlayerId); } catch (_e) { /* */ }
+  }, [dmViewAsPlayerId]);
+
   // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string; saveEffect?: string; condition?: string } | null>(null);
   const [spellDamageModal, setSpellDamageModal] = useState<{ spellName: string; saveAbility: string; saveDc: number; halfDamageOnSave: boolean; saveResults: Record<string, any>; damageType?: string; combatantTraits?: Record<string, { resistant: boolean; immune: boolean; vulnerable: boolean }> } | null>(null);
@@ -437,6 +445,9 @@ export function DMScreen() {
               viewportCenter: dmViewportCenterRef.current,
               targetedCombatantIds: [...targetedCombatantIds],
             });
+            // Re-broadcast the current "View as Player" selection so a freshly
+            // opened player window picks up state set before it existed.
+            try { window.electronAPI?.sendDMViewAsPlayer?.(dmViewAsPlayerIdRef.current); } catch (_e) { /* */ }
           }
         } else {
           setPlayerMode('setup');
@@ -2218,36 +2229,6 @@ export function DMScreen() {
             </button>
           </div>
         )}
-        {wallPainting && (
-          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-orange-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <span className="text-xs">
-              Painting <strong>walls</strong> — click points to drop corners.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
-            <span className="text-[10px] opacity-60">finish wall</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
-            <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => setWallPainting(false)}
-            >
-              exit
-            </button>
-          </div>
-        )}
-        {wallErasing && !wallPainting && (
-          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-red-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <span className="text-xs">
-              <strong>Eraser</strong> — click a wall or portal to delete it.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
-            <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => setWallErasing(false)}
-            >
-              exit
-            </button>
-          </div>
-        )}
         {portalPlacementMode && (
           <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-blue-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
             <span className="text-xs">
@@ -2446,6 +2427,7 @@ export function DMScreen() {
                 }}
                 onOpenFloorAudioPicker={(floorId) => setAmbientPickerFor(floorId)}
                 onClearFloorAudio={(floorId) => updateFloorById(floorId, f => ({ ...f, ambientSoundId: undefined }))}
+                dmViewAsPlayerId={dmViewAsPlayerId}
               />
             )}
           </main>
@@ -2522,6 +2504,9 @@ export function DMScreen() {
               }}
               targetedCombatantIds={targetedCombatantIds}
               wildShapeState={wildShapeState}
+              dmViewAsPlayerId={dmViewAsPlayerId}
+              onToggleViewAsPlayer={(playerId) => setDmViewAsPlayerId(prev => prev === playerId ? null : playerId)}
+              onSetViewAsPlayer={(playerId) => setDmViewAsPlayerId(playerId)}
               onRefreshPlayer={async (playerId) => {
                 const player = campaign.players.find(p => p.id === playerId);
                 if (!player) return;

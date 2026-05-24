@@ -49,6 +49,10 @@ interface MapViewProps {
   onAddScenario?: () => void;
   panToNote?: MapNote | null;
   isPlayerView?: boolean;
+  /** When set on the DM view, the fog of war is restricted to JUST this player's
+   *  vision (darkvision + LOS, just like the player screen). All other DM
+   *  interactions remain enabled. */
+  dmViewAsPlayerId?: string | null;
   /** Combatant IDs that this viewer "is" — used to restrict spell-marker dragging
    *  and double-tap dismiss on the player screen to the actual caster. Unused in
    *  DM view (DM can always interact). */
@@ -3524,6 +3528,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onAddScenario,
   panToNote,
   isPlayerView = false,
+  dmViewAsPlayerId = null,
   viewerCasterIds,
   walls,
   objectWalls,
@@ -3799,6 +3804,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [wallPainting, wallPaintPoints, walls, onWallsChange, onStopWallPainting]);
+  // Keyboard for wall erasing: Esc exits eraser mode.
+  useEffect(() => {
+    if (!wallErasing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onToggleWallErasing?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [wallErasing, onToggleWallErasing]);
   // Keyboard: Esc cancels, Enter commits a paint session.
   useEffect(() => {
     if (!zonePainting) return;
@@ -5123,10 +5139,21 @@ const MapViewInner: React.FC<MapViewProps> = ({
     [playerTokensBase, livePlayerPos]
   );
 
-  // DM-only unlimited visibility polygons (skip on player view — playerVisionData handles that)
+  // When the DM has "View as Player" active, restrict vision raycasts to that one player's token.
+  const visionPlayerTokenPositions = useMemo(
+    () => dmViewAsPlayerId
+      ? playerTokenPositions.filter(t => t.combatantId === dmViewAsPlayerId)
+      : playerTokenPositions,
+    [playerTokenPositions, dmViewAsPlayerId]
+  );
+
+  // True whenever fog should be computed from a player's perspective (player screen OR DM viewing as player).
+  const useFromPlayerPerspective = isPlayerView || !!dmViewAsPlayerId;
+
+  // DM-only unlimited visibility polygons (skip when rendering from a player's perspective — playerVisionData handles that)
   const visibilityPolygons = useMemo(
     () => {
-      if (isPlayerView || !loadedImage) return [];
+      if (useFromPlayerPerspective || !loadedImage) return [];
       return playerTokenPositions.map(t =>
         computeVisibilityPolygon(
           { x: t.x, y: t.y },
@@ -5136,20 +5163,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
         )
       );
     },
-    [playerTokenPositions, blockingSegments, loadedImage, isPlayerView]
+    [playerTokenPositions, blockingSegments, loadedImage, useFromPlayerPerspective]
   );
 
-  // Player-view visibility: respects darkness level and per-token darkvision radius.
-  // The DM view continues to use the unlimited `visibilityPolygons` above.
+  // Player-perspective visibility: respects darkness level and per-token darkvision radius.
+  // Used by the player screen AND by the DM's "View as Player" mode.
   const playerVisionData = useMemo((): WallPoint[][] => {
-    if (!isPlayerView || !loadedImage) return [];
+    if (!useFromPlayerPerspective || !loadedImage) return [];
 
     const level = darknessLevel ?? 'dark';
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const fogPolygons: WallPoint[][] = [];
     const { width: mapW, height: mapH } = loadedImage;
 
-    for (const t of playerTokenPositions) {
+    for (const t of visionPlayerTokenPositions) {
       const combatant = allCombatants.find(c => c.id === t.combatantId);
       // Blindsight functions like darkvision for fog-of-war reveal (e.g. a summoned Bat
       // has Blindsight 60 ft but no darkvision — it should still light up the map).
@@ -5174,7 +5201,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     return fogPolygons;
-  }, [isPlayerView, loadedImage, darknessLevel, playerTokenPositions, blockingSegments,
+  }, [useFromPlayerPerspective, loadedImage, darknessLevel, visionPlayerTokenPositions, blockingSegments,
     players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
   // Light illumination polygons — UVTT static lights + placed Light spell markers.
@@ -5214,20 +5241,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }, [lights, spellMarkers, liveMarkerPos, activeFloorId, blockingSegments, loadedImage, ppg]);
 
   // Full (unclipped) LOS polygons for every player token — used as clip masks when rendering
-  // light-visible areas. Only computed when there are lights and we're in player view.
+  // light-visible areas. Only computed when there are lights and we're rendering from a player's perspective.
   const playerFullLOSPolygons = useMemo((): WallPoint[][] => {
-    if (!isPlayerView || !loadedImage || !lightPolygons.length) return [];
+    if (!useFromPlayerPerspective || !loadedImage || !lightPolygons.length) return [];
     const { width: mapW, height: mapH } = loadedImage;
-    return playerTokenPositions.map(t =>
+    return visionPlayerTokenPositions.map(t =>
       computeVisibilityPolygon({ x: t.x, y: t.y }, blockingSegments, mapW, mapH)
     );
-  }, [isPlayerView, loadedImage, lightPolygons.length, playerTokenPositions, blockingSegments]);
+  }, [useFromPlayerPerspective, loadedImage, lightPolygons.length, visionPlayerTokenPositions, blockingSegments]);
 
   // ── Dark Zones ──
   // In Daylight, dark-zone polygons should re-fog the area inside them. Only
-  // applies on the player view; the DM sees the zone outline regardless.
+  // applies when rendering from a player's perspective; the DM sees the zone outline regardless.
   const darkZonePolygons = useMemo((): WallPoint[][] => {
-    if (!isPlayerView) return [];
+    if (!useFromPlayerPerspective) return [];
     if ((darknessLevel ?? 'dark') !== 'daylight') return [];
     if (!darkZones.length) return [];
     return darkZones
@@ -5239,17 +5266,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
         return pts;
       });
-  }, [isPlayerView, darknessLevel, darkZones]);
+  }, [useFromPlayerPerspective, darknessLevel, darkZones]);
 
   // Darkvision-radius-limited LOS polygons for every player token that has
   // darkvision or blindsight. Used to re-erase fog inside dark zones so tokens
   // with darkvision can see partway into them.
   const darkvisionRevealPolygons = useMemo((): WallPoint[][] => {
-    if (!isPlayerView || !loadedImage || !darkZonePolygons.length) return [];
+    if (!useFromPlayerPerspective || !loadedImage || !darkZonePolygons.length) return [];
     const { width: mapW, height: mapH } = loadedImage;
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const result: WallPoint[][] = [];
-    for (const t of playerTokenPositions) {
+    for (const t of visionPlayerTokenPositions) {
       const combatant = allCombatants.find(c => c.id === t.combatantId);
       const blindsightMatch = combatant?.senses?.match(/blindsight\s+(\d+)/i);
       const blindsightFt = blindsightMatch ? parseInt(blindsightMatch[1], 10) : 0;
@@ -5263,7 +5290,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       result.push(clipPolygonToCircle(fullPoly, origin, visionPx));
     }
     return result;
-  }, [isPlayerView, loadedImage, darkZonePolygons.length, playerTokenPositions, blockingSegments,
+  }, [useFromPlayerPerspective, loadedImage, darkZonePolygons.length, visionPlayerTokenPositions, blockingSegments,
     players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
   const hasFogData = blockingSegments.length > 0;
@@ -6140,7 +6167,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     onMapNotesChange([...mapNotes, newNote]);
     setContextMenu(null);
-    setNoteDraft({ type: 'treasure', content: '' });
+    setNoteDraft({ type: 'quote', content: '' });
   };
 
   const handleNoteImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -10370,17 +10397,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
-          {(isPlayerView || showFog) && hasFogData && loadedImage && (
+          {(useFromPlayerPerspective || showFog) && hasFogData && loadedImage && (
             <Layer listening={false}>
               <FogOfWarLayer
-                visibilityPolygons={isPlayerView ? playerVisionData : visibilityPolygons}
+                visibilityPolygons={useFromPlayerPerspective ? playerVisionData : visibilityPolygons}
                 playerLOSPolygons={playerFullLOSPolygons}
                 lightPolygons={lightPolygons}
                 darkZonePolygons={darkZonePolygons}
                 darkvisionRevealPolygons={darkvisionRevealPolygons}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
-                opacity={isPlayerView ? 1.0 : 0.7}
+                opacity={useFromPlayerPerspective ? 1.0 : 0.7}
               />
             </Layer>
           )}
@@ -12539,6 +12566,40 @@ const MapViewInner: React.FC<MapViewProps> = ({
               className="ml-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
             >
               Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Wall Painting Banner */}
+        {wallPainting && !isPlayerView && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] bg-[#1a1512] border border-orange-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <span className="text-xs">
+              Painting <strong>walls</strong> — click points to drop corners.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
+            <span className="text-[10px] opacity-60">finish wall</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => onStopWallPainting?.()}
+            >
+              exit
+            </button>
+          </div>
+        )}
+
+        {/* Wall Erasing Banner */}
+        {wallErasing && !wallPainting && !isPlayerView && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] bg-[#1a1512] border border-red-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <span className="text-xs">
+              <strong>Eraser</strong> — click a wall or portal to delete it.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => onToggleWallErasing?.()}
+            >
+              exit
             </button>
           </div>
         )}

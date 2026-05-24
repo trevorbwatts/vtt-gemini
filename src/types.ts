@@ -9,6 +9,9 @@ declare global {
       closePlayerScreen: () => void;
       sendStateUpdate: (state: any) => void;
       sendPlayerMode: (mode: string) => void;
+      sendDMViewAsPlayer?: (playerId: string | null) => void;
+      onDMViewAsPlayer?: (callback: (playerId: string | null) => void) => void;
+      removeDMViewAsPlayerListener?: () => void;
       onStateUpdate: (callback: (state: any) => void) => void;
       onPlayerModeUpdate: (callback: (mode: string) => void) => void;
       onPlayerScreenStatus: (callback: (isOpen: boolean) => void) => void;

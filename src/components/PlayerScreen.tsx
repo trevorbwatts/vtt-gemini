@@ -1372,6 +1372,8 @@ export function PlayerScreen() {
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   // Player targeting — combatant IDs of monsters players have targeted
   const [targetedCombatantIds, setTargetedCombatantIds] = useState<Set<string>>(new Set());
+  // DM toggled "View as Player" — when set, restrict the projected map's fog to just that player's vision.
+  const [dmViewAsPlayerId, setDmViewAsPlayerId] = useState<string | null>(null);
   // Tremorsense — active when a player toggles Stonecunning (or similar tremorsense ability)
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
   // Detect Magic — active when a player casts Detect Magic
@@ -1662,6 +1664,13 @@ export function PlayerScreen() {
       });
     }
 
+    // Listen for DM "View as Player" toggle — restricts fog to a single player's vision
+    if (window.electronAPI?.onDMViewAsPlayer) {
+      window.electronAPI.onDMViewAsPlayer((playerId) => {
+        setDmViewAsPlayerId(playerId);
+      });
+    }
+
     // Listen for DM dismiss (after DM applies damage from the modal)
     if (window.electronAPI?.onDismissPlayerAoe) {
       window.electronAPI.onDismissPlayerAoe(() => {
@@ -1683,6 +1692,7 @@ export function PlayerScreen() {
         window.electronAPI.removeDismissPlayerAoeListener?.();
         window.electronAPI.removeDMSpellMarkerUpdateListener?.();
         window.electronAPI.removeDMPingListener?.();
+        window.electronAPI.removeDMViewAsPlayerListener?.();
       }
       if (window.electronAPI?.removePlayerModeListener) {
         window.electronAPI.removePlayerModeListener();
@@ -2655,6 +2665,7 @@ export function PlayerScreen() {
           leftSidebarOpen={false}
           setLeftSidebarOpen={() => {}}
           isPlayerView={true}
+          dmViewAsPlayerId={dmViewAsPlayerId}
           viewerCasterIds={Object.values(signedInSpots).filter(Boolean) as string[]}
           playerSides={playerSides}
           playerSpots={playerSpots}
