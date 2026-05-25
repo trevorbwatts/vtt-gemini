@@ -12656,6 +12656,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
               contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden"
                 : contextMenu.view === 'add-extra' ? "w-[640px] overflow-hidden"
+                : contextMenu.view === 'note' ? "w-72"
                 : "w-64"
             )}
             style={
@@ -13003,7 +13004,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       key={type}
                       onClick={() => setNoteDraft(prev => ({ ...prev, type, imageData: type === 'image' ? prev.imageData : undefined }))}
                       className={cn(
-                        "p-2 rounded-md transition-all",
+                        "px-2 py-2.5 rounded-md transition-all",
                         noteDraft.type === type ? "scale-110 shadow-lg" : "hover:bg-white/5 opacity-40 hover:opacity-100"
                       )}
                       style={noteDraft.type === type ? { backgroundColor: getNoteColor(type) } : undefined}
@@ -13099,7 +13100,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     value={noteDraft.content}
                     onChange={(e) => setNoteDraft(prev => ({ ...prev, content: e.target.value }))}
                     placeholder="Write note content..."
-                    className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors min-h-[80px] resize-none mb-3"
+                    className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors min-h-[120px] resize-none mb-3"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -13479,7 +13480,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {/* Token Context Menu */}
         {tokenContextMenu && (
           <div
-            className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden w-48 animate-in fade-in zoom-in-95 duration-150"
+            className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden w-64 animate-in fade-in zoom-in-95 duration-150"
             style={tokenContextMenu.clientY > window.innerHeight / 2
               ? { left: tokenContextMenu.x, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - tokenContextMenu.y }
               : { left: tokenContextMenu.x, top: tokenContextMenu.y }
@@ -13557,20 +13558,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <div className="px-4 py-1">
                     <p className="text-[9px] uppercase tracking-widest opacity-40">Move to Floor</p>
                   </div>
-                  {otherFloors.map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => {
-                        onTokensChange(tokens.map(t =>
-                          t.id === tokenContextMenu.tokenId ? { ...t, floorId: f.id } : t
-                        ));
-                        setTokenContextMenu(null);
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
-                    >
-                      <Layers size={14} /> {f.name}
-                    </button>
-                  ))}
+                  <div className="max-h-[222px] overflow-y-auto">
+                    {otherFloors.map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          onTokensChange(tokens.map(t =>
+                            t.id === tokenContextMenu.tokenId ? { ...t, floorId: f.id } : t
+                          ));
+                          setTokenContextMenu(null);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors"
+                      >
+                        <Layers size={14} /> {f.name}
+                      </button>
+                    ))}
+                  </div>
                 </>
               ) : null;
             })()}
