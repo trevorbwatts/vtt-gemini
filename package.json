@@ -5,16 +5,15 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && tsc -p electron/tsconfig.json && electron-builder",
+    "build": "vite build && tsc -p electron/tsconfig.json && electron-builder",
+    "typecheck": "tsc",
     "electron:start": "cross-env NODE_ENV=development electron .",
     "start": "concurrently -k \"npm run dev\" \"npm run electron:start\"",
-    "clean": "rm -rf dist dist-electron"
+    "clean": "node -e \"const fs=require('fs');['dist','dist-electron','release'].forEach(d=>fs.rmSync(d,{recursive:true,force:true}))\""
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
-    "better-sqlite3": "^12.4.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -41,5 +40,31 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.3.3"
+  },
+  "build": {
+    "appId": "com.trevorwatts.dmvtt",
+    "productName": "Dungeon Master VTT",
+    "directories": {
+      "output": "../vtt-builds",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "public/extras/**/*",
+      "public/sounds/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dungeon Master VTT"
+    }
   }
 }
