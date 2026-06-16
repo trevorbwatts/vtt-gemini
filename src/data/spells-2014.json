@@ -986,9 +986,7 @@
     "desc": "A shimmering field appears and surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.",
     "range": 60,
     "source": "2014",
-    "mapInteraction": "cast-and-emanate",
-    "aoeType": "emanation",
-    "aoeSize": 5
+    "mapInteraction": "none"
   },
   {
     "name": "Silent Image",
@@ -1811,7 +1809,8 @@
     "source": "2014",
     "aoeType": "sphere",
     "aoeSize": 15,
-    "saveAbility": "cha"
+    "saveAbility": "cha",
+    "mapInteraction": "cast-and-place"
   },
   {
     "name": "Animate Dead",
@@ -2294,8 +2293,7 @@
     "desc": "You imbue plants within 30 feet of you with limited sentience and animation, giving them the ability to communicate with you and follow your simple commands. You can question plants about events in the spell's area within the past day, gaining information about creatures that have passed, weather, and other circumstances.\n\nYou can also turn difficult terrain caused by plant growth (such as thickets and undergrowth) into ordinary terrain that lasts for the duration. Or you can turn ordinary terrain where plants are present into difficult terrain that lasts for the duration, causing vines and branches to hinder pursuers, for example.\n\nPlants might be able to perform other tasks on your behalf, at the DM's discretion. The spell doesn't enable plants to uproot themselves and move about, but they can freely move branches, tendrils, and stalks.\n\nIf a plant creature is in the area, you can communicate with it as if you shared a common language, but you gain no magical ability to influence it.\n\nThis spell can cause the plants created by the entangle spell to release a restrained creature.",
     "range": 30,
     "source": "2014",
-    "aoeType": "sphere",
-    "aoeSize": 30
+    "mapInteraction": "none"
   },
   {
     "name": "Spirit Guardians",

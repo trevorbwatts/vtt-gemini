@@ -41,7 +41,6 @@ const PLAYER_COLORS = [
 // ─── Emanation spell config (color + optional timer duration) ───
 const EMANATION_CONFIG: Record<string, { color: string; durationMs?: number }> = {
   'Spirit Guardians':         { color: '#fbbf24', durationMs: 600000 },
-  'Shield of Faith':          { color: '#60a5fa', durationMs: 600000 },
   'Antilife Shell':           { color: '#f87171' },
   'Antimagic Field':          { color: '#9ca3af' },
   'Aura of Life':             { color: '#fbbf24', durationMs: 600000 },
@@ -3008,6 +3007,11 @@ export function PlayerScreen() {
       {/* Enlarge/Reduce mode picker */}
       <EnlargeReduceModal
         isOpen={!!enlargeReducePicker}
+        rotation={(() => {
+          if (!enlargeReducePicker) return 0;
+          const edge = spotConfigs[enlargeReducePicker.spotId].edge;
+          return edge === 'top' ? 180 : edge === 'left' ? 90 : 0;
+        })()}
         onConfirm={(mode) => {
           if (enlargeReducePicker) {
             startEnlargeReduceRef.current?.(mode, enlargeReducePicker.playerId);
@@ -3020,6 +3024,8 @@ export function PlayerScreen() {
       {/* Wall of Fire variant picker */}
       {wallOfFirePicker && (() => {
         const { spotId, playerId, saveDc: wofSaveDc } = wallOfFirePicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (variant: 'wall' | 'ring') => {
           setWallOfFirePicker(null);
           if (variant === 'wall') {
@@ -3032,7 +3038,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-orange-500/40 rounded-2xl p-6 shadow-2xl shadow-orange-500/10 flex flex-col items-center gap-4 min-w-[240px]">
+            <div className="bg-[#1a1a2e] border border-orange-500/40 rounded-2xl p-6 shadow-2xl shadow-orange-500/10 flex flex-col items-center gap-4 min-w-[240px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-orange-400 text-lg">🔥</span>
                 <span className="text-white font-bold text-sm tracking-wide">Wall of Fire</span>
@@ -3070,6 +3076,8 @@ export function PlayerScreen() {
       {/* Elementalism variant picker */}
       {elementalismPicker && (() => {
         const { spotId, playerId } = elementalismPicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (element: string, emoji: string) => {
           setElementalismPicker(null);
           const spellName = `Elementalism (${element})`;
@@ -3078,7 +3086,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-6 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-4 min-w-[260px]">
+            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-6 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-4 min-w-[260px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-teal-400 text-lg">✨</span>
                 <span className="text-white font-bold text-sm tracking-wide">Elementalism</span>
@@ -3135,6 +3143,8 @@ export function PlayerScreen() {
       {/* Wall of Ice variant picker */}
       {wallOfIcePicker && (() => {
         const { spotId, playerId, saveDc: woiSaveDc } = wallOfIcePicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (variant: 'wall' | 'dome') => {
           setWallOfIcePicker(null);
           if (variant === 'wall') {
@@ -3147,7 +3157,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-sky-400/40 rounded-2xl p-6 shadow-2xl shadow-sky-400/10 flex flex-col items-center gap-4 min-w-[240px]">
+            <div className="bg-[#1a1a2e] border border-sky-400/40 rounded-2xl p-6 shadow-2xl shadow-sky-400/10 flex flex-col items-center gap-4 min-w-[240px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-sky-300 text-lg">❄️</span>
                 <span className="text-white font-bold text-sm tracking-wide">Wall of Ice</span>
@@ -3185,6 +3195,8 @@ export function PlayerScreen() {
       {/* Wall of Thorns variant picker */}
       {wallOfThornsPicker && (() => {
         const { spotId, playerId, saveDc: wotSaveDc } = wallOfThornsPicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (variant: 'wall' | 'ring') => {
           setWallOfThornsPicker(null);
           if (variant === 'wall') {
@@ -3197,7 +3209,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-green-500/40 rounded-2xl p-6 shadow-2xl shadow-green-500/10 flex flex-col items-center gap-4 min-w-[240px]">
+            <div className="bg-[#1a1a2e] border border-green-500/40 rounded-2xl p-6 shadow-2xl shadow-green-500/10 flex flex-col items-center gap-4 min-w-[240px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-green-300 text-lg">🌿</span>
                 <span className="text-white font-bold text-sm tracking-wide">Wall of Thorns</span>
@@ -3235,6 +3247,8 @@ export function PlayerScreen() {
       {/* Blade Barrier variant picker */}
       {bladeBarrierPicker && (() => {
         const { spotId, playerId, saveDc: bbSaveDc } = bladeBarrierPicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (variant: 'wall' | 'ring') => {
           setBladeBarrierPicker(null);
           if (variant === 'wall') {
@@ -3247,7 +3261,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-slate-300/40 rounded-2xl p-6 shadow-2xl shadow-slate-300/10 flex flex-col items-center gap-4 min-w-[240px]">
+            <div className="bg-[#1a1a2e] border border-slate-300/40 rounded-2xl p-6 shadow-2xl shadow-slate-300/10 flex flex-col items-center gap-4 min-w-[240px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-slate-200 text-lg">⚔️</span>
                 <span className="text-white font-bold text-sm tracking-wide">Blade Barrier</span>
@@ -3285,6 +3299,8 @@ export function PlayerScreen() {
       {/* Forcecage variant picker */}
       {forcecagePicker && (() => {
         const { spotId, playerId } = forcecagePicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (variant: 'cage' | 'box') => {
           setForcecagePicker(null);
           if (variant === 'cage') {
@@ -3297,7 +3313,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-violet-400/40 rounded-2xl p-6 shadow-2xl shadow-violet-400/10 flex flex-col items-center gap-4 min-w-[240px]">
+            <div className="bg-[#1a1a2e] border border-violet-400/40 rounded-2xl p-6 shadow-2xl shadow-violet-400/10 flex flex-col items-center gap-4 min-w-[240px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-violet-300 text-lg">🟪</span>
                 <span className="text-white font-bold text-sm tracking-wide">Forcecage</span>
@@ -3335,6 +3351,8 @@ export function PlayerScreen() {
       {/* Wall of Force variant picker */}
       {wallOfForcePicker && (() => {
         const { spotId, playerId } = wallOfForcePicker;
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleVariant = (variant: 'wall' | 'dome') => {
           setWallOfForcePicker(null);
           if (variant === 'wall') {
@@ -3347,7 +3365,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-purple-400/40 rounded-2xl p-6 shadow-2xl shadow-purple-400/10 flex flex-col items-center gap-4 min-w-[240px]">
+            <div className="bg-[#1a1a2e] border border-purple-400/40 rounded-2xl p-6 shadow-2xl shadow-purple-400/10 flex flex-col items-center gap-4 min-w-[240px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-purple-300 text-lg">✦</span>
                 <span className="text-white font-bold text-sm tracking-wide">Wall of Force</span>
@@ -3386,6 +3404,8 @@ export function PlayerScreen() {
       {summonPicker && (() => {
         const { spotId, playerId, spell, options } = summonPicker;
         const player = campaign?.players.find(p => p.id === playerId);
+        const pickerEdge = spotConfigs[spotId].edge;
+        const pickerRot = pickerEdge === 'top' ? 180 : pickerEdge === 'left' ? 90 : 0;
         const handleSummonChoice = (option: SummonOption) => {
           setSummonPicker(null);
           setActiveSummoning({ spotId, creatureName: option.name });
@@ -3407,7 +3427,7 @@ export function PlayerScreen() {
         };
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto bg-black/60">
-            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-5 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-3 min-w-[320px] max-w-[420px]">
+            <div className="bg-[#1a1a2e] border border-teal-500/40 rounded-2xl p-5 shadow-2xl shadow-teal-500/10 flex flex-col items-center gap-3 min-w-[320px] max-w-[420px]" style={{ transform: `rotate(${pickerRot}deg)` }}>
               <div className="flex items-center gap-2">
                 <span className="text-teal-400 text-lg">✦</span>
                 <span className="text-white font-bold text-sm tracking-wide">{spell.name}</span>

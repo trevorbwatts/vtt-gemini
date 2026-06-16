@@ -835,7 +835,8 @@
     "level": 1,
     "school": "Abjuration",
     "desc": "A shimmering field surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.",
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "none"
   },
   {
     "name": "Silent Image",
@@ -1964,7 +1965,8 @@
     "school": "Transmutation",
     "desc": "You imbue plants in an immobile 30-foot Emanation with limited sentience and animation, giving them the ability to communicate with you and follow your simple commands. You can question plants about events in the spell's area within the past day, gaining information about creatures that have passed, weather, and other circumstances.\n\nYou can also turn Difficult caused by plant growth (such as thickets and undergrowth) into ordinary terrain that lasts for the duration. Or you can turn ordinary terrain where plants are present into Difficult that lasts for the duration.\n\nThe spell doesn't enable plants to uproot themselves and move about, but they can move their branches, tendrils, and stalks for you.\n\nIf a Plant creature is in the area, you can communicate with it as if you shared a common language.",
     "range": 30,
-    "source": "2024"
+    "source": "2024",
+    "mapInteraction": "none"
   },
   {
     "name": "Spirit Guardians",

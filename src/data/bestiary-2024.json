@@ -5246,6 +5246,72 @@
     "resistances": "fire"
   },
   {
+    "id": "2024-bomber-triplet",
+    "name": "Bomber Triplet",
+    "source": "2024",
+    "hp": 50,
+    "ac": 15,
+    "type": "Medium Humanoid (lizardfolk)",
+    "size": "Medium",
+    "cr": "4",
+    "xp": 1100,
+    "description": "",
+    "stats": {
+      "str": 17,
+      "dex": 14,
+      "con": 15,
+      "int": 15,
+      "wis": 11,
+      "cha": 14
+    },
+    "actions": [
+      {
+        "name": "Multiattack",
+        "desc": "The Bomber Triplet makes two attacks: 1 Bite and 1 Claw, or 1 Lance and 1 Bite, or 1 Bound Tangleseed and 1 Corrosive Cluster."
+      },
+      {
+        "name": "Bite",
+        "desc": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "desc": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 3) slashing damage."
+      },
+      {
+        "name": "Lance",
+        "desc": "Melee Weapon Attack: +5 to hit, reach 10 ft., one target. Hit: 7 (1d8 + 3) piercing damage."
+      },
+      {
+        "name": "Bound Tangleseed",
+        "desc": "Ranged Weapon Attack: range 40 ft., one target. The affected creature must succeed on a DC 14 Strength saving throw or be restrained by the seed for 5 minutes. A restrained creature can use its action to make a DC 13 Strength check to break free from the seed, ending the effect. Each triplet has 1 of these seeds on them at any one time."
+      },
+      {
+        "name": "Corrosive Cluster",
+        "desc": "Ranged Weapon Attack: +4 to hit, range 10/40 ft., up to three targets within 5 feet of each other. Hit: 11 (3d6) acid damage. Each triplet has 1 of these Corrosive Clusters."
+      },
+      {
+        "name": "Alchemical Salving Elixir",
+        "desc": "Each triplet carries 2 alchemical salving Elixirs, which can be imbibed to heal 2d6 + 2 damage and can be imbibed as a reaction."
+      },
+      {
+        "name": "Rope Haver",
+        "desc": "Each Bomber Triplet has a length of 50 feet of rope."
+      }
+    ],
+    "speed": "30 ft., swim 30 ft.",
+    "senses": "darkvision 60 ft., passive Perception 14",
+    "languages": "Common, Draconic",
+    "saves": "CON +4",
+    "skills": "Perception +4, Stealth +4, Arcana +5",
+    "conditionImmunities": "frightened",
+    "specialAbilities": [
+      {
+        "name": "Hold Breath",
+        "desc": "The Bomber Triplet can hold its breath for 15 minutes."
+      }
+    ]
+  },
+  {
     "id": "2024-bone-devil",
     "name": "Bone Devil",
     "source": "2024",
@@ -7617,6 +7683,59 @@
       {
         "name": "Hold Breath",
         "desc": "The crocodile can hold its breath for 1 hour."
+      }
+    ]
+  },
+  {
+    "id": "2024-crystal-fruit",
+    "name": "Crystal Fruit",
+    "source": "2024",
+    "hp": 50,
+    "ac": 15,
+    "type": "Small Plant",
+    "size": "Small",
+    "cr": "4",
+    "xp": 1100,
+    "description": "",
+    "stats": {
+      "str": 14,
+      "dex": 14,
+      "con": 16,
+      "int": 8,
+      "wis": 11,
+      "cha": 14
+    },
+    "actions": [],
+    "speed": "30 ft.",
+    "senses": "blindsight 90 ft., passive Perception 14",
+    "languages": "—",
+    "saves": "DEX +4, CON +5",
+    "skills": "Perception +4, Athletics +4, Acrobatics +5",
+    "resistances": "slashing, piercing from nonmagical attacks",
+    "immunities": "acid, cold, fire, lightning, poison",
+    "conditionImmunities": "blinded, charmed, deafened, exhaustion, frightened, poisoned",
+    "specialAbilities": [
+      {
+        "name": "Edible",
+        "desc": "The Crystal Fruit can be eaten if helpless or immobilized, the process takes 5 minutes, and the eater takes 10 (3d6) slashing damage from the crystal shards."
+      },
+      {
+        "name": "Resonance",
+        "desc": "The Crystal Fruit can continuously emit a resonant tone at will. Creatures within 50 feet must make a DC 14 Wisdom saving throw or be poisoned until the Crystal Fruit is destroyed or stops resonating. If a target's saving throw is successful or the effect ends for it, the target is immune to the Crystal Fruit's Resonance for the next 24 hours."
+      },
+      {
+        "name": "Spider Climb",
+        "desc": "The Crystal Fruit can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      }
+    ],
+    "reactions": [
+      {
+        "name": "Nimble (1/Day)",
+        "desc": "The Crystal Fruit can use its reaction to reroll any saving throw or ability check it makes."
+      },
+      {
+        "name": "Crystal Shards",
+        "desc": "When hit by a melee attack by a creature within 5 feet of it, the Crystal Fruit can use its reaction to spray crystal shrapnel at the attacker, dealing 3d6 slashing damage to it."
       }
     ]
   },
@@ -15307,6 +15426,61 @@
     ]
   },
   {
+    "id": "2024-gloomwillow",
+    "name": "Gloomwillow",
+    "source": "2024",
+    "hp": 130,
+    "ac": 15,
+    "type": "Large Plant",
+    "size": "Large",
+    "cr": "5",
+    "xp": 1800,
+    "description": "",
+    "stats": {
+      "str": 18,
+      "dex": 8,
+      "con": 16,
+      "int": 7,
+      "wis": 11,
+      "cha": 5
+    },
+    "actions": [
+      {
+        "name": "Multiattack",
+        "desc": "The gloomwillow makes three attacks: two rake attacks and one claw attack or one slam attack."
+      },
+      {
+        "name": "Rake",
+        "desc": "Melee Weapon Attack: +5 to hit, reach 10 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      },
+      {
+        "name": "Claw",
+        "desc": "Melee Weapon Attack: The embedded corpse makes a claw attack with +3 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage, and the target must make a DC 10 Constitution saving throw or be paralyzed for one minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on a success."
+      },
+      {
+        "name": "Slam",
+        "desc": "Melee Weapon Attack: +6 to hit, reach 10 ft., one target. Hit: 22 (4d8 + 4) bludgeoning damage and the target must pass a DC 14 Strength saving throw or be knocked prone."
+      }
+    ],
+    "speed": "30 ft.",
+    "senses": "blindsight 60 ft., passive Perception 10",
+    "skills": "Stealth +4",
+    "vulnerabilities": "fire",
+    "resistances": "cold, necrotic",
+    "immunities": "poison",
+    "conditionImmunities": "blinded, charmed, deafened, exhaustion, frightened, paralyzed, poisoned, prone",
+    "specialAbilities": [
+      {
+        "name": "Corpse Symbiote",
+        "desc": "The corpse attached to the gloomwillow can detach and attack on its own, or be launched up to 30 feet in front of the gloomwillow. If it does, it acts on the gloomwillow's turn. The corpse is statted as a ghast but it shares its hit point total with the gloomwillow, any damage it takes is instead dealt to the gloomwillow and they both die at the same time. It does not appear to be affected by any damage it suffers. When the corpse is loose, the gloomwillow can't use its claw attack."
+      },
+      {
+        "name": "Corpse Explosion",
+        "desc": "The corpse can explode as a free action. Each creature within 10 feet must make a DC 16 Dexterity saving throw, taking 21 (6d6) necrotic damage on a failed save, or half as much damage on a successful one. This destroys the corpse but deals no damage to the gloomwillow."
+      }
+    ]
+  },
+  {
     "id": "2024-gnoll-demoniac",
     "name": "Gnoll Demoniac",
     "source": "2024",
@@ -21696,6 +21870,51 @@
       {
         "name": "Disintegration",
         "desc": "If the modron dies, it disintegrates into dust, leaving behind anything it was wearing or carrying."
+      }
+    ]
+  },
+  {
+    "id": "2024-mokujin",
+    "name": "Mokujin",
+    "source": "2024",
+    "hp": 55,
+    "ac": 15,
+    "type": "Medium Construct",
+    "size": "Medium",
+    "cr": "3",
+    "xp": 700,
+    "description": "",
+    "stats": {
+      "str": 15,
+      "dex": 16,
+      "con": 14,
+      "int": 14,
+      "wis": 11,
+      "cha": 14
+    },
+    "actions": [
+      {
+        "name": "Blowgun",
+        "desc": "At the end of every round, the Mokujin can fire a blowdart at a creature from a hole in its face. Missile Attack: +8 to hit, range 30/120 ft., one creature. Hit: 4 (1d6 + 1) piercing damage. The Mokujin will not fire blowdarts at enemies unless attacked first (or if the DM wants to raise the stakes)."
+      }
+    ],
+    "speed": "Special",
+    "senses": "passive Perception 12",
+    "languages": "—",
+    "saves": "STR +4, DEX +5",
+    "conditionImmunities": "all conditions including grappled",
+    "specialAbilities": [
+      {
+        "name": "Walk On Water",
+        "desc": "The Mokujin's feet float on water, like Jesus."
+      },
+      {
+        "name": "Perfect Parry",
+        "desc": "Any time a creature attempts to attack its Mokujin double, roll an attack roll for the Mokujin as well. If the roll is higher than the creature's, the Mokujin perfectly mirrors and parries, resulting in no damage being dealt by either side. If not, the Mokujin's weapon deflects off the weapon of the creature and the two strike each other simultaneously. If this happens, creature takes the same amount of damage as it deals to the Mokujin."
+      },
+      {
+        "name": "Mirror Moves",
+        "desc": "A Mokujin mirrors the moves of a creature it links to, likely the player characters. Draw a horizontal or vertical line depending on what direction the party enters from, bisecting the area in half, and whenever the linked creature moves, the Mokujin moves simultaneously, blocking the creature any time it would cross that line. The mirror symmetry is reflective (bilateral), rather than rotational (radial) symmetry and as such a creature can't rotate around the Mokujin to bypass it (Think mirrors). If the linked creature attempts to cast magic on a Mokujin, the Mokujin mirrors it and blasts the spell with an inverse countermagic, negating it. The Mokujin cannot be pushed or forcibly moved."
       }
     ]
   },
@@ -29124,6 +29343,141 @@
       {
         "name": "Stench",
         "desc": "Any creature other than a stench kow that starts its turn within 5 feet of the stench kow must succeed on a DC 12 Constitution saving throw or be poisoned until the start of the creature's next turn. On a successful saving throw, the creature is immune to the Stench of all stench kows for 1 hour."
+      }
+    ]
+  },
+  {
+    "id": "2024-steward-prime",
+    "name": "Steward Prime",
+    "source": "2024",
+    "hp": 150,
+    "ac": 15,
+    "type": "Large Plant",
+    "size": "Large",
+    "cr": "7",
+    "xp": 2900,
+    "description": "",
+    "stats": {
+      "str": 18,
+      "dex": 12,
+      "con": 16,
+      "int": 5,
+      "wis": 10,
+      "cha": 7
+    },
+    "actions": [
+      {
+        "name": "Multiattack",
+        "desc": "The Steward makes 2 slam attacks. If both hit a target, the target is grappled and the Steward uses Absorb Nutrients on it. Only one creature can be grappled at a time."
+      },
+      {
+        "name": "Slam",
+        "desc": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 13 (2d8 + 4) bludgeoning damage, and the target must succeed at a DC 15 Dexterity check or be knocked prone."
+      },
+      {
+        "name": "Absorb Nutrients",
+        "desc": "When a creature is grappled, on each of its turns it must make a DC 15 Constitution saving throw or take 13 (2d8 + 4) necrotic damage. The Steward regains that many hit points."
+      },
+      {
+        "name": "Solar Blast (Recharge 6)",
+        "desc": "The gemstone fires a powerful blast of heat energy in a 60-foot line. Each creature in that line must succeed on a DC 15 Dexterity saving throw or take 31 (7d8) fire damage, or half as much on a successful save."
+      }
+    ],
+    "speed": "30 ft.",
+    "senses": "blindsight 60 ft. (blind beyond this radius), passive Perception 13",
+    "skills": "Perception +3",
+    "conditionImmunities": "blinded, deafened, exhaustion, frightened",
+    "legendaryActions": [
+      {
+        "name": "Legendary Actions",
+        "desc": "The Steward of the Heart can take 1 legendary action, choosing from the options below. Only one legendary action can be used at a time and only at the end of another creature's turn. It regains its legendary action at the start of its turn."
+      },
+      {
+        "name": "Blinding Light",
+        "desc": "Commanding the plants that hold the stone heads above to move, the stone heads turn their gaze onto a creature, which must then make a DC 13 Dexterity saving throw or be blinded for 1 round."
+      },
+      {
+        "name": "Acid Spray",
+        "desc": "The Steward sprays goopy red acid at a creature within 20 feet. That creature must make a DC 13 Dexterity saving throw, taking 10 (3d6) acid damage on a failed save, or half as much on a successful one."
+      },
+      {
+        "name": "Frenzied Vines",
+        "desc": "Whipping its vines in a powerful maelstrom of flailing vegetation, all creatures within 10 feet must succeed on a DC 15 Constitution save or be pushed 20 feet back and knocked prone."
+      }
+    ]
+  },
+  {
+    "id": "2024-steward-zeta",
+    "name": "Steward Zeta",
+    "source": "2024",
+    "hp": 150,
+    "ac": 15,
+    "type": "Large Plant",
+    "size": "Large",
+    "cr": "7",
+    "xp": 2900,
+    "description": "",
+    "stats": {
+      "str": 18,
+      "dex": 12,
+      "con": 16,
+      "int": 5,
+      "wis": 10,
+      "cha": 7
+    },
+    "actions": [
+      {
+        "name": "Multiattack",
+        "desc": "The Steward makes 3 attacks: 2 claw attacks and 1 bite attack, or 1 Blinding Web and 1 Ruby Web attack."
+      },
+      {
+        "name": "Claw",
+        "desc": "Melee Weapon Attack: +6 to hit, reach 10 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      },
+      {
+        "name": "Bite",
+        "desc": "Melee Weapon Attack: +5 to hit, reach 10 ft., one target. Hit: 13 (2d8 + 4) piercing damage plus 13 (3d8) poison damage."
+      },
+      {
+        "name": "Blinding Web (Recharge 5-6)",
+        "desc": "The Steward whips its abdomen, flinging globs of ruby webbing at a creature it can see within 30 feet of it. The creature must succeed on a DC 14 Dexterity saving throw or be blinded and can't breathe until the Steward's next turn. A creature can use an action or reaction to attempt a DC 14 Strength check on the affected creature to remove the globs of sticky ruby."
+      },
+      {
+        "name": "Ruby Web (Recharge 5-6)",
+        "desc": "Ranged Weapon Attack: +5 to hit, range 30/60 ft., one Large or smaller creature. Hit: The creature is restrained by crystalline webbing. As an action, the restrained creature can make a DC 14 Strength check, escaping from the webbing on a success. The effect also ends if the webbing is destroyed. The webbing has AC 13, 11 hit points, and immunity to fire, bludgeoning, poison, and psychic damage."
+      }
+    ],
+    "speed": "30 ft., climb 30 ft.",
+    "senses": "blindsight 60 ft. (blind beyond this radius), passive Perception 13",
+    "saves": "DEX +4",
+    "skills": "Perception +3",
+    "conditionImmunities": "blinded, deafened, exhaustion, frightened",
+    "specialAbilities": [
+      {
+        "name": "Spider Climb",
+        "desc": "The Steward can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      }
+    ],
+    "legendaryActions": [
+      {
+        "name": "Legendary Actions",
+        "desc": "The Steward of the Heart can take 2 legendary actions, choosing from the options below. Only one legendary action can be used at a time and only at the end of another creature's turn. It regains its legendary actions at the start of its turn."
+      },
+      {
+        "name": "Spider's Retreat",
+        "desc": "The Steward makes a disengage action and can move up to its speed, preferring to climb up a wall or onto the ceiling."
+      },
+      {
+        "name": "Reel In",
+        "desc": "The Steward uses a strand of ruby webbing to pull a restrained creature up to 50 feet towards it."
+      },
+      {
+        "name": "Thrashing Rubble (Costs 2 Actions)",
+        "desc": "The Steward thrashes and the entire jungle shudders. A stone head falls from the ceiling onto any creature, which must make a DC 14 Dexterity saving throw, taking 17 (5d6) bludgeoning damage on a failed save, or half as much on a successful one."
+      },
+      {
+        "name": "Ruby Spiderlings (Costs 2 Actions)",
+        "desc": "Once per day, the Steward can eject 1d6 Ruby Spiderlings from the gemstone on its abdomen. Treat these Ruby Spiderlings as Giant Wolf Spiders. The Ruby Spiderlings die when the Steward is killed."
       }
     ]
   },

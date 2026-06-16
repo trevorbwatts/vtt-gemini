@@ -7,9 +7,10 @@ interface EnlargeReduceModalProps {
   isOpen: boolean;
   onConfirm: (mode: 'enlarge' | 'reduce') => void;
   onClose: () => void;
+  rotation?: number;
 }
 
-export const EnlargeReduceModal: React.FC<EnlargeReduceModalProps> = ({ isOpen, onConfirm, onClose }) => {
+export const EnlargeReduceModal: React.FC<EnlargeReduceModalProps> = ({ isOpen, onConfirm, onClose, rotation = 0 }) => {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -33,6 +34,7 @@ export const EnlargeReduceModal: React.FC<EnlargeReduceModalProps> = ({ isOpen, 
             exit={{ opacity: 0, scale: 0.92, y: 8 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
             className="relative bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl p-5 w-[280px]"
+            style={{ transform: `rotate(${rotation}deg)` }}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <button

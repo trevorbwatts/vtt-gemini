@@ -3878,6 +3878,26 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const zoomAnimRef = useRef<number | null>(null);
   const [viewpointContextMenu, setViewpointContextMenu] = useState<{ screenX: number; screenY: number; clientY: number; viewpointId: string } | null>(null);
   const [zoneContextMenu, setZoneContextMenu] = useState<{ screenX: number; screenY: number; clientY: number; zoneId: string } | null>(null);
+
+  // Dismiss any open right-click context menus when the user clicks anywhere outside of them
+  // (e.g. on the sidebar or main menu bar, which lives outside this component).
+  useEffect(() => {
+    const anyOpen = !!(contextMenu || tokenContextMenu || portalContextMenu || viewpointContextMenu || zoneContextMenu);
+    if (!anyOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('[data-context-menu]')) return;
+      setContextMenu(null);
+      setTokenContextMenu(null);
+      setPortalContextMenu(null);
+      setViewpointContextMenu(null);
+      setZoneContextMenu(null);
+      setActiveSubmenu(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [contextMenu, tokenContextMenu, portalContextMenu, viewpointContextMenu, zoneContextMenu]);
+
   const [monsterSearch, setMonsterSearch] = useState('');
   const [showSource2014, setShowSource2014] = useState(false);
   const [showSource2024, setShowSource2024] = useState(true);
@@ -7381,20 +7401,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
               <div className="flex items-center gap-2">
                 <MapIcon size={12} className="opacity-50" />
                 <h3 className="text-[10px] uppercase tracking-widest opacity-50 font-sans font-bold">
-                  {floors && floors.length > 1
-                    ? `Map | ${floors.find(f => f.id === activeFloorId)?.name ?? 'Floor'}`
-                    : 'Map'}
+                  Map
                 </h3>
               </div>
               {floors && floors.length > 1 && (
                 <div className="relative">
                   <button
                     onClick={() => setIsFloorMenuOpen(!isFloorMenuOpen)}
-                    className="btn-ghost py-1 px-3 flex items-center gap-2"
+                    className="btn-ghost py-1 px-3 flex items-center gap-2 w-[220px]"
                   >
-                    <Layers size={12} />
-                    {floors.find(f => f.id === activeFloorId)?.name ?? 'Floor'}
-                    <ChevronDown size={12} className={cn("transition-transform", isFloorMenuOpen && "rotate-180")} />
+                    <Layers size={12} className="shrink-0" />
+                    <span className="truncate flex-1 text-left">
+                      {floors.find(f => f.id === activeFloorId)?.name ?? 'Floor'}
+                    </span>
+                    <ChevronDown size={12} className={cn("transition-transform shrink-0", isFloorMenuOpen && "rotate-180")} />
                   </button>
                   <AnimatePresence>
                     {isFloorMenuOpen && (
@@ -8873,7 +8893,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     <Group
                       opacity={(token.invisible || token.illusory) ? 0.5 : token.hidden ? 0.4 : 1}
                       rotation={
-                        playerSides?.[token.combatantId ?? ''] === 'top' ? 180 :
+                        playerSides?.[token.summonedBy ?? token.combatantId ?? ''] === 'top' ? 180 :
                         (isPlayerView && (token.type === 'enemy' || token.type === 'npc')) ? 90 : 0
                       }
                       listening={false}
@@ -10605,7 +10625,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     }}
                   >
                     {/* Countdown Timers */}
-                    <Group rotation={playerSides?.[token.combatantId ?? ''] === 'top' ? 180 : 0} listening={false}>
+                    <Group rotation={playerSides?.[token.summonedBy ?? token.combatantId ?? ''] === 'top' ? 180 : 0} listening={false}>
                       {(activeTimers || []).filter(t => t.playerId === token.combatantId).map((timer, i) => (
                         <CountdownRing
                           key={`timer-${timer.playerId}-${timer.abilityId}-${i}`}
@@ -10675,7 +10695,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       <Group
                         opacity={token.invisible ? 0.5 : token.hidden ? 0.4 : 1}
                         rotation={
-                          playerSides?.[token.combatantId ?? ''] === 'top' ? 180 :
+                          playerSides?.[token.summonedBy ?? token.combatantId ?? ''] === 'top' ? 180 :
                           (isPlayerView && (token.type === 'enemy' || token.type === 'npc')) ? 90 : 0
                         }
                         listening={false}
@@ -12319,6 +12339,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               onContextMenu={(e) => { e.preventDefault(); setPortalContextMenu(null); }}
             />
             <div
+              data-context-menu
               className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[160px]"
               style={portalContextMenu.clientY > window.innerHeight / 2
                 ? { left: portalContextMenu.screenX, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - portalContextMenu.screenY }
@@ -12411,6 +12432,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               onContextMenu={(e) => { e.preventDefault(); setViewpointContextMenu(null); }}
             />
             <div
+              data-context-menu
               className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 min-w-[160px]"
               style={viewpointContextMenu.clientY > window.innerHeight / 2
                 ? { left: viewpointContextMenu.screenX, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - viewpointContextMenu.screenY }
@@ -12652,6 +12674,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {/* Context Menu / Note Creator */}
         {contextMenu && createPortal(
           <div
+            data-context-menu
             className={cn(
               "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
               contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden"
@@ -13480,6 +13503,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {/* Token Context Menu */}
         {tokenContextMenu && (
           <div
+            data-context-menu
             className="absolute z-50 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden w-64 animate-in fade-in zoom-in-95 duration-150"
             style={tokenContextMenu.clientY > window.innerHeight / 2
               ? { left: tokenContextMenu.x, bottom: (containerRef.current?.clientHeight ?? window.innerHeight) - tokenContextMenu.y }
@@ -13954,6 +13978,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           if (!zone) return null;
           return (
             <div
+              data-context-menu
               className="fixed z-[80] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 min-w-[160px]"
               style={zoneContextMenu.clientY > window.innerHeight / 2
                 ? { left: zoneContextMenu.screenX, bottom: window.innerHeight - zoneContextMenu.screenY }
