@@ -2,19 +2,28 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Dungeon Master Desktop VTT
 
-This contains everything you need to run your app locally.
+A desktop Virtual Tabletop for running D&D games, built with Electron + React.
 
-View your app in AI Studio: https://ai.studio/apps/ed528360-aac2-43b2-95a6-b05852e31698
+## Run Locally (for development)
 
-## Run Locally
+**Prerequisites:** Node.js
 
-**Prerequisites:**  Node.js
+1. Install dependencies: `npm install`
+2. Run the app: `npm start`
 
+## Build the Windows installer
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+To produce a standalone, double-click installer (`.exe`) that runs on any Windows
+machine with no Node.js or terminal required:
+
+1. `npm install` (once)
+2. `npm run build`
+
+The installer is written to the `release/` folder, e.g.
+`release/Dungeon Master VTT Setup 1.0.0.exe`. Upload that file to a
+[GitHub Release](../../releases) and anyone can download and double-click it to install.
+
+> Note: the installer is unsigned, so the first launch shows a Windows SmartScreen
+> warning ("Windows protected your PC"). Click **More info → Run anyway** to proceed.
