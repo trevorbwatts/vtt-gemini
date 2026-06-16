@@ -3642,6 +3642,33 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [wallPaintHover, setWallPaintHover] = useState<{ x: number; y: number } | null>(null);
   /** True when the hover position is close enough to the first vertex to snap back to it. */
   const [wallSnapToOrigin, setWallSnapToOrigin] = useState(false);
+  /** True while the floating "Edit Walls" toolbar is open. */
+  const [wallEditMode, setWallEditMode] = useState(false);
+  /** Exit wall-editing: close the toolbar and stop any active sub-mode. */
+  const exitWallEditMode = () => {
+    if (wallPainting) onStopWallPainting?.();
+    if (wallErasing) onToggleWallErasing?.();
+    if (portalPlacementMode) onStopPortalPlacement?.();
+    setWallEditMode(false);
+  };
+  /**
+   * Commit the wall currently being drawn (needs 2+ corners) and clear the
+   * working points so a fresh wall can be started. Used by Enter and right-click.
+   */
+  const commitCurrentWall = () => {
+    if (wallPaintPoints.length >= 4 && onWallsChange) {
+      const pts: WallPoint[] = [];
+      for (let i = 0; i < wallPaintPoints.length; i += 2) {
+        pts.push({ x: wallPaintPoints[i], y: wallPaintPoints[i + 1] });
+      }
+      const newSeg: WallSegment = {
+        id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        points: pts,
+      };
+      onWallsChange([...(walls || []), newSeg]);
+      setWallPaintPoints([]);
+    }
+  };
   // ── Portal placement (two-click span) ──
   /** First click anchor: identifies which wall edge and parametric position the span starts at. */
   const [portalPlaceStart, setPortalPlaceStart] = useState<
@@ -3787,18 +3814,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         onStopWallPainting?.();
       } else if (e.key === 'Enter') {
         // Commit current wall (needs at least 2 points) and start a new one.
-        if (wallPaintPoints.length >= 4 && onWallsChange) {
-          const pts: WallPoint[] = [];
-          for (let i = 0; i < wallPaintPoints.length; i += 2) {
-            pts.push({ x: wallPaintPoints[i], y: wallPaintPoints[i + 1] });
-          }
-          const newSeg: WallSegment = {
-            id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            points: pts,
-          };
-          onWallsChange([...(walls || []), newSeg]);
-          setWallPaintPoints([]);
-        }
+        commitCurrentWall();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -6025,6 +6041,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const handleContextMenu = (e: any) => {
     e.evt.preventDefault();
+    // While drawing a wall, right-click commits the current wall (same as Enter)
+    // and starts a fresh one without leaving paint mode.
+    if (wallPainting) {
+      commitCurrentWall();
+      return;
+    }
+    // Other map-editing/drawing modes: suppress the right-click menu so the
+    // user can right-click freely (e.g. to cancel) without it popping up.
+    if (wallErasing || drawingMode !== 'off' || zonePainting) {
+      return;
+    }
     setTokenContextMenu(null);
     const stage = e.target.getStage();
     const pointerPosition = stage.getPointerPosition();
@@ -7560,87 +7587,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             <div className="h-px bg-[var(--line)] mx-2 my-1" />
                             <div className="px-3 py-1.5">
                               <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Edit Walls</p>
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <button
-                                  onClick={() => {
-                                    onStartWallPainting();
-                                    setIsMapMenuOpen(false);
-                                  }}
-                                  disabled={wallPainting}
-                                  className={cn(
-                                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors disabled:opacity-40',
-                                    wallPainting
-                                      ? 'bg-orange-500/30 border-orange-400/50 text-orange-200'
-                                      : 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-400/30'
-                                  )}
-                                >
-                                  <Pencil size={11} />
-                                  {wallPainting ? 'Painting…' : 'Paint Walls'}
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    onToggleWallErasing?.();
-                                    setIsMapMenuOpen(false);
-                                  }}
-                                  className={cn(
-                                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors',
-                                    wallErasing
-                                      ? 'bg-red-500/30 border-red-400/50 text-red-200'
-                                      : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
-                                  )}
-                                >
-                                  <Eraser size={11} />
-                                  {wallErasing ? 'Erasing' : 'Eraser'}
-                                </button>
-                              </div>
-                              {onStartPortalPlacement && (
-                                <div className="flex items-center gap-1.5 mb-1.5">
-                                  <button
-                                    onClick={() => {
-                                      onStartPortalPlacement('door');
-                                      setIsMapMenuOpen(false);
-                                    }}
-                                    className={cn(
-                                      'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors',
-                                      portalPlacementMode === 'door'
-                                        ? 'bg-green-500/30 border-green-400/50 text-green-200'
-                                        : 'bg-green-500/15 hover:bg-green-500/25 border-green-400/30'
-                                    )}
-                                  >
-                                    <DoorClosed size={11} />
-                                    {portalPlacementMode === 'door' ? 'Placing…' : 'Add Door'}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      onStartPortalPlacement('window');
-                                      setIsMapMenuOpen(false);
-                                    }}
-                                    className={cn(
-                                      'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors',
-                                      portalPlacementMode === 'window'
-                                        ? 'bg-blue-500/30 border-blue-400/50 text-blue-200'
-                                        : 'bg-blue-500/15 hover:bg-blue-500/25 border-blue-400/30'
-                                    )}
-                                  >
-                                    <Blinds size={11} />
-                                    {portalPlacementMode === 'window' ? 'Placing…' : 'Add Window'}
-                                  </button>
-                                </div>
-                              )}
-                              {gridResolution && (
-                                <button
-                                  onClick={() => onToggleWallSnapToGrid?.()}
-                                  className={cn(
-                                    'w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] rounded-md border transition-colors',
-                                    wallSnapToGrid
-                                      ? 'bg-white/15 border-white/30 text-white'
-                                      : 'bg-black/30 border-white/10 opacity-70 hover:opacity-100'
-                                  )}
-                                >
-                                  <SquareDashed size={10} />
-                                  Snap to Grid {wallSnapToGrid ? 'ON' : 'OFF'}
-                                </button>
-                              )}
+                              <button
+                                onClick={() => {
+                                  setWallEditMode(true);
+                                  setIsMapMenuOpen(false);
+                                }}
+                                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors bg-orange-500/15 hover:bg-orange-500/25 border-orange-400/30"
+                              >
+                                <Pencil size={11} />
+                                Edit Walls
+                              </button>
                             </div>
                           </>
                         )}
@@ -7993,9 +7949,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   onPortalsChange((portals || []).filter(p => p.id !== portalHitId));
                   return;
                 }
-                // Otherwise look for a wall to delete.
+                // Otherwise look for the single wall EDGE nearest the cursor.
                 if (!onWallsChange) return;
                 let hitId: string | null = null;
+                let hitEdge = -1;
                 bestDistSq = thresholdSq;
                 for (const w of walls || []) {
                   for (let i = 0; i + 1 < w.points.length; i++) {
@@ -8004,11 +7961,27 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     if (d2 < bestDistSq) {
                       bestDistSq = d2;
                       hitId = w.id;
+                      hitEdge = i;
                     }
                   }
                 }
-                if (hitId) {
-                  onWallsChange((walls || []).filter(w => w.id !== hitId));
+                if (hitId && hitEdge >= 0) {
+                  const target = (walls || []).find(w => w.id === hitId)!;
+                  // Split the polyline at the erased edge: the corners up to and
+                  // including the edge's start become one wall, the corners from
+                  // the edge's end onward become another. Pieces with fewer than
+                  // 2 corners (i.e. erasing an end edge) are simply dropped.
+                  const before = target.points.slice(0, hitEdge + 1);
+                  const after = target.points.slice(hitEdge + 1);
+                  const replacements: WallSegment[] = [];
+                  const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+                  if (before.length >= 2) {
+                    replacements.push({ id: `${target.id}-a${stamp}`, points: before });
+                  }
+                  if (after.length >= 2) {
+                    replacements.push({ id: `${target.id}-b${stamp}`, points: after });
+                  }
+                  onWallsChange((walls || []).flatMap(w => (w.id === hitId ? replacements : [w])));
                 }
               }
               return;
@@ -12570,37 +12543,119 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </div>
         )}
 
-        {/* Wall Painting Banner */}
-        {wallPainting && !isPlayerView && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] bg-[#1a1512] border border-orange-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <span className="text-xs">
-              Painting <strong>walls</strong> — click points to drop corners.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
-            <span className="text-[10px] opacity-60">finish wall</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+        {/* Edit Walls Toolbar */}
+        {wallEditMode && !isPlayerView && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 pointer-events-none">
+          <div className="bg-[#1a1512] border border-orange-400/50 rounded-md px-2 py-1.5 shadow-xl flex items-center gap-1.5 pointer-events-auto">
+            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Edit Walls</span>
+            <div className="w-px h-5 bg-white/10" />
             <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => onStopWallPainting?.()}
+              onClick={() => {
+                if (wallPainting) { onStopWallPainting?.(); }
+                else {
+                  if (wallErasing) onToggleWallErasing?.();
+                  if (portalPlacementMode) onStopPortalPlacement?.();
+                  onStartWallPainting?.();
+                }
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                wallPainting
+                  ? 'bg-orange-500/30 border-orange-400/50 text-orange-200'
+                  : 'bg-orange-500/15 hover:bg-orange-500/25 border-orange-400/30'
+              )}
             >
-              exit
+              <Pencil size={11} />
+              {wallPainting ? 'Drawing…' : 'Draw Walls'}
+            </button>
+            <button
+              onClick={() => {
+                if (!wallErasing) {
+                  if (wallPainting) onStopWallPainting?.();
+                  if (portalPlacementMode) onStopPortalPlacement?.();
+                }
+                onToggleWallErasing?.();
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                wallErasing
+                  ? 'bg-red-500/30 border-red-400/50 text-red-200'
+                  : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
+              )}
+            >
+              <Eraser size={11} />
+              {wallErasing ? 'Erasing' : 'Eraser'}
+            </button>
+            {onStartPortalPlacement && (
+              <>
+                <button
+                  onClick={() => {
+                    if (wallPainting) onStopWallPainting?.();
+                    if (wallErasing) onToggleWallErasing?.();
+                    onStartPortalPlacement('door');
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                    portalPlacementMode === 'door'
+                      ? 'bg-green-500/30 border-green-400/50 text-green-200'
+                      : 'bg-green-500/15 hover:bg-green-500/25 border-green-400/30'
+                  )}
+                >
+                  <DoorClosed size={11} />
+                  {portalPlacementMode === 'door' ? 'Placing…' : 'Add Door'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (wallPainting) onStopWallPainting?.();
+                    if (wallErasing) onToggleWallErasing?.();
+                    onStartPortalPlacement('window');
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                    portalPlacementMode === 'window'
+                      ? 'bg-blue-500/30 border-blue-400/50 text-blue-200'
+                      : 'bg-blue-500/15 hover:bg-blue-500/25 border-blue-400/30'
+                  )}
+                >
+                  <Blinds size={11} />
+                  {portalPlacementMode === 'window' ? 'Placing…' : 'Add Window'}
+                </button>
+              </>
+            )}
+            {gridResolution && (
+              <button
+                onClick={() => onToggleWallSnapToGrid?.()}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                  wallSnapToGrid
+                    ? 'bg-white/15 border-white/30 text-white'
+                    : 'bg-black/30 border-white/10 opacity-70 hover:opacity-100'
+                )}
+              >
+                <SquareDashed size={10} />
+                Snap {wallSnapToGrid ? 'ON' : 'OFF'}
+              </button>
+            )}
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={exitWallEditMode}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border border-white/15 bg-white/5 hover:bg-white/15 transition-colors"
+            >
+              <X size={11} />
+              Done
             </button>
           </div>
-        )}
-
-        {/* Wall Erasing Banner */}
-        {wallErasing && !wallPainting && !isPlayerView && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] bg-[#1a1512] border border-red-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <span className="text-xs">
-              <strong>Eraser</strong> — click a wall or portal to delete it.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
-            <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => onToggleWallErasing?.()}
-            >
-              exit
-            </button>
+          {(wallPainting || wallErasing || portalPlacementMode) && (
+            <div className="text-[10px] opacity-60 whitespace-nowrap text-center">
+              {wallPainting ? (
+                <><kbd className="px-1 py-0.5 rounded bg-black/40">Enter</kbd> finish wall · <kbd className="px-1 py-0.5 rounded bg-black/40">Esc</kbd> stop</>
+              ) : wallErasing ? (
+                <>Click a wall or portal to delete it.</>
+              ) : (
+                <>Click two points on a wall to place the {portalPlacementMode}.</>
+              )}
+            </div>
+          )}
           </div>
         )}
 
@@ -12652,8 +12707,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
         {/* Context Menu / Note Creator */}
         {contextMenu && createPortal(
           <div
+            // Big centered panels (bestiary / extras) mount as their own element so
+            // they appear at full size immediately, instead of morphing out of the
+            // small root menu. They fade in rather than scaling up from small.
+            key={contextMenu.view === 'add-enemy' || contextMenu.view === 'add-extra' ? 'cm-panel' : 'cm-menu'}
             className={cn(
-              "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200",
+              "fixed z-[200] bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl",
+              contextMenu.view === 'add-enemy' || contextMenu.view === 'add-extra'
+                ? "animate-in fade-in duration-150"
+                : "animate-in zoom-in-95 duration-200",
               contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden"
                 : contextMenu.view === 'add-extra' ? "w-[640px] overflow-hidden"
                 : contextMenu.view === 'note' ? "w-72"
