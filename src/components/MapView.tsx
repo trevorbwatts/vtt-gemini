@@ -8037,7 +8037,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
             }
           }}
         >
-          <Layer>
+          {/* ── Static base map — isolated on its own layer so dragging tokens,
+               drawing, fog, etc. don't force the full-resolution map image to
+               re-render every frame. listening=false skips hit-testing on it
+               (the map itself has no click handlers; the Stage handles those). ── */}
+          <Layer listening={false}>
             {loadedImage && (
               <KonvaImage
                 image={loadedImage}
@@ -8045,7 +8049,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 height={loadedImage.height}
               />
             )}
+          </Layer>
 
+          <Layer>
             {/* Render Transition Zones — DM only (memoized above) */}
             {transitionZonesNodes}
 
