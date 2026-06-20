@@ -683,6 +683,18 @@ const SpellsPanel: React.FC<{
 
       {/* My Spells */}
       {activeTab === 'my' && (() => {
+        // Active effects — every currently-active emanation/toggle for this player,
+        // regardless of whether the spell is in their list (e.g. cast via Spell Lookup).
+        const activeEffects: { key: string; label: string; color: string; onDismiss: () => void }[] = [
+          ...(activeEmanations ?? []).map(e => ({
+            key: e.id,
+            label: e.spellName,
+            color: e.color,
+            onDismiss: () => onDismissEmanation?.(e.spellName),
+          })),
+          ...(invisibilityActive ? [{ key: 'invisibility', label: 'Invisibility', color: '#a78bfa', onDismiss: () => onDismissInvisibility?.() }] : []),
+          ...(seeInvisibilityActive ? [{ key: 'see-invisibility', label: 'See Invisibility', color: '#67e8f9', onDismiss: () => onDismissSeeInvisibility?.() }] : []),
+        ];
         const supportedSpells = spells.filter(s => s.mapInteraction !== 'none');
         const unsupportedSpells = spells.filter(s => s.mapInteraction === 'none');
         const renderRow = (spell: any, i: number) => (
@@ -692,17 +704,6 @@ const SpellsPanel: React.FC<{
             spellSaveDc={spellSaveDc}
             spellAttackBonus={spellAttackBonus}
             disabled={!ready}
-            isDismissable={
-              !!(activeEmanations?.some(e => e.spellName === spell.name)) ||
-              (spell.name === 'Invisibility' && !!invisibilityActive) ||
-              (spell.name === 'See Invisibility' && !!seeInvisibilityActive)
-            }
-            onDismiss={
-              activeEmanations?.some(e => e.spellName === spell.name) ? () => onDismissEmanation?.(spell.name) :
-              spell.name === 'Invisibility' ? onDismissInvisibility :
-              spell.name === 'See Invisibility' ? onDismissSeeInvisibility :
-              undefined
-            }
             onPress={() => {
               const mi = spell.mapInteraction as string | undefined;
               if (mi !== 'cast' && mi !== 'cast-and-place' && mi !== 'cast-and-emanate') return;
@@ -722,6 +723,26 @@ const SpellsPanel: React.FC<{
           />
         );
         return (
+          <>
+          {activeEffects.length > 0 && (
+            <div className="mb-2 pb-2 border-b border-white/10">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-white/20 mb-1">Active Effects</div>
+              <div className="divide-y divide-white/10">
+                {activeEffects.map(fx => (
+                  <div key={fx.key} className="flex items-center gap-2 py-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: fx.color }} />
+                    <span className="font-bold text-xs text-white/70 flex-1 min-w-0 truncate">{fx.label}</span>
+                    <button
+                      onPointerDown={(e) => { e.stopPropagation(); fx.onDismiss(); }}
+                      className="shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 active:bg-red-500/40 transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="max-h-[280px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="divide-y divide-white/10">
               {spells.length === 0 ? (
@@ -745,6 +766,7 @@ const SpellsPanel: React.FC<{
               </div>
             )}
           </div>
+          </>
         );
       })()}
 
@@ -1382,6 +1404,11 @@ export function PlayerScreen() {
 
   // Generic active emanations — persistent rings following their casters
   const [activeEmanations, setActiveEmanations] = useState<ActiveEmanation[]>([]);
+
+  // Broadcast active emanations to the DM window so they render on the DM map too
+  useEffect(() => {
+    window.electronAPI?.sendPlayerEmanationsUpdate?.(activeEmanations);
+  }, [activeEmanations]);
 
   // Invisibility — tracks which players have cast Invisibility on themselves
   const [invisiblePlayerIds, setInvisiblePlayerIds] = useState<Set<string>>(new Set());

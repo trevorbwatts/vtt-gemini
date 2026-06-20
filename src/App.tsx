@@ -11,7 +11,6 @@ import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, 
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
-import { MixerPanel } from './components/MixerPanel';
 import { SoundPicker } from './components/SoundPicker';
 import { SoundZonesPanel } from './components/SoundZonesPanel';
 import { audioEngine, loadMixerSettings, soundUrlFromId } from './services/audioEngine';
@@ -96,7 +95,6 @@ export function DMScreen() {
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
-  const [mixerOpen, setMixerOpen] = useState(false);
   /** When set, an ambient sound picker is open for this floor id. */
   const [ambientPickerFor, setAmbientPickerFor] = useState<string | null>(null);
   /** Manual override: when non-null, only this floor's ambient/zone audio plays. */
@@ -118,7 +116,20 @@ export function DMScreen() {
   /** When true, the user is calibrating the map's grid (two-click opposite corners of one square). */
   const [gridCalibrating, setGridCalibrating] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [dicePopover, setDicePopover] = useState<{ die: string; roll: number; x: number; y: number } | null>(null);
+  const [dicePopover, setDicePopover] = useState<{ sides: number; total: number; count: number; x: number; y: number } | null>(null);
+  const diceRollerRef = useRef<HTMLDivElement>(null);
+  // Dismiss the dice popover on any click outside the dice buttons. (Clicks on the
+  // buttons themselves are ignored here so re-clicking a die accumulates instead of
+  // closing — the button's own handler updates the running total.)
+  useEffect(() => {
+    if (!dicePopover) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (diceRollerRef.current?.contains(e.target as Node)) return;
+      setDicePopover(null);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [dicePopover]);
   // Listen for both browser fullscreen and Electron fullscreen changes
 
   useEffect(() => {
@@ -264,6 +275,9 @@ export function DMScreen() {
   useEffect(() => {
     try { window.electronAPI?.sendDMViewAsPlayer?.(dmViewAsPlayerId); } catch (_e) { /* */ }
   }, [dmViewAsPlayerId]);
+
+  // Active emanation rings broadcast from the Player screen (so they render on the DM map too)
+  const [playerEmanations, setPlayerEmanations] = useState<import('./types').ActiveEmanation[]>([]);
 
   // AoE highlights from MapView (for BottomPanel display)
   const [aoeHighlights, setAoeHighlights] = useState<{ affectedCombatantIds: string[]; saveResults: Record<string, any> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string; saveEffect?: string; condition?: string } | null>(null);
@@ -1185,6 +1199,15 @@ export function DMScreen() {
     return () => { window.electronAPI?.removePlayerSpellMarkerUpdateListener?.(); };
   }, []);
 
+  // Listen for active emanation rings from the Player screen
+  useEffect(() => {
+    if (!window.electronAPI?.onPlayerEmanationsUpdate) return;
+    window.electronAPI.onPlayerEmanationsUpdate((emanations: any) => {
+      setPlayerEmanations(Array.isArray(emanations) ? emanations : []);
+    });
+    return () => { window.electronAPI?.removePlayerEmanationsUpdateListener?.(); };
+  }, []);
+
   // Listen for drawings from the Player screen (per-floor)
   useEffect(() => {
     if (!window.electronAPI?.onPlayerDrawingsUpdate) return;
@@ -1986,19 +2009,29 @@ export function DMScreen() {
 
           {/* Centered dice roller */}
           <div className="flex items-center gap-1">
+            <div ref={diceRollerRef} className="flex items-center gap-1">
             {[4, 6, 8, 10, 12, 20, 100].map((sides) => (
               <button
                 key={sides}
                 onClick={(e) => {
                   const roll = Math.floor(Math.random() * sides) + 1;
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  setDicePopover({ die: `d${sides}`, roll, x: rect.left + rect.width / 2, y: rect.bottom });
+                  const x = rect.left + rect.width / 2;
+                  const y = rect.bottom;
+                  // Clicking the same die again adds another roll to the running total;
+                  // a different die (or a fresh popover) starts over.
+                  setDicePopover(prev =>
+                    prev && prev.sides === sides
+                      ? { ...prev, total: prev.total + roll, count: prev.count + 1 }
+                      : { sides, total: roll, count: 1, x, y }
+                  );
                 }}
                 className="px-2.5 py-1 rounded text-xs font-bold font-mono tracking-tight hover:bg-white/10 transition-colors text-white/50 hover:text-[var(--accent)]"
               >
                 d{sides}
               </button>
             ))}
+            </div>
             <div className="w-px h-4 bg-white/10 mx-1" />
             <div className="relative" ref={dmColorPickerRef}>
               <button
@@ -2116,13 +2149,6 @@ export function DMScreen() {
               <span>{playerScreenOpen ? 'Close Player Screen' : 'Launch Player Screen'}</span>
             </button>
             <button
-              onClick={() => setMixerOpen(true)}
-              className="btn-ghost px-2"
-              title="Sound Mixer"
-            >
-              <Music size={14} />
-            </button>
-            <button
               onClick={() => {
                 if (window.electronAPI?.toggleFullscreen) {
                   window.electronAPI.toggleFullscreen();
@@ -2139,14 +2165,6 @@ export function DMScreen() {
             </button>
           </div>
         </header>
-        {mixerOpen && (
-          <MixerPanel
-            onClose={() => setMixerOpen(false)}
-            currentScenarioFloors={currentScenario?.floors || []}
-            audioFocusFloorId={audioFocusFloorId}
-            onAudioFocusChange={setAudioFocusFloorId}
-          />
-        )}
         {ambientPickerFor && (() => {
           const floor = currentScenario?.floors?.find(f => f.id === ambientPickerFor);
           if (!floor) return null;
@@ -2255,16 +2273,17 @@ export function DMScreen() {
 
         {/* Dice roll popover */}
         {dicePopover && (
-          <>
-            <div className="fixed inset-0 z-[60]" onClick={() => setDicePopover(null)} />
-            <div
-              className="fixed z-[61] bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg shadow-xl px-4 py-2.5 text-center pointer-events-none"
-              style={{ left: dicePopover.x - 40, top: dicePopover.y + 8 }}
-            >
-              <div className="text-[9px] uppercase tracking-widest opacity-40 mb-0.5">{dicePopover.die}</div>
-              <div className="text-2xl font-bold text-[var(--accent)]">{dicePopover.roll}</div>
-            </div>
-          </>
+          <div
+            className="fixed z-[61] bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg shadow-xl px-4 py-2.5 text-center pointer-events-none"
+            style={{ left: dicePopover.x, top: dicePopover.y + 8, transform: 'translateX(-50%)' }}
+          >
+            <div className="text-2xl font-bold text-[var(--accent)]">{dicePopover.total}</div>
+            {dicePopover.count > 1 && (
+              <div className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent)] text-[#1a1512] text-[10px] font-bold flex items-center justify-center shadow">
+                {dicePopover.count}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Main Layout */}
@@ -2301,6 +2320,7 @@ export function DMScreen() {
                 panToNote={panToNote}
                 startCastingRef={startCastingRef}
                 startPlacingRef={startPlacingRef}
+                activeEmanations={playerEmanations}
                 spellMarkers={currentScenario?.spellMarkers || []}
                 onSpellMarkersChange={(markers) => {
                   setCampaign(prev => {
@@ -2603,6 +2623,9 @@ export function DMScreen() {
                 campaign={campaign}
                 onUpdate={setCampaign}
                 onClose={() => setSettingsOpen(false)}
+                currentScenarioFloors={currentScenario?.floors || []}
+                audioFocusFloorId={audioFocusFloorId}
+                onAudioFocusChange={setAudioFocusFloorId}
               />
             </motion.div>
           )}

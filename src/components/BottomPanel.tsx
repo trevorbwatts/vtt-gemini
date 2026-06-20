@@ -722,10 +722,17 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
             <>
               {/* Detail header */}
               <div className="flex items-center gap-3 px-3 border-b border-[var(--line)] bg-black/20 shrink-0 h-[52px]">
-                {/* Color dot */}
-                {detailToken?.color && (
+                {/* Avatar (falls back to a color dot when there's no image) */}
+                {detailSource.avatar ? (
+                  <div
+                    className="w-8 h-8 rounded-full overflow-hidden border-2 shrink-0"
+                    style={{ borderColor: detailToken?.color || 'var(--line)' }}
+                  >
+                    <img src={detailSource.avatar} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ) : detailToken?.color ? (
                   <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: detailToken.color }} />
-                )}
+                ) : null}
                 {/* Name */}
                 <h4 className="font-bold text-base tracking-tight shrink-0">{detailSource.name}</h4>
                 {/* Player: class summary */}

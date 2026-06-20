@@ -1,15 +1,27 @@
 import React, { useState } from 'react';
-import { Campaign } from '../types';
+import { Campaign, Floor } from '../types';
 import { X, Settings, Download } from '../icons';
 import { downloadCampaign } from '../utils/campaignFile';
+import { MixerPanel } from './MixerPanel';
 
 interface CampaignSettingsProps {
   campaign: Campaign;
   onUpdate: (campaign: Campaign) => void;
   onClose: () => void;
+  /** Sound Mixer context — passed straight through to the embedded mixer. */
+  currentScenarioFloors?: Floor[];
+  audioFocusFloorId?: string | null;
+  onAudioFocusChange?: (floorId: string | null) => void;
 }
 
-export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, onUpdate, onClose }) => {
+export const CampaignSettings: React.FC<CampaignSettingsProps> = ({
+  campaign,
+  onUpdate,
+  onClose,
+  currentScenarioFloors = [],
+  audioFocusFloorId = null,
+  onAudioFocusChange,
+}) => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
 
   const handleSave = () => {
@@ -20,7 +32,7 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 text-white">
-      <div className="bg-[var(--surface)] border border-[var(--line)] w-full max-w-3xl h-[85vh] flex flex-col shadow-2xl rounded-lg overflow-hidden">
+      <div className="bg-[var(--surface)] border border-[var(--line)] w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl rounded-lg overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--surface-hover)]">
           <div className="flex items-center gap-3">
@@ -51,13 +63,6 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, on
               />
             </div>
 
-            <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl space-y-2">
-              <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide">Pro Tip</h4>
-              <p className="text-xs opacity-60 leading-relaxed text-white">
-                Your campaign name is visible on the player screen and helps you stay organized across multiple adventures.
-              </p>
-            </div>
-
             <div className="space-y-3 pt-2">
               <label className="text-[10px] uppercase tracking-widest font-bold opacity-50 text-white">Backup</label>
               <div className="p-4 bg-black/20 border border-[var(--line)] rounded-xl space-y-3">
@@ -74,6 +79,18 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({ campaign, on
                   <Download size={16} />
                   {saveStatus === 'saved' ? 'Saved' : 'Save Campaign'}
                 </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <label className="text-[10px] uppercase tracking-widest font-bold opacity-50 text-white">Sound Mixer</label>
+              <div className="h-[520px]">
+                <MixerPanel
+                  embedded
+                  currentScenarioFloors={currentScenarioFloors}
+                  audioFocusFloorId={audioFocusFloorId}
+                  onAudioFocusChange={onAudioFocusChange}
+                />
               </div>
             </div>
           </div>

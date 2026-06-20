@@ -290,6 +290,13 @@ ipcMain.on('player-spell-marker-update', (_event, markers) => {
   }
 });
 
+// Active emanation rings: proxy from player window to DM window
+ipcMain.on('player-emanations-update', (_event, emanations) => {
+  if (dmWindow) {
+    dmWindow.webContents.send('player-emanations-update', emanations);
+  }
+});
+
 // Player Wild Shape updates: proxy to DM window
 ipcMain.on('player-wild-shape', (_event, data) => {
   if (dmWindow) {

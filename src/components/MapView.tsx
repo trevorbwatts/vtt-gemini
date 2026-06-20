@@ -19,9 +19,9 @@ import { SoundPicker } from './SoundPicker';
 import { useSounds } from '../data/sounds';
 import { loadSoundBindings } from '../services/soundBindings';
 import { BESTIARY } from '../data/bestiary';
+import { BestiaryList } from './BestiaryList';
 import { lookupSpell } from '../data/spellDatabase';
 import { parseDamageType, getDamageRgb } from '../utils/damageColors';
-import { SpeedText } from './SpeedText';
 import type { SpellMarker } from '../types';
 
 interface MapViewProps {
@@ -3873,6 +3873,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
     markerId?: string,
   } | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'player' | 'npc' | 'extras' | null>(null);
+  // Grace period so the cursor can travel diagonally toward an open flyout without it
+  // snapping shut the moment it passes over a sibling menu item (e.g. "Add an Enemy").
+  const submenuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelSubmenuClose = () => {
+    if (submenuCloseTimer.current) {
+      clearTimeout(submenuCloseTimer.current);
+      submenuCloseTimer.current = null;
+    }
+  };
+  const openSubmenu = (name: 'player' | 'npc' | 'extras') => {
+    cancelSubmenuClose();
+    setActiveSubmenu(name);
+  };
+  const scheduleSubmenuClose = () => {
+    cancelSubmenuClose();
+    submenuCloseTimer.current = setTimeout(() => setActiveSubmenu(null), 220);
+  };
   // ── Extras gallery ──
   const { extras: extrasList, addExtras, updateExtra, deleteExtra } = useExtras();
   const [extraSearch, setExtraSearch] = useState('');
@@ -10513,8 +10530,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
             );
           })()}
 
-          {/* ── Active emanation rings (player view only) ── */}
-          {isPlayerView && activeEmanations.map(em => {
+          {/* ── Active emanation rings (both player and DM views) ── */}
+          {activeEmanations.map(em => {
             const casterToken = tokens.find(t => t.combatantId === em.playerId);
             if (!casterToken) return null;
             const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
@@ -10774,12 +10791,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           if (isPlayerView) return;
                           e.evt.preventDefault();
                           e.cancelBubble = true;
-                          const pos = e.target.getStage()?.getPointerPosition();
                           setContextMenu({
                             x: marker.x,
                             y: marker.y,
-                            stageX: pos?.x ?? e.evt.clientX,
-                            stageY: pos?.y ?? e.evt.clientY,
+                            stageX: e.evt.clientX,
+                            stageY: e.evt.clientY,
                             clientY: e.evt.clientY,
                             view: 'spell-marker',
                             markerId: marker.id,
@@ -10826,12 +10842,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                             if (isPlayerView) return;
                             e.evt.preventDefault();
                             e.cancelBubble = true;
-                            const pos = e.target.getStage()?.getPointerPosition();
                             setContextMenu({
                               x: marker.x,
                               y: marker.y,
-                              stageX: pos?.x ?? e.evt.clientX,
-                              stageY: pos?.y ?? e.evt.clientY,
+                              stageX: e.evt.clientX,
+                              stageY: e.evt.clientY,
                               clientY: e.evt.clientY,
                               view: 'spell-marker',
                               markerId: marker.id,
@@ -10895,11 +10910,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       if (isPlayerView) return;
                       e.evt.preventDefault();
                       e.cancelBubble = true;
-                      const pos = e.target.getStage()?.getPointerPosition();
                       setContextMenu({
                         x: marker.x, y: marker.y,
-                        stageX: pos?.x ?? e.evt.clientX,
-                        stageY: pos?.y ?? e.evt.clientY,
+                        stageX: e.evt.clientX,
+                        stageY: e.evt.clientY,
                         clientY: e.evt.clientY,
                         view: 'spell-marker',
                         markerId: marker.id,
@@ -11013,12 +11027,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         if (isPlayerView) return;
                         e.evt.preventDefault();
                         e.cancelBubble = true;
-                        const pos = e.target.getStage()?.getPointerPosition();
                         setContextMenu({
                           x: marker.x,
                           y: marker.y,
-                          stageX: pos?.x ?? e.evt.clientX,
-                          stageY: pos?.y ?? e.evt.clientY,
+                          stageX: e.evt.clientX,
+                          stageY: e.evt.clientY,
                           clientY: e.evt.clientY,
                           view: 'spell-marker',
                           markerId: marker.id,
@@ -12745,7 +12758,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
               contextMenu.view === 'add-enemy' || contextMenu.view === 'add-extra'
                 ? "animate-in fade-in duration-150"
                 : "animate-in zoom-in-95 duration-200",
-              contextMenu.view === 'add-enemy' ? "w-[840px] overflow-hidden"
+              contextMenu.view === 'add-enemy' ? "w-[440px] overflow-hidden"
                 : contextMenu.view === 'add-extra' ? "w-[640px] overflow-hidden"
                 : contextMenu.view === 'note' ? "w-72"
                 : "w-64"
@@ -12763,16 +12776,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
             {contextMenu.view === 'root' && (
               <div className="flex flex-col py-1 relative">
                 <button
-                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onMouseEnter={scheduleSubmenuClose}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'note' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
                 >
                   <PlusCircle size={14} className="opacity-50 group-hover:opacity-100" />
                   <span className="flex-1 text-left">Add a Note</span>
-                  <ChevronRight size={12} className="opacity-30" />
                 </button>
+                {/* "Add a Viewpoint" hidden for now — functionality kept intact, just not exposed in the menu.
                 <button
-                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onMouseEnter={scheduleSubmenuClose}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'viewpoint' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
                 >
@@ -12780,9 +12793,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <span className="flex-1 text-left">Add a Viewpoint</span>
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
+                */}
                 {floors && floors.length > 1 && (
                   <button
-                    onMouseEnter={() => setActiveSubmenu(null)}
+                    onMouseEnter={scheduleSubmenuClose}
                     onClick={() => {
                       setTransitionZoneMode(!transitionZoneMode);
                       setContextMenu(null);
@@ -12791,7 +12805,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   >
                     <ArrowUpDown size={14} className="opacity-50 group-hover:opacity-100" />
                     <span className="flex-1 text-left">{transitionZoneMode ? 'Cancel Transition Zone' : 'Add Transition Zone'}</span>
-                    <ChevronRight size={12} className="opacity-30" />
                   </button>
                 )}
                 <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-50" />
@@ -12799,20 +12812,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 {/* Player Flyout Trigger */}
                 <div className="relative">
                   <button
-                    onMouseEnter={() => setActiveSubmenu('player')}
+                    onMouseEnter={() => openSubmenu('player')}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors group",
                       activeSubmenu === 'player' ? "bg-blue-500 text-white" : "hover:bg-blue-500 hover:text-white"
                     )}
                   >
                     <User size={14} className={cn(activeSubmenu === 'player' ? "text-white" : "text-blue-500 group-hover:text-white")} />
-                    <span className="flex-1 text-left">Add/Move a Player</span>
+                    <span className="flex-1 text-left">Add/Move Players</span>
                     <ChevronRight size={12} className="opacity-30" />
                   </button>
 
                   {/* Player Submenu */}
                   {activeSubmenu === 'player' && (
-                    <div className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150">
+                    <div
+                      onMouseEnter={cancelSubmenuClose}
+                      className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150 before:content-[''] before:absolute before:right-full before:top-0 before:h-full before:w-2"
+                    >
                       <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest opacity-30 border-b border-[var(--line)] mb-1">Select Player</div>
                       {players.length > 1 && contextMenu && (
                         <button
@@ -12868,32 +12884,34 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
 
                 <button
-                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onMouseEnter={scheduleSubmenuClose}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-enemy' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[#ef4444] hover:text-white transition-colors group"
                 >
                   <Skull size={14} className="text-[#ef4444] group-hover:text-white" />
-                  <span className="flex-1 text-left">Add an Enemy</span>
-                  <ChevronRight size={12} className="opacity-30" />
+                  <span className="flex-1 text-left">Add Enemies</span>
                 </button>
 
                 {/* NPC Flyout Trigger */}
                 <div className="relative">
                   <button
-                    onMouseEnter={() => setActiveSubmenu('npc')}
+                    onMouseEnter={() => openSubmenu('npc')}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-2.5 text-xs transition-colors group",
                       activeSubmenu === 'npc' ? "bg-emerald-500 text-white" : "hover:bg-emerald-500 hover:text-white"
                     )}
                   >
                     <Shield size={14} className={cn(activeSubmenu === 'npc' ? "text-white" : "text-emerald-500 group-hover:text-white")} />
-                    <span className="flex-1 text-left">Add an NPC</span>
+                    <span className="flex-1 text-left">Add NPCs</span>
                     <ChevronRight size={12} className="opacity-30" />
                   </button>
 
                   {/* NPC Submenu */}
                   {activeSubmenu === 'npc' && (
-                    <div className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150">
+                    <div
+                      onMouseEnter={cancelSubmenuClose}
+                      className="absolute left-full top-0 ml-0.5 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl py-1 animate-in slide-in-from-left-2 duration-150 before:content-[''] before:absolute before:right-full before:top-0 before:h-full before:w-2"
+                    >
                       <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest opacity-30 border-b border-[var(--line)] mb-1">Select NPC</div>
                       {(() => {
                         const onMap = npcs.filter(c => tokens.some(t => t.combatantId === c.id));
@@ -12937,13 +12955,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
                 {/* Add an Extra — background characters from the global gallery */}
                 <button
-                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onMouseEnter={scheduleSubmenuClose}
                   onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'add-extra' } : null)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-slate-500 hover:text-white transition-colors group"
                 >
                   <Users size={14} className="text-slate-400 group-hover:text-white" />
-                  <span className="flex-1 text-left">Add an Extra</span>
-                  <ChevronRight size={12} className="opacity-30" />
+                  <span className="flex-1 text-left">Add Extras</span>
                 </button>
               </div>
             )}
@@ -13299,246 +13316,96 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <button onClick={() => setContextMenu(prev => prev ? { ...prev, view: 'root' } : null)} className="opacity-50 hover:opacity-100 text-xs uppercase font-bold tracking-tighter">Back</button>
                 </div>
 
-                <div className="flex-1 flex overflow-hidden">
-                  {/* Left Panel: List */}
-                  <div className="w-2/5 border-r border-[var(--line)] flex flex-col overflow-hidden">
-                    <div className="p-2 border-b border-[var(--line)]">
-                      <div className="relative">
-                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
-                        <input
-                          autoFocus
-                          type="text"
-                          value={monsterSearch}
-                          onChange={(e) => setMonsterSearch(e.target.value)}
-                          placeholder="Search monsters..."
-                          className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                        <span className="text-xs opacity-60">2014</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                        <span className="text-xs opacity-60">2024</span>
-                      </label>
-                    </div>
-                    <div className="flex-1 overflow-y-auto py-1">
-                      {BESTIARY.filter(m =>
-                        m.name.toLowerCase().includes(monsterSearch.toLowerCase()) &&
-                        ((showSource2014 && m.source === '2014') || (showSource2024 && m.source === '2024'))
-                      ).map(m => (
-                        <button
-                          key={m.id}
-                          onClick={() => { setSelectedMonster(m); setMonsterSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}
-                          className={cn(
-                            "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between group",
-                            selectedMonster?.id === m.id ? "bg-[var(--accent)] text-white" : "hover:bg-white/5"
-                          )}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-bold">{m.name}</span>
-                            <span className={cn("text-[10px] opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>{m.type}</span>
-                          </div>
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className={cn("text-[10px] font-sans opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
-                            <span className={cn("text-[9px] font-sans opacity-30", selectedMonster?.id === m.id ? "text-white" : "")}>{m.source}</span>
-                          </div>
-                        </button>
-                      ))}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="p-2 border-b border-[var(--line)]">
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
+                      <input
+                        autoFocus
+                        type="text"
+                        value={monsterSearch}
+                        onChange={(e) => setMonsterSearch(e.target.value)}
+                        placeholder="Search monsters..."
+                        className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
+                      />
                     </div>
                   </div>
+                  <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
+                      <span className="text-xs opacity-60">2014</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
+                      <span className="text-xs opacity-60">2024</span>
+                    </label>
+                  </div>
+                  <BestiaryList
+                    monsters={BESTIARY.filter(m =>
+                      m.name.toLowerCase().includes(monsterSearch.toLowerCase()) &&
+                      ((showSource2014 && m.source === '2014') || (showSource2024 && m.source === '2024'))
+                    )}
+                    selectedId={selectedMonster?.id ?? null}
+                    onSelect={(m) => { setSelectedMonster(m); setMonsterSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}
+                  />
+                </div>
 
-                  {/* Right Panel: Details */}
-                  <div className="w-3/5 flex flex-col overflow-hidden bg-black/5">
-                    {selectedMonster ? (
-                      <>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                          {/* Header: Avatar + Name + Badges */}
-                          <div className="flex items-center gap-3">
-                            {selectedMonster.avatar && (
-                              <img
-                                key={selectedMonster.id}
-                                src={selectedMonster.avatar}
-                                alt={selectedMonster.name}
-                                className="w-12 h-12 rounded-full object-cover shrink-0 bg-black/20"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-xl font-bold tracking-tight truncate">{selectedMonster.name}</h4>
-                              <p className="text-xs italic opacity-50">{selectedMonster.type}</p>
-                            </div>
-                            <div className="flex flex-col gap-1 shrink-0 items-end">
-                              <div className="flex gap-1.5">
-                                <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-xs font-bold">HP {selectedMonster.hp}</div>
-                                <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-xs font-bold">AC {selectedMonster.ac}</div>
-                              </div>
-                              <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs font-bold self-end">CR {selectedMonster.cr}</div>
-                            </div>
-                          </div>
-
-                          {/* Speed / Senses / Languages */}
-                          {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (
-                            <div className="text-xs space-y-0.5 opacity-60">
-                              {selectedMonster.speed && <div><span className="font-bold">Speed:</span> <SpeedText text={selectedMonster.speed} /></div>}
-                              {selectedMonster.senses && <div><span className="font-bold">Senses:</span> {selectedMonster.senses}</div>}
-                              {selectedMonster.languages && <div><span className="font-bold">Languages:</span> {selectedMonster.languages}</div>}
-                            </div>
-                          )}
-
-                          {/* Stats Grid */}
-                          <div className="grid grid-cols-6 gap-1 text-center">
-                            {Object.entries(selectedMonster.stats).map(([stat, val]) => (
-                              <div key={stat} className="bg-black/20 rounded p-1">
-                                <div className="text-[9px] uppercase opacity-50">{stat}</div>
-                                <div className="text-sm font-bold">{val}</div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Saves & Defenses */}
-                          {(selectedMonster.saves || selectedMonster.immunities || selectedMonster.resistances || selectedMonster.conditionImmunities) && (
-                            <div className="text-xs space-y-0.5 opacity-60">
-                              {selectedMonster.saves && <div><span className="font-bold">Saves:</span> {selectedMonster.saves}</div>}
-                              {selectedMonster.resistances && <div><span className="font-bold">Resistances:</span> {selectedMonster.resistances}</div>}
-                              {selectedMonster.immunities && <div><span className="font-bold">Immunities:</span> {selectedMonster.immunities}</div>}
-                              {selectedMonster.conditionImmunities && <div><span className="font-bold">Cond. Immunities:</span> {selectedMonster.conditionImmunities}</div>}
-                            </div>
-                          )}
-
-                          {/* Description */}
-                          {selectedMonster.description && (
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Description</h5>
-                              <p className="text-sm leading-relaxed opacity-70">{selectedMonster.description}</p>
-                            </div>
-                          )}
-
-                          {/* Traits / Special Abilities */}
-                          {selectedMonster.specialAbilities && selectedMonster.specialAbilities.length > 0 && (
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Traits</h5>
-                              <div className="space-y-2">
-                                {selectedMonster.specialAbilities.map((ability, i) => (
-                                  <div key={i} className="text-sm leading-relaxed">
-                                    <span className="font-bold italic text-purple-400">{ability.name}.</span>{' '}
-                                    <span className="opacity-80 whitespace-pre-wrap">{ability.desc}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Actions */}
-                          {selectedMonster.actions.length > 0 && (
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Actions</h5>
-                              <div className="space-y-2">
-                                {selectedMonster.actions.map((action, i) => (
-                                  <div key={i} className="text-sm leading-relaxed">
-                                    <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}
-                                    <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Reactions */}
-                          {selectedMonster.reactions && selectedMonster.reactions.length > 0 && (
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Reactions</h5>
-                              <div className="space-y-2">
-                                {selectedMonster.reactions.map((reaction, i) => (
-                                  <div key={i} className="text-sm leading-relaxed">
-                                    <span className="font-bold italic text-blue-400">{reaction.name}.</span>{' '}
-                                    <span className="opacity-80 whitespace-pre-wrap">{reaction.desc}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Legendary Actions */}
-                          {selectedMonster.legendaryActions && selectedMonster.legendaryActions.length > 0 && (
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Legendary Actions</h5>
-                              <div className="space-y-2">
-                                {selectedMonster.legendaryActions.map((action, i) => (
-                                  <div key={i} className="text-sm leading-relaxed">
-                                    <span className="font-bold italic text-amber-400">{action.name}.</span>{' '}
-                                    <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                {/* Bottom controls: size / quantity / add */}
+                {selectedMonster && (
+                  <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] space-y-3 shrink-0">
+                    {selectedMonster.size?.includes('/') && (
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-xs font-bold uppercase tracking-widest opacity-50">Size</span>
+                        <div className="flex items-center bg-black/20 rounded-lg p-1 gap-0.5">
+                          {selectedMonster.size.split('/').map(s => s.trim()).map(s => (
+                            <button
+                              key={s}
+                              onClick={() => setMonsterSizeChoice(s)}
+                              className={cn(
+                                "px-3 py-1 rounded text-xs font-bold transition-colors",
+                                monsterSizeChoice === s ? "bg-[var(--accent)] text-white" : "opacity-50 hover:opacity-100"
+                              )}
+                            >
+                              {s}
+                            </button>
+                          ))}
                         </div>
-                        <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] space-y-3">
-                          {selectedMonster.size?.includes('/') && (
-                            <div className="flex items-center justify-between px-1">
-                              <span className="text-xs font-bold uppercase tracking-widest opacity-50">Size</span>
-                              <div className="flex items-center bg-black/20 rounded-lg p-1 gap-0.5">
-                                {selectedMonster.size.split('/').map(s => s.trim()).map(s => (
-                                  <button
-                                    key={s}
-                                    onClick={() => setMonsterSizeChoice(s)}
-                                    className={cn(
-                                      "px-3 py-1 rounded text-xs font-bold transition-colors",
-                                      monsterSizeChoice === s ? "bg-[var(--accent)] text-white" : "opacity-50 hover:opacity-100"
-                                    )}
-                                  >
-                                    {s}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between px-1">
-                            <span className="text-xs font-bold uppercase tracking-widest opacity-50">Quantity</span>
-                            <div className="flex items-center gap-3 bg-black/20 rounded-lg p-1">
-                              <button
-                                onClick={() => setMonsterQuantity(Math.max(1, monsterQuantity - 1))}
-                                className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
-                              >
-                                -
-                              </button>
-                              <span className="text-sm font-bold w-4 text-center">{monsterQuantity}</span>
-                              <button
-                                onClick={() => setMonsterQuantity(Math.min(20, monsterQuantity + 1))}
-                                className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const chosenSize = selectedMonster.size?.includes('/') ? monsterSizeChoice : (selectedMonster.size || 'Medium');
-                              const offsetPx = 10 * getTokenSizeMultiplier(chosenSize as Token['size']);
-                              for (let i = 0; i < monsterQuantity; i++) {
-                                onAddEnemy({ ...selectedMonster, size: chosenSize }, contextMenu.x + (i * offsetPx), contextMenu.y + (i * offsetPx));
-                              }
-                              setContextMenu(null);
-                            }}
-                            className="btn-filled w-full py-2 rounded-lg !bg-[#ef4444] shadow-lg shadow-[#ef4444]/20"
-                          >
-                            <PlusCircle size={14} />
-                            Add {monsterQuantity > 1 ? `${monsterQuantity} Tokens` : 'to Map'}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center opacity-20 p-8 text-center">
-                        <Skull size={48} className="mb-4 text-[#ef4444]" />
-                        <p className="text-base font-sans uppercase tracking-widest">Select a monster to view details</p>
                       </div>
                     )}
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-bold uppercase tracking-widest opacity-50">Quantity</span>
+                      <div className="flex items-center gap-3 bg-black/20 rounded-lg p-1">
+                        <button
+                          onClick={() => setMonsterQuantity(Math.max(1, monsterQuantity - 1))}
+                          className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="text-sm font-bold w-4 text-center">{monsterQuantity}</span>
+                        <button
+                          onClick={() => setMonsterQuantity(Math.min(20, monsterQuantity + 1))}
+                          className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const chosenSize = selectedMonster.size?.includes('/') ? monsterSizeChoice : (selectedMonster.size || 'Medium');
+                        const offsetPx = 10 * getTokenSizeMultiplier(chosenSize as Token['size']);
+                        for (let i = 0; i < monsterQuantity; i++) {
+                          onAddEnemy({ ...selectedMonster, size: chosenSize }, contextMenu.x + (i * offsetPx), contextMenu.y + (i * offsetPx));
+                        }
+                        setContextMenu(null);
+                      }}
+                      className="btn-filled w-full py-2 rounded-lg !bg-[#ef4444] shadow-lg shadow-[#ef4444]/20"
+                    >
+                      <PlusCircle size={14} />
+                      Add {monsterQuantity > 1 ? `${monsterQuantity} Tokens` : 'to Map'}
+                    </button>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>

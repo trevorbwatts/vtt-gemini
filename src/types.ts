@@ -60,6 +60,9 @@ declare global {
       sendPlayerSpellMarkerUpdate?: (markers: any) => void;
       onPlayerSpellMarkerUpdate?: (callback: (markers: any) => void) => void;
       removePlayerSpellMarkerUpdateListener?: () => void;
+      sendPlayerEmanationsUpdate?: (emanations: any) => void;
+      onPlayerEmanationsUpdate?: (callback: (emanations: any) => void) => void;
+      removePlayerEmanationsUpdateListener?: () => void;
       toggleFullscreen?: () => void;
       onFullscreenStatus?: (callback: (isFs: boolean) => void) => void;
       removeFullscreenStatusListener?: () => void;

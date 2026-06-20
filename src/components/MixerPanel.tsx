@@ -8,7 +8,10 @@ import { SoundBindingsModal } from './SoundBindingsModal';
 import { cn } from '../types';
 
 interface MixerPanelProps {
-  onClose: () => void;
+  /** Required for the standalone modal; unused when embedded. */
+  onClose?: () => void;
+  /** When true, render inline (no full-screen overlay / portal / close button). */
+  embedded?: boolean;
   /** All floors in the active scenario — populates the audio focus override dropdown. */
   currentScenarioFloors?: Floor[];
   /** When non-null, only this floor's ambient/zone audio plays. */
@@ -42,6 +45,7 @@ interface PendingUpload {
 
 export const MixerPanel: React.FC<MixerPanelProps> = ({
   onClose,
+  embedded = false,
   currentScenarioFloors = [],
   audioFocusFloorId = null,
   onAudioFocusChange,
@@ -199,38 +203,36 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({
     );
   };
 
-  const content = (
-    <div
-      className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--accent)]/20">
-          <div className="flex items-center gap-2">
-            <Music size={16} className="text-[var(--accent)]" />
-            <h2 className="text-sm uppercase tracking-[0.15em] font-bold">Sound Mixer</h2>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setBindingsOpen(true)}
-              className="btn-ghost text-xs"
-              title="Bind sounds to doors, windows, and spells"
-            >
-              <Settings size={12} />
-              <span>Bindings</span>
-            </button>
-            <button onClick={onClose} className="btn-ghost px-2" title="Close">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-        {bindingsOpen && <SoundBindingsModal onClose={() => setBindingsOpen(false)} />}
+  const header = (
+    <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--accent)]/20">
+      <div className="flex items-center gap-2">
+        <Music size={16} className="text-[var(--accent)]" />
+        <h2 className="text-sm uppercase tracking-[0.15em] font-bold">Sound Mixer</h2>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setBindingsOpen(true)}
+          className="btn-ghost text-xs"
+          title="Bind sounds to doors, windows, and spells"
+        >
+          <Settings size={12} />
+          <span>Bindings</span>
+        </button>
+        {!embedded && (
+          <button onClick={onClose} className="btn-ghost px-2" title="Close">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
-        <div className="flex flex-1 overflow-hidden">
+  const body = (
+    <>
+      {header}
+      {bindingsOpen && <SoundBindingsModal onClose={() => setBindingsOpen(false)} />}
+
+      <div className="flex flex-1 overflow-hidden">
           {/* Left: Mixer */}
           <div className="w-[280px] flex-shrink-0 border-r border-[var(--accent)]/20 p-4 overflow-y-auto">
             <div className="text-[11px] uppercase tracking-[0.15em] opacity-50 font-bold mb-3">Volume</div>
@@ -454,9 +456,29 @@ export const MixerPanel: React.FC<MixerPanelProps> = ({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </>
   );
 
-  return createPortal(content, document.body);
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg">
+        {body}
+      </div>
+    );
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#1a1512] border border-[var(--accent)]/40 rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {body}
+      </div>
+    </div>,
+    document.body,
+  );
 };
