@@ -24,6 +24,38 @@ import { lookupSpell } from '../data/spellDatabase';
 import { parseDamageType, getDamageRgb } from '../utils/damageColors';
 import type { SpellMarker } from '../types';
 
+/** Ray-casting point-in-polygon test for a flat [x0,y0,x1,y1,...] vertex array. */
+function pointInFlatPolygon(px: number, py: number, pts: number[]): boolean {
+  let inside = false;
+  const n = pts.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = pts[i * 2], yi = pts[i * 2 + 1];
+    const xj = pts[j * 2], yj = pts[j * 2 + 1];
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Axis-aligned bounding box of a flat [x0,y0,...] polygon. */
+function polygonBounds(pts: number[]): { x: number; y: number; width: number; height: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < pts.length; i += 2) {
+    minX = Math.min(minX, pts[i]); maxX = Math.max(maxX, pts[i]);
+    minY = Math.min(minY, pts[i + 1]); maxY = Math.max(maxY, pts[i + 1]);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/** Average of a flat [x0,y0,...] polygon's vertices. */
+function polygonCentroid(pts: number[]): { x: number; y: number } {
+  let sx = 0, sy = 0;
+  const n = pts.length / 2;
+  for (let i = 0; i < pts.length; i += 2) { sx += pts[i]; sy += pts[i + 1]; }
+  return { x: sx / n, y: sy / n };
+}
+
 interface MapViewProps {
   tokens: Token[];
   onTokensChange: (tokens: Token[]) => void;
@@ -209,6 +241,20 @@ interface MapViewProps {
   onDarkZonePaintCommit?: (points: number[]) => void;
   /** Cancel the current dark-zone paint session (Escape pressed or user clicked Cancel). */
   onDarkZonePaintCancel?: () => void;
+
+  // ── Difficult terrain (DM-only; doubles measured movement cost) ──
+  /** Painted regions on the active floor that cost double movement to cross. */
+  difficultTerrain?: import('../types').DifficultTerrainZone[];
+  /** Called when the difficult-terrain list changes (delete/edit). */
+  onDifficultTerrainChange?: (zones: import('../types').DifficultTerrainZone[]) => void;
+  /** When true, MapView captures clicks as polygon vertices for a new difficult-terrain area. */
+  difficultTerrainPainting?: boolean;
+  /** Begin a new difficult-terrain paint session. */
+  onStartDifficultTerrainPainting?: () => void;
+  /** Commit a painted difficult-terrain polygon (flat points array). */
+  onDifficultTerrainPaintCommit?: (points: number[]) => void;
+  /** Cancel the current difficult-terrain paint session. */
+  onDifficultTerrainPaintCancel?: () => void;
 
   // ── Wall painting / erasing ──
   /** When true, MapView captures clicks as polyline vertices for a new wall. */
@@ -3609,6 +3655,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onStartDarkZonePainting,
   onDarkZonePaintCommit,
   onDarkZonePaintCancel,
+  difficultTerrain = [],
+  onDifficultTerrainChange,
+  difficultTerrainPainting = false,
+  onStartDifficultTerrainPainting,
+  onDifficultTerrainPaintCommit,
+  onDifficultTerrainPaintCancel,
   wallPainting = false,
   wallErasing = false,
   wallSnapToGrid = false,
@@ -3633,8 +3685,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // ── Sound zone painting (Tier 2) ──
   const [zonePaintPoints, setZonePaintPoints] = useState<number[]>([]);
   const [zonePaintCursor, setZonePaintCursor] = useState<{ x: number; y: number } | null>(null);
+  const [zoneSnapToOrigin, setZoneSnapToOrigin] = useState(false);
   // ── Dark zone painting ──
   const [darkPaintPoints, setDarkPaintPoints] = useState<number[]>([]);
+  const [darkPaintHover, setDarkPaintHover] = useState<{ x: number; y: number } | null>(null);
+  const [darkSnapToOrigin, setDarkSnapToOrigin] = useState(false);
+  const [terrainPaintPoints, setTerrainPaintPoints] = useState<number[]>([]);
+  const [terrainPaintHover, setTerrainPaintHover] = useState<{ x: number; y: number } | null>(null);
+  const [terrainSnapToOrigin, setTerrainSnapToOrigin] = useState(false);
   // ── Wall painting ──
   /** Flat [x1,y1,x2,y2,…] for the wall currently being drawn. */
   const [wallPaintPoints, setWallPaintPoints] = useState<number[]>([]);
@@ -3668,6 +3726,96 @@ const MapViewInner: React.FC<MapViewProps> = ({
       onWallsChange([...(walls || []), newSeg]);
       setWallPaintPoints([]);
     }
+  };
+  /**
+   * Commit the difficult-terrain polygon currently being drawn (needs 3+ corners)
+   * and clear the working points so a fresh area can be started without leaving
+   * paint mode. Used by Enter, double-click, origin-snap click, right-click, and Esc.
+   */
+  const commitCurrentTerrain = () => {
+    if (terrainPaintPoints.length >= 6) {
+      onDifficultTerrainPaintCommit?.(terrainPaintPoints);
+    }
+    setTerrainPaintPoints([]);
+    setTerrainSnapToOrigin(false);
+    setTerrainPaintHover(null);
+  };
+  /** Commit the dark-zone polygon being drawn (3+ corners) and clear, staying in mode. */
+  const commitCurrentDark = () => {
+    if (darkPaintPoints.length >= 6) {
+      onDarkZonePaintCommit?.(darkPaintPoints);
+    }
+    setDarkPaintPoints([]);
+    setDarkSnapToOrigin(false);
+    setDarkPaintHover(null);
+  };
+  /** Commit the sound-zone polygon being drawn (3+ corners) and clear, staying in mode. */
+  const commitCurrentZone = () => {
+    if (zonePaintPoints.length >= 6) {
+      onSoundZonePaintCommit?.(zonePaintPoints);
+    }
+    setZonePaintPoints([]);
+    setZoneSnapToOrigin(false);
+    setZonePaintCursor(null);
+  };
+  const clearTzPaint = () => {
+    setTzPaintPoints([]);
+    setTzSnapToOrigin(false);
+    setTzPaintHover(null);
+  };
+  /**
+   * Finish the transition-zone polygon currently being drawn (3+ corners). The first
+   * polygon opens the config modal (pick target floor); the second polygon (after the
+   * config) creates the paired source/target zones across the two floors.
+   */
+  const commitCurrentTransition = () => {
+    if (tzPaintPoints.length < 6) return;
+    const points = [...tzPaintPoints];
+    if (pendingPairData) {
+      // Second polygon — create both zones of the pair.
+      const sourceZoneId = `tz-${Date.now()}-a`;
+      const targetZoneId = `tz-${Date.now()}-b`;
+      const sourceCenter = polygonCentroid(pendingPairData.sourcePoints);
+      const targetCenter = polygonCentroid(points);
+
+      const targetZone: TransitionZone = {
+        id: targetZoneId,
+        rect: polygonBounds(points),
+        points,
+        targetFloorId: pendingPairData.sourceFloorId,
+        targetPosition: sourceCenter,
+        label: pendingPairData.label,
+        pairedZoneId: sourceZoneId,
+        pairIndex: pendingPairData.pairIndex,
+      };
+      const currentFloor = floors?.find(f => f.id === pendingPairData.targetFloorId);
+      const existingTarget = currentFloor?.transitionZones || [];
+      onTransitionZonesChange?.([...existingTarget, targetZone]);
+
+      const sourceZone: TransitionZone = {
+        id: sourceZoneId,
+        rect: polygonBounds(pendingPairData.sourcePoints),
+        points: pendingPairData.sourcePoints,
+        targetFloorId: pendingPairData.targetFloorId,
+        targetPosition: targetCenter,
+        label: pendingPairData.label,
+        pairedZoneId: targetZoneId,
+        pairIndex: pendingPairData.pairIndex,
+      };
+      onUpdateFloorById?.(pendingPairData.sourceFloorId, (f: Floor) => ({
+        ...f,
+        transitionZones: [...(f.transitionZones || []), sourceZone],
+      }));
+
+      setPendingPairData(null);
+      setTransitionZoneMode(false);
+    } else {
+      // First polygon — open the config modal to choose the target floor. Leave
+      // drawing mode while configuring; the modal re-enables it for the arrival zone.
+      setTransitionZoneConfig({ points });
+      setTransitionZoneMode(false);
+    }
+    clearTzPaint();
   };
   // ── Portal placement (two-click span) ──
   /** First click anchor: identifies which wall edge and parametric position the span starts at. */
@@ -3769,23 +3917,66 @@ const MapViewInner: React.FC<MapViewProps> = ({
   useEffect(() => {
     setZonePaintPoints([]);
     setZonePaintCursor(null);
+    setZoneSnapToOrigin(false);
   }, [zonePainting]);
+  // Keyboard: Enter commits the current sound zone and chains a new one; Esc commits
+  // any pending zone then exits paint mode.
   useEffect(() => {
-    setDarkPaintPoints([]);
-  }, [darkZonePainting]);
-  // Keyboard: Esc cancels, Enter commits a dark-zone paint session.
-  useEffect(() => {
-    if (!darkZonePainting) return;
+    if (!zonePainting) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onDarkZonePaintCancel?.();
-      } else if (e.key === 'Enter' && darkPaintPoints.length >= 6) {
-        onDarkZonePaintCommit?.(darkPaintPoints);
+        commitCurrentZone();
+        onSoundZonePaintCancel?.();
+      } else if (e.key === 'Enter') {
+        commitCurrentZone();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zonePainting, zonePaintPoints, onSoundZonePaintCommit, onSoundZonePaintCancel]);
+  useEffect(() => {
+    setDarkPaintPoints([]);
+    setDarkPaintHover(null);
+    setDarkSnapToOrigin(false);
+  }, [darkZonePainting]);
+  // Keyboard: Enter commits the current dark zone and chains a new one; Esc commits
+  // any pending zone then exits paint mode.
+  useEffect(() => {
+    if (!darkZonePainting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        commitCurrentDark();
+        onDarkZonePaintCancel?.();
+      } else if (e.key === 'Enter') {
+        commitCurrentDark();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [darkZonePainting, darkPaintPoints, onDarkZonePaintCommit, onDarkZonePaintCancel]);
+  useEffect(() => {
+    setTerrainPaintPoints([]);
+    setTerrainPaintHover(null);
+    setTerrainSnapToOrigin(false);
+  }, [difficultTerrainPainting]);
+  // Keyboard: Enter commits the current area and chains a new one; Esc commits any
+  // pending area then exits paint mode.
+  useEffect(() => {
+    if (!difficultTerrainPainting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        commitCurrentTerrain();
+        onDifficultTerrainPaintCancel?.();
+      } else if (e.key === 'Enter') {
+        commitCurrentTerrain();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficultTerrainPainting, terrainPaintPoints, onDifficultTerrainPaintCommit, onDifficultTerrainPaintCancel]);
   // Reset wall paint points whenever paint mode toggles.
   useEffect(() => {
     setWallPaintPoints([]);
@@ -3831,19 +4022,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [wallErasing, onToggleWallErasing]);
-  // Keyboard: Esc cancels, Enter commits a paint session.
-  useEffect(() => {
-    if (!zonePainting) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onSoundZonePaintCancel?.();
-      } else if (e.key === 'Enter' && zonePaintPoints.length >= 6) {
-        onSoundZonePaintCommit?.(zonePaintPoints);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [zonePainting, zonePaintPoints, onSoundZonePaintCommit, onSoundZonePaintCancel]);
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   // Tracks which mapImage URL is actually painted on the canvas. While this lags
   // behind the mapImage prop (e.g. during a floor transition while the new image
@@ -4254,8 +4432,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // Transition zone drawing mode
   const [transitionZoneMode, setTransitionZoneMode] = useState(false);
-  const [drawingZone, setDrawingZone] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
-  const [transitionZoneConfig, setTransitionZoneConfig] = useState<{ rect: { x: number; y: number; width: number; height: number } } | null>(null);
+  // New transition zones are drawn as click-to-draw polygons (flat [x,y,...]).
+  const [tzPaintPoints, setTzPaintPoints] = useState<number[]>([]);
+  const [tzPaintHover, setTzPaintHover] = useState<{ x: number; y: number } | null>(null);
+  const [tzSnapToOrigin, setTzSnapToOrigin] = useState(false);
+  const [transitionZoneConfig, setTransitionZoneConfig] = useState<{ points: number[] } | null>(null);
   const [tzFloorPickerOpen, setTzFloorPickerOpen] = useState(false);
   const [tzSelectedFloorId, setTzSelectedFloorId] = useState<string>('');
   const [transitionPopup, setTransitionPopup] = useState<{
@@ -4266,12 +4447,61 @@ const MapViewInner: React.FC<MapViewProps> = ({
   } | null>(null);
   const [pendingPairData, setPendingPairData] = useState<{
     sourceFloorId: string;
-    sourceRect: { x: number; y: number; width: number; height: number };
+    sourcePoints: number[];
     targetFloorId: string;
     label?: string;
     pairIndex: number;
   } | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  // Clear any in-progress transition polygon whenever drawing mode toggles.
+  useEffect(() => {
+    setTzPaintPoints([]);
+    setTzPaintHover(null);
+    setTzSnapToOrigin(false);
+  }, [transitionZoneMode]);
+  // Keyboard: Enter finishes the current transition polygon; Esc cancels the flow.
+  useEffect(() => {
+    if (!transitionZoneMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        commitCurrentTransition();
+      } else if (e.key === 'Escape') {
+        if (pendingPairData) onSwitchFloor?.(pendingPairData.sourceFloorId);
+        setPendingPairData(null);
+        setTransitionZoneMode(false);
+        clearTzPaint();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transitionZoneMode, tzPaintPoints, pendingPairData]);
+  // Ctrl+Z / Cmd+Z: undo the last point placed in whichever click-to-draw mode is
+  // active (walls, sound/dark zones, difficult terrain, transition zones). Registered
+  // before the movement-undo handler so it wins while drawing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) || e.shiftKey) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable) return;
+      const pop = (arr: number[]) => arr.slice(0, -2);
+      let handled = false;
+      if (wallPainting && wallPaintPoints.length > 0) { setWallPaintPoints(pop); handled = true; }
+      else if (darkZonePainting && darkPaintPoints.length > 0) { setDarkPaintPoints(pop); handled = true; }
+      else if (zonePainting && zonePaintPoints.length > 0) { setZonePaintPoints(pop); handled = true; }
+      else if (difficultTerrainPainting && terrainPaintPoints.length > 0) { setTerrainPaintPoints(pop); handled = true; }
+      else if (transitionZoneMode && tzPaintPoints.length > 0) { setTzPaintPoints(pop); handled = true; }
+      if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [
+    wallPainting, wallPaintPoints,
+    darkZonePainting, darkPaintPoints,
+    zonePainting, zonePaintPoints,
+    difficultTerrainPainting, terrainPaintPoints,
+    transitionZoneMode, tzPaintPoints,
+  ]);
   const zoneTransformerRef = useRef<any>(null);
   const zoneRectRefs = useRef<Record<string, any>>({});
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
@@ -5597,6 +5827,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // Track drag start pos per token so we can cancel micro-drags (finger wobble)
   const tokenDragOriginRef = useRef<Record<string, { x: number; y: number }>>({});
 
+  // Difficult terrain costs double movement. Returns 2 when (px,py) is inside any
+  // painted difficult-terrain polygon on this floor, otherwise 1.
+  const terrainMoveCost = (px: number, py: number): number => {
+    for (const zone of difficultTerrain) {
+      if (zone.points.length >= 6 && pointInFlatPolygon(px, py, zone.points)) return 2;
+    }
+    return 1;
+  };
+
   const handleDragStart = (id: string) => {
     // Block token drag while measuring
     if (isMeasuringActive) return;
@@ -5753,8 +5992,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
         const dy = py - ap.lastSampleY;
         const segDist = Math.sqrt(dx * dx + dy * dy);
         if (segDist >= SAMPLE_THRESHOLD_PX) {
+          const cost = difficultTerrain.length
+            ? terrainMoveCost((ap.lastSampleX + px) / 2, (ap.lastSampleY + py) / 2)
+            : 1;
           ap.points.push(px, py);
-          ap.totalDistancePx += segDist;
+          ap.totalDistancePx += segDist * cost;
           ap.lastSampleX = px;
           ap.lastSampleY = py;
         }
@@ -5909,8 +6151,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
         const dy = fy - ap.lastSampleY;
         const segDist = Math.sqrt(dx * dx + dy * dy);
         if (segDist > 0) {
+          const cost = difficultTerrain.length
+            ? terrainMoveCost((ap.lastSampleX + fx) / 2, (ap.lastSampleY + fy) / 2)
+            : 1;
           ap.points.push(fx, fy);
-          ap.totalDistancePx += segDist;
+          ap.totalDistancePx += segDist * cost;
         }
       };
       finalizeToken(id, finalPos.x, finalPos.y);
@@ -5976,8 +6221,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const droppedToken = updatedTokens.find(t => t.id === id);
       if (droppedToken) {
         const hitZone = zones.find(z =>
-          droppedToken.x >= z.rect.x && droppedToken.x <= z.rect.x + z.rect.width &&
-          droppedToken.y >= z.rect.y && droppedToken.y <= z.rect.y + z.rect.height
+          z.points && z.points.length >= 6
+            ? pointInFlatPolygon(droppedToken.x, droppedToken.y, z.points)
+            : (droppedToken.x >= z.rect.x && droppedToken.x <= z.rect.x + z.rect.width &&
+               droppedToken.y >= z.rect.y && droppedToken.y <= z.rect.y + z.rect.height)
         );
         if (hitZone && !hitZone.locked) {
           const rect = containerRef.current?.getBoundingClientRect();
@@ -6081,12 +6328,46 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // While drawing a wall, right-click commits the current wall (same as Enter)
     // and starts a fresh one without leaving paint mode.
     if (wallPainting) {
+      // Right-click commits any completed wall and exits paint mode.
       commitCurrentWall();
+      onStopWallPainting?.();
+      return;
+    }
+    // While painting difficult terrain, right-click commits any completed area and
+    // exits paint mode.
+    if (difficultTerrainPainting) {
+      commitCurrentTerrain();
+      onDifficultTerrainPaintCancel?.();
+      return;
+    }
+    // While painting a dark zone, right-click commits any completed area and exits.
+    if (darkZonePainting) {
+      commitCurrentDark();
+      onDarkZonePaintCancel?.();
+      return;
+    }
+    // While painting a sound zone, right-click commits any completed area and exits.
+    if (zonePainting) {
+      commitCurrentZone();
+      onSoundZonePaintCancel?.();
+      return;
+    }
+    // While drawing a transition zone, right-click finishes the current polygon (3+
+    // points) and advances the flow; with too few points it cancels the whole flow.
+    if (transitionZoneMode) {
+      if (tzPaintPoints.length >= 6) {
+        commitCurrentTransition();
+      } else {
+        if (pendingPairData) onSwitchFloor?.(pendingPairData.sourceFloorId);
+        setPendingPairData(null);
+        setTransitionZoneMode(false);
+        clearTzPaint();
+      }
       return;
     }
     // Other map-editing/drawing modes: suppress the right-click menu so the
     // user can right-click freely (e.g. to cancel) without it popping up.
-    if (wallErasing || drawingMode !== 'off' || zonePainting) {
+    if (wallErasing || drawingMode !== 'off') {
       return;
     }
     setTokenContextMenu(null);
@@ -6728,10 +7009,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
       return;
     }
 
-    // Transition zone drawing mode
+    // Transition zones are drawn as click-to-draw polygons (handled in the click
+    // handler), so swallow the mousedown here to avoid starting a marquee/pan.
     if (transitionZoneMode && e.evt.button === 0 && !spaceHeldRef.current) {
-      const canvas = getCanvasPos(e.target.getStage());
-      setDrawingZone({ startX: canvas.x, startY: canvas.y, endX: canvas.x, endY: canvas.y });
       return;
     }
 
@@ -6969,11 +7249,73 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setWallPaintHover(snap ? { x: wallPaintPoints[0], y: wallPaintPoints[1] } : pos);
       // Fall through — other modes shouldn't be active simultaneously, but be safe.
     }
-    // Transition zone drawing
-    if (drawingZone) {
-      const canvas = getCanvasPos(e.target.getStage());
-      setDrawingZone(prev => prev ? { ...prev, endX: canvas.x, endY: canvas.y } : null);
-      return;
+    // Difficult-terrain painting: track hover for the rubber-band preview + origin snap.
+    if (difficultTerrainPainting) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      let snap = false;
+      if (terrainPaintPoints.length >= 6) {
+        const ox = terrainPaintPoints[0];
+        const oy = terrainPaintPoints[1];
+        const scale = stage?.scaleX() || 1;
+        const thresh = 14 / scale;
+        const dx = pos.x - ox;
+        const dy = pos.y - oy;
+        if (dx * dx + dy * dy <= thresh * thresh) snap = true;
+      }
+      setTerrainSnapToOrigin(snap);
+      setTerrainPaintHover(snap ? { x: terrainPaintPoints[0], y: terrainPaintPoints[1] } : pos);
+    }
+    // Dark-zone painting: track hover for the rubber-band preview + origin snap.
+    if (darkZonePainting) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      let snap = false;
+      if (darkPaintPoints.length >= 6) {
+        const ox = darkPaintPoints[0];
+        const oy = darkPaintPoints[1];
+        const scale = stage?.scaleX() || 1;
+        const thresh = 14 / scale;
+        const dx = pos.x - ox;
+        const dy = pos.y - oy;
+        if (dx * dx + dy * dy <= thresh * thresh) snap = true;
+      }
+      setDarkSnapToOrigin(snap);
+      setDarkPaintHover(snap ? { x: darkPaintPoints[0], y: darkPaintPoints[1] } : pos);
+    }
+    // Sound-zone painting: track hover for the rubber-band preview + origin snap.
+    if (zonePainting) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      let snap = false;
+      if (zonePaintPoints.length >= 6) {
+        const ox = zonePaintPoints[0];
+        const oy = zonePaintPoints[1];
+        const scale = stage?.scaleX() || 1;
+        const thresh = 14 / scale;
+        const dx = pos.x - ox;
+        const dy = pos.y - oy;
+        if (dx * dx + dy * dy <= thresh * thresh) snap = true;
+      }
+      setZoneSnapToOrigin(snap);
+      setZonePaintCursor(snap ? { x: zonePaintPoints[0], y: zonePaintPoints[1] } : pos);
+    }
+    // Transition zone drawing: track hover for the rubber-band preview + origin snap.
+    if (transitionZoneMode) {
+      const stage = e.target.getStage();
+      const pos = getCanvasPos(stage);
+      let snap = false;
+      if (tzPaintPoints.length >= 6) {
+        const ox = tzPaintPoints[0];
+        const oy = tzPaintPoints[1];
+        const scale = stage?.scaleX() || 1;
+        const thresh = 14 / scale;
+        const dx = pos.x - ox;
+        const dy = pos.y - oy;
+        if (dx * dx + dy * dy <= thresh * thresh) snap = true;
+      }
+      setTzSnapToOrigin(snap);
+      setTzPaintHover(snap ? { x: tzPaintPoints[0], y: tzPaintPoints[1] } : pos);
     }
 
     // DM AoE casting: track mouse in world coords
@@ -7054,62 +7396,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     // Finish transition zone drawing
-    if (drawingZone) {
-      const x = Math.min(drawingZone.startX, drawingZone.endX);
-      const y = Math.min(drawingZone.startY, drawingZone.endY);
-      const width = Math.abs(drawingZone.endX - drawingZone.startX);
-      const height = Math.abs(drawingZone.endY - drawingZone.startY);
-      if (width > 10 && height > 10) {
-        if (pendingPairData) {
-          // This is the second zone in a paired flow
-          const targetRect = { x, y, width, height };
-          const sourceZoneId = `tz-${Date.now()}-a`;
-          const targetZoneId = `tz-${Date.now()}-b`;
-          const sourceCenter = {
-            x: pendingPairData.sourceRect.x + pendingPairData.sourceRect.width / 2,
-            y: pendingPairData.sourceRect.y + pendingPairData.sourceRect.height / 2,
-          };
-          const targetCenter = { x: x + width / 2, y: y + height / 2 };
-
-          // Create target zone on current (target) floor
-          const targetZone: TransitionZone = {
-            id: targetZoneId,
-            rect: targetRect,
-            targetFloorId: pendingPairData.sourceFloorId,
-            targetPosition: sourceCenter,
-            label: pendingPairData.label,
-            pairedZoneId: sourceZoneId,
-            pairIndex: pendingPairData.pairIndex,
-          };
-          const currentFloor = floors?.find(f => f.id === pendingPairData.targetFloorId);
-          const existingTarget = currentFloor?.transitionZones || [];
-          onTransitionZonesChange?.([...existingTarget, targetZone]);
-
-          // Create source zone on original floor
-          const sourceZone: TransitionZone = {
-            id: sourceZoneId,
-            rect: pendingPairData.sourceRect,
-            targetFloorId: pendingPairData.targetFloorId,
-            targetPosition: targetCenter,
-            label: pendingPairData.label,
-            pairedZoneId: targetZoneId,
-            pairIndex: pendingPairData.pairIndex,
-          };
-          onUpdateFloorById?.(pendingPairData.sourceFloorId, (f: Floor) => ({
-            ...f,
-            transitionZones: [...(f.transitionZones || []), sourceZone],
-          }));
-
-          setPendingPairData(null);
-        } else {
-          setTransitionZoneConfig({ rect: { x, y, width, height } });
-        }
-      }
-      setDrawingZone(null);
-      setTransitionZoneMode(false);
-      return;
-    }
-
     setIsPanning(false);
     const rect = selectionRectRef.current;
     if (selectionStartRef.current && rect && (rect.w > 5 || rect.h > 5)) {
@@ -7202,23 +7488,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
       const b = parseInt(color.slice(5, 7), 16);
       return (
         <Group key={zone.id}>
-          <Rect
-            ref={(node) => { if (node) zoneRectRefs.current[zone.id] = node; }}
-            x={zone.rect.x}
-            y={zone.rect.y}
-            width={zone.rect.width}
-            height={zone.rect.height}
-            fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
-            stroke={selectedZoneId === zone.id ? color : color}
-            strokeWidth={selectedZoneId === zone.id ? 3 : 2}
-            dash={[8, 4]}
-            listening={true}
-            draggable={!transitionZoneMode}
-            onClick={(e) => {
+          {(() => {
+            const onSelect = (e: any) => {
               e.cancelBubble = true;
               setSelectedZoneId(prev => prev === zone.id ? null : zone.id);
-            }}
-            onContextMenu={(e) => {
+            };
+            const onZoneContextMenu = (e: any) => {
               e.evt.preventDefault();
               e.cancelBubble = true;
               const stage = e.target.getStage();
@@ -7232,31 +7507,76 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   zoneId: zone.id,
                 });
               }
-            }}
-            onDragEnd={(e) => {
-              const node = e.target;
-              const newRect = { ...zone.rect, x: node.x(), y: node.y() };
-              const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
-              onTransitionZonesChange?.(updated);
-            }}
-            onTransformEnd={(e) => {
-              const node = e.target;
-              const scaleX = node.scaleX();
-              const scaleY = node.scaleY();
-              node.scaleX(1);
-              node.scaleY(1);
-              const newRect = {
-                x: node.x(),
-                y: node.y(),
-                width: Math.max(20, node.width() * scaleX),
-                height: Math.max(20, node.height() * scaleY),
-              };
-              node.width(newRect.width);
-              node.height(newRect.height);
-              const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
-              onTransitionZonesChange?.(updated);
-            }}
-          />
+            };
+            // Polygon zones: a draggable Line (move-only; no resize handles).
+            if (zone.points && zone.points.length >= 6) {
+              return (
+                <Line
+                  points={zone.points}
+                  closed
+                  fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
+                  stroke={color}
+                  strokeWidth={selectedZoneId === zone.id ? 3 : 2}
+                  dash={[8, 4]}
+                  listening={true}
+                  draggable={!transitionZoneMode}
+                  onClick={onSelect}
+                  onContextMenu={onZoneContextMenu}
+                  onDragEnd={(e) => {
+                    const node = e.target;
+                    const dx = node.x();
+                    const dy = node.y();
+                    node.x(0); node.y(0);
+                    const movedPoints = (zone.points || []).map((v, idx) => idx % 2 === 0 ? v + dx : v + dy);
+                    const movedRect = { ...zone.rect, x: zone.rect.x + dx, y: zone.rect.y + dy };
+                    const updated = zones.map(z => z.id === zone.id ? { ...z, points: movedPoints, rect: movedRect } : z);
+                    onTransitionZonesChange?.(updated);
+                  }}
+                />
+              );
+            }
+            // Legacy rectangle zones: a Rect with resize handles via the Transformer.
+            return (
+              <Rect
+                ref={(node) => { if (node) zoneRectRefs.current[zone.id] = node; }}
+                x={zone.rect.x}
+                y={zone.rect.y}
+                width={zone.rect.width}
+                height={zone.rect.height}
+                fill={`rgba(${r}, ${g}, ${b}, 0.2)`}
+                stroke={color}
+                strokeWidth={selectedZoneId === zone.id ? 3 : 2}
+                dash={[8, 4]}
+                listening={true}
+                draggable={!transitionZoneMode}
+                onClick={onSelect}
+                onContextMenu={onZoneContextMenu}
+                onDragEnd={(e) => {
+                  const node = e.target;
+                  const newRect = { ...zone.rect, x: node.x(), y: node.y() };
+                  const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
+                  onTransitionZonesChange?.(updated);
+                }}
+                onTransformEnd={(e) => {
+                  const node = e.target;
+                  const scaleX = node.scaleX();
+                  const scaleY = node.scaleY();
+                  node.scaleX(1);
+                  node.scaleY(1);
+                  const newRect = {
+                    x: node.x(),
+                    y: node.y(),
+                    width: Math.max(20, node.width() * scaleX),
+                    height: Math.max(20, node.height() * scaleY),
+                  };
+                  node.width(newRect.width);
+                  node.height(newRect.height);
+                  const updated = zones.map(z => z.id === zone.id ? { ...z, rect: newRect } : z);
+                  onTransitionZonesChange?.(updated);
+                }}
+              />
+            );
+          })()}
           {(() => {
             const line1 = targetFloor?.name || '?';
             const line2 = zone.label || '';
@@ -7681,6 +8001,49 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           </>
                         )}
 
+                        {loadedImage && (onStartDifficultTerrainPainting || difficultTerrain.length > 0) && (
+                          <>
+                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Difficult Terrain</p>
+                              {difficultTerrain.length > 0 && (
+                                <div className="flex flex-col gap-1 mb-1.5">
+                                  {difficultTerrain.map((z, i) => (
+                                    <div key={z.id} className="flex items-center gap-1.5 text-[11px] bg-black/30 rounded px-2 py-1">
+                                      <Footprints size={10} className="text-amber-600 shrink-0" />
+                                      <span className="flex-1 truncate opacity-80">
+                                        {z.label || `Area ${i + 1}`}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          onDifficultTerrainChange?.(difficultTerrain.filter(d => d.id !== z.id));
+                                        }}
+                                        className="opacity-50 hover:opacity-100 hover:text-red-400 transition-colors"
+                                        title="Delete area"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {onStartDifficultTerrainPainting && (
+                                <button
+                                  onClick={() => {
+                                    onStartDifficultTerrainPainting();
+                                    setIsMapMenuOpen(false);
+                                  }}
+                                  disabled={difficultTerrainPainting}
+                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 rounded-md transition-colors disabled:opacity-40"
+                                >
+                                  <PlusCircle size={11} />
+                                  {difficultTerrainPainting ? 'Painting…' : 'Paint Difficult Terrain'}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+
                         {onOpenFloorAudioPicker && activeFloorId && (() => {
                           const activeFloor = floors?.find(f => f.id === activeFloorId);
                           if (!activeFloor) return null;
@@ -7820,9 +8183,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
                 const p = tx.point(ptr);
-                // Double-click on or near the first vertex commits.
+                // Clicking the first node closes the shape; double-click also commits.
+                // Either way we stay in paint mode for the next zone.
+                if (zoneSnapToOrigin && zonePaintPoints.length >= 6) {
+                  commitCurrentZone();
+                  return;
+                }
                 if (e.evt.detail >= 2 && zonePaintPoints.length >= 6) {
-                  onSoundZonePaintCommit?.(zonePaintPoints);
+                  commitCurrentZone();
                   return;
                 }
                 setZonePaintPoints(prev => [...prev, p.x, p.y]);
@@ -8031,11 +8399,62 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
                 const p = tx.point(ptr);
+                // Clicking the first node closes the shape; double-click also commits.
+                // Either way we stay in paint mode for the next zone.
+                if (darkSnapToOrigin && darkPaintPoints.length >= 6) {
+                  commitCurrentDark();
+                  return;
+                }
                 if (e.evt.detail >= 2 && darkPaintPoints.length >= 6) {
-                  onDarkZonePaintCommit?.(darkPaintPoints);
+                  commitCurrentDark();
                   return;
                 }
                 setDarkPaintPoints(prev => [...prev, p.x, p.y]);
+              }
+              return;
+            }
+            // Difficult-terrain painting: clicks add polygon vertices.
+            if (difficultTerrainPainting && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              if (stage && ptr) {
+                const tx = stage.getAbsoluteTransform().copy();
+                tx.invert();
+                const p = tx.point(ptr);
+                // Clicking the first node (origin snap) closes the loop and finishes
+                // this area, staying in paint mode for the next one.
+                if (terrainSnapToOrigin && terrainPaintPoints.length >= 6) {
+                  commitCurrentTerrain();
+                  return;
+                }
+                // Double-click also finishes the current area and starts a new one.
+                if (e.evt.detail >= 2 && terrainPaintPoints.length >= 6) {
+                  commitCurrentTerrain();
+                  return;
+                }
+                setTerrainPaintPoints(prev => [...prev, p.x, p.y]);
+              }
+              return;
+            }
+            // Transition zone drawing: clicks add polygon vertices.
+            if (transitionZoneMode && e.evt.button === 0) {
+              const stage = e.target.getStage();
+              const ptr = stage?.getPointerPosition();
+              if (stage && ptr) {
+                const tx = stage.getAbsoluteTransform().copy();
+                tx.invert();
+                const p = tx.point(ptr);
+                // Clicking the first node (origin snap) or double-clicking finishes
+                // the shape and advances the transition-zone flow.
+                if (tzSnapToOrigin && tzPaintPoints.length >= 6) {
+                  commitCurrentTransition();
+                  return;
+                }
+                if (e.evt.detail >= 2 && tzPaintPoints.length >= 6) {
+                  commitCurrentTransition();
+                  return;
+                }
+                setTzPaintPoints(prev => [...prev, p.x, p.y]);
               }
               return;
             }
@@ -8104,6 +8523,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   stroke="#6366f1"
                   strokeWidth={2}
                   dash={[8, 4]}
+                  listening={false}
+                />
+              );
+            })}
+            {/* ── Difficult terrain — DM only, hidden when walls are hidden ── */}
+            {!isPlayerView && showWalls && difficultTerrain.length > 0 && difficultTerrain.map(z => {
+              if (z.points.length < 6) return null;
+              return (
+                <Line
+                  key={`terrain-${z.id}`}
+                  points={z.points}
+                  closed
+                  fill="rgba(180, 120, 30, 0.22)"
+                  stroke="#d97706"
+                  strokeWidth={2}
+                  dash={[3, 5]}
                   listening={false}
                 />
               );
@@ -8419,17 +8854,101 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   strokeWidth={2}
                   dash={[6, 4]}
                 />
-                {Array.from({ length: darkPaintPoints.length / 2 }).map((_, i) => (
-                  <Circle
-                    key={`dp-${i}`}
-                    x={darkPaintPoints[i * 2]}
-                    y={darkPaintPoints[i * 2 + 1]}
-                    radius={5}
-                    fill={i === 0 ? 'white' : '#6366f1'}
+                {/* Rubber-band preview from last vertex to cursor (or origin when snapping). */}
+                {darkPaintHover && (
+                  <Line
+                    points={[
+                      darkPaintPoints[darkPaintPoints.length - 2],
+                      darkPaintPoints[darkPaintPoints.length - 1],
+                      darkPaintHover.x,
+                      darkPaintHover.y,
+                    ]}
                     stroke="#6366f1"
-                    strokeWidth={1.5}
+                    strokeWidth={2}
+                    dash={[6, 4]}
+                    opacity={0.55}
                   />
-                ))}
+                )}
+                {Array.from({ length: darkPaintPoints.length / 2 }).map((_, i) => {
+                  const isOrigin = i === 0;
+                  const highlight = isOrigin && darkSnapToOrigin;
+                  return (
+                    <React.Fragment key={`dp-${i}`}>
+                      {highlight && (
+                        <Circle
+                          x={darkPaintPoints[i * 2]}
+                          y={darkPaintPoints[i * 2 + 1]}
+                          radius={11}
+                          stroke="#fbbf24"
+                          strokeWidth={2}
+                          opacity={0.9}
+                        />
+                      )}
+                      <Circle
+                        x={darkPaintPoints[i * 2]}
+                        y={darkPaintPoints[i * 2 + 1]}
+                        radius={highlight ? 6 : 5}
+                        fill={highlight ? '#fbbf24' : (isOrigin ? 'white' : '#6366f1')}
+                        stroke="#6366f1"
+                        strokeWidth={1.5}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+              </Group>
+            )}
+            {/* In-progress difficult terrain polygon */}
+            {!isPlayerView && difficultTerrainPainting && terrainPaintPoints.length >= 2 && (
+              <Group listening={false}>
+                <Line
+                  points={terrainPaintPoints}
+                  closed={terrainPaintPoints.length >= 6}
+                  fill={terrainPaintPoints.length >= 6 ? 'rgba(180, 120, 30, 0.18)' : undefined}
+                  stroke="#d97706"
+                  strokeWidth={2}
+                  dash={[4, 4]}
+                />
+                {/* Rubber-band preview from last vertex to cursor (or origin when snapping). */}
+                {terrainPaintHover && (
+                  <Line
+                    points={[
+                      terrainPaintPoints[terrainPaintPoints.length - 2],
+                      terrainPaintPoints[terrainPaintPoints.length - 1],
+                      terrainPaintHover.x,
+                      terrainPaintHover.y,
+                    ]}
+                    stroke="#d97706"
+                    strokeWidth={2}
+                    dash={[6, 4]}
+                    opacity={0.55}
+                  />
+                )}
+                {Array.from({ length: terrainPaintPoints.length / 2 }).map((_, i) => {
+                  const isOrigin = i === 0;
+                  const highlight = isOrigin && terrainSnapToOrigin;
+                  return (
+                    <React.Fragment key={`tp-${i}`}>
+                      {highlight && (
+                        <Circle
+                          x={terrainPaintPoints[i * 2]}
+                          y={terrainPaintPoints[i * 2 + 1]}
+                          radius={11}
+                          stroke="#fbbf24"
+                          strokeWidth={2}
+                          opacity={0.9}
+                        />
+                      )}
+                      <Circle
+                        x={terrainPaintPoints[i * 2]}
+                        y={terrainPaintPoints[i * 2 + 1]}
+                        radius={highlight ? 6 : 5}
+                        fill={highlight ? '#fbbf24' : (isOrigin ? 'white' : '#d97706')}
+                        stroke="#d97706"
+                        strokeWidth={1.5}
+                      />
+                    </React.Fragment>
+                  );
+                })}
               </Group>
             )}
             {/* In-progress sound zone polygon */}
@@ -8448,34 +8967,103 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     strokeWidth={2}
                     dash={[6, 4]}
                   />
-                  {Array.from({ length: zonePaintPoints.length / 2 }).map((_, i) => (
-                    <Circle
-                      key={`zp-${i}`}
-                      x={zonePaintPoints[i * 2]}
-                      y={zonePaintPoints[i * 2 + 1]}
-                      radius={5}
-                      fill={i === 0 ? 'white' : color}
+                  {/* Rubber-band preview from last vertex to cursor (or origin when snapping). */}
+                  {zonePaintCursor && (
+                    <Line
+                      points={[
+                        zonePaintPoints[zonePaintPoints.length - 2],
+                        zonePaintPoints[zonePaintPoints.length - 1],
+                        zonePaintCursor.x,
+                        zonePaintCursor.y,
+                      ]}
                       stroke={color}
-                      strokeWidth={1.5}
+                      strokeWidth={2}
+                      dash={[6, 4]}
+                      opacity={0.55}
                     />
-                  ))}
+                  )}
+                  {Array.from({ length: zonePaintPoints.length / 2 }).map((_, i) => {
+                    const isOrigin = i === 0;
+                    const highlight = isOrigin && zoneSnapToOrigin;
+                    return (
+                      <React.Fragment key={`zp-${i}`}>
+                        {highlight && (
+                          <Circle
+                            x={zonePaintPoints[i * 2]}
+                            y={zonePaintPoints[i * 2 + 1]}
+                            radius={11}
+                            stroke="#fbbf24"
+                            strokeWidth={2}
+                            opacity={0.9}
+                          />
+                        )}
+                        <Circle
+                          x={zonePaintPoints[i * 2]}
+                          y={zonePaintPoints[i * 2 + 1]}
+                          radius={highlight ? 6 : 5}
+                          fill={highlight ? '#fbbf24' : (isOrigin ? 'white' : color)}
+                          stroke={color}
+                          strokeWidth={1.5}
+                        />
+                      </React.Fragment>
+                    );
+                  })}
                 </Group>
               );
             })()}
 
-            {/* Render drawing-in-progress transition zone */}
-            {drawingZone && (
-              <Rect
-                x={Math.min(drawingZone.startX, drawingZone.endX)}
-                y={Math.min(drawingZone.startY, drawingZone.endY)}
-                width={Math.abs(drawingZone.endX - drawingZone.startX)}
-                height={Math.abs(drawingZone.endY - drawingZone.startY)}
-                fill="rgba(59, 130, 246, 0.2)"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dash={[8, 4]}
-                listening={false}
-              />
+            {/* In-progress transition zone polygon */}
+            {!isPlayerView && transitionZoneMode && tzPaintPoints.length >= 2 && (
+              <Group listening={false}>
+                <Line
+                  points={tzPaintPoints}
+                  closed={tzPaintPoints.length >= 6}
+                  fill={tzPaintPoints.length >= 6 ? 'rgba(59, 130, 246, 0.2)' : undefined}
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dash={[8, 4]}
+                />
+                {tzPaintHover && (
+                  <Line
+                    points={[
+                      tzPaintPoints[tzPaintPoints.length - 2],
+                      tzPaintPoints[tzPaintPoints.length - 1],
+                      tzPaintHover.x,
+                      tzPaintHover.y,
+                    ]}
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dash={[6, 4]}
+                    opacity={0.55}
+                  />
+                )}
+                {Array.from({ length: tzPaintPoints.length / 2 }).map((_, i) => {
+                  const isOrigin = i === 0;
+                  const highlight = isOrigin && tzSnapToOrigin;
+                  return (
+                    <React.Fragment key={`tz-${i}`}>
+                      {highlight && (
+                        <Circle
+                          x={tzPaintPoints[i * 2]}
+                          y={tzPaintPoints[i * 2 + 1]}
+                          radius={11}
+                          stroke="#fbbf24"
+                          strokeWidth={2}
+                          opacity={0.9}
+                        />
+                      )}
+                      <Circle
+                        x={tzPaintPoints[i * 2]}
+                        y={tzPaintPoints[i * 2 + 1]}
+                        radius={highlight ? 6 : 5}
+                        fill={highlight ? '#fbbf24' : (isOrigin ? 'white' : '#3b82f6')}
+                        stroke="#3b82f6"
+                        strokeWidth={1.5}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+              </Group>
             )}
 
             {/* Transformer for selected transition zone — DM only */}
@@ -13737,7 +14325,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         const nextPairIndex = maxPairIndex + 1;
                         setPendingPairData({
                           sourceFloorId: activeFloorId || floors[0]?.id || '',
-                          sourceRect: transitionZoneConfig.rect,
+                          sourcePoints: transitionZoneConfig.points,
                           targetFloorId,
                           label: label || undefined,
                           pairIndex: nextPairIndex,
@@ -13769,15 +14357,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-3 px-4 py-2 bg-blue-600/90 rounded-xl shadow-lg text-white text-xs font-medium whitespace-nowrap">
             <span>
               {pendingPairData
-                ? `Draw arrival zone on ${floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click and drag`
-                : 'Draw transition zone — click and drag'}
+                ? `Draw arrival zone on ${floors?.find(f => f.id === pendingPairData.targetFloorId)?.name || 'target floor'} — click points, click the first node to close`
+                : 'Draw transition zone — click points, click the first node to close'}
             </span>
             <button
               onClick={() => {
                 if (pendingPairData) onSwitchFloor?.(pendingPairData.sourceFloorId);
                 setPendingPairData(null);
                 setTransitionZoneMode(false);
-                setDrawingZone(null);
+                clearTzPaint();
               }}
               className="px-2 py-0.5 bg-white/20 rounded-md hover:bg-white/30"
             >

@@ -430,7 +430,14 @@ export interface Viewpoint {
 
 export interface TransitionZone {
   id: string;
+  /** Axis-aligned bounding box — drives label/badge placement and legacy rectangle zones. */
   rect: { x: number; y: number; width: number; height: number };
+  /**
+   * Optional polygon outline (flat [x1,y1,x2,y2,...]). When present the zone is a
+   * free-form polygon: hit-testing and the on-map shape use these points, while `rect`
+   * is kept as the bounding box for labels/badges. Older zones have only `rect`.
+   */
+  points?: number[];
   targetFloorId: string;
   targetPosition: { x: number; y: number };
   label?: string;
@@ -481,6 +488,22 @@ export interface Floor {
   soundZones?: SoundZone[];
   /** Polygonal regions that remain dark even when the floor is set to Daylight (caves, houses, etc.). */
   darkZones?: DarkZone[];
+  /** DM-only painted regions that cost double movement to cross (mud, rubble, undergrowth). */
+  difficultTerrain?: DifficultTerrainZone[];
+}
+
+/**
+ * A DM-only painted region of difficult terrain. While a token is dragged across it
+ * during combat, the measured movement distance counts double (matching the 5e rule),
+ * which also trips the "over Speed" warning on the movement ruler. It does not block
+ * movement and is never shown on the player screen.
+ */
+export interface DifficultTerrainZone {
+  id: string;
+  /** Polygon vertices in map pixel coordinates, flat: [x1, y1, x2, y2, ...]. */
+  points: number[];
+  /** Optional label shown in the DM panel (e.g. "Mud", "Rubble"). */
+  label?: string;
 }
 
 /**

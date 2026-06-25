@@ -111,6 +111,13 @@ interface FloorMapContainerProps {
   onStartDarkZonePainting?: () => void;
   onDarkZonePaintCommit?: (points: number[]) => void;
   onDarkZonePaintCancel?: () => void;
+  /** Per-floor updates to the list of Difficult Terrain areas. */
+  onDifficultTerrainChange?: (floorId: string, zones: import('../types').DifficultTerrainZone[]) => void;
+  /** When true, the primary MapView captures clicks as polygon vertices for a new difficult-terrain area. */
+  difficultTerrainPainting?: boolean;
+  onStartDifficultTerrainPainting?: () => void;
+  onDifficultTerrainPaintCommit?: (points: number[]) => void;
+  onDifficultTerrainPaintCancel?: () => void;
   // ── Wall painting/erasing ──
   wallPainting?: boolean;
   wallErasing?: boolean;
@@ -384,6 +391,12 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onStartDarkZonePainting: isPrimary ? props.onStartDarkZonePainting : undefined,
     onDarkZonePaintCommit: isPrimary ? props.onDarkZonePaintCommit : undefined,
     onDarkZonePaintCancel: isPrimary ? props.onDarkZonePaintCancel : undefined,
+    difficultTerrain: floor.difficultTerrain || [],
+    onDifficultTerrainChange: (next: import('../types').DifficultTerrainZone[]) => props.onDifficultTerrainChange?.(floor.id, next),
+    difficultTerrainPainting: isPrimary ? (props.difficultTerrainPainting ?? false) : false,
+    onStartDifficultTerrainPainting: isPrimary ? props.onStartDifficultTerrainPainting : undefined,
+    onDifficultTerrainPaintCommit: isPrimary ? props.onDifficultTerrainPaintCommit : undefined,
+    onDifficultTerrainPaintCancel: isPrimary ? props.onDifficultTerrainPaintCancel : undefined,
     wallPainting: isPrimary ? (props.wallPainting ?? false) : false,
     wallErasing: isPrimary ? (props.wallErasing ?? false) : false,
     wallSnapToGrid: isPrimary ? (props.wallSnapToGrid ?? false) : false,

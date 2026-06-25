@@ -7,7 +7,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Moon } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Moon, Footprints } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -16,7 +16,7 @@ import { SoundZonesPanel } from './components/SoundZonesPanel';
 import { audioEngine, loadMixerSettings, soundUrlFromId } from './services/audioEngine';
 import { loadSoundBindings } from './services/soundBindings';
 import { zoneVolumeAtPoint } from './utils/soundZoneMath';
-import type { SoundZone, DarkZone } from './types';
+import type { SoundZone, DarkZone, DifficultTerrainZone } from './types';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { EnlargeReduceModal } from './components/EnlargeReduceModal';
@@ -105,6 +105,7 @@ export function DMScreen() {
   const [zonePainting, setZonePainting] = useState<{ soundId: string; falloffPx: number; color: string; label?: string } | null>(null);
   /** When true, the user is painting a new Dark Zone polygon. */
   const [darkZonePainting, setDarkZonePainting] = useState(false);
+  const [difficultTerrainPainting, setDifficultTerrainPainting] = useState(false);
   /** When true, the user is in Paint Walls mode. */
   const [wallPainting, setWallPainting] = useState(false);
   /** When true, clicking a wall deletes it. */
@@ -2207,6 +2208,7 @@ export function DMScreen() {
               }) : prev);
             }}
             onStartPainting={(tpl) => {
+              setDifficultTerrainPainting(false);
               setZonePainting(tpl);
               setZonesPanelOpen(false);
             }}
@@ -2217,14 +2219,13 @@ export function DMScreen() {
           <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-[var(--accent)]/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
             <Music size={14} className="text-[var(--accent)]" />
             <span className="text-xs">
-              Painting <strong>{zonePainting.label ?? 'new zone'}</strong> — click points on the map.
+              Painting <strong>{zonePainting.label ?? 'new zone'}</strong> — click points; click the first node to close the shape.
             </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
-            <span className="text-[10px] opacity-60">commit</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Right-click</kbd>
+            <span className="text-[10px] opacity-60">finish</span>
             <button
               className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => setZonePainting(null)}
+              onClick={() => { setZonePainting(null); setZonesPanelOpen(true); }}
             >
               cancel
             </button>
@@ -2234,14 +2235,29 @@ export function DMScreen() {
           <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-indigo-400/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
             <Moon size={14} className="text-indigo-400" />
             <span className="text-xs">
-              Painting <strong>dark zone</strong> — click points on the map.
+              Painting <strong>dark zone</strong> — click points; click the first node to close the shape.
             </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Enter</kbd>
-            <span className="text-[10px] opacity-60">commit</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Esc</kbd>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Right-click</kbd>
+            <span className="text-[10px] opacity-60">finish</span>
             <button
               className="text-[10px] opacity-60 hover:opacity-100 ml-1"
               onClick={() => setDarkZonePainting(false)}
+            >
+              cancel
+            </button>
+          </div>
+        )}
+        {difficultTerrainPainting && (
+          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-amber-500/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
+            <Footprints size={14} className="text-amber-500" />
+            <span className="text-xs">
+              Painting <strong>difficult terrain</strong> — click points; click the first node to close the shape.
+            </span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Right-click</kbd>
+            <span className="text-[10px] opacity-60">finish</span>
+            <button
+              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
+              onClick={() => setDifficultTerrainPainting(false)}
             >
               cancel
             </button>
@@ -2381,14 +2397,15 @@ export function DMScreen() {
                     ...f,
                     soundZones: [...(f.soundZones || []), newZone],
                   }));
-                  setZonePainting(null);
-                  setZonesPanelOpen(true);
+                  // Stay in paint mode (same sound) so several zones can be painted in
+                  // a row; finishing (right-click/Esc/cancel) reopens the zones panel.
                 }}
-                onSoundZonePaintCancel={() => setZonePainting(null)}
+                onSoundZonePaintCancel={() => { setZonePainting(null); setZonesPanelOpen(true); }}
                 onDarkZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, darkZones: zones }))}
                 darkZonePainting={darkZonePainting}
                 onStartDarkZonePainting={() => {
                   setZonePainting(null);
+                  setDifficultTerrainPainting(false);
                   setDarkZonePainting(true);
                 }}
                 onDarkZonePaintCommit={(points) => {
@@ -2401,9 +2418,36 @@ export function DMScreen() {
                     ...f,
                     darkZones: [...(f.darkZones || []), newZone],
                   }));
-                  setDarkZonePainting(false);
+                  // Stay in paint mode so additional dark zones can be drawn; the DM
+                  // exits via right-click, Esc, or the cancel button.
                 }}
                 onDarkZonePaintCancel={() => setDarkZonePainting(false)}
+                onDifficultTerrainChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, difficultTerrain: zones }))}
+                difficultTerrainPainting={difficultTerrainPainting}
+                onStartDifficultTerrainPainting={() => {
+                  setZonePainting(null);
+                  setDarkZonePainting(false);
+                  setDifficultTerrainPainting(false);
+                  setWallPainting(false);
+                  setWallErasing(false);
+                  setPortalPlacementMode(null);
+                  setGridCalibrating(false);
+                  setDifficultTerrainPainting(true);
+                }}
+                onDifficultTerrainPaintCommit={(points) => {
+                  if (!activeFloorId) return;
+                  const newZone: DifficultTerrainZone = {
+                    id: `dt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    points,
+                  };
+                  updateFloorById(activeFloorId, f => ({
+                    ...f,
+                    difficultTerrain: [...(f.difficultTerrain || []), newZone],
+                  }));
+                  // Stay in paint mode so additional areas can be drawn; the DM
+                  // exits via right-click, Esc, or the cancel button.
+                }}
+                onDifficultTerrainPaintCancel={() => setDifficultTerrainPainting(false)}
                 wallPainting={wallPainting}
                 wallErasing={wallErasing}
                 wallSnapToGrid={wallSnapToGrid}
@@ -2411,6 +2455,7 @@ export function DMScreen() {
                   setWallErasing(false);
                   setZonePainting(null);
                   setDarkZonePainting(false);
+                  setDifficultTerrainPainting(false);
                   setWallPainting(true);
                 }}
                 onStopWallPainting={() => setWallPainting(false)}
@@ -2426,6 +2471,7 @@ export function DMScreen() {
                   setWallErasing(false);
                   setZonePainting(null);
                   setDarkZonePainting(false);
+                  setDifficultTerrainPainting(false);
                   setPortalPlacementMode(mode);
                 }}
                 onStopPortalPlacement={() => setPortalPlacementMode(null)}
@@ -2438,6 +2484,7 @@ export function DMScreen() {
                   setPortalPlacementMode(null);
                   setZonePainting(null);
                   setDarkZonePainting(false);
+                  setDifficultTerrainPainting(false);
                   setGridCalibrating(true);
                 }}
                 onStopGridCalibration={() => setGridCalibrating(false)}
