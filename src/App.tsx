@@ -7,7 +7,7 @@ import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
 import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
-import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2, Music, Moon, Footprints } from './icons';
+import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2 } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
@@ -25,6 +25,7 @@ import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
 import { lookupSpell } from './data/spellDatabase';
 import { initImageStore, isImageStoreReady, getImage, setImage, removeImage } from './utils/imageStore';
+import { useUndoableState } from './hooks/useUndoableState';
 
 // Load persisted panel states from localStorage
 function loadPanelStates(): { left: boolean; nav: boolean } {
@@ -94,6 +95,8 @@ export function DMScreen() {
   const [newCampaignName, setNewCampaignName] = useState('');
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState(false);
   const [addNPCModalOpen, setAddNPCModalOpen] = useState(false);
+  /** When set, the Add NPC modal opens in edit mode for this combatant. */
+  const [editingNPC, setEditingNPC] = useState<Combatant | null>(null);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
   /** When set, an ambient sound picker is open for this floor id. */
   const [ambientPickerFor, setAmbientPickerFor] = useState<string | null>(null);
@@ -160,8 +163,8 @@ export function DMScreen() {
     return () => { cancelled = true; };
   }, [imageStoreReady]);
 
-  // Campaign State
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  // Campaign State — undoable so Ctrl+Z can revert any campaign change
+  const [campaign, setCampaign, campaignHistory] = useUndoableState<Campaign | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<{ type: 'scenario' | 'floor'; scenarioId: string; floorId?: string; value: string } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
@@ -179,6 +182,47 @@ export function DMScreen() {
   }, [campaign, selectedScenarioId]);
   const activeFloorIdRef = useRef(activeFloorId);
   activeFloorIdRef.current = activeFloorId;
+
+  // ── Global undo/redo (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y) ──
+  // Brief confirmation chip so the shortcut never feels like it did nothing
+  const [undoToast, setUndoToast] = useState<{ text: string; key: number } | null>(null);
+  const undoToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showUndoToast = useCallback((text: string) => {
+    if (undoToastTimer.current) clearTimeout(undoToastTimer.current);
+    setUndoToast({ text, key: Date.now() });
+    undoToastTimer.current = setTimeout(() => setUndoToast(null), 1400);
+  }, []);
+
+  // Start history fresh whenever a campaign is loaded, created, or switched —
+  // undo should never step back to the splash screen or another campaign.
+  useEffect(() => {
+    campaignHistory.clear();
+  }, [campaign?.id, campaignHistory]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      // One press = one step: ignore held-key auto-repeat so it can't
+      // machine-gun through the whole history.
+      if (e.repeat) return;
+      const key = e.key.toLowerCase();
+      const isUndo = key === 'z' && !e.shiftKey;
+      const isRedo = (key === 'z' && e.shiftKey) || key === 'y';
+      if (!isUndo && !isRedo) return;
+      // Leave text fields alone so typing keeps its native undo
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (!campaignRef.current) return;
+      e.preventDefault();
+      if (isUndo) {
+        showUndoToast(campaignHistory.undo() ? 'Undone' : 'Nothing to undo');
+      } else {
+        showUndoToast(campaignHistory.redo() ? 'Redone' : 'Nothing to redo');
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [campaignHistory, showUndoToast]);
 
   const setActiveFloorId = useCallback((floorId: string) => {
     setCampaign(prev => prev ? ({
@@ -964,25 +1008,26 @@ export function DMScreen() {
     });
   }, []);
 
-  /** Update a combatant's HP by delta, keeping both scenarioCombatants and activeCombatants in sync */
+  /** Update a combatant's HP by delta across every list it lives in (campaign-level
+   *  players/npcs/persistentEnemies, scenario combatants, and active combat copies). */
   const updateCombatantHp = useCallback((sourceCombatantId: string, delta: number) => {
     setCampaign(prev => {
       if (!prev) return prev;
+      const applyHp = (c: Combatant) =>
+        ({ ...c, hp: Math.max(0, Math.min(c.maxHp, c.hp + delta)) });
+      const applyToList = (list: Combatant[]) =>
+        list.map(c => c.id === sourceCombatantId ? applyHp(c) : c);
       return {
         ...prev,
+        players: applyToList(prev.players),
+        npcs: applyToList(prev.npcs),
+        persistentEnemies: applyToList(prev.persistentEnemies),
         scenarios: prev.scenarios.map(s => {
           if (s.id !== selectedScenarioIdRef.current) return s;
-          const updatedCombatants = (s.combatants || []).map(sc =>
-            sc.id === sourceCombatantId
-              ? { ...sc, hp: Math.max(0, Math.min(sc.maxHp, sc.hp + delta)) }
-              : sc
-          );
           const updatedActive = (s.activeCombatants || []).map(ac =>
-            ac.sourceCombatantId === sourceCombatantId
-              ? { ...ac, hp: Math.max(0, Math.min(ac.maxHp, ac.hp + delta)) }
-              : ac
+            ac.sourceCombatantId === sourceCombatantId ? applyHp(ac) : ac
           );
-          return { ...s, combatants: updatedCombatants, activeCombatants: updatedActive };
+          return { ...s, combatants: applyToList(s.combatants || []), activeCombatants: updatedActive };
         })
       };
     });
@@ -1403,16 +1448,21 @@ export function DMScreen() {
   const updateActiveCombatants = (activeCombatants: Combatant[]) => {
     // Clear targeting when combat ends
     if (activeCombatants.length === 0) setTargetedCombatantIds(new Set());
+    // Sync HP back to source combatants (campaign players/npcs/persistentEnemies and
+    // scenario combatants) so damage taken in combat persists outside it
+    const syncHp = (list: Combatant[]) =>
+      list.map(c => {
+        const active = activeCombatants.find(ac => ac.sourceCombatantId === c.id);
+        return active ? { ...c, hp: active.hp } : c;
+      });
     setCampaign(prev => prev ? ({
       ...prev,
+      players: syncHp(prev.players),
+      npcs: syncHp(prev.npcs),
+      persistentEnemies: syncHp(prev.persistentEnemies),
       scenarios: prev.scenarios.map(s => {
         if (s.id !== selectedScenarioId) return s;
-        // Sync HP back to scenarioCombatants so the bottom panel stays current
-        const updatedCombatants = (s.combatants || []).map(sc => {
-          const active = activeCombatants.find(ac => ac.sourceCombatantId === sc.id);
-          return active ? { ...sc, hp: active.hp } : sc;
-        });
-        return { ...s, activeCombatants, combatants: updatedCombatants };
+        return { ...s, activeCombatants, combatants: syncHp(s.combatants || []) };
       })
     }) : prev);
   };
@@ -1701,6 +1751,17 @@ export function DMScreen() {
                       </div>
                       <span className="text-[16px] font-medium opacity-90 group-hover:opacity-100 truncate tracking-wide text-white">{n.name}</span>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingNPC(n);
+                        setAddNPCModalOpen(true);
+                      }}
+                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-2 text-white transition-opacity shrink-0"
+                      title="Edit NPC"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2215,54 +2276,8 @@ export function DMScreen() {
             onClose={() => setZonesPanelOpen(false)}
           />
         )}
-        {zonePainting && (
-          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-[var(--accent)]/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <Music size={14} className="text-[var(--accent)]" />
-            <span className="text-xs">
-              Painting <strong>{zonePainting.label ?? 'new zone'}</strong> — click points; click the first node to close the shape.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Right-click</kbd>
-            <span className="text-[10px] opacity-60">finish</span>
-            <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => { setZonePainting(null); setZonesPanelOpen(true); }}
-            >
-              cancel
-            </button>
-          </div>
-        )}
-        {darkZonePainting && (
-          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-indigo-400/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <Moon size={14} className="text-indigo-400" />
-            <span className="text-xs">
-              Painting <strong>dark zone</strong> — click points; click the first node to close the shape.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Right-click</kbd>
-            <span className="text-[10px] opacity-60">finish</span>
-            <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => setDarkZonePainting(false)}
-            >
-              cancel
-            </button>
-          </div>
-        )}
-        {difficultTerrainPainting && (
-          <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-amber-500/40 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
-            <Footprints size={14} className="text-amber-500" />
-            <span className="text-xs">
-              Painting <strong>difficult terrain</strong> — click points; click the first node to close the shape.
-            </span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/40">Right-click</kbd>
-            <span className="text-[10px] opacity-60">finish</span>
-            <button
-              className="text-[10px] opacity-60 hover:opacity-100 ml-1"
-              onClick={() => setDifficultTerrainPainting(false)}
-            >
-              cancel
-            </button>
-          </div>
-        )}
+        {/* Sound-zone, dark-zone, and difficult-terrain painting states are shown
+            by MapView's floating per-zone-type toolbars. */}
         {portalPlacementMode && (
           <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-blue-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
             <span className="text-xs">
@@ -2302,6 +2317,22 @@ export function DMScreen() {
           </div>
         )}
 
+        {/* Undo/redo confirmation chip */}
+        <AnimatePresence>
+          {undoToast && (
+            <motion.div
+              key={undoToast.key}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-[var(--accent)]/40 rounded-full px-3.5 py-1.5 shadow-xl text-xs pointer-events-none"
+            >
+              {undoToast.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Main Layout */}
         <div className="flex-1 overflow-hidden relative">
           {/* Center: Map View (Always Present, full area) */}
@@ -2318,6 +2349,7 @@ export function DMScreen() {
                 players={campaign.players || []}
                 npcs={campaign.npcs || []}
                 persistentEnemies={campaign.persistentEnemies || []}
+                showTokenNames={campaign.showTokenNames !== false}
                 onUpdateCombatantHp={updateCombatantHp}
                 onAddCondition={addConditionToCombatant}
                 onRemoveCondition={removeConditionFromCombatant}
@@ -2398,9 +2430,9 @@ export function DMScreen() {
                     soundZones: [...(f.soundZones || []), newZone],
                   }));
                   // Stay in paint mode (same sound) so several zones can be painted in
-                  // a row; finishing (right-click/Esc/cancel) reopens the zones panel.
+                  // a row; the DM exits via right-click, Esc, or the Sound Zones toolbar.
                 }}
-                onSoundZonePaintCancel={() => { setZonePainting(null); setZonesPanelOpen(true); }}
+                onSoundZonePaintCancel={() => setZonePainting(null)}
                 onDarkZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, darkZones: zones }))}
                 darkZonePainting={darkZonePainting}
                 onStartDarkZonePainting={() => {
@@ -2504,7 +2536,7 @@ export function DMScreen() {
             initial={false}
             animate={{ x: leftSidebarOpen ? 0 : -320 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-y-0 left-0 w-[320px] bg-[var(--surface)] border-r border-[var(--line)] z-20 overflow-hidden"
+            className="absolute inset-y-0 left-0 w-[320px] bg-[var(--surface)] border-r border-[var(--line)] z-[45] overflow-hidden"
           >
             <div className="w-full h-full relative">
               <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
@@ -2694,13 +2726,23 @@ export function DMScreen() {
 
         <AddCombatantModal
           isOpen={addNPCModalOpen}
-          onClose={() => setAddNPCModalOpen(false)}
+          onClose={() => { setAddNPCModalOpen(false); setEditingNPC(null); }}
           type="npc"
+          editing={editingNPC}
           onAdd={(n) => {
-            setCampaign(prev => prev ? ({
-              ...prev,
-              npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
-            }) : prev);
+            setCampaign(prev => {
+              if (!prev) return prev;
+              if (editingNPC) {
+                return {
+                  ...prev,
+                  npcs: prev.npcs.map(npc => npc.id === editingNPC.id ? { ...npc, ...n, id: npc.id } as Combatant : npc)
+                };
+              }
+              return {
+                ...prev,
+                npcs: [...prev.npcs, { ...n, id: `n-${Date.now()}` } as Combatant]
+              };
+            });
           }}
         />
 

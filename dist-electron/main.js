@@ -16,15 +16,28 @@ function createDmWindow() {
         width: 1400,
         height: 900,
         title: 'Dungeon Master Desktop VTT',
+        // Stay hidden until the page has painted so the user never sees a blank
+        // white window while the app is still loading.
+        show: false,
+        backgroundColor: '#0c0a09', // matches --bg in src/index.css
         webPreferences: {
             preload: path_1.default.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
         },
     });
+    dmWindow.once('ready-to-show', () => {
+        dmWindow?.show();
+    });
     const isDev = process.env.NODE_ENV === 'development';
     if (isDev) {
         dmWindow.loadURL('http://localhost:5173');
+        // In dev the Vite server may still be starting when Electron launches;
+        // keep retrying until it responds (otherwise the hidden window would
+        // never fire ready-to-show and the app would never appear).
+        dmWindow.webContents.on('did-fail-load', () => {
+            setTimeout(() => dmWindow?.loadURL('http://localhost:5173'), 300);
+        });
     }
     else {
         dmWindow.loadFile(path_1.default.join(__dirname, '../dist/index.html'));
@@ -68,6 +81,7 @@ function createPlayerWindow() {
         width: targetDisplay.bounds.width,
         height: targetDisplay.bounds.height,
         frame: false, // frameless for a clean player experience
+        backgroundColor: '#0c0a09', // dark until content paints — never flash white
         title: 'VTT Player Map',
         webPreferences: {
             preload: path_1.default.join(__dirname, 'preload.js'),
@@ -158,12 +172,6 @@ electron_1.ipcMain.on('player-mode-update', (_event, mode) => {
 electron_1.ipcMain.on('dm-view-as-player-update', (_event, playerId) => {
     if (playerWindow) {
         playerWindow.webContents.send('dm-view-as-player-update', playerId);
-    }
-});
-// When the Player moves tokens, proxy it back to the DM window
-electron_1.ipcMain.on('player-token-update', (_event, tokens) => {
-    if (dmWindow) {
-        dmWindow.webContents.send('player-token-update', tokens);
     }
 });
 // When the DM updates the campaign state, proxy it to the Player window
@@ -259,6 +267,12 @@ electron_1.ipcMain.on('dm-spell-marker-update', (_event, markers) => {
 electron_1.ipcMain.on('player-spell-marker-update', (_event, markers) => {
     if (dmWindow) {
         dmWindow.webContents.send('player-spell-marker-update', markers);
+    }
+});
+// Active emanation rings: proxy from player window to DM window
+electron_1.ipcMain.on('player-emanations-update', (_event, emanations) => {
+    if (dmWindow) {
+        dmWindow.webContents.send('player-emanations-update', emanations);
     }
 });
 // Player Wild Shape updates: proxy to DM window

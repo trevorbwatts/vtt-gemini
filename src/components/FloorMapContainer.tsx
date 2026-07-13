@@ -36,6 +36,8 @@ interface FloorMapContainerProps {
   isPlayerView?: boolean;
   /** When set on the DM view, fog of war is restricted to this player's vision. */
   dmViewAsPlayerId?: string | null;
+  /** Show token name labels on the DM screen (campaign setting; defaults to true). */
+  showTokenNames?: boolean;
   onMapChange: (mapImage: string) => void;
   onMapNotesChange: (notes: MapNote[]) => void;
   onViewpointsChange?: (viewpoints: Viewpoint[]) => void;
@@ -89,6 +91,7 @@ interface FloorMapContainerProps {
   onPingDrop?: (opts: { x: number; y: number; color: string; floorId: string }) => void;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
+  detectPoisonData?: { playerId: string; rangeFt: number } | null;
   activeEmanations?: import('../types').ActiveEmanation[];
   seeInvisibility?: boolean;
   activeTimers?: import('../types').TokenTimer[];
@@ -334,6 +337,8 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     tokens: floorTokens,
     onTokensChange: (tokens: Token[]) => props.onTokensChange(floor.id, tokens),
     scenarioName: scenario.name,
+    scenarioId: scenario.id,
+    exploredFogResetAt: floor.exploredFogResetAt,
     mapImage: floor.mapImage,
     onMapChange: isPrimary ? props.onMapChange : () => {},
     mapNotes: floor.mapNotes || [],
@@ -355,6 +360,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     setLeftSidebarOpen: props.setLeftSidebarOpen,
     isPlayerView: props.isPlayerView,
     dmViewAsPlayerId: props.dmViewAsPlayerId,
+    showTokenNames: props.showTokenNames,
     walls: floor.walls,
     objectWalls: floor.objectWalls,
     portals: floor.portals,
@@ -424,6 +430,7 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onClearTargets: props.onClearTargets,
     tremorsenseData: props.tremorsenseData,
     detectMagicData: props.detectMagicData,
+    detectPoisonData: props.detectPoisonData,
     activeEmanations: props.activeEmanations,
     seeInvisibility: props.seeInvisibility,
     activeTimers: props.activeTimers,

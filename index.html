@@ -4,10 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dungeon Master</title>
+    <style>
+      /* Match the app theme (--bg in src/index.css) before the bundle loads,
+         so the brief moment between window paint and React mount is never white. */
+      html, body {
+        margin: 0;
+        background-color: #0c0a09;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -490,6 +490,10 @@ export interface Floor {
   darkZones?: DarkZone[];
   /** DM-only painted regions that cost double movement to cross (mud, rubble, undergrowth). */
   difficultTerrain?: DifficultTerrainZone[];
+  /** Timestamp of the last "Reset Explored Fog" on this floor. The explored-area
+   *  mask itself lives in IndexedDB (see utils/exploredFog.ts); this field only
+   *  propagates the reset to the player window over the existing IPC state sync. */
+  exploredFogResetAt?: number;
 }
 
 /**
@@ -580,4 +584,6 @@ export interface Campaign {
   npcs: Combatant[];
   persistentEnemies: Combatant[];
   scenarios: Scenario[];
+  /** Show token name labels on the DM screen. Defaults to true when undefined. */
+  showTokenNames?: boolean;
 }

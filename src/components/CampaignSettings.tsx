@@ -64,6 +64,34 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({
             </div>
 
             <div className="space-y-3 pt-2">
+              <label className="text-[10px] uppercase tracking-widest font-bold opacity-50 text-white">Display</label>
+              <div className="p-4 bg-black/20 border border-[var(--line)] rounded-xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Token Names on DM Screen</h4>
+                    <p className="text-xs opacity-60 leading-relaxed text-white mt-1">
+                      Show each token's name under it on your map. Names are never shown on the Player Screen either way.
+                    </p>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={campaign.showTokenNames !== false}
+                    onClick={() => onUpdate({ ...campaign, showTokenNames: campaign.showTokenNames === false })}
+                    className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                      campaign.showTokenNames !== false ? 'bg-[var(--accent)]' : 'bg-white/15'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                        campaign.showTokenNames !== false ? 'translate-x-5' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
               <label className="text-[10px] uppercase tracking-widest font-bold opacity-50 text-white">Backup</label>
               <div className="p-4 bg-black/20 border border-[var(--line)] rounded-xl space-y-3">
                 <div>

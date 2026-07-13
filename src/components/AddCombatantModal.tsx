@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, AlertCircle, Skull, Search, Swords } from '../icons';
 import { Combatant, Monster, cn } from '../types';
@@ -26,11 +26,13 @@ interface AddCombatantModalProps {
   onClose: () => void;
   onAdd: (combatant: Omit<Combatant, 'id'>) => void;
   type: 'player' | 'npc';
+  /** When set, the modal opens pre-filled on the manual form and saves changes onto this combatant. */
+  editing?: Combatant | null;
 }
 
 type Step = 'choice' | 'manual' | 'import' | 'bestiary' | 'bestiary-customize';
 
-export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, onClose, onAdd, type }) => {
+export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, onClose, onAdd, type, editing }) => {
   const [step, setStep] = useState<Step>('choice');
   const [name, setName] = useState('');
   const [ac, setAc] = useState(10);
@@ -48,6 +50,19 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [sizeChoice, setSizeChoice] = useState<string>('Medium');
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // Editing an existing combatant: skip the choice step and pre-fill the manual form.
+  useEffect(() => {
+    if (isOpen && editing) {
+      setStep('manual');
+      setName(editing.name);
+      setAc(editing.ac ?? 10);
+      setDarkvision(editing.darkvision ?? 0);
+      setColor(editing.color || (type === 'player' ? '#3b82f6' : '#059669'));
+      setAvatar(editing.avatar ?? null);
+      setSizeChoice(editing.size || 'Medium');
+    }
+  }, [isOpen, editing, type]);
+
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -59,6 +74,21 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
 
   const handleManualAdd = () => {
     if (!name.trim()) return;
+    if (editing) {
+      // Merge edits onto the existing combatant so stats/actions from a
+      // bestiary pick or D&D Beyond import survive the edit.
+      onAdd({
+        ...editing,
+        name,
+        ac,
+        darkvision,
+        color,
+        avatar: avatar ?? undefined,
+        ...(type !== 'player' ? { size: sizeChoice } : {}),
+      });
+      resetAndClose();
+      return;
+    }
     onAdd({
       name,
       hp: 10,
@@ -179,7 +209,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--line)] bg-black/10">
             <h2 className="text-xl font-serif font-bold tracking-tight">
-              Add {type === 'player' ? 'Player' : 'NPC'}
+              {editing ? 'Edit' : 'Add'} {type === 'player' ? 'Player' : 'NPC'}
             </h2>
             <button
               onClick={resetAndClose}
@@ -349,7 +379,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
 
                 <div className="flex items-center justify-end gap-4 pt-4">
                   <button
-                    onClick={() => setStep('choice')}
+                    onClick={() => editing ? resetAndClose() : setStep('choice')}
                     className="btn-text opacity-40 hover:opacity-100"
                   >
                     Cancel
@@ -359,7 +389,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                     onClick={handleManualAdd}
                     className="btn-filled px-6 py-2.5 rounded-lg disabled:opacity-30"
                   >
-                    Add {type === 'player' ? 'Player' : 'NPC'}
+                    {editing ? 'Save Changes' : `Add ${type === 'player' ? 'Player' : 'NPC'}`}
                   </button>
                 </div>
               </div>

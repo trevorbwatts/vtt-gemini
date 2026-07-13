@@ -133,6 +133,13 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     removePlayerSpellMarkerUpdateListener: () => {
         electron_1.ipcRenderer.removeAllListeners('player-spell-marker-update');
     },
+    sendPlayerEmanationsUpdate: (emanations) => electron_1.ipcRenderer.send('player-emanations-update', emanations),
+    onPlayerEmanationsUpdate: (callback) => {
+        electron_1.ipcRenderer.on('player-emanations-update', (_event, emanations) => callback(emanations));
+    },
+    removePlayerEmanationsUpdateListener: () => {
+        electron_1.ipcRenderer.removeAllListeners('player-emanations-update');
+    },
     sendPlayerWildShape: (data) => electron_1.ipcRenderer.send('player-wild-shape', data),
     onPlayerWildShape: (callback) => {
         electron_1.ipcRenderer.on('player-wild-shape', (_event, data) => callback(data));

@@ -26,7 +26,7 @@ function getMapInteraction(spell: any, dbEntry?: any): 'cast' | 'place' | 'cast-
 }
 
 // ─── Sign-in spot types ───
-type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'left';
+type SpotId = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 const SPOT_IDS: SpotId[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 const AOE_ICONS: Record<string, React.FC<{ size?: number; className?: string }>> = {
@@ -1322,7 +1322,6 @@ export function PlayerScreen() {
   const [signedInSpots, setSignedInSpots] = useState<Record<SpotId, string | null>>({
     'top-left': null, 'top-right': null,
     'bottom-left': null, 'bottom-right': null,
-    'left': null,
   });
   const [activePickerSpots, setActivePickerSpots] = useState<Set<SpotId>>(new Set());
 

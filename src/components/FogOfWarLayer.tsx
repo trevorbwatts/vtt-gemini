@@ -12,10 +12,22 @@ interface FogOfWarLayerProps {
   /** Darkvision-limited LOS polygons used to re-erase fog inside dark zones —
    *  so a token with darkvision can still see partway into a dark room. */
   darkvisionRevealPolygons?: WallPoint[][];
+  /** StarCraft-style explored-area memory: a (possibly downscaled) canvas of
+   *  the map terrain pre-dimmed by EXPLORED_DIM and masked to areas players
+   *  have ever seen. Painted ON TOP of the fog (source-atop) so the fog stays
+   *  fully opaque — tokens underneath are properly occluded, while explored
+   *  terrain still reads through as dim "memory". */
+  exploredOverlayCanvas?: HTMLCanvasElement | null;
+  /** Bumped whenever the overlay canvas contents change, to trigger a redraw. */
+  exploredMaskVersion?: number;
   mapWidth: number;
   mapHeight: number;
   opacity: number;
 }
+
+/** How much explored-but-not-visible terrain is darkened.
+ *  0.65 → terrain shows at 35% brightness on the player screen. */
+export const EXPLORED_DIM = 0.65;
 
 export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
   visibilityPolygons,
@@ -23,14 +35,29 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
   lightPolygons,
   darkZonePolygons = [],
   darkvisionRevealPolygons = [],
+  exploredOverlayCanvas = null,
+  exploredMaskVersion = 0,
   mapWidth,
   mapHeight,
   opacity,
 }) => {
+  // Konva only redraws when an attr changes; reference the version so the
+  // sceneFunc closure is new (and the layer repaints) after async mask updates.
+  void exploredMaskVersion;
   return (
     <Shape
       sceneFunc={(ctx) => {
         const c = ctx._context as CanvasRenderingContext2D;
+
+        /** Trace a closed polygon path onto the context (no fill/stroke). */
+        const trace = (polygon: WallPoint[]) => {
+          c.beginPath();
+          c.moveTo(polygon[0].x, polygon[0].y);
+          for (let i = 1; i < polygon.length; i++) {
+            c.lineTo(polygon[i].x, polygon[i].y);
+          }
+          c.closePath();
+        };
 
         c.save();
 
@@ -48,37 +75,62 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
 
         for (const polygon of visibilityPolygons) {
           if (polygon.length < 3) continue;
-          c.beginPath();
-          c.moveTo(polygon[0].x, polygon[0].y);
-          for (let i = 1; i < polygon.length; i++) {
-            c.lineTo(polygon[i].x, polygon[i].y);
-          }
-          c.closePath();
+          trace(polygon);
           c.fillStyle = 'black';
           c.fill();
         }
 
+        // ── Dark Zones ──
+        // Re-fog the inside of every dark-zone polygon so the floor goes dark
+        // even though the LOS reveal above cleared it. Erase first, then paint,
+        // so partially-fogged areas end up at a uniform opacity instead of
+        // stacking darker than the surrounding fog (visible at DM preview opacity).
+        if (darkZonePolygons.length) {
+          c.globalCompositeOperation = 'destination-out';
+          c.fillStyle = 'black';
+          for (const polygon of darkZonePolygons) {
+            if (polygon.length < 3) continue;
+            trace(polygon);
+            c.fill();
+          }
+          c.globalCompositeOperation = 'source-over';
+          c.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+          for (const polygon of darkZonePolygons) {
+            if (polygon.length < 3) continue;
+            trace(polygon);
+            c.fill();
+          }
+
+          // Darkvision-limited LOS: tokens with darkvision/blindsight see partway in.
+          if (darkvisionRevealPolygons.length) {
+            c.globalCompositeOperation = 'destination-out';
+            c.fillStyle = 'black';
+            for (const polygon of darkvisionRevealPolygons) {
+              if (polygon.length < 3) continue;
+              trace(polygon);
+              c.fill();
+            }
+          }
+        }
+
         // Light-source visibility: erase fog where a player has LOS to a lit area.
-        // Uses canvas clip() to compute the intersection of player LOS and light
-        // illumination without any polygon math — clip() restricts all drawing to
-        // the player's LOS polygon, so only the overlap with the light polygon is erased.
+        // Runs AFTER the dark-zone re-fog so torches and other light sources carve
+        // into dark zones too. Uses canvas clip() to compute the intersection of
+        // player LOS and light illumination without any polygon math — clip()
+        // restricts all drawing to the player's LOS polygon, so only the overlap
+        // with the light polygon is erased.
         if (playerLOSPolygons.length && lightPolygons.length) {
+          c.globalCompositeOperation = 'destination-out';
           for (const losPolygon of playerLOSPolygons) {
             if (losPolygon.length < 3) continue;
             for (const lightPolygon of lightPolygons) {
               if (lightPolygon.length < 3) continue;
               c.save();
               // Clip to player's line-of-sight (walls block vision from player's side)
-              c.beginPath();
-              c.moveTo(losPolygon[0].x, losPolygon[0].y);
-              for (let i = 1; i < losPolygon.length; i++) c.lineTo(losPolygon[i].x, losPolygon[i].y);
-              c.closePath();
+              trace(losPolygon);
               c.clip();
               // Erase the light's illumination polygon within the clip
-              c.beginPath();
-              c.moveTo(lightPolygon[0].x, lightPolygon[0].y);
-              for (let i = 1; i < lightPolygon.length; i++) c.lineTo(lightPolygon[i].x, lightPolygon[i].y);
-              c.closePath();
+              trace(lightPolygon);
               c.fillStyle = 'black';
               c.fill();
               c.restore();
@@ -86,38 +138,16 @@ export const FogOfWarLayer: React.FC<FogOfWarLayerProps> = ({
           }
         }
 
-        // ── Dark Zones ──
-        // Re-paint fog inside any dark-zone polygons so the floor goes dark
-        // even though the LOS reveal above cleared it. Then erase again using
-        // darkvision-limited LOS so tokens with darkvision can see partway in.
-        if (darkZonePolygons.length) {
-          c.globalCompositeOperation = 'source-over';
-          c.fillStyle = `rgba(0, 0, 0, ${opacity})`;
-          for (const polygon of darkZonePolygons) {
-            if (polygon.length < 3) continue;
-            c.beginPath();
-            c.moveTo(polygon[0].x, polygon[0].y);
-            for (let i = 1; i < polygon.length; i++) {
-              c.lineTo(polygon[i].x, polygon[i].y);
-            }
-            c.closePath();
-            c.fill();
-          }
-
-          if (darkvisionRevealPolygons.length) {
-            c.globalCompositeOperation = 'destination-out';
-            for (const polygon of darkvisionRevealPolygons) {
-              if (polygon.length < 3) continue;
-              c.beginPath();
-              c.moveTo(polygon[0].x, polygon[0].y);
-              for (let i = 1; i < polygon.length; i++) {
-                c.lineTo(polygon[i].x, polygon[i].y);
-              }
-              c.closePath();
-              c.fillStyle = 'black';
-              c.fill();
-            }
-          }
+        // ── Explored memory (StarCraft-style) ──
+        // Paint pre-dimmed terrain on top of the remaining fog. source-atop
+        // only draws where fog still exists, so currently-visible areas (fog
+        // fully erased) are untouched, explored areas show dim terrain, and
+        // never-seen areas stay black (the overlay is transparent there).
+        // Because the fog itself stays opaque, tokens underneath are occluded
+        // exactly at the visibility boundary — a half-exposed token shows half.
+        if (exploredOverlayCanvas) {
+          c.globalCompositeOperation = 'source-atop';
+          c.drawImage(exploredOverlayCanvas, 0, 0, mapWidth, mapHeight);
         }
 
         // Reset compositing

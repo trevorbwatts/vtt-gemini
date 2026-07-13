@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
+import Konva from 'konva';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke, Extra } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
 import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid, Pencil, Eraser, Volume2 } from '../icons';
@@ -11,7 +12,11 @@ import { Lock, Unlock } from 'lucide-react';
 import { constrainPositionAgainstWalls, getTokenCollisionRadius } from '../utils/wallCollision';
 import type { Viewpoint } from '../types';
 import { extractBlockingSegments, computeVisibilityPolygon, clipPolygonToCircle, computeRadiusLimitedVisibilityPolygon } from '../utils/visibility';
-import { FogOfWarLayer } from './FogOfWarLayer';
+import { FogOfWarLayer, EXPLORED_DIM } from './FogOfWarLayer';
+import {
+  exploredFogKey, getExploredFogEntry, getExploredFogVersion,
+  stampExploredFog, resetExploredFog, subscribeExploredFog,
+} from '../utils/exploredFog';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
 import { audioEngine, soundUrlFromId } from '../services/audioEngine';
@@ -24,3535 +29,62 @@ import { lookupSpell } from '../data/spellDatabase';
 import { parseDamageType, getDamageRgb } from '../utils/damageColors';
 import type { SpellMarker } from '../types';
 
-/** Ray-casting point-in-polygon test for a flat [x0,y0,x1,y1,...] vertex array. */
-function pointInFlatPolygon(px: number, py: number, pts: number[]): boolean {
-  let inside = false;
-  const n = pts.length / 2;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = pts[i * 2], yi = pts[i * 2 + 1];
-    const xj = pts[j * 2], yj = pts[j * 2 + 1];
-    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-/** Axis-aligned bounding box of a flat [x0,y0,...] polygon. */
-function polygonBounds(pts: number[]): { x: number; y: number; width: number; height: number } {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (let i = 0; i < pts.length; i += 2) {
-    minX = Math.min(minX, pts[i]); maxX = Math.max(maxX, pts[i]);
-    minY = Math.min(minY, pts[i + 1]); maxY = Math.max(maxY, pts[i + 1]);
-  }
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-}
-
-/** Average of a flat [x0,y0,...] polygon's vertices. */
-function polygonCentroid(pts: number[]): { x: number; y: number } {
-  let sx = 0, sy = 0;
-  const n = pts.length / 2;
-  for (let i = 0; i < pts.length; i += 2) { sx += pts[i]; sy += pts[i + 1]; }
-  return { x: sx / n, y: sy / n };
-}
-
-interface MapViewProps {
-  tokens: Token[];
-  onTokensChange: (tokens: Token[]) => void;
-  scenarioName: string;
-  mapImage: string | undefined;
-  onMapChange: (mapImage: string) => void;
-  mapNotes: MapNote[];
-  onMapNotesChange: (notes: MapNote[]) => void;
-  players: Combatant[];
-  npcs: Combatant[];
-  persistentEnemies: Combatant[];
-  scenarioCombatants: Combatant[];
-  activeCombatants: Combatant[];
-  onUpdateCombatantHp: (sourceCombatantId: string, delta: number) => void;
-  onAddCondition?: (sourceCombatantId: string, condition: string) => void;
-  onRemoveCondition?: (sourceCombatantId: string, condition: string) => void;
-  onAddEnemy: (monster: Monster, x: number, y: number) => void;
-  onAddSummonCombatant?: (combatant: Combatant, tokenId: string) => void;
-  onStartCombat: (tokenIds: string[]) => void;
-  leftSidebarOpen: boolean;
-  setLeftSidebarOpen: (open: boolean) => void;
-  onNoteClick?: (noteId: string) => void;
-  onAddScenario?: () => void;
-  panToNote?: MapNote | null;
-  isPlayerView?: boolean;
-  /** When set on the DM view, the fog of war is restricted to JUST this player's
-   *  vision (darkvision + LOS, just like the player screen). All other DM
-   *  interactions remain enabled. */
-  dmViewAsPlayerId?: string | null;
-  /** Combatant IDs that this viewer "is" — used to restrict spell-marker dragging
-   *  and double-tap dismiss on the player screen to the actual caster. Unused in
-   *  DM view (DM can always interact). */
-  viewerCasterIds?: string[];
-  walls?: WallSegment[];
-  objectWalls?: WallSegment[];
-  portals?: Portal[];
-  gridResolution?: GridResolution;
-  lights?: UVTTLight[];
-  onWallDataChange?: (walls: WallSegment[], objectWalls: WallSegment[], portals: Portal[], gridResolution: GridResolution, lights?: UVTTLight[]) => void;
-  onPortalToggle?: (portalId: string) => void;
-  onPortalTypeChange?: (portalId: string, type: 'door' | 'window' | 'secret', locked?: boolean) => void;
-  onDragStatusChange?: (isDragging: boolean) => void;
-  onViewportCenter?: (center: { x: number; y: number }) => void;
-  viewportCenter?: { x: number; y: number } | null;
-  selectedTokenId?: string | null;
-  onSelectedTokenIdChange?: (id: string | null) => void;
-  selectedTokenIds?: string[];
-  onSelectedTokenIdsChange?: (ids: string[]) => void;
-  darknessLevel?: 'daylight' | 'dark';
-  onDarknessLevelChange?: (level: 'daylight' | 'dark') => void;
-  /** Ref that MapView populates so external code (e.g. player drawers) can trigger AoE spell casting */
-  startCastingRef?: React.MutableRefObject<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string; mapInteraction?: string; saveEffect?: string; condition?: string }, combatantId: string) => void) | null>;
-  /** Ref that MapView populates so external code can trigger spell marker placement */
-  startPlacingRef?: React.MutableRefObject<((spell: { name: string; school?: string; effectRadius?: number; aoeType?: string; aoeSize?: number; range?: number; shapeType?: 'point' | 'wall' | 'ring'; maxLength?: number; maxThickness?: number; blocksVision?: boolean; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean }, combatantId: string) => void) | null>;
-  /** Ref that MapView populates so external code can add spell markers directly (no interactive placement) */
-  addMarkersDirectlyRef?: React.MutableRefObject<((markers: import('../types').SpellMarker[]) => void) | null>;
-  /** Ref that MapView populates so external code can cancel placed AoE */
-  cancelCastingRef?: React.MutableRefObject<(() => void) | null>;
-  /** Ref that MapView populates so external code can start Enlarge/Reduce token targeting */
-  startEnlargeReduceRef?: React.MutableRefObject<((mode: 'enlarge' | 'reduce', casterId: string) => void) | null>;
-  /** Ref that MapView populates so players can enter ruler/measure mode */
-  startMeasuringRef?: React.MutableRefObject<((edge: 'top' | 'bottom' | 'left') => void) | null>;
-  /** Ref that MapView populates so players can cancel measure mode */
-  cancelMeasuringRef?: React.MutableRefObject<(() => void) | null>;
-  /** Called with the current measured distance in feet as the player drags (null when cleared) */
-  onMeasureDistanceChange?: (feet: number | null) => void;
-  /** Ref that MapView populates so external code can confirm cast (roll saves) */
-  confirmCastRef?: React.MutableRefObject<(() => boolean) | null>;
-  /** Called when placed AoE is dismissed (by any means) */
-  onCastingDismissed?: () => void;
-  /** Ref that MapView populates so external code (e.g. DM apply-damage) can immediately clear the remote AoE */
-  clearRemoteAoeRef?: React.MutableRefObject<(() => void) | null>;
-  /** Called when tokens in AoE changes — passes combatant IDs of affected tokens */
-  onAoeHighlightsChange?: (data: { affectedCombatantIds: string[]; saveResults: Record<string, SaveResult> | null; spellName?: string; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; spellDesc?: string; saveEffect?: string; condition?: string } | null) => void;
-  /** Ref that MapView populates so external code (e.g. CombatView "Next Turn") can clear movement paths */
-  clearMovementPathsRef?: React.MutableRefObject<(() => void) | null>;
-  /** Ref that MapView populates so external code can undo a specific token's movement */
-  undoMovementRef?: React.MutableRefObject<((tokenId: string) => void) | null>;
-  /** Called when a cast-and-emanate spell is confirmed — parent should create the persistent emanation */
-  onEmanationCast?: (spellName: string, casterId: string) => void;
-  /** Called when the set of tokens with completed movement paths changes */
-  onMovementPathTokensChange?: (tokenIds: Set<string>) => void;
-  /** ID of the currently active combatant (for turn indicator) */
-  activeCombatantId?: string | null;
-  /** Called when a player double-taps their own token; provides screen coordinates for ring positioning */
-  onPlayerTokenDoubleTap?: (tokenId: string, screenX: number, screenY: number) => void;
-  /** Set of combatant IDs currently targeted by players */
-  targetedCombatantIds?: Set<string>;
-  /** Called when a player taps an enemy token to toggle targeting */
-  onToggleTarget?: (combatantId: string) => void;
-  /** Called when a player taps empty space to clear all targets */
-  onClearTargets?: () => void;
-  viewpoints?: Viewpoint[];
-  onViewpointsChange?: (viewpoints: Viewpoint[]) => void;
-  /** Current active floor ID for floor-aware token placement */
-  activeFloorId?: string | null;
-  /** All floors in the current scenario (for transition zone config) */
-  floors?: Floor[];
-  /** Callback to update transition zones on the active floor */
-  onTransitionZonesChange?: (zones: TransitionZone[]) => void;
-  /** Switch the active floor (for two-step transition zone drawing) */
-  onSwitchFloor?: (floorId: string) => void;
-  /** Always switch the *real* active floor when a token transitions through a zone.
-   *  Distinct from `onSwitchFloor` because secondary panels in split view rewire
-   *  `onSwitchFloor` to only change their own panel; transitions must affect the
-   *  whole view regardless of which panel they fire from. */
-  onTransitionToFloor?: (floorId: string) => void;
-  /** Update a specific floor by ID (for cross-floor operations) */
-  onUpdateFloorById?: (floorId: string, updater: (floor: Floor) => Floor) => void;
-  /** Move every player token (across all floors) to a 2×2 grid around the given point */
-  onMoveAllPlayersHere?: (x: number, y: number, floorId: string, spacingPx: number) => void;
-  /** Whether this is the primary (left-most) map panel */
-  isPrimary?: boolean;
-  /** Spell markers placed on the map */
-  spellMarkers?: import('../types').SpellMarker[];
-  /** Callback to update spell markers */
-  onSpellMarkersChange?: (markers: import('../types').SpellMarker[]) => void;
-  /** Tremorsense data — when active, reveals nearby enemy/NPC tokens as grey circles above fog */
-  tremorsenseData?: { playerId: string; rangeFt: number } | null;
-  /** Detect Magic data — when active, reveals 'magic' type map notes within range below fog */
-  detectMagicData?: { playerId: string; rangeFt: number } | null;
-  detectPoisonData?: { playerId: string; rangeFt: number } | null;
-
-  /** Active emanation rings that follow their casters */
-  activeEmanations?: import('../types').ActiveEmanation[];
-  /** Whether any player has See Invisibility active (player view only) */
-  seeInvisibility?: boolean;
-  /** Active timers for tokens to display countdown rings */
-  activeTimers?: import('../types').TokenTimer[];
-  /** Maps combatantId → which side of the table the player signed in on, for avatar rotation */
-  playerSides?: Record<string, 'top' | 'bottom'>;
-
-  // ── Drawings (freehand) ──
-  /** Persistent strokes for the current floor. */
-  drawings?: Stroke[];
-  /** Called when persistent drawings change (for the active floor). */
-  onDrawingsChange?: (drawings: Stroke[]) => void;
-  /** Ref MapView populates so the player banner can enter drawing mode. */
-  startDrawingRef?: React.MutableRefObject<((opts: { mode: 'persistent' | 'ephemeral' | 'eraser'; color: string; ownerId?: string }) => void) | null>;
-  /** Ref MapView populates so the player banner can leave drawing mode. */
-  cancelDrawingRef?: React.MutableRefObject<(() => void) | null>;
-  /** Ref MapView populates so the banner can clear all strokes drawn in the current pencil session. */
-  clearDrawingSessionRef?: React.MutableRefObject<(() => void) | null>;
-  /** Ref MapView populates so the banner can update the active drawing color/mode without re-entering. */
-  setDrawingOptionsRef?: React.MutableRefObject<((opts: { mode?: 'persistent' | 'ephemeral' | 'eraser'; color?: string }) => void) | null>;
-  /** Promote an Extra token into a real Combatant using the chosen monster's statblock. */
-  onPromoteExtra?: (tokenId: string, monster: Monster, opts: { combatantType: 'enemy' | 'npc'; size: string }) => void;
-
-  // ── Ping ──
-  /** Enter one-shot ping mode — next map click drops a ping. */
-  startPingRef?: React.MutableRefObject<((opts: { color: string }) => void) | null>;
-  /** Exit ping mode without dropping a ping. */
-  cancelPingRef?: React.MutableRefObject<(() => void) | null>;
-  /** Drop a ping at the given canvas coords (used to render pings received from the other window). */
-  triggerPingRef?: React.MutableRefObject<((opts: { x: number; y: number; color: string }) => void) | null>;
-  /** Called when the local user drops a ping by clicking — parent uses this to broadcast. */
-  onPingDrop?: (opts: { x: number; y: number; color: string }) => void;
-
-  // ── Sound zones (Tier 2) ──
-  /** Painted sound zones on the active floor — rendered as DM-only polygon overlays. */
-  soundZones?: import('../types').SoundZone[];
-  /** Called when zones change (commit/edit/delete from inside MapView). */
-  onSoundZonesChange?: (zones: import('../types').SoundZone[]) => void;
-  /**
-   * When non-null, MapView captures clicks as polygon vertices to paint a new zone.
-   * On commit (Enter or 4+ vertices double-click), MapView calls onSoundZonePaintCommit
-   * with the points; on cancel (Escape), it calls onSoundZonePaintCancel.
-   */
-  zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
-  onSoundZonePaintCommit?: (points: number[]) => void;
-  onSoundZonePaintCancel?: () => void;
-
-  // ── Dark zones ──
-  /** Polygonal regions on the active floor that stay dark even in Daylight. */
-  darkZones?: import('../types').DarkZone[];
-  /** Called when the dark-zone list changes (delete/edit). */
-  onDarkZonesChange?: (zones: import('../types').DarkZone[]) => void;
-  /** When true, MapView captures clicks as polygon vertices for a new dark zone. */
-  darkZonePainting?: boolean;
-  /** Begin a new dark-zone paint session. */
-  onStartDarkZonePainting?: () => void;
-  /** Commit a painted dark-zone polygon (flat points array). */
-  onDarkZonePaintCommit?: (points: number[]) => void;
-  /** Cancel the current dark-zone paint session (Escape pressed or user clicked Cancel). */
-  onDarkZonePaintCancel?: () => void;
-
-  // ── Difficult terrain (DM-only; doubles measured movement cost) ──
-  /** Painted regions on the active floor that cost double movement to cross. */
-  difficultTerrain?: import('../types').DifficultTerrainZone[];
-  /** Called when the difficult-terrain list changes (delete/edit). */
-  onDifficultTerrainChange?: (zones: import('../types').DifficultTerrainZone[]) => void;
-  /** When true, MapView captures clicks as polygon vertices for a new difficult-terrain area. */
-  difficultTerrainPainting?: boolean;
-  /** Begin a new difficult-terrain paint session. */
-  onStartDifficultTerrainPainting?: () => void;
-  /** Commit a painted difficult-terrain polygon (flat points array). */
-  onDifficultTerrainPaintCommit?: (points: number[]) => void;
-  /** Cancel the current difficult-terrain paint session. */
-  onDifficultTerrainPaintCancel?: () => void;
-
-  // ── Wall painting / erasing ──
-  /** When true, MapView captures clicks as polyline vertices for a new wall. */
-  wallPainting?: boolean;
-  /** When true, clicking on an existing wall deletes it. */
-  wallErasing?: boolean;
-  /** When true, painted wall vertices snap to the nearest grid intersection. */
-  wallSnapToGrid?: boolean;
-  onStartWallPainting?: () => void;
-  onStopWallPainting?: () => void;
-  onToggleWallErasing?: () => void;
-  onToggleWallSnapToGrid?: () => void;
-  /** Replace the floor's walls array. */
-  onWallsChange?: (walls: WallSegment[]) => void;
-
-  // ── Portal placement ──
-  /** When set, MapView uses a two-click span flow to add a door or window. */
-  portalPlacementMode?: 'door' | 'window' | null;
-  onStartPortalPlacement?: (mode: 'door' | 'window') => void;
-  onStopPortalPlacement?: () => void;
-  /** Replace the floor's portals array (used by eraser to delete a portal). */
-  onPortalsChange?: (portals: Portal[]) => void;
-  /** Replace walls + portals atomically — used when splitting a wall to add a portal. */
-  onWallsAndPortalsChange?: (walls: WallSegment[], portals: Portal[]) => void;
-
-  // ── Grid calibration ──
-  /** When true, MapView captures two clicks (opposite corners of one grid square) to compute the grid. */
-  gridCalibrating?: boolean;
-  onStartGridCalibration?: () => void;
-  onStopGridCalibration?: () => void;
-  /** Called with the new GridResolution once two corners have been clicked. */
-  onGridResolutionChange?: (gr: GridResolution) => void;
-
-  // ── Floor audio (ambient sound) ──
-  /** Open the SoundPicker for the active floor's ambient ("floor bed") sound. */
-  onOpenFloorAudioPicker?: (floorId: string) => void;
-  /** Clear the active floor's ambient sound. */
-  onClearFloorAudio?: (floorId: string) => void;
-  /** Open the Sound Zones panel for the active floor. */
-  onOpenSoundZones?: () => void;
-}
-
-const SCHOOL_COLORS: Record<string, string> = {
-  Abjuration: '#3b82f6',
-  Conjuration: '#f59e0b',
-  Divination: '#c0c0c0',
-  Enchantment: '#ec4899',
-  Evocation: '#ef4444',
-  Illusion: '#a855f7',
-  Necromancy: '#22c55e',
-  Transmutation: '#f97316',
-};
-
-function hexToRgb(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `${r},${g},${b}`;
-}
-
-// Per-spell color overrides (take priority over school color)
-const SPELL_COLOR_OVERRIDES: Record<string, string> = {
-  'Mage Hand': '#1d4ed8',
-  'Arcane Gate (Near)': '#06b6d4',
-  'Arcane Gate (Far)': '#0891b2',
-};
-
-// Lucide icon SVG inner content (24x24 viewbox) for each spell school.
-// Rendered as stroke="white" images on a colored circle background.
-const SCHOOL_ICON_SVGS: Record<string, string> = {
-  Abjuration: `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>`,
-  Conjuration: `<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>`,
-  Divination: `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>`,
-  Enchantment: `<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>`,
-  Evocation: `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>`,
-  Illusion: `<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>`,
-  Necromancy: `<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>`,
-  Transmutation: `<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>`,
-};
-
-// Per-spell SVG icon overrides (take priority over school icon)
-const SPELL_ICON_SVGS: Record<string, string> = {
-  'Mage Hand': `<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>`,
-  'Cordon of Arrows': `<path d="M5 19h14"/><path d="M12 15V5"/><polyline points="8 9 12 5 16 9"/>`,
-  'Arcane Gate (Near)': `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="21"/>`,
-  'Arcane Gate (Far)': `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="3" y1="12" x2="8" y2="12"/><line x1="16" y1="12" x2="21" y2="12"/>`,
-};
-
-// Cache for rendered icon HTMLImageElements keyed by SVG content string
-const iconImageCache = new Map<string, HTMLImageElement>();
-
-function makeIconSvgUrl(svgContent: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgContent}</svg>`;
-  return 'data:image/svg+xml;base64,' + btoa(svg);
-}
-
-/** Returns a cached HTMLImageElement for an icon SVG, or null if not yet loaded. onLoad fires when ready. */
-function getIconImage(svgContent: string, onLoad?: () => void): HTMLImageElement | null {
-  if (!svgContent) return null;
-  const cached = iconImageCache.get(svgContent);
-  if (cached) return cached.complete ? cached : null;
-  const img = new window.Image();
-  img.onload = () => onLoad?.();
-  img.src = makeIconSvgUrl(svgContent);
-  iconImageCache.set(svgContent, img);
-  return null;
-}
-
-function getSchoolColor(school: string): string {
-  return SCHOOL_COLORS[school] || '#a855f7';
-}
-
-/**
- * Compute the 4 corner positions (world coordinates) of a wall-shape spell marker.
- * Order: near-left, near-right, far-right, far-left (clockwise when angle=0).
- * `length` and `thickness` are in feet; `ppg` is pixels per grid (5 ft).
- */
-function computeWallCorners(
-  x: number,
-  y: number,
-  lengthFt: number,
-  thicknessFt: number,
-  angleDeg: number,
-  ppg: number,
-): { x: number; y: number }[] {
-  const halfL = (lengthFt / 5) * ppg / 2;
-  const halfT = (thicknessFt / 5) * ppg / 2;
-  const a = angleDeg * Math.PI / 180;
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  const rot = (lx: number, ly: number) => ({
-    x: x + lx * c - ly * s,
-    y: y + lx * s + ly * c,
-  });
-  return [
-    rot(-halfL, -halfT),
-    rot(halfL, -halfT),
-    rot(halfL, halfT),
-    rot(-halfL, halfT),
-  ];
-}
-
-function getTokenSizeMultiplier(size?: Token['size']): number {
-  switch (size) {
-    case 'Tiny': return 0.5;
-    case 'Small': return 0.75;
-    case 'Large': return 2;
-    case 'Huge': return 3;
-    case 'Gargantuan': return 4;
-    default: return 1; // Medium / unset
-  }
-}
-
-export interface SaveResult {
-  roll: number;
-  modifier: number;
-  total: number;
-  success: boolean;
-  name: string;
-}
-
-type AoeState = {
-  name: string;
-  aoeType: 'sphere' | 'cone' | 'line' | 'cube' | 'cylinder' | 'emanation';
-  aoeSize: number;
-  x: number;
-  y: number;
-  originX: number;
-  originY: number;
-  angle: number;
-  casterRadiusPx: number;
-  selfOrigin?: boolean;
-  saveAbility?: string;
-  saveDc?: number;
-  halfDamageOnSave?: boolean;
-  spellDesc?: string;
-  damageType?: string;
-  saveResults?: Record<string, SaveResult>;
-  mapInteraction?: string;
-  saveEffect?: string;
-  condition?: string;
-  casterId?: string;
-};
-
-/** Determine which tokens overlap a placed AoE shape */
-function getTokensInAoe(
-  aoe: AoeState | null,
-  tokens: Token[],
-  pixelsPerGrid: number,
-  tokenRadius: number,
-): Set<string> {
-  if (!aoe) return new Set();
-  const feetToPx = (ft: number) => (ft / 5) * pixelsPerGrid;
-  const sizePx = feetToPx(aoe.aoeSize);
-  const angleRad = aoe.angle * (Math.PI / 180);
-  const edgeX = aoe.originX + Math.cos(angleRad) * aoe.casterRadiusPx;
-  const edgeY = aoe.originY + Math.sin(angleRad) * aoe.casterRadiusPx;
-
-  const result = new Set<string>();
-
-  for (const token of tokens) {
-    const tr = tokenRadius * getTokenSizeMultiplier(token.size);
-    const tx = token.x;
-    const ty = token.y;
-    let hit = false;
-
-    // Exclude the caster's own token for self-origin spells, cones/lines, and emanations
-    const isAnchoredToCaster = aoe.selfOrigin || aoe.aoeType === 'cone' || aoe.aoeType === 'line' || aoe.aoeType === 'emanation';
-    if (isAnchoredToCaster) {
-      const distToOrigin = Math.sqrt((tx - aoe.originX) ** 2 + (ty - aoe.originY) ** 2);
-      if (distToOrigin < aoe.casterRadiusPx + 2) continue;
-    }
-
-    switch (aoe.aoeType) {
-      case 'emanation': {
-        // Sphere centered on caster — radius measured from caster's edge
-        hit = Math.sqrt((tx - aoe.originX) ** 2 + (ty - aoe.originY) ** 2) < sizePx + aoe.casterRadiusPx + tr;
-        break;
-      }
-      case 'sphere':
-      case 'cylinder': {
-        const cx = aoe.selfOrigin
-          ? aoe.originX + Math.cos(angleRad) * (aoe.casterRadiusPx + sizePx)
-          : aoe.x;
-        const cy = aoe.selfOrigin
-          ? aoe.originY + Math.sin(angleRad) * (aoe.casterRadiusPx + sizePx)
-          : aoe.y;
-        hit = Math.sqrt((tx - cx) ** 2 + (ty - cy) ** 2) < sizePx + tr;
-        break;
-      }
-      case 'cube': {
-        if (aoe.selfOrigin) {
-          const dx = tx - edgeX;
-          const dy = ty - edgeY;
-          const localFwd = dx * Math.cos(angleRad) + dy * Math.sin(angleRad);
-          const localPerp = -dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
-          hit = localFwd > -tr && localFwd < sizePx + tr && Math.abs(localPerp) < sizePx / 2 + tr;
-        } else {
-          hit = Math.abs(tx - aoe.x) < sizePx / 2 + tr && Math.abs(ty - aoe.y) < sizePx / 2 + tr;
-        }
-        break;
-      }
-      case 'cone': {
-        const dx = tx - edgeX;
-        const dy = ty - edgeY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > sizePx + tr) break;
-        if (dist < tr) { hit = true; break; }
-        const tokenAngle = Math.atan2(dy, dx);
-        let angleDiff = tokenAngle - angleRad;
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-        const halfAngle = (53 / 2) * (Math.PI / 180);
-        hit = Math.abs(angleDiff) < halfAngle + Math.atan2(tr, dist);
-        break;
-      }
-      case 'line': {
-        const halfWidth = feetToPx(5) / 2;
-        const dx = tx - edgeX;
-        const dy = ty - edgeY;
-        const localFwd = dx * Math.cos(angleRad) + dy * Math.sin(angleRad);
-        const localPerp = -dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
-        hit = localFwd > -tr && localFwd < sizePx + tr && Math.abs(localPerp) < halfWidth + tr;
-        break;
-      }
-    }
-    if (hit) result.add(token.id);
-  }
-  return result;
-}
-
-const TOKEN_IMAGE_CACHE_MAX = 50;
-const tokenImageCache = new Map<string, HTMLImageElement>();
-
-const TokenAvatar: React.FC<{ url: string; radius: number }> = ({ url, radius }) => {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    if (!url) return;
-    if (tokenImageCache.has(url)) {
-      // Move to end (most recently used) for LRU ordering
-      const cached = tokenImageCache.get(url)!;
-      tokenImageCache.delete(url);
-      tokenImageCache.set(url, cached);
-      setImage(cached);
-      return;
-    }
-    const img = new window.Image();
-    img.src = url;
-    img.onload = () => {
-      // Evict oldest entry if cache is full
-      if (tokenImageCache.size >= TOKEN_IMAGE_CACHE_MAX) {
-        const oldest = tokenImageCache.keys().next().value;
-        if (oldest !== undefined) tokenImageCache.delete(oldest);
-      }
-      tokenImageCache.set(url, img);
-      setImage(img);
-    };
-  }, [url]);
-
-  if (!image) return null;
-
-  const size = radius * 2;
-  const minDim = Math.min(image.width, image.height);
-
-  return (
-    <KonvaImage
-      image={image}
-      width={size}
-      height={size}
-      x={-radius}
-      y={-radius}
-      cornerRadius={radius}
-      crop={{
-        x: (image.width - minDim) / 2,
-        y: (image.height - minDim) / 2,
-        width: minDim,
-        height: minDim,
-      }}
-    />
-  );
-};
-
-/**
- * Static glowing ring around the active combatant's token.
- * No animation — avoids interfering with the Konva layer's rendering.
- */
-const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; color?: string }> = ({ radius, tokenScale, color }) => {
-  const ringColor = color || '#fbbf24';
-  return (
-    <>
-      {/* Outer glow — no shadowBlur for GPU perf */}
-      <Circle
-        radius={radius + 6 * tokenScale}
-        fill=""
-        stroke={ringColor}
-        strokeWidth={3 * tokenScale}
-        opacity={0.15}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-      {/* Mid glow */}
-      <Circle
-        radius={radius + 5 * tokenScale}
-        fill=""
-        stroke={ringColor}
-        strokeWidth={1.5 * tokenScale}
-        opacity={0.3}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-      {/* Inner bright ring */}
-      <Circle
-        radius={radius + 3 * tokenScale}
-        fill=""
-        stroke={ringColor}
-        strokeWidth={2.5 * tokenScale}
-        opacity={0.85}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    </>
-  );
-};
-
-/** Target ring — red crosshair-style indicator for targeted monsters */
-const TargetRing: React.FC<{ radius: number; tokenScale: number }> = ({ radius, tokenScale }) => {
-  const r = radius + 5 * tokenScale;
-  const dashLen = r * 0.35;
-  return (
-    <Circle
-      radius={r}
-      fill=""
-      stroke="#ef4444"
-      strokeWidth={2.5 * tokenScale}
-      opacity={0.9}
-      dash={[dashLen, dashLen]}
-      listening={false}
-      perfectDrawEnabled={false}
-    />
-  );
-};
-
-/** Animated countdown ring for abilities with a duration */
-const CountdownRing: React.FC<{ radius: number; tokenScale: number; startTime: number; durationMs: number; color?: string }> = ({ radius, tokenScale, startTime, durationMs, color }) => {
-  const [remainingRatio, setRemainingRatio] = useState(() => {
-    const elapsed = Date.now() - startTime;
-    return Math.max(0, 1 - elapsed / durationMs);
-  });
-
-  useEffect(() => {
-    let frameId: number;
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const ratio = 1 - elapsed / durationMs;
-      if (ratio <= 0) {
-        setRemainingRatio(0);
-        return;
-      }
-      setRemainingRatio(ratio);
-      frameId = requestAnimationFrame(animate);
-    };
-    frameId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameId);
-  }, [startTime, durationMs]);
-
-  if (remainingRatio <= 0) return null;
-
-  return (
-    <Arc
-      angle={360 * remainingRatio}
-      rotation={-90 + 360 * (1 - remainingRatio)} /* Move starting angle clockwise as time drains */
-      innerRadius={radius + 4 * tokenScale}
-      outerRadius={radius + 8 * tokenScale}
-      fill={color || '#fcd34d'}
-      opacity={0.8}
-      listening={false}
-      perfectDrawEnabled={false}
-    />
-  );
-};
-
-/**
- * Fire particles streaming outward from the hot face of Wall of Fire.
- * p0/p1 are the two endpoints of the hot edge in layer/world coords.
- * normalX/normalY is the unit vector pointing away from that face.
- */
-const WallOfFireParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 90;
-  const BASE_PERIOD = 1300;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);                            // position along edge 0..1
-    const drift = wallLen * (0.05 + rand(i, 4) * 0.16);  // outward drift distance
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.015; // tiny sideways wobble
-    const sizeMul = 0.3 + rand(i, 6) * 0.85;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * phase * drift;
-    const y = by + normalY * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.45));
-    const warm = rand(i, 9);
-    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wfp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#ff5a00"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Ice particles drifting outward from both faces of Wall of Ice.
- * Light blue shards, structure matches WallOfFireParticles.
- */
-const WallOfIceParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 100;
-  const BASE_PERIOD = 1700;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    const drift = wallLen * (0.04 + rand(i, 4) * 0.12);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
-    const sizeMul = 0.35 + rand(i, 6) * 0.9;
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.1 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.3));
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wip${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#a7d8ff"
-        shadowBlur={size * 3}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Ice particles for Wall of Ice (Dome). Emits from the dome circumference
- * drifting gently inward, light blue tones.
- */
-const WallOfIceDomeParticles: React.FC<{
-  cx: number;
-  cy: number;
-  radiusPx: number;
-}> = ({ cx, cy, radiusPx }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (radiusPx < 1) return null;
-
-  const COUNT = 90;
-  const BASE_PERIOD = 1800;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const baseAngle = rand(i, 3) * Math.PI * 2;
-    const drift = radiusPx * (0.1 + rand(i, 4) * 0.2);
-    const jitter = (rand(i, 5) - 0.5) * 0.04;
-    const sizeMul = 0.3 + rand(i, 6) * 0.85;
-    // Mix: mostly inward, some outward for "frost shedding" feel
-    const dir = rand(i, 11) < 0.7 ? -1 : 1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const angle = baseAngle + jitter;
-    const nx = Math.cos(angle) * dir;
-    const ny = Math.sin(angle) * dir;
-    const bx = cx + Math.cos(angle) * radiusPx;
-    const by = cy + Math.sin(angle) * radiusPx;
-    const x = bx + nx * phase * drift;
-    const y = by + ny * phase * drift;
-
-    const fadeIn = 0.1 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.35));
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`widp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#a7d8ff"
-        shadowBlur={size * 3}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Force particles shimmering along both faces of Wall of Force.
- * Purple/violet tones, bidirectional like WallOfIceParticles.
- */
-const WallOfForceParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 100;
-  const BASE_PERIOD = 1800;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    const drift = wallLen * (0.03 + rand(i, 4) * 0.1);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
-    const sizeMul = 0.35 + rand(i, 6) * 0.9;
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.1 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.3));
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#f3e8ff' : shade > 0.33 ? '#c084fc' : '#a855f7';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wfp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#c084fc"
-        shadowBlur={size * 3}
-        shadowOpacity={0.9}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Force particles for Wall of Force (Dome). Emits along the dome circumference,
- * drifting gently, purple/violet tones.
- */
-const WallOfForceDomeParticles: React.FC<{
-  cx: number;
-  cy: number;
-  radiusPx: number;
-}> = ({ cx, cy, radiusPx }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (radiusPx < 1) return null;
-
-  const COUNT = 90;
-  const BASE_PERIOD = 1900;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const baseAngle = rand(i, 3) * Math.PI * 2;
-    const drift = radiusPx * (0.08 + rand(i, 4) * 0.18);
-    const jitter = (rand(i, 5) - 0.5) * 0.04;
-    const sizeMul = 0.3 + rand(i, 6) * 0.85;
-    const dir = rand(i, 11) < 0.5 ? -1 : 1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const angle = baseAngle + jitter;
-    const nx = Math.cos(angle) * dir;
-    const ny = Math.sin(angle) * dir;
-    const bx = cx + Math.cos(angle) * radiusPx;
-    const by = cy + Math.sin(angle) * radiusPx;
-    const x = bx + nx * phase * drift;
-    const y = by + ny * phase * drift;
-
-    const fadeIn = 0.1 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.35));
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#f3e8ff' : shade > 0.33 ? '#c084fc' : '#a855f7';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wfdp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#c084fc"
-        shadowBlur={size * 3}
-        shadowOpacity={0.9}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Wind particles streaming outward from both faces of Wind Wall.
- * Gray tones, same structure as WallOfFireParticles but bidirectional.
- */
-const WindWallParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 110;
-  const BASE_PERIOD = 1200;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);                            // position along edge 0..1
-    const drift = wallLen * (0.06 + rand(i, 4) * 0.2);   // outward drift distance
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;  // sideways wobble
-    const sizeMul = 0.3 + rand(i, 6) * 0.85;
-    // Half the particles blow to each side
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.4));
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#f0f0f0' : shade > 0.33 ? '#b5b5b5' : '#777777';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wwp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#aaaaaa"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.7}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Radiant particles streaming outward from both faces of Wall of Light.
- * Yellow/gold tones, same bidirectional structure as WindWallParticles.
- */
-const WallOfLightParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 110;
-  const BASE_PERIOD = 1400;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    const drift = wallLen * (0.06 + rand(i, 4) * 0.2);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
-    const sizeMul = 0.35 + rand(i, 6) * 0.9;
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2.2 * sizeMul * (1 - phase * 0.4));
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#fff3a3' : '#ffd84a';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wlp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#ffe066"
-        shadowBlur={size * 3}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Sand particles swirling along both faces of Wall of Sand.
- * Tan/brown tones, with a gentle swirl to feel granular and dusty.
- */
-const WallOfSandParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 140;
-  const BASE_PERIOD = 1600;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    const drift = wallLen * (0.04 + rand(i, 4) * 0.14);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.025;
-    const sizeMul = 0.25 + rand(i, 6) * 0.7;
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    // Swirl: sideways oscillation grows with phase for a dusty curl feel
-    const swirlAmp = wallLen * 0.015 * sizeMul;
-    const swirlFreq = 2 + rand(i, 12) * 3;
-    const swirl = Math.sin(phase * Math.PI * swirlFreq + rand(i, 13) * Math.PI * 2) * swirlAmp * phase;
-
-    const alongX = wallDirX * tAlong * wallLen + swirl * wallDirX;
-    const alongY = wallDirY * tAlong * wallLen + swirl * wallDirY;
-    const bx = p0.x + alongX + jitter * (-wallDirY);
-    const by = p0.y + alongY + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.12;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.5);
-    const size = Math.max(0.4, 1.6 * sizeMul * (1 - phase * 0.25));
-    const shade = rand(i, 9);
-    // Sand palette: pale dune → warm sand → dark ochre
-    const fill = shade > 0.75 ? '#f5e4b5' : shade > 0.45 ? '#d9b982' : shade > 0.2 ? '#b5894f' : '#8b6230';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wsp${i}`}
-        x={x}
-        y={y}
-        sides={4}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#c9a468"
-        shadowBlur={size * 1.8}
-        shadowOpacity={0.55}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Prismatic Wall — dense band of particles along the wall length. Color is
- * driven by the particle's position along the wall plus a time offset, so the
- * seven rainbow hues flow through the wall like colored water through a hose.
- */
-const PrismaticWallParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  // Seven prismatic layers, red → violet
-  const palette = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'];
-  const shadowPalette = ['#b91c1c', '#c2410c', '#a16207', '#15803d', '#1d4ed8', '#4338ca', '#7e22ce'];
-
-  const COUNT = 180;
-  // Speed of color flow along the wall (cycles per second)
-  const FLOW_SPEED = 0.35;
-  // How many full rainbow cycles fit along the wall length
-  const BANDS = 2.5;
-  const particles: React.ReactElement[] = [];
-
-  // Pulse period for per-particle in/out fade
-  const BASE_PERIOD = 1300;
-
-  for (let i = 0; i < COUNT; i++) {
-    const tAlong = rand(i, 3);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
-    // Small side sway around the wall plane
-    const swaySide = (rand(i, 11) - 0.5) * 2;
-    const swayAmp = wallLen * 0.012 * (0.4 + rand(i, 12) * 0.8);
-    const swayFreq = 0.8 + rand(i, 13) * 1.2;
-    const sway = Math.sin(tick / 1000 * swayFreq + rand(i, 14) * Math.PI * 2) * swayAmp * swaySide;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sway;
-    const y = by + normalY * sway;
-
-    // Color cycles based on position along the wall plus time — the "hose" flow
-    const colorPhase = (tAlong * BANDS + (tick / 1000) * FLOW_SPEED) % 1;
-    const colorIdx = Math.floor(colorPhase * palette.length) % palette.length;
-    const fill = palette[colorIdx];
-    const shadow = shadowPalette[colorIdx];
-
-    // Per-particle pulse so not every dot has the same brightness
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const pulse = ((tick / period) + offset) % 1;
-    const pulseFade = pulse < 0.5 ? pulse * 2 : (1 - pulse) * 2;
-    const opacity = 0.55 + pulseFade * 0.4;
-
-    const sizeMul = 0.4 + rand(i, 6) * 0.9;
-    const size = Math.max(0.6, 2.0 * sizeMul);
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`pwp${i}`}
-        x={x}
-        y={y}
-        sides={4}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor={shadow}
-        shadowBlur={size * 3.5}
-        shadowOpacity={0.9}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Thorn particles drifting along both faces of Wall of Thorns.
- * Green palette to evoke brambles and foliage.
- */
-const WallOfThornsParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 120;
-  const BASE_PERIOD = 1500;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    const drift = wallLen * (0.05 + rand(i, 4) * 0.18);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.02;
-    const sizeMul = 0.35 + rand(i, 6) * 0.9;
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2.2 * sizeMul * (1 - phase * 0.4));
-    const shade = rand(i, 9);
-    const fill = shade > 0.7 ? '#d1fae5' : shade > 0.4 ? '#86efac' : shade > 0.18 ? '#22c55e' : '#15803d';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wtp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#15803d"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.75}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Thorn particles for Wall of Thorns (Ring). Emits from the ring circumference
- * radially both inward and outward with a green palette.
- */
-const WallOfThornsRingParticles: React.FC<{
-  cx: number;
-  cy: number;
-  radiusPx: number;
-}> = ({ cx, cy, radiusPx }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (radiusPx < 1) return null;
-
-  const COUNT = 100;
-  const BASE_PERIOD = 1500;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
-    const offset = rand(i, 2);
-    const baseAngle = rand(i, 3) * Math.PI * 2;
-    const drift = radiusPx * (0.1 + rand(i, 4) * 0.22);
-    const jitter = (rand(i, 5) - 0.5) * 0.04;
-    const sizeMul = 0.3 + rand(i, 6) * 0.85;
-    const dir = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const angle = baseAngle + jitter;
-    const nx = Math.cos(angle) * dir;
-    const ny = Math.sin(angle) * dir;
-    const bx = cx + Math.cos(angle) * radiusPx;
-    const by = cy + Math.sin(angle) * radiusPx;
-    const x = bx + nx * phase * drift;
-    const y = by + ny * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.45));
-    const shade = rand(i, 9);
-    const fill = shade > 0.7 ? '#d1fae5' : shade > 0.4 ? '#86efac' : shade > 0.18 ? '#22c55e' : '#15803d';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wtrp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#15803d"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.8}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Soft golden motes drifting throughout a Hallow sphere. Suggests
- * hallowed/sanctified ground — slow, warm, even glow across the area.
- */
-const HallowParticles: React.FC<{
-  cx: number;
-  cy: number;
-  radiusPx: number;
-}> = ({ cx, cy, radiusPx }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (radiusPx < 1) return null;
-
-  // Density scales with area, capped so giant 60ft circles stay performant.
-  const COUNT = Math.min(220, Math.max(40, Math.round((radiusPx * radiusPx) / 110)));
-  const BASE_PERIOD = 2600;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.6 + rand(i, 1) * 1.0);
-    const offset = rand(i, 2);
-    const phase = ((tick / period) + offset) % 1;
-    // Sample uniformly inside the disc: r = R * sqrt(u)
-    const u = rand(i, 3);
-    const r = radiusPx * Math.sqrt(u);
-    const a = rand(i, 4) * Math.PI * 2;
-    // Small slow upward drift so it feels alive, not static
-    const drift = (phase - 0.5) * 4;
-    const x = cx + r * Math.cos(a);
-    const y = cy + r * Math.sin(a) - drift;
-    const fade = phase < 0.2 ? phase / 0.2 : 1 - (phase - 0.2) / 0.8;
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 5) * 0.4);
-    const size = 1.0 + rand(i, 6) * 1.6;
-    const shade = rand(i, 7);
-    const fill = shade > 0.7 ? '#fff7d6' : shade > 0.4 ? '#fde68a' : shade > 0.18 ? '#fbbf24' : '#f59e0b';
-    particles.push(
-      <Circle
-        key={`hp${i}`}
-        x={x}
-        y={y}
-        radius={size}
-        fill={fill}
-        shadowColor="#fbbf24"
-        shadowBlur={size * 2.2}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Vertical "bars" suggested by parallel rows of violet sparks across the
- * Forcecage (Cage) footprint. Bars run perpendicular to the long axis.
- */
-const ForcecageBarsParticles: React.FC<{
-  cx: number;
-  cy: number;
-  lengthPx: number;
-  thicknessPx: number;
-  angleRad: number;
-}> = ({ cx, cy, lengthPx, thicknessPx, angleRad }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (lengthPx < 1 || thicknessPx < 1) return null;
-
-  const cosA = Math.cos(angleRad);
-  const sinA = Math.sin(angleRad);
-  // Local axes: u = along length, v = along thickness
-  const ux = cosA, uy = sinA;
-  const vx = -sinA, vy = cosA;
-
-  const halfL = lengthPx / 2;
-  const halfT = thicknessPx / 2;
-
-  // Suggest bars: a regular row of "columns" running across length,
-  // each column shimmering top-to-bottom along the thickness.
-  const BAR_COUNT = Math.max(6, Math.round(lengthPx / 14));
-  const PER_BAR = 9;
-  const BASE_PERIOD = 1800;
-  const particles: React.ReactElement[] = [];
-
-  for (let b = 0; b < BAR_COUNT; b++) {
-    const uFrac = (b + 0.5) / BAR_COUNT; // 0..1
-    const u = -halfL + uFrac * lengthPx;
-    for (let k = 0; k < PER_BAR; k++) {
-      const i = b * PER_BAR + k;
-      const period = BASE_PERIOD * (0.7 + rand(i, 1) * 0.6);
-      const offset = rand(i, 2);
-      const phase = ((tick / period) + offset) % 1;
-      const vFrac = (k + rand(i, 3) * 0.6) / PER_BAR; // 0..1 along thickness
-      const v = -halfT + vFrac * thicknessPx;
-      const jitterU = (rand(i, 4) - 0.5) * 1.5;
-      const jitterV = (rand(i, 5) - 0.5) * 1.5;
-      const x = cx + (u + jitterU) * ux + (v + jitterV) * vx;
-      const y = cy + (u + jitterU) * uy + (v + jitterV) * vy;
-      const fade = phase < 0.15 ? phase / 0.15 : 1 - (phase - 0.15) / 0.85;
-      const opacity = Math.max(0, fade) * (0.5 + rand(i, 6) * 0.4);
-      const size = 1.2 + rand(i, 7) * 1.4;
-      const shade = rand(i, 8);
-      const fill = shade > 0.7 ? '#ede9fe' : shade > 0.4 ? '#c4b5fd' : shade > 0.18 ? '#a78bfa' : '#7c3aed';
-      particles.push(
-        <Circle
-          key={`fcb${i}`}
-          x={x}
-          y={y}
-          radius={size}
-          fill={fill}
-          shadowColor="#7c3aed"
-          shadowBlur={size * 2}
-          shadowOpacity={0.85}
-          opacity={opacity}
-          listening={false}
-          perfectDrawEnabled={false}
-        />
-      );
-    }
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Soft, even violet shimmer filling the Forcecage (Box) footprint.
- * Used for the solid-box variant — no visible bars.
- */
-const ForcecageBoxParticles: React.FC<{
-  cx: number;
-  cy: number;
-  lengthPx: number;
-  thicknessPx: number;
-  angleRad: number;
-}> = ({ cx, cy, lengthPx, thicknessPx, angleRad }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (lengthPx < 1 || thicknessPx < 1) return null;
-
-  const cosA = Math.cos(angleRad);
-  const sinA = Math.sin(angleRad);
-  const ux = cosA, uy = sinA;
-  const vx = -sinA, vy = cosA;
-
-  const COUNT = Math.max(40, Math.round((lengthPx * thicknessPx) / 80));
-  const BASE_PERIOD = 2000;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.6 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const phase = ((tick / period) + offset) % 1;
-    const u = (rand(i, 3) - 0.5) * lengthPx;
-    const v = (rand(i, 4) - 0.5) * thicknessPx;
-    const x = cx + u * ux + v * vx;
-    const y = cy + u * uy + v * vy;
-    const fade = phase < 0.2 ? phase / 0.2 : 1 - (phase - 0.2) / 0.8;
-    const opacity = Math.max(0, fade) * (0.35 + rand(i, 5) * 0.35);
-    const size = 1.0 + rand(i, 6) * 1.6;
-    const shade = rand(i, 7);
-    const fill = shade > 0.7 ? '#ede9fe' : shade > 0.4 ? '#c4b5fd' : '#a78bfa';
-    particles.push(
-      <Circle
-        key={`fcx${i}`}
-        x={x}
-        y={y}
-        radius={size}
-        fill={fill}
-        shadowColor="#a78bfa"
-        shadowBlur={size * 2}
-        shadowOpacity={0.7}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Stone-dust motes drifting lazily inside a Passwall passage.
- * Brown/tan palette to evoke a freshly opened tunnel through stone.
- */
-const PasswallParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 60;
-  const BASE_PERIOD = 2600;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.6 + rand(i, 1) * 1.0);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    // Drift along the long axis of the passage (rather than perpendicular)
-    const drift = wallLen * (0.2 + rand(i, 4) * 0.4);
-    // Stay within the passage thickness
-    const lateral = (rand(i, 5) - 0.5) * wallLen * 0.06;
-    const sizeMul = 0.4 + rand(i, 6) * 0.9;
-    const dirSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const baseAlong = tAlong * wallLen;
-    const along = baseAlong + dirSign * phase * drift;
-    const x = p0.x + wallDirX * along + normalX * lateral;
-    const y = p0.y + wallDirY * along + normalY * lateral;
-
-    const fadeIn = 0.1 + rand(i, 7) * 0.12;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.3 + rand(i, 8) * 0.35);
-    const size = Math.max(0.5, 1.6 * sizeMul);
-    const shade = rand(i, 9);
-    const fill = shade > 0.7 ? '#d6c4a8' : shade > 0.4 ? '#a88c66' : shade > 0.18 ? '#7a5e3e' : '#5a4226';
-
-    particles.push(
-      <Circle
-        key={`pwp${i}`}
-        x={x}
-        y={y}
-        radius={size}
-        fill={fill}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Blade shards spinning along both faces of Blade Barrier.
- * Metallic silver palette, square/diamond shapes to evoke whirling steel.
- */
-const BladeBarrierParticles: React.FC<{
-  p0: { x: number; y: number };
-  p1: { x: number; y: number };
-  normalX: number;
-  normalY: number;
-}> = ({ p0, p1, normalX, normalY }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const wallLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-  if (wallLen < 1) return null;
-  const wallDirX = (p1.x - p0.x) / wallLen;
-  const wallDirY = (p1.y - p0.y) / wallLen;
-
-  const COUNT = 130;
-  const BASE_PERIOD = 1100;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const tAlong = rand(i, 3);
-    const drift = wallLen * (0.04 + rand(i, 4) * 0.16);
-    const jitter = (rand(i, 5) - 0.5) * wallLen * 0.025;
-    const sizeMul = 0.4 + rand(i, 6) * 1.0;
-    const sideSign = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const bx = p0.x + wallDirX * tAlong * wallLen + jitter * (-wallDirY);
-    const by = p0.y + wallDirY * tAlong * wallLen + jitter * wallDirX;
-    const x = bx + normalX * sideSign * phase * drift;
-    const y = by + normalY * sideSign * phase * drift;
-
-    const fadeIn = 0.06 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.55 + rand(i, 8) * 0.4);
-    const size = Math.max(0.6, 2.4 * sizeMul * (1 - phase * 0.35));
-    const shade = rand(i, 9);
-    const fill = shade > 0.75 ? '#ffffff' : shade > 0.45 ? '#e2e8f0' : shade > 0.2 ? '#94a3b8' : '#64748b';
-    const rotation = (rand(i, 10) * 360 + tick * (0.4 + rand(i, 12) * 0.6)) % 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`bbp${i}`}
-        x={x}
-        y={y}
-        sides={4}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#cbd5e1"
-        shadowBlur={size * 2.2}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Blade shards for Blade Barrier (Ring). Emits from the ring circumference
- * radially both inward and outward with a metallic silver palette.
- */
-const BladeBarrierRingParticles: React.FC<{
-  cx: number;
-  cy: number;
-  radiusPx: number;
-}> = ({ cx, cy, radiusPx }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (radiusPx < 1) return null;
-
-  const COUNT = 140;
-  const BASE_PERIOD = 1100;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
-    const offset = rand(i, 2);
-    const baseAngle = rand(i, 3) * Math.PI * 2;
-    const drift = radiusPx * (0.08 + rand(i, 4) * 0.2);
-    const jitter = (rand(i, 5) - 0.5) * 0.04;
-    const sizeMul = 0.4 + rand(i, 6) * 0.95;
-    const dir = rand(i, 11) < 0.5 ? 1 : -1;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const angle = baseAngle + jitter;
-    const nx = Math.cos(angle) * dir;
-    const ny = Math.sin(angle) * dir;
-    const bx = cx + Math.cos(angle) * radiusPx;
-    const by = cy + Math.sin(angle) * radiusPx;
-    const x = bx + nx * phase * drift;
-    const y = by + ny * phase * drift;
-
-    const fadeIn = 0.06 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.55 + rand(i, 8) * 0.4);
-    const size = Math.max(0.6, 2.2 * sizeMul * (1 - phase * 0.4));
-    const shade = rand(i, 9);
-    const fill = shade > 0.75 ? '#ffffff' : shade > 0.45 ? '#e2e8f0' : shade > 0.2 ? '#94a3b8' : '#64748b';
-    const rotation = (rand(i, 10) * 360 + tick * (0.4 + rand(i, 12) * 0.6)) % 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`bbrp${i}`}
-        x={x}
-        y={y}
-        sides={4}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#cbd5e1"
-        shadowBlur={size * 2.2}
-        shadowOpacity={0.9}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Fire particles for Wall of Fire (Ring). Emits from the ring circumference
- * radially inward or outward depending on hotSide.
- */
-const WallOfFireRingParticles: React.FC<{
-  cx: number;
-  cy: number;
-  radiusPx: number;
-  hotSide: 'inside' | 'outside';
-}> = ({ cx, cy, radiusPx, hotSide }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  if (radiusPx < 1) return null;
-
-  const COUNT = 90;
-  const BASE_PERIOD = 1300;
-  const dir = hotSide === 'outside' ? 1 : -1;
-  const particles: React.ReactElement[] = [];
-
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
-    const offset = rand(i, 2);
-    const baseAngle = rand(i, 3) * Math.PI * 2;
-    const drift = radiusPx * (0.12 + rand(i, 4) * 0.22);
-    const jitter = (rand(i, 5) - 0.5) * 0.04;
-    const sizeMul = 0.3 + rand(i, 6) * 0.85;
-
-    const phase = ((tick / period) + offset) % 1;
-
-    const angle = baseAngle + jitter;
-    const nx = Math.cos(angle) * dir;
-    const ny = Math.sin(angle) * dir;
-    const bx = cx + Math.cos(angle) * radiusPx;
-    const by = cy + Math.sin(angle) * radiusPx;
-    const x = bx + nx * phase * drift;
-    const y = by + ny * phase * drift;
-
-    const fadeIn = 0.08 + rand(i, 7) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, 2 * sizeMul * (1 - phase * 0.45));
-    const warm = rand(i, 9);
-    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
-    const rotation = rand(i, 10) * 360;
-
-    particles.push(
-      <RegularPolygon
-        key={`wfrp${i}`}
-        x={x}
-        y={y}
-        sides={3}
-        radius={size}
-        rotation={rotation}
-        fill={fill}
-        shadowColor="#ff5a00"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Dr. Strange–style particle ring for Fireball. Particles orbit the AoE
- * perimeter clockwise, drifting outward with a small trail and fading.
- * Cheap: one RAF loop, pure trig — no per-particle state.
- */
-const FireballParticles: React.FC<{ radius: number }> = ({ radius }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // Deterministic hash-based pseudo-random in [0,1) so each particle keeps
-  // its own stable "personality" across frames without any state.
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 120;
-  const BASE_PERIOD = 1600;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const inward = rand(i, 11) < 0.38; // ~38% of particles spiral inward
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const sweep = Math.PI * (0.45 + rand(i, 3) * 0.9);
-    const drift = radius * (0.04 + rand(i, 4) * 0.22);
-    const baseAngle = rand(i, 5) * Math.PI * 2;
-    const jitterR = (rand(i, 6) - 0.5) * radius * 0.04;
-    const sizeMul = 0.35 + rand(i, 7) * 0.9;
-
-    const phase = ((tick / period) + offset) % 1;
-    const angle = baseAngle + phase * sweep;
-    // Inward particles start at ring and travel toward center; outward drift away
-    const r = inward
-      ? (radius + jitterR) * (1 - phase * (0.55 + rand(i, 12) * 0.35))
-      : radius + jitterR + phase * drift;
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-
-    const fadeIn = 0.12 + rand(i, 8) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.55 + rand(i, 9) * 0.4);
-    const size = Math.max(0.5, radius * 0.008 * sizeMul * (1 - phase * 0.4));
-    const warm = rand(i, 10);
-    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
-
-    particles.push(
-      <Circle
-        key={`p${i}`}
-        x={x}
-        y={y}
-        radius={size}
-        fill={fill}
-        shadowColor="#ff5a00"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.8}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Fire-damage spells whose AoE shape should render with the same Fireball-style
- * ember/particle treatment. Centralized so it can be reused across the placed
- * preview, the remote echo, and persisted markers.
- */
-const FIRE_SPELLS_SPHERE = new Set<string>([
-  'Fireball',
-  'Flaming Sphere',
-  'Delayed Blast Fireball',
-  'Incendiary Cloud',
-  'Meteor Swarm',
-  'Flame Strike',
-]);
-const FIRE_SPELLS_CONE = new Set<string>([
-  'Burning Hands',
-]);
-const FIRE_SPELLS_LINE = new Set<string>([
-  "Aganazzar's Scorcher",
-  'Investiture of Flame',
-]);
-const FIRE_SPELLS_CUBE = new Set<string>([
-  'Fire Storm',
-]);
-const isFireSphereSpell = (n?: string) => !!n && FIRE_SPELLS_SPHERE.has(n);
-const isFireConeSpell = (n?: string) => !!n && FIRE_SPELLS_CONE.has(n);
-const isFireLineSpell = (n?: string) => !!n && FIRE_SPELLS_LINE.has(n);
-const isFireCubeSpell = (n?: string) => !!n && FIRE_SPELLS_CUBE.has(n);
-
-const THUNDER_SPELLS_SPHERE = new Set<string>(['Shatter', 'Storm of Vengeance']);
-const THUNDER_SPELLS_CUBE = new Set<string>(['Thunderwave']);
-const THUNDER_SPELLS_EMANATION = new Set<string>(['Thunderclap']);
-const isThunderSphereSpell = (n?: string) => !!n && THUNDER_SPELLS_SPHERE.has(n);
-const isThunderCubeSpell = (n?: string) => !!n && THUNDER_SPELLS_CUBE.has(n);
-const isThunderEmanationSpell = (n?: string) => !!n && THUNDER_SPELLS_EMANATION.has(n);
-
-const LIGHTNING_SPELLS_SPHERE = new Set<string>(['Call Lightning', 'Lightning Arrow', 'Lightning Lure']);
-const LIGHTNING_SPELLS_LINE = new Set<string>(['Lightning Bolt']);
-const isLightningSphereSpell = (n?: string) => !!n && LIGHTNING_SPELLS_SPHERE.has(n);
-const isLightningLineSpell = (n?: string) => !!n && LIGHTNING_SPELLS_LINE.has(n);
-
-/**
- * Fire particles filling a cone (Burning Hands). Cone is rendered in a local
- * frame where +x is forward; halfAngle bounds it on each side. Particles flow
- * from the apex outward, wobbling slightly, and fade near the far edge.
- */
-const FireConeParticles: React.FC<{ length: number; halfAngle: number }> = ({ length, halfAngle }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 110;
-  const BASE_PERIOD = 1100;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.85);
-    const offset = rand(i, 2);
-    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
-    const wobbleAmp = halfAngle * 0.08 * (0.5 + rand(i, 4));
-    const wobbleFreq = 0.003 + rand(i, 5) * 0.005;
-    const sizeMul = 0.35 + rand(i, 6) * 0.95;
-
-    const phase = ((tick / period) + offset) % 1;
-    const r = phase * length;
-    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.78;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 7) * 0.45);
-    const size = Math.max(0.5, length * 0.012 * sizeMul * (1 - phase * 0.35));
-    const warm = rand(i, 8);
-    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
-
-    particles.push(
-      <Circle
-        key={`fc${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor="#ff5a00" shadowBlur={size * 2.5} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Fire particles streaming along a line spell (Aganazzar's Scorcher,
- * Investiture of Flame). Particles flow from origin to far end, wobbling.
- */
-const FireLineParticles: React.FC<{ length: number; width: number }> = ({ length, width }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 130;
-  const BASE_PERIOD = 1000;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const yJitter = (rand(i, 3) - 0.5) * width * 0.85;
-    const waveAmp = width * (0.06 + rand(i, 4) * 0.14);
-    const waveFreq = 0.003 + rand(i, 5) * 0.005;
-    const wavePhase = rand(i, 6) * Math.PI * 2;
-    const sizeMul = 0.4 + rand(i, 7) * 1.0;
-
-    const phase = ((tick / period) + offset) % 1;
-    const x = phase * length;
-    const yWave = Math.sin(tick * waveFreq + wavePhase + phase * Math.PI * 2) * waveAmp;
-    const y = yJitter + yWave;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.82;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.5);
-    const size = Math.max(0.5, Math.min(length, width * 4) * 0.012 * sizeMul);
-    const warm = rand(i, 9);
-    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
-
-    particles.push(
-      <Circle
-        key={`fl${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor="#ff5a00" shadowBlur={size * 2.5} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Fire particles raining within a square footprint (Fire Storm). Particles
- * appear at random points across the cube and rise upward briefly before
- * fading — evokes burning columns of flame across the area.
- */
-const FireCubeParticles: React.FC<{ size: number }> = ({ size }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 160;
-  const BASE_PERIOD = 1400;
-  const particles: React.ReactElement[] = [];
-  const half = size / 2;
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const cx = (rand(i, 3) - 0.5) * size * 0.96;
-    const cy = (rand(i, 4) - 0.5) * size * 0.96;
-    const rise = size * (0.06 + rand(i, 5) * 0.12);
-    const sizeMul = 0.4 + rand(i, 6) * 1.0;
-
-    const phase = ((tick / period) + offset) % 1;
-    const x = cx;
-    const y = cy - phase * rise;
-
-    const fadeIn = 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 7) * 0.45);
-    const sizePx = Math.max(0.5, size * 0.008 * sizeMul * (1 - phase * 0.4));
-    const warm = rand(i, 8);
-    const fill = warm > 0.66 ? '#fff3b0' : warm > 0.33 ? '#ffb347' : '#ff7a1f';
-
-    // Clamp inside the cube to avoid bleed outside the footprint
-    if (Math.abs(x) > half || Math.abs(y) > half) continue;
-
-    particles.push(
-      <Circle
-        key={`fb${i}`}
-        x={x} y={y} radius={sizePx} fill={fill}
-        shadowColor="#ff5a00" shadowBlur={sizePx * 2.5} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Ice/cold AoE spell sets for sphere/cylinder shapes (Ice Knife, Snilloc's
- * Snowball Swarm, Otiluke's Freezing Sphere, Ice Storm, Sleet Storm) and cone
- * shapes (Cone of Cold, Investiture of Ice). Wind sets cover cone (Investiture
- * of Wind) and line (Gust of Wind) shapes.
- */
-const ICE_SPELLS_SPHERE = new Set<string>([
-  'Ice Knife',
-  "Snilloc's Snowball Swarm",
-  "Otiluke's Freezing Sphere",
-  'Ice Storm',
-  'Sleet Storm',
-]);
-const ICE_SPELLS_CONE = new Set<string>([
-  'Cone of Cold',
-  'Investiture of Ice',
-]);
-const WIND_SPELLS_CONE = new Set<string>([
-  'Investiture of Wind',
-]);
-const WIND_SPELLS_LINE = new Set<string>([
-  'Gust of Wind',
-]);
-const isIceSphereSpell = (n?: string) => !!n && ICE_SPELLS_SPHERE.has(n);
-const isIceConeSpell = (n?: string) => !!n && ICE_SPELLS_CONE.has(n);
-const isWindConeSpell = (n?: string) => !!n && WIND_SPELLS_CONE.has(n);
-const isWindLineSpell = (n?: string) => !!n && WIND_SPELLS_LINE.has(n);
-
-/**
- * Ice shards drifting around a sphere/cylinder AoE. Mirrors FireballParticles'
- * structure but uses light blue/white triangular shards with cold glow.
- */
-const IceSphereParticles: React.FC<{ radius: number }> = ({ radius }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 110;
-  const BASE_PERIOD = 2000;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const inward = rand(i, 11) < 0.32;
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const sweep = Math.PI * (0.3 + rand(i, 3) * 0.7);
-    const drift = radius * (0.05 + rand(i, 4) * 0.2);
-    const baseAngle = rand(i, 5) * Math.PI * 2;
-    const jitterR = (rand(i, 6) - 0.5) * radius * 0.05;
-    const sizeMul = 0.4 + rand(i, 7) * 0.95;
-    const rotation = rand(i, 13) * 360;
-
-    const phase = ((tick / period) + offset) % 1;
-    const angle = baseAngle + phase * sweep;
-    const r = inward
-      ? (radius + jitterR) * (1 - phase * (0.45 + rand(i, 12) * 0.4))
-      : radius + jitterR + phase * drift;
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-
-    const fadeIn = 0.12 + rand(i, 8) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 9) * 0.4);
-    const size = Math.max(0.5, radius * 0.009 * sizeMul * (1 - phase * 0.3));
-    const shade = rand(i, 10);
-    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
-
-    particles.push(
-      <RegularPolygon
-        key={`isp${i}`}
-        x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
-        shadowColor="#a7d8ff" shadowBlur={size * 3} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Ice shards spreading outward through a cone (Cone of Cold, Investiture of
- * Ice). Mirrors FireConeParticles but with cold tones and triangular shards.
- */
-const IceConeParticles: React.FC<{ length: number; halfAngle: number }> = ({ length, halfAngle }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 130;
-  const BASE_PERIOD = 1400;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.95);
-    const offset = rand(i, 2);
-    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
-    const wobbleAmp = halfAngle * 0.06 * (0.5 + rand(i, 4));
-    const wobbleFreq = 0.0025 + rand(i, 5) * 0.004;
-    const sizeMul = 0.4 + rand(i, 6) * 1.0;
-    const rotation = rand(i, 11) * 360;
-
-    const phase = ((tick / period) + offset) % 1;
-    const r = phase * length;
-    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.8;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 7) * 0.45);
-    const size = Math.max(0.5, length * 0.014 * sizeMul * (1 - phase * 0.3));
-    const shade = rand(i, 8);
-    const fill = shade > 0.66 ? '#ffffff' : shade > 0.33 ? '#cfeeff' : '#7ec8ee';
-
-    particles.push(
-      <RegularPolygon
-        key={`icc${i}`}
-        x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
-        shadowColor="#a7d8ff" shadowBlur={size * 3} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Wind streaks fanning through a cone (Investiture of Wind). Gray tones,
- * mirrors GustOfWindParticles but distributed within a cone wedge.
- */
-const WindConeParticles: React.FC<{ length: number; halfAngle: number }> = ({ length, halfAngle }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 130;
-  const BASE_PERIOD = 950;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
-    const wobbleAmp = halfAngle * 0.1 * (0.5 + rand(i, 4));
-    const wobbleFreq = 0.003 + rand(i, 5) * 0.005;
-    const sizeMul = 0.4 + rand(i, 6) * 1.0;
-
-    const phase = ((tick / period) + offset) % 1;
-    const r = phase * length;
-    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.82;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.4 + rand(i, 7) * 0.45);
-    const size = Math.max(0.5, length * 0.01 * sizeMul);
-    const shade = rand(i, 8);
-    const fill = shade > 0.66 ? '#f0f0f0' : shade > 0.33 ? '#b5b5b5' : '#777777';
-
-    particles.push(
-      <Circle
-        key={`wcc${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor="#aaaaaa" shadowBlur={size * 2.5} shadowOpacity={0.6}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Poison/Acid/Necrotic AoE spell sets. Shapes covered:
- *   - Poison sphere: Cloudkill, Stinking Cloud (sickly green wisps)
- *   - Acid sphere/line: Acid Splash, Vitriolic Sphere, Tasha's Caustic Brew
- *   - Necrotic sphere/cone: Circle of Death, Abi-Dalzim's Horrid Wilting
- */
-const POISON_SPELLS_SPHERE = new Set<string>([
-  'Cloudkill',
-  'Stinking Cloud',
-]);
-const ACID_SPELLS_SPHERE = new Set<string>([
-  'Acid Splash',
-  'Vitriolic Sphere',
-]);
-const ACID_SPELLS_LINE = new Set<string>([
-  "Tasha's Caustic Brew",
-]);
-const NECROTIC_SPELLS_SPHERE = new Set<string>([
-  'Circle of Death',
-]);
-const NECROTIC_SPELLS_CONE = new Set<string>([
-  "Abi-Dalzim's Horrid Wilting",
-]);
-const isPoisonSphereSpell = (n?: string) => !!n && POISON_SPELLS_SPHERE.has(n);
-const isAcidSphereSpell = (n?: string) => !!n && ACID_SPELLS_SPHERE.has(n);
-const isAcidLineSpell = (n?: string) => !!n && ACID_SPELLS_LINE.has(n);
-const isNecroticSphereSpell = (n?: string) => !!n && NECROTIC_SPELLS_SPHERE.has(n);
-const isNecroticConeSpell = (n?: string) => !!n && NECROTIC_SPELLS_CONE.has(n);
-
-/** Generic radial-AoE particle component, parameterized by palette/glow. */
-const RadialAoEParticles: React.FC<{
-  radius: number;
-  count?: number;
-  basePeriod?: number;
-  inwardChance?: number;
-  palette: [string, string, string];
-  glow: string;
-  shape?: 'circle' | 'triangle';
-}> = ({ radius, count = 110, basePeriod = 1700, inwardChance = 0.35, palette, glow, shape = 'circle' }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < count; i++) {
-    const inward = rand(i, 11) < inwardChance;
-    const period = basePeriod * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const sweep = Math.PI * (0.3 + rand(i, 3) * 0.7);
-    const drift = radius * (0.05 + rand(i, 4) * 0.22);
-    const baseAngle = rand(i, 5) * Math.PI * 2;
-    const jitterR = (rand(i, 6) - 0.5) * radius * 0.05;
-    const sizeMul = 0.4 + rand(i, 7) * 0.95;
-    const rotation = rand(i, 13) * 360;
-
-    const phase = ((tick / period) + offset) % 1;
-    const angle = baseAngle + phase * sweep;
-    const r = inward
-      ? (radius + jitterR) * (1 - phase * (0.45 + rand(i, 12) * 0.4))
-      : radius + jitterR + phase * drift;
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-
-    const fadeIn = 0.12 + rand(i, 8) * 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 9) * 0.4);
-    const size = Math.max(0.5, radius * 0.009 * sizeMul * (1 - phase * 0.3));
-    const shade = rand(i, 10);
-    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
-
-    if (shape === 'triangle') {
-      particles.push(
-        <RegularPolygon
-          key={`rp${i}`}
-          x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
-          shadowColor={glow} shadowBlur={size * 3} shadowOpacity={0.85}
-          opacity={opacity}
-          listening={false} perfectDrawEnabled={false}
-        />
-      );
-    } else {
-      particles.push(
-        <Circle
-          key={`rp${i}`}
-          x={x} y={y} radius={size} fill={fill}
-          shadowColor={glow} shadowBlur={size * 2.5} shadowOpacity={0.85}
-          opacity={opacity}
-          listening={false} perfectDrawEnabled={false}
-        />
-      );
-    }
-  }
-  return <>{particles}</>;
-};
-
-const THUNDER_PALETTE: [string, string, string] = ['#f9fafb', '#9ca3af', '#374151'];
-const THUNDER_GRADIENT = [0, 'rgba(156,163,175,0.40)', 0.35, 'rgba(107,114,128,0.28)', 0.7, 'rgba(55,65,81,0.14)', 1, 'rgba(31,41,55,0)'];
-
-const ThunderShockwaveParticles: React.FC<{ radius: number }> = ({ radius }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const RING_COUNT = 6;
-  const RING_PERIOD = 2000;
-  const DEBRIS_COUNT = 50;
-  const DEBRIS_PERIOD = 2400;
-
-  const elements: React.ReactElement[] = [];
-
-  for (let i = 0; i < RING_COUNT; i++) {
-    const offset = i / RING_COUNT;
-    const phase = ((tick / RING_PERIOD) + offset) % 1;
-    const r = phase * radius;
-    const strokeW = Math.max(0.5, radius * 0.025 * (1 - phase * 0.8));
-    const opacity = (1 - phase) * 0.7;
-    const shade = rand(i, 1);
-    const stroke = shade > 0.5 ? '#f9fafb' : '#d1d5db';
-    elements.push(
-      <Circle
-        key={`tr${i}`}
-        x={0} y={0} radius={r} fill="" stroke={stroke} strokeWidth={strokeW}
-        shadowColor="#e5e7eb" shadowBlur={strokeW * 4} shadowOpacity={0.6}
-        opacity={Math.max(0, opacity)}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-
-  for (let i = 0; i < DEBRIS_COUNT; i++) {
-    const period = DEBRIS_PERIOD * (0.6 + rand(i, 1) * 0.8);
-    const offset = rand(i, 2);
-    const baseAngle = rand(i, 3) * Math.PI * 2;
-    const rBase = radius * (0.2 + rand(i, 4) * 0.75);
-    const drift = radius * 0.08 * (rand(i, 5) - 0.5);
-    const sizeMul = 0.3 + rand(i, 6) * 0.7;
-
-    const phase = ((tick / period) + offset) % 1;
-    const wobble = Math.sin(tick * 0.002 + i * 1.7) * radius * 0.03;
-    const r = rBase + phase * drift + wobble;
-    const x = Math.cos(baseAngle + phase * 0.3) * r;
-    const y = Math.sin(baseAngle + phase * 0.3) * r;
-
-    const fadeIn = 0.15;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.25 + rand(i, 7) * 0.3);
-    const size = Math.max(0.5, radius * 0.007 * sizeMul);
-    const shade = rand(i, 8);
-    const fill = shade > 0.6 ? '#6b7280' : shade > 0.3 ? '#4b5563' : '#374151';
-
-    elements.push(
-      <Circle
-        key={`td${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor="#9ca3af" shadowBlur={size * 2} shadowOpacity={0.4}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{elements}</>;
-};
-
-const ThunderCubeParticles: React.FC<{ size: number }> = ({ size }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const RING_COUNT = 5;
-  const RING_PERIOD = 1800;
-  const DEBRIS_COUNT = 45;
-  const DEBRIS_PERIOD = 2200;
-  const half = size / 2;
-  const maxRing = half * 0.95;
-
-  const elements: React.ReactElement[] = [];
-
-  for (let i = 0; i < RING_COUNT; i++) {
-    const offset = i / RING_COUNT;
-    const phase = ((tick / RING_PERIOD) + offset) % 1;
-    const r = phase * maxRing;
-    const strokeW = Math.max(0.5, size * 0.015 * (1 - phase * 0.8));
-    const opacity = (1 - phase) * 0.65;
-    const shade = rand(i, 1);
-    const stroke = shade > 0.5 ? '#f9fafb' : '#d1d5db';
-    elements.push(
-      <Circle
-        key={`tcr${i}`}
-        x={0} y={0} radius={r} fill="" stroke={stroke} strokeWidth={strokeW}
-        shadowColor="#e5e7eb" shadowBlur={strokeW * 3.5} shadowOpacity={0.5}
-        opacity={Math.max(0, opacity)}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-
-  for (let i = 0; i < DEBRIS_COUNT; i++) {
-    const period = DEBRIS_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const cx = (rand(i, 3) - 0.5) * size * 0.9;
-    const cy = (rand(i, 4) - 0.5) * size * 0.9;
-    const rise = size * (0.04 + rand(i, 5) * 0.08);
-    const sizeMul = 0.3 + rand(i, 6) * 0.7;
-
-    const phase = ((tick / period) + offset) % 1;
-    const x = cx;
-    const y = cy - phase * rise;
-
-    if (Math.abs(x) > half || Math.abs(y) > half) continue;
-
-    const fadeIn = 0.12;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.2 + rand(i, 7) * 0.3);
-    const sizePx = Math.max(0.5, size * 0.006 * sizeMul);
-    const shade = rand(i, 8);
-    const fill = shade > 0.6 ? '#6b7280' : shade > 0.3 ? '#4b5563' : '#374151';
-
-    elements.push(
-      <Circle
-        key={`tcd${i}`}
-        x={x} y={y} radius={sizePx} fill={fill}
-        shadowColor="#9ca3af" shadowBlur={sizePx * 2} shadowOpacity={0.4}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{elements}</>;
-};
-
-const LIGHTNING_GRADIENT = [0, 'rgba(254,249,195,0.55)', 0.3, 'rgba(253,224,71,0.38)', 0.65, 'rgba(96,165,250,0.18)', 1, 'rgba(30,30,120,0)'];
-
-const LightningSphereParticles: React.FC<{ radius: number }> = ({ radius }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const SPARK_COUNT = 70;
-  const ARC_COUNT = 4;
-  const SPARK_PERIOD = 1200;
-
-  const elements: React.ReactElement[] = [];
-
-  for (let i = 0; i < SPARK_COUNT; i++) {
-    const period = SPARK_PERIOD * (0.5 + rand(i, 1) * 0.6);
-    const offset = rand(i, 2);
-    const angle = rand(i, 3) * Math.PI * 2;
-    const startR = radius * (0.05 + rand(i, 4) * 0.3);
-    const travel = radius * (0.3 + rand(i, 9) * 0.55);
-
-    const phase = ((tick / period) + offset) % 1;
-    const eased = 1 - (1 - phase) * (1 - phase);
-    const r = startR + eased * travel;
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-
-    if (r > radius) continue;
-
-    const decay = 1 - phase;
-    const opacity = Math.max(0, decay * decay) * (0.7 + rand(i, 5) * 0.3);
-    const baseSize = radius * 0.012 * (0.6 + rand(i, 6) * 0.5);
-    const size = Math.max(0.4, baseSize * decay);
-    const fill = phase < 0.15 ? '#ffffff' : phase < 0.4 ? '#fefce8' : '#fde047';
-    const glowColor = phase < 0.3 ? '#ffffff' : '#facc15';
-
-    elements.push(
-      <Circle
-        key={`ls${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor={glowColor}
-        shadowBlur={size * 4} shadowOpacity={0.9}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-
-  for (let a = 0; a < ARC_COUNT; a++) {
-    const arcSeed = Math.floor(tick / 200) + a * 37;
-    const arcPhase = ((tick % 200) / 200);
-    const visible = rand(a, arcSeed) > 0.3;
-    if (!visible) continue;
-
-    const startAngle = rand(a, arcSeed + 1) * Math.PI * 2;
-    const startR = radius * (0.15 + rand(a, arcSeed + 2) * 0.5);
-    const endAngle = startAngle + (rand(a, arcSeed + 3) - 0.5) * 2.5;
-    const endR = radius * (0.2 + rand(a, arcSeed + 4) * 0.65);
-    const sx = Math.cos(startAngle) * startR;
-    const sy = Math.sin(startAngle) * startR;
-    const ex = Math.cos(endAngle) * endR;
-    const ey = Math.sin(endAngle) * endR;
-
-    const segments = 8;
-    const points: number[] = [sx, sy];
-    for (let s = 1; s < segments; s++) {
-      const t = s / segments;
-      const perpX = -(ey - sy);
-      const perpY = (ex - sx);
-      const pLen = Math.sqrt(perpX * perpX + perpY * perpY) || 1;
-      const jag = (rand(a, arcSeed + s * 10 + 5) - 0.5) * radius * 0.3;
-      const mx = sx + (ex - sx) * t + (perpX / pLen) * jag;
-      const my = sy + (ey - sy) * t + (perpY / pLen) * jag;
-      points.push(mx, my);
-    }
-    points.push(ex, ey);
-
-    const arcOpacity = (1 - arcPhase) * 0.7;
-    elements.push(
-      <Line
-        key={`la${a}`}
-        points={points}
-        stroke="#fefce8"
-        strokeWidth={Math.max(0.5, radius * 0.008)}
-        shadowColor="#facc15"
-        shadowBlur={radius * 0.04}
-        shadowOpacity={0.8}
-        opacity={Math.max(0, arcOpacity)}
-        listening={false} perfectDrawEnabled={false}
-        lineJoin="bevel"
-      />
-    );
-  }
-
-  return <>{elements}</>;
-};
-
-const LightningLineParticles: React.FC<{ length: number; width: number }> = ({ length, width }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const SPARK_COUNT = 80;
-  const ARC_COUNT = 3;
-  const SPARK_PERIOD = 1000;
-  const halfW = width * 0.45;
-
-  const elements: React.ReactElement[] = [];
-
-  for (let i = 0; i < SPARK_COUNT; i++) {
-    const period = SPARK_PERIOD * (0.45 + rand(i, 1) * 0.6);
-    const offset = rand(i, 2);
-    const spawnX = rand(i, 3) * length;
-    const spawnY = (rand(i, 8) - 0.5) * width * 0.3;
-    const ejAngle = (rand(i, 9) - 0.5) * Math.PI * 0.8;
-    const ejDist = width * (0.3 + rand(i, 10) * 0.6);
-
-    const phase = ((tick / period) + offset) % 1;
-    const eased = 1 - (1 - phase) * (1 - phase);
-    const x = spawnX + Math.cos(ejAngle) * eased * ejDist * 0.3;
-    const y = spawnY + Math.sin(ejAngle) * eased * ejDist;
-
-    if (Math.abs(y) > halfW) continue;
-
-    const decay = 1 - phase;
-    const opacity = Math.max(0, decay * decay) * (0.65 + rand(i, 5) * 0.35);
-    const baseSize = Math.min(length, width * 4) * 0.011 * (0.5 + rand(i, 6) * 0.6);
-    const size = Math.max(0.4, baseSize * decay);
-    const fill = phase < 0.15 ? '#ffffff' : phase < 0.4 ? '#fefce8' : '#fde047';
-    const glowColor = phase < 0.3 ? '#ffffff' : '#facc15';
-
-    elements.push(
-      <Circle
-        key={`lls${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor={glowColor}
-        shadowBlur={size * 4} shadowOpacity={0.9}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-
-  for (let a = 0; a < ARC_COUNT; a++) {
-    const arcSeed = Math.floor(tick / 180) + a * 41;
-    const arcPhase = ((tick % 180) / 180);
-    const visible = rand(a, arcSeed) > 0.25;
-    if (!visible) continue;
-
-    const sx = rand(a, arcSeed + 1) * length * 0.8;
-    const sy = (rand(a, arcSeed + 2) - 0.5) * width * 0.4;
-    const ex = sx + (rand(a, arcSeed + 3) - 0.3) * length * 0.3;
-    const ey = (rand(a, arcSeed + 4) - 0.5) * width * 0.6;
-
-    const segments = 7;
-    const points: number[] = [sx, sy];
-    for (let s = 1; s < segments; s++) {
-      const t = s / segments;
-      const jag = (rand(a, arcSeed + s * 10 + 5) - 0.5) * width * 0.7;
-      const mx = sx + (ex - sx) * t + (rand(a, arcSeed + s * 10 + 6) - 0.5) * width * 0.15;
-      const my = sy + (ey - sy) * t + jag;
-      points.push(mx, my);
-    }
-    points.push(ex, ey);
-
-    const arcOpacity = (1 - arcPhase) * 0.65;
-    elements.push(
-      <Line
-        key={`lla${a}`}
-        points={points}
-        stroke="#fefce8"
-        strokeWidth={Math.max(0.5, width * 0.04)}
-        shadowColor="#facc15"
-        shadowBlur={width * 0.15}
-        shadowOpacity={0.8}
-        opacity={Math.max(0, arcOpacity)}
-        listening={false} perfectDrawEnabled={false}
-        lineJoin="bevel"
-      />
-    );
-  }
-
-  return <>{elements}</>;
-};
-
-/** Generic cone particle component, parameterized by palette/glow. */
-const ConeAoEParticles: React.FC<{
-  length: number;
-  halfAngle: number;
-  count?: number;
-  basePeriod?: number;
-  palette: [string, string, string];
-  glow: string;
-  shape?: 'circle' | 'triangle';
-}> = ({ length, halfAngle, count = 120, basePeriod = 1300, palette, glow, shape = 'circle' }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < count; i++) {
-    const period = basePeriod * (0.55 + rand(i, 1) * 0.95);
-    const offset = rand(i, 2);
-    const angle = (rand(i, 3) - 0.5) * 2 * halfAngle * 0.95;
-    const wobbleAmp = halfAngle * 0.07 * (0.5 + rand(i, 4));
-    const wobbleFreq = 0.0025 + rand(i, 5) * 0.005;
-    const sizeMul = 0.4 + rand(i, 6) * 1.0;
-    const rotation = rand(i, 11) * 360;
-
-    const phase = ((tick / period) + offset) % 1;
-    const r = phase * length;
-    const a = angle + Math.sin(tick * wobbleFreq + i) * wobbleAmp;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.8;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.5 + rand(i, 7) * 0.45);
-    const size = Math.max(0.5, length * 0.013 * sizeMul * (1 - phase * 0.3));
-    const shade = rand(i, 8);
-    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
-
-    if (shape === 'triangle') {
-      particles.push(
-        <RegularPolygon
-          key={`rcp${i}`}
-          x={x} y={y} sides={3} radius={size} rotation={rotation} fill={fill}
-          shadowColor={glow} shadowBlur={size * 3} shadowOpacity={0.85}
-          opacity={opacity}
-          listening={false} perfectDrawEnabled={false}
-        />
-      );
-    } else {
-      particles.push(
-        <Circle
-          key={`rcp${i}`}
-          x={x} y={y} radius={size} fill={fill}
-          shadowColor={glow} shadowBlur={size * 2.5} shadowOpacity={0.85}
-          opacity={opacity}
-          listening={false} perfectDrawEnabled={false}
-        />
-      );
-    }
-  }
-  return <>{particles}</>;
-};
-
-/** Generic line particle component, parameterized by palette/glow. */
-const LineAoEParticles: React.FC<{
-  length: number;
-  width: number;
-  palette: [string, string, string];
-  glow: string;
-}> = ({ length, width, palette, glow }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const COUNT = 130;
-  const BASE_PERIOD = 1100;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.5 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const yJitter = (rand(i, 3) - 0.5) * width * 0.85;
-    const waveAmp = width * (0.06 + rand(i, 4) * 0.14);
-    const waveFreq = 0.003 + rand(i, 5) * 0.005;
-    const wavePhase = rand(i, 6) * Math.PI * 2;
-    const sizeMul = 0.4 + rand(i, 7) * 1.0;
-
-    const phase = ((tick / period) + offset) % 1;
-    const x = phase * length;
-    const yWave = Math.sin(tick * waveFreq + wavePhase + phase * Math.PI * 2) * waveAmp;
-    const y = yJitter + yWave;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.82;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 8) * 0.5);
-    const size = Math.max(0.5, Math.min(length, width * 4) * 0.012 * sizeMul);
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
-
-    particles.push(
-      <Circle
-        key={`rl${i}`}
-        x={x} y={y} radius={size} fill={fill}
-        shadowColor={glow} shadowBlur={size * 2.5} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/** Generic cube particle component (rising motes within a square footprint). */
-const CubeAoEParticles: React.FC<{
-  size: number;
-  palette: [string, string, string];
-  glow: string;
-  count?: number;
-  basePeriod?: number;
-}> = ({ size, palette, glow, count = 150, basePeriod = 1300 }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-  useEffect(() => {
-    let raf: number;
-    const loop = () => { setTick(Date.now() - startRef.current); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const particles: React.ReactElement[] = [];
-  const half = size / 2;
-  for (let i = 0; i < count; i++) {
-    const period = basePeriod * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const cx = (rand(i, 3) - 0.5) * size * 0.96;
-    const cy = (rand(i, 4) - 0.5) * size * 0.96;
-    const rise = size * (0.06 + rand(i, 5) * 0.12);
-    const sizeMul = 0.4 + rand(i, 6) * 1.0;
-    const phase = ((tick / period) + offset) % 1;
-    const x = cx;
-    const y = cy - phase * rise;
-    const fadeIn = 0.1;
-    const fade = phase < fadeIn ? phase / fadeIn : 1 - (phase - fadeIn) / (1 - fadeIn);
-    const opacity = Math.max(0, fade) * (0.45 + rand(i, 7) * 0.45);
-    const sizePx = Math.max(0.5, size * 0.008 * sizeMul * (1 - phase * 0.4));
-    const shade = rand(i, 8);
-    const fill = shade > 0.66 ? palette[0] : shade > 0.33 ? palette[1] : palette[2];
-    if (Math.abs(x) > half || Math.abs(y) > half) continue;
-    particles.push(
-      <Circle
-        key={`cb${i}`}
-        x={x} y={y} radius={sizePx} fill={fill}
-        shadowColor={glow} shadowBlur={sizePx * 2.5} shadowOpacity={0.85}
-        opacity={opacity}
-        listening={false} perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-const POISON_PALETTE: [string, string, string] = ['#bef264', '#65a30d', '#365314'];
-const ACID_PALETTE:   [string, string, string] = ['#ecfccb', '#a3e635', '#65a30d'];
-const NECROTIC_PALETTE: [string, string, string] = ['#d8b4fe', '#7e22ce', '#1e1b2e'];
-
-const POISON_GRADIENT = [0, 'rgba(132,204,22,0.45)', 0.5, 'rgba(101,163,13,0.30)', 0.85, 'rgba(54,83,20,0.15)', 1, 'rgba(20,40,10,0)'] as any;
-const ACID_GRADIENT   = [0, 'rgba(236,252,203,0.50)', 0.5, 'rgba(163,230,53,0.34)', 0.85, 'rgba(101,163,13,0.16)', 1, 'rgba(60,100,10,0)'] as any;
-const NECROTIC_GRADIENT = [0, 'rgba(168,85,247,0.45)', 0.5, 'rgba(126,34,206,0.30)', 0.85, 'rgba(60,20,90,0.16)', 1, 'rgba(20,8,40,0)'] as any;
-
-/**
- * Remaining elemental damage types (Lightning, Thunder, Radiant, Psychic,
- * Force) routed through a single style table. Each entry provides palette,
- * glow color, radial gradient, and tuning for the generic particle components.
- */
-type ElementKey = 'radiant' | 'psychic' | 'force';
-const ELEMENT_STYLES: Record<ElementKey, {
-  palette: [string, string, string];
-  glow: string;
-  gradient: any;
-  basePeriod: number;
-  inwardChance: number;
-  shape: 'circle' | 'triangle';
-}> = {
-  radiant: {
-    palette: ['#fffbeb', '#fde047', '#eab308'],
-    glow: '#facc15',
-    gradient: [0, 'rgba(255,251,235,0.65)', 0.45, 'rgba(253,224,71,0.40)', 0.85, 'rgba(234,179,8,0.18)', 1, 'rgba(140,100,8,0)'],
-    basePeriod: 1900,
-    inwardChance: 0.2,
-    shape: 'circle',
-  },
-  psychic: {
-    palette: ['#fbcfe8', '#e879f9', '#7e22ce'],
-    glow: '#d946ef',
-    gradient: [0, 'rgba(232,121,249,0.45)', 0.5, 'rgba(126,34,206,0.30)', 0.85, 'rgba(60,20,90,0.16)', 1, 'rgba(20,8,40,0)'],
-    basePeriod: 2100,
-    inwardChance: 0.55,
-    shape: 'triangle',
-  },
-  force: {
-    palette: ['#dbeafe', '#93c5fd', '#3b82f6'],
-    glow: '#60a5fa',
-    gradient: [0, 'rgba(219,234,254,0.55)', 0.5, 'rgba(147,197,253,0.32)', 0.85, 'rgba(59,130,246,0.16)', 1, 'rgba(20,40,120,0)'],
-    basePeriod: 1500,
-    inwardChance: 0.4,
-    shape: 'circle',
-  },
-};
-
-const SPHERE_ELEMENT_MAP: Record<string, ElementKey> = {
-  'Sunburst': 'radiant',
-  'Sickening Radiance': 'radiant',
-  'Moonbeam': 'radiant',
-  'Dawn': 'radiant',
-  "Jallarzi's Storm of Radiance": 'radiant',
-  'Conjure Celestial': 'radiant',
-  'Synaptic Static': 'psychic',
-  'Weird': 'psychic',
-  'Sword Burst': 'force',
-  'Conjure Volley': 'force',
-};
-const CONE_ELEMENT_MAP: Record<string, ElementKey> = {
-  'Conjure Barrage': 'force',
-};
-const LINE_ELEMENT_MAP: Record<string, ElementKey> = {
-  'Sunbeam': 'radiant',
-};
-const CUBE_ELEMENT_MAP: Record<string, ElementKey> = {
-};
-const getSphereElement = (n?: string) => (n && SPHERE_ELEMENT_MAP[n]) || null;
-const getConeElement = (n?: string) => (n && CONE_ELEMENT_MAP[n]) || null;
-const getLineElement = (n?: string) => (n && LINE_ELEMENT_MAP[n]) || null;
-const getCubeElement = (n?: string) => (n && CUBE_ELEMENT_MAP[n]) || null;
-
-/**
- * Wind particles streaming along a line for Gust of Wind. Particles flow
- * from origin to far end with mild perpendicular wave, in gray tones.
- * One RAF loop, pure trig — no per-particle state.
- */
-const GustOfWindParticles: React.FC<{ length: number; width: number }> = ({ length, width }) => {
-  const [tick, setTick] = useState(0);
-  const startRef = useRef(Date.now());
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick(Date.now() - startRef.current);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const rand = (i: number, salt: number) => {
-    const s = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-
-  const COUNT = 140;
-  const BASE_PERIOD = 1100;
-  const particles: React.ReactElement[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const period = BASE_PERIOD * (0.55 + rand(i, 1) * 0.9);
-    const offset = rand(i, 2);
-    const yJitter = (rand(i, 3) - 0.5) * width * 0.92;
-    const waveAmp = width * (0.05 + rand(i, 4) * 0.12);
-    const waveFreq = 0.0025 + rand(i, 5) * 0.004;
-    const wavePhase = rand(i, 6) * Math.PI * 2;
-    const sizeMul = 0.4 + rand(i, 7) * 1.0;
-
-    const phase = ((tick / period) + offset) % 1;
-    const x = phase * length;
-    const yWave = Math.sin(tick * waveFreq + wavePhase + phase * Math.PI * 2) * waveAmp;
-    const y = yJitter + yWave;
-
-    const fadeIn = 0.08;
-    const fadeOut = 0.82;
-    let fade = 1;
-    if (phase < fadeIn) fade = phase / fadeIn;
-    else if (phase > fadeOut) fade = 1 - (phase - fadeOut) / (1 - fadeOut);
-    const opacity = Math.max(0, fade) * (0.4 + rand(i, 8) * 0.45);
-    const size = Math.max(0.5, Math.min(length, width * 4) * 0.01 * sizeMul);
-    const shade = rand(i, 9);
-    const fill = shade > 0.66 ? '#f0f0f0' : shade > 0.33 ? '#b5b5b5' : '#777777';
-
-    particles.push(
-      <Circle
-        key={`g${i}`}
-        x={x}
-        y={y}
-        radius={size}
-        fill={fill}
-        shadowColor="#aaaaaa"
-        shadowBlur={size * 2.5}
-        shadowOpacity={0.6}
-        opacity={opacity}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    );
-  }
-  return <>{particles}</>;
-};
-
-/**
- * Animated 4-chevron turn indicator that zooms in and fades out over 3 seconds.
- * Each chevron points inward from one of the 4 cardinal directions.
- */
-const TurnIndicatorChevrons: React.FC<{ radius: number; tokenScale: number }> = ({ radius, tokenScale }) => {
-  const [progress, setProgress] = useState(0); // 0..1 over 3 seconds
-  const startTimeRef = useRef(Date.now());
-
-  useEffect(() => {
-    startTimeRef.current = Date.now();
-    setProgress(0);
-    let raf: number;
-    let lastUpdate = 0;
-    const animate = () => {
-      const now = Date.now();
-      const elapsed = now - startTimeRef.current;
-      const p = Math.min(elapsed / 3000, 1);
-      // Throttle React state updates to ~20fps to reduce GPU load
-      if (now - lastUpdate >= 50 || p >= 1) {
-        lastUpdate = now;
-        setProgress(p);
-      }
-      if (p < 1) raf = requestAnimationFrame(animate);
-    };
-    raf = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  if (progress >= 1) return null;
-
-  // Chevrons start far away and zoom in, then fade out
-  const easeOut = 1 - Math.pow(1 - progress, 3); // cubic ease-out for zoom
-  const startDist = radius + 30 * tokenScale;
-  const endDist = radius + 4 * tokenScale;
-  const dist = startDist + (endDist - startDist) * Math.min(easeOut * 2, 1); // zoom-in happens in first half
-  const opacity = progress < 0.5 ? 0.9 : 0.9 * (1 - (progress - 0.5) * 2); // fade in second half
-  const chevSize = 6 * tokenScale;
-
-  // 4 chevrons: top, right, bottom, left — each pointing inward
-  const chevrons = [
-    { angle: -Math.PI / 2, label: 'top' },    // points down
-    { angle: 0, label: 'right' },               // points left
-    { angle: Math.PI / 2, label: 'bottom' },    // points up
-    { angle: Math.PI, label: 'left' },           // points right
-  ];
-
-  return (
-    <>
-      {chevrons.map(({ angle, label }) => {
-        const cx = Math.cos(angle) * dist;
-        const cy = Math.sin(angle) * dist;
-        // Chevron points inward: two lines forming a V.
-        // We want the vertex at `(cx, cy)` (closest to token) and the arms extending outward.
-        // So they extend away from the token along the same `angle`.
-        const armAngle = angle;
-        const arm1Angle = armAngle - 0.5;
-        const arm2Angle = armAngle + 0.5;
-        return (
-          <Line
-            key={label}
-            points={[
-              cx + Math.cos(arm1Angle) * chevSize,
-              cy + Math.sin(arm1Angle) * chevSize,
-              cx,
-              cy,
-              cx + Math.cos(arm2Angle) * chevSize,
-              cy + Math.sin(arm2Angle) * chevSize,
-            ]}
-            stroke="#fbbf24"
-            strokeWidth={2.5 * tokenScale}
-            lineCap="round"
-            lineJoin="round"
-            opacity={opacity}
-          />
-        );
-      })}
-    </>
-  );
-};
-
-// ── Lucide SVG path data for viewpoint icon (Eye, 24×24 viewBox) ──
-type IconNode = ['path' | 'rect' | 'circle', Record<string, string>];
-const VIEWPOINT_NODES: IconNode[] = [
-  ['path', { d: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z' }],
-  ['circle', { cx: '12', cy: '12', r: '3' }],
-];
-
-// ── Lucide SVG path data for portal icons (24×24 viewBox) ──
-const DOOR_CLOSED_NODES: IconNode[] = [
-  ['path', { d: 'M10 12h.01' }],
-  ['path', { d: 'M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14' }],
-  ['path', { d: 'M2 20h20' }],
-];
-const DOOR_OPEN_NODES: IconNode[] = [
-  ['path', { d: 'M11 20H2' }],
-  ['path', { d: 'M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z' }],
-  ['path', { d: 'M11 4H8a2 2 0 0 0-2 2v14' }],
-  ['path', { d: 'M14 12h.01' }],
-  ['path', { d: 'M22 20h-3' }],
-];
-const GRID2X2_NODES: IconNode[] = [
-  ['path', { d: 'M12 3v18' }],
-  ['path', { d: 'M3 12h18' }],
-  ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }],
-];
-const BLINDS_NODES: IconNode[] = [
-  ['path', { d: 'M3 3h18' }],
-  ['path', { d: 'M20 7H8' }],
-  ['path', { d: 'M20 11H8' }],
-  ['path', { d: 'M10 19h10' }],
-  ['path', { d: 'M8 15h12' }],
-  ['path', { d: 'M4 3v14' }],
-  ['circle', { cx: '4', cy: '19', r: '2' }],
-];
+import {
+  pointInFlatPolygon, polygonBounds, polygonCentroid, constrainToAxis,
+  SCHOOL_COLORS, hexToRgb, SPELL_COLOR_OVERRIDES, SCHOOL_ICON_SVGS, SPELL_ICON_SVGS,
+  iconImageCache, makeIconSvgUrl, getIconImage, getSchoolColor, computeWallCorners, getTokenSizeMultiplier,
+  getTokensInAoe,
+} from './mapview/helpers';
+import type { AoeState, SaveResult } from './mapview/helpers';
+import {
+  TokenAvatar, ActiveTurnRing, TargetRing, CountdownRing, TurnIndicatorChevrons,
+  VIEWPOINT_NODES, DOOR_CLOSED_NODES, DOOR_OPEN_NODES, GRID2X2_NODES, BLINDS_NODES,
+} from './mapview/tokenVisuals';
+import type { IconNode } from './mapview/tokenVisuals';
+import {
+  WallOfFireParticles, WallOfIceParticles, WallOfIceDomeParticles, WallOfForceParticles,
+  WallOfForceDomeParticles, WindWallParticles, WallOfLightParticles, WallOfSandParticles,
+  PrismaticWallParticles, WallOfThornsParticles, WallOfThornsRingParticles, HallowParticles,
+  ForcecageBarsParticles, ForcecageBoxParticles, PasswallParticles, BladeBarrierParticles,
+  BladeBarrierRingParticles, WallOfFireRingParticles, FireballParticles,
+  isFireSphereSpell, isFireConeSpell, isFireLineSpell, isFireCubeSpell,
+  isThunderSphereSpell, isThunderCubeSpell, isThunderEmanationSpell,
+  isLightningSphereSpell, isLightningLineSpell,
+  FireConeParticles, FireLineParticles, FireCubeParticles,
+  isIceSphereSpell, isIceConeSpell, isWindConeSpell, isWindLineSpell,
+  IceSphereParticles, IceConeParticles, WindConeParticles,
+  isPoisonSphereSpell, isAcidSphereSpell, isAcidLineSpell, isNecroticSphereSpell, isNecroticConeSpell,
+  RadialAoEParticles, THUNDER_PALETTE, THUNDER_GRADIENT, ThunderShockwaveParticles, ThunderCubeParticles,
+  LIGHTNING_GRADIENT, LightningSphereParticles, LightningLineParticles,
+  ConeAoEParticles, LineAoEParticles, CubeAoEParticles,
+  POISON_PALETTE, ACID_PALETTE, NECROTIC_PALETTE, POISON_GRADIENT, ACID_GRADIENT, NECROTIC_GRADIENT,
+  ELEMENT_STYLES, getSphereElement, getConeElement, getLineElement, getCubeElement,
+  GustOfWindParticles,
+} from './mapview/particles';
+import { WallSpellParticleLayers } from './mapview/WallSpellParticleLayers';
+import { RemoteAoeLayers } from './mapview/RemoteAoeLayers';
+import type { MapViewProps } from './mapview/MapViewProps';
+
+export type { SaveResult } from './mapview/helpers';
+
+/** Small round avatar for context-menu rows; falls back to a colored initial. */
+const MenuAvatar: React.FC<{ avatar?: string; name: string; color?: string }> = ({ avatar, name, color }) => (
+  <div
+    className="w-5 h-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-[9px] font-bold text-white"
+    style={{ background: avatar ? 'transparent' : (color || '#64748b') }}
+  >
+    {avatar
+      ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+      : name[0]?.toUpperCase()}
+  </div>
+);
 
 const MapViewInner: React.FC<MapViewProps> = ({
   tokens,
   onTokensChange,
   scenarioName,
+  scenarioId,
+  exploredFogResetAt,
   mapImage,
   onMapChange,
   mapNotes,
@@ -3575,6 +107,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   panToNote,
   isPlayerView = false,
   dmViewAsPlayerId = null,
+  showTokenNames = true,
   viewerCasterIds,
   walls,
   objectWalls,
@@ -3709,6 +242,18 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (portalPlacementMode) onStopPortalPlacement?.();
     setWallEditMode(false);
   };
+  /** True while the floating "Dark Zones" toolbar is open. */
+  const [darkZoneEditMode, setDarkZoneEditMode] = useState(false);
+  /** True while clicking a dark zone on the map deletes it. */
+  const [darkZoneErasing, setDarkZoneErasing] = useState(false);
+  /** True while the floating "Difficult Terrain" toolbar is open. */
+  const [terrainEditMode, setTerrainEditMode] = useState(false);
+  /** True while clicking a difficult-terrain area on the map deletes it. */
+  const [terrainErasing, setTerrainErasing] = useState(false);
+  /** True while the floating "Sound Zones" toolbar is open. */
+  const [soundZoneEditMode, setSoundZoneEditMode] = useState(false);
+  /** True while clicking a sound zone on the map deletes it. */
+  const [soundZoneErasing, setSoundZoneErasing] = useState(false);
   /**
    * Commit the wall currently being drawn (needs 2+ corners) and clear the
    * working points so a fresh wall can be started. Used by Enter and right-click.
@@ -3749,6 +294,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setDarkSnapToOrigin(false);
     setDarkPaintHover(null);
   };
+  /** Exit dark-zone editing: commit any in-progress shape, stop sub-modes, close the toolbar. */
+  const exitDarkZoneEditMode = () => {
+    if (darkZonePainting) {
+      commitCurrentDark();
+      onDarkZonePaintCancel?.();
+    }
+    setDarkZoneErasing(false);
+    setDarkZoneEditMode(false);
+  };
   /** Commit the sound-zone polygon being drawn (3+ corners) and clear, staying in mode. */
   const commitCurrentZone = () => {
     if (zonePaintPoints.length >= 6) {
@@ -3757,6 +311,24 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setZonePaintPoints([]);
     setZoneSnapToOrigin(false);
     setZonePaintCursor(null);
+  };
+  /** Exit difficult-terrain editing: commit any in-progress shape, stop sub-modes, close the toolbar. */
+  const exitTerrainEditMode = () => {
+    if (difficultTerrainPainting) {
+      commitCurrentTerrain();
+      onDifficultTerrainPaintCancel?.();
+    }
+    setTerrainErasing(false);
+    setTerrainEditMode(false);
+  };
+  /** Exit sound-zone editing: commit any in-progress shape, stop sub-modes, close the toolbar. */
+  const exitSoundZoneEditMode = () => {
+    if (zonePainting) {
+      commitCurrentZone();
+      onSoundZonePaintCancel?.();
+    }
+    setSoundZoneErasing(false);
+    setSoundZoneEditMode(false);
   };
   const clearTzPaint = () => {
     setTzPaintPoints([]);
@@ -4022,7 +594,53 @@ const MapViewInner: React.FC<MapViewProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [wallErasing, onToggleWallErasing]);
-  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+  // Keyboard for zone erasing (dark / terrain / sound): Esc exits eraser mode.
+  useEffect(() => {
+    if (!darkZoneErasing && !terrainErasing && !soundZoneErasing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDarkZoneErasing(false);
+        setTerrainErasing(false);
+        setSoundZoneErasing(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [darkZoneErasing, terrainErasing, soundZoneErasing]);
+  // Sound-zone painting starts from the App-level Sound Zones panel; open the
+  // toolbar automatically so the drawing state and hints are visible, and close
+  // the other zone toolbars so they don't stack on top of it.
+  useEffect(() => {
+    if (!zonePainting) return;
+    setSoundZoneEditMode(true);
+    setSoundZoneErasing(false);
+    setWallEditMode(false);
+    setDarkZoneEditMode(false);
+    setDarkZoneErasing(false);
+    setTerrainEditMode(false);
+    setTerrainErasing(false);
+  }, [zonePainting]);
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | HTMLVideoElement | null>(null);
+  const mapLayerRef = useRef<Konva.Layer | null>(null);
+  // Leaving a zone eraser mode (Done, Esc, or the toolbar toggle) can happen
+  // while a zone is hovered; the shape stops listening, so its onMouseLeave never
+  // fires to reset the pointer cursor. Reset it here instead.
+  useEffect(() => {
+    if (darkZoneErasing || terrainErasing || soundZoneErasing) return;
+    const container = mapLayerRef.current?.getStage()?.container();
+    if (container) container.style.cursor = 'default';
+  }, [darkZoneErasing, terrainErasing, soundZoneErasing]);
+  // Transient banner shown after uploading a video map onto a floor that
+  // already has UVTT wall/light/grid data: confirms the data was kept, or
+  // warns when the video resolution doesn't match the UVTT map.
+  const [videoImportNotice, setVideoImportNotice] = useState<{ kind: 'kept' | 'mismatch'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!videoImportNotice) return;
+    // Give mismatch warnings longer on screen — they're actionable.
+    const t = setTimeout(() => setVideoImportNotice(null), videoImportNotice.kind === 'mismatch' ? 15000 : 8000);
+    return () => clearTimeout(t);
+  }, [videoImportNotice]);
   // Tracks which mapImage URL is actually painted on the canvas. While this lags
   // behind the mapImage prop (e.g. during a floor transition while the new image
   // is still loading), we hide the stage behind a black overlay so the user
@@ -4916,12 +1534,22 @@ const MapViewInner: React.FC<MapViewProps> = ({
     return getTokensInAoe(activeAoe, tokens, ppg, tokenRadius);
   }, [activeAoe?.x, activeAoe?.y, activeAoe?.angle, activeAoe?.aoeType, activeAoe?.aoeSize, activeAoe?.originX, activeAoe?.originY, tokens, ppg, tokenRadius]);
 
-  // Engaged pairs: player ↔ enemy/npc tokens within 5ft (melee range) during combat
+  // Engaged pairs: player ↔ enemy/npc tokens within 5ft (melee range) during combat.
+  // Only tokens whose combatant is in the initiative order count, and hidden or
+  // invisible creatures never reveal engagement.
   const engagedPairs = useMemo(() => {
     if (!inCombat || !gridResolution) return [] as { key: string; ptId: string; etId: string; px1: number; py1: number; px2: number; py2: number }[];
     const pairs: { key: string; ptId: string; etId: string; px1: number; py1: number; px2: number; py2: number }[] = [];
-    const playerTokens = tokens.filter(t => t.type === 'player');
-    const enemyTokens = tokens.filter(t => t.type === 'enemy' || t.type === 'npc');
+    const canEngage = (t: Token) => {
+      if (t.hidden || t.invisible) return false;
+      if (!t.combatantId) return false;
+      const combatant = activeCombatants.find(c => c.id === t.combatantId || c.sourceCombatantId === t.combatantId);
+      if (!combatant) return false;
+      if (combatant.conditions?.some(cond => cond === 'Invisible' || cond === 'Hidden')) return false;
+      return true;
+    };
+    const playerTokens = tokens.filter(t => t.type === 'player' && canEngage(t));
+    const enemyTokens = tokens.filter(t => (t.type === 'enemy' || t.type === 'npc') && canEngage(t));
     for (const pt of playerTokens) {
       const r1 = tokenRadius * getTokenSizeMultiplier(pt.size);
       const px1 = livePlayerPos[pt.id]?.x ?? pt.x;
@@ -4937,7 +1565,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
       }
     }
     return pairs;
-  }, [inCombat, tokens, livePlayerPos, tokenRadius, ppg, gridResolution]);
+  }, [inCombat, tokens, livePlayerPos, tokenRadius, ppg, gridResolution, activeCombatants]);
 
   const engagedTokenIds = useMemo(() => {
     const ids = new Set<string>();
@@ -5534,10 +2162,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }, [useFromPlayerPerspective, loadedImage, lightPolygons.length, visionPlayerTokenPositions, blockingSegments]);
 
   // ── Dark Zones ──
-  // In Daylight, dark-zone polygons should re-fog the area inside them. Only
-  // applies when rendering from a player's perspective; the DM sees the zone outline regardless.
+  // In Daylight, dark-zone polygons should re-fog the area inside them. Applies to
+  // the player perspective AND the DM's fog preview, so the preview matches what
+  // players actually see (the DM additionally sees the dashed zone outline).
   const darkZonePolygons = useMemo((): WallPoint[][] => {
-    if (!useFromPlayerPerspective) return [];
     if ((darknessLevel ?? 'dark') !== 'daylight') return [];
     if (!darkZones.length) return [];
     return darkZones
@@ -5549,13 +2177,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
         return pts;
       });
-  }, [useFromPlayerPerspective, darknessLevel, darkZones]);
+  }, [darknessLevel, darkZones]);
 
   // Darkvision-radius-limited LOS polygons for every player token that has
   // darkvision or blindsight. Used to re-erase fog inside dark zones so tokens
   // with darkvision can see partway into them.
   const darkvisionRevealPolygons = useMemo((): WallPoint[][] => {
-    if (!useFromPlayerPerspective || !loadedImage || !darkZonePolygons.length) return [];
+    if (!loadedImage || !darkZonePolygons.length) return [];
     const { width: mapW, height: mapH } = loadedImage;
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const result: WallPoint[][] = [];
@@ -5573,10 +2201,215 @@ const MapViewInner: React.FC<MapViewProps> = ({
       result.push(clipPolygonToCircle(fullPoly, origin, visionPx));
     }
     return result;
-  }, [useFromPlayerPerspective, loadedImage, darkZonePolygons.length, visionPlayerTokenPositions, blockingSegments,
+  }, [loadedImage, darkZonePolygons.length, visionPlayerTokenPositions, blockingSegments,
     players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
 
   const hasFogData = blockingSegments.length > 0;
+
+  // ── Explored fog memory (StarCraft-style) ──
+  // Everything players have ever seen accumulates into a per-floor mask
+  // (utils/exploredFog.ts) that the fog layer uses to dim previously-seen
+  // terrain instead of hiding it in pitch black. Both the DM and player
+  // windows accumulate independently from the same synced token positions;
+  // only the DM window persists to IndexedDB to avoid write races.
+  const exploredFogMaskKey = scenarioId && activeFloorId
+    ? exploredFogKey(scenarioId, activeFloorId)
+    : null;
+
+  const exploredMaskEntry = useMemo(() => {
+    if (!exploredFogMaskKey || !loadedImage || !hasFogData) return null;
+    return getExploredFogEntry(exploredFogMaskKey, loadedImage.width, loadedImage.height);
+  }, [exploredFogMaskKey, loadedImage, hasFogData]);
+
+  const [exploredMaskVersion, setExploredMaskVersion] = useState(0);
+  useEffect(() => {
+    if (!exploredFogMaskKey) return;
+    setExploredMaskVersion(getExploredFogVersion(exploredFogMaskKey));
+    return subscribeExploredFog(exploredFogMaskKey, () =>
+      setExploredMaskVersion(getExploredFogVersion(exploredFogMaskKey))
+    );
+  }, [exploredFogMaskKey]);
+
+  // Apply "Reset Explored Fog" — the timestamp travels on the Floor object so
+  // the player window picks it up over the normal IPC state sync. Re-runs on
+  // version bumps so it also applies right after the async IndexedDB load.
+  useEffect(() => {
+    if (!exploredFogMaskKey || !exploredFogResetAt || !exploredMaskEntry) return;
+    resetExploredFog(exploredFogMaskKey, exploredFogResetAt, !isPlayerView);
+  }, [exploredFogMaskKey, exploredFogResetAt, exploredMaskEntry, isPlayerView, exploredMaskVersion]);
+
+  // Current visible region for ALL player tokens under player-vision rules
+  // (darkness level, darkvision/blindsight radius). Unlike playerVisionData
+  // this ignores "View as Player" filtering and runs on the DM screen too, so
+  // exploration accrues whenever tokens move — even during session prep.
+  const exploredStampData = useMemo(() => {
+    if (!loadedImage || !hasFogData || !exploredFogMaskKey) return null;
+    const { width: mapW, height: mapH } = loadedImage;
+    const level = darknessLevel ?? 'dark';
+    const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
+    const visionPolys: WallPoint[][] = [];
+    const darkvisionPolys: WallPoint[][] = [];
+    const losPolys: WallPoint[][] = [];
+    const hasDarkZones = darkZonePolygons.length > 0;
+    const hasLights = lightPolygons.length > 0;
+
+    for (const t of playerTokenPositions) {
+      const combatant = allCombatants.find(c => c.id === t.combatantId);
+      const blindsightMatch = combatant?.senses?.match(/blindsight\s+(\d+)/i);
+      const blindsightFt = blindsightMatch ? parseInt(blindsightMatch[1], 10) : 0;
+      const visionFt = Math.max(combatant?.darkvision ?? 0, blindsightFt);
+      const visionPx = gridResolution
+        ? (visionFt / 5) * gridResolution.pixelsPerGrid
+        : visionFt * 4;
+      const origin = { x: t.x, y: t.y };
+      const fullPoly = computeVisibilityPolygon(origin, blockingSegments, mapW, mapH);
+
+      if (level === 'daylight') {
+        visionPolys.push(fullPoly);
+      } else if (visionFt > 0) {
+        visionPolys.push(clipPolygonToCircle(fullPoly, origin, visionPx));
+      }
+      if (hasDarkZones && visionFt > 0) {
+        darkvisionPolys.push(clipPolygonToCircle(fullPoly, origin, visionPx));
+      }
+      if (hasLights) {
+        losPolys.push(fullPoly);
+      }
+    }
+    return { visionPolys, darkvisionPolys, losPolys };
+  }, [loadedImage, hasFogData, exploredFogMaskKey, darknessLevel, playerTokenPositions,
+    blockingSegments, players, npcs, persistentEnemies, scenarioCombatants, gridResolution,
+    darkZonePolygons.length, lightPolygons.length]);
+
+  // Stamp the current visible region into the explored mask, trailing-throttled
+  // so continuous token drags don't redraw the mask every frame.
+  const exploredStampThrottleRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    latest: (() => void) | null;
+    latestKey: string | null;
+  }>({ timer: null, latest: null, latestKey: null });
+
+  useEffect(() => {
+    if (!exploredFogMaskKey || !loadedImage || !exploredStampData) return;
+    const { visionPolys, darkvisionPolys, losPolys } = exploredStampData;
+    const anyLight = losPolys.length > 0 && lightPolygons.length > 0;
+    if (!visionPolys.length && !darkvisionPolys.length && !anyLight) return;
+    const { width: mapW, height: mapH } = loadedImage;
+
+    const doStamp = () => {
+      // Paint the currently-visible region opaque, mirroring the compositing
+      // order of FogOfWarLayer (vision → dark-zone cutout → darkvision → light∩LOS).
+      stampExploredFog(exploredFogMaskKey, mapW, mapH, !isPlayerView, (ctx) => {
+        const trace = (polygon: WallPoint[]) => {
+          ctx.beginPath();
+          ctx.moveTo(polygon[0].x, polygon[0].y);
+          for (let i = 1; i < polygon.length; i++) ctx.lineTo(polygon[i].x, polygon[i].y);
+          ctx.closePath();
+        };
+        ctx.fillStyle = 'white';
+        for (const poly of visionPolys) {
+          if (poly.length < 3) continue;
+          trace(poly);
+          ctx.fill();
+        }
+        if (darkZonePolygons.length) {
+          ctx.globalCompositeOperation = 'destination-out';
+          for (const poly of darkZonePolygons) {
+            if (poly.length < 3) continue;
+            trace(poly);
+            ctx.fill();
+          }
+          ctx.globalCompositeOperation = 'source-over';
+          for (const poly of darkvisionPolys) {
+            if (poly.length < 3) continue;
+            trace(poly);
+            ctx.fill();
+          }
+        }
+        if (anyLight) {
+          for (const losPoly of losPolys) {
+            if (losPoly.length < 3) continue;
+            for (const lightPoly of lightPolygons) {
+              if (lightPoly.length < 3) continue;
+              ctx.save();
+              trace(losPoly);
+              ctx.clip();
+              trace(lightPoly);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+        }
+      });
+    };
+
+    const st = exploredStampThrottleRef.current;
+    // Floor switched with a stamp still pending — flush it for the old floor
+    // now so the final token positions there aren't lost (the primary MapView
+    // is reused across floor switches, not remounted).
+    if (st.latest && st.latestKey !== exploredFogMaskKey) {
+      const fn = st.latest;
+      st.latest = null;
+      fn();
+    }
+    st.latest = doStamp;
+    st.latestKey = exploredFogMaskKey;
+    if (!st.timer) {
+      st.timer = setTimeout(() => {
+        st.timer = null;
+        const fn = st.latest;
+        st.latest = null;
+        fn?.();
+      }, 200);
+    }
+  }, [exploredFogMaskKey, loadedImage, exploredStampData, darkZonePolygons, lightPolygons, isPlayerView]);
+
+  // Flush any pending stamp on unmount (e.g. switching floors mid-drag).
+  useEffect(() => () => {
+    const st = exploredStampThrottleRef.current;
+    if (st.timer) {
+      clearTimeout(st.timer);
+      st.timer = null;
+    }
+    const fn = st.latest;
+    st.latest = null;
+    fn?.();
+  }, []);
+
+  // Pre-dimmed terrain masked to explored areas, painted on top of the fog by
+  // FogOfWarLayer (source-atop). Keeping the fog itself fully opaque means
+  // tokens underneath are occluded exactly at the visibility boundary — a
+  // half-exposed enemy shows half — while explored terrain reads through as
+  // dim "memory". Rebuilt only when the mask or map changes, not every frame.
+  const exploredOverlayRef = useRef<HTMLCanvasElement | null>(null);
+  const exploredOverlayCanvas = useMemo(() => {
+    if (!exploredMaskEntry || !loadedImage) return null;
+    const mask = exploredMaskEntry.canvas;
+    if (!exploredOverlayRef.current) {
+      exploredOverlayRef.current = document.createElement('canvas');
+    }
+    const buf = exploredOverlayRef.current;
+    if (buf.width !== mask.width || buf.height !== mask.height) {
+      buf.width = mask.width;
+      buf.height = mask.height;
+    }
+    const bctx = buf.getContext('2d');
+    if (!bctx) return null;
+    bctx.globalCompositeOperation = 'source-over';
+    bctx.clearRect(0, 0, buf.width, buf.height);
+    bctx.drawImage(loadedImage, 0, 0, buf.width, buf.height);
+    // Keep terrain only where explored
+    bctx.globalCompositeOperation = 'destination-in';
+    bctx.drawImage(mask, 0, 0);
+    // Bake in the memory dim
+    bctx.globalCompositeOperation = 'source-atop';
+    bctx.fillStyle = `rgba(0, 0, 0, ${EXPLORED_DIM})`;
+    bctx.fillRect(0, 0, buf.width, buf.height);
+    bctx.globalCompositeOperation = 'source-over';
+    return buf;
+    // exploredMaskVersion re-runs this when the mask contents change in place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exploredMaskEntry, exploredMaskVersion, loadedImage]);
 
   // Viewpoint proximity — which viewpoints have a player token within 3 grid squares
   const VIEWPOINT_RANGE_GRIDS = 3;
@@ -5688,9 +2521,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   useEffect(() => {
     if (mapImage) {
-      const img = new Image();
-      img.src = mapImage;
-      img.onload = () => {
+      const applyLoadedMedia = (media: HTMLImageElement | HTMLVideoElement, mediaW: number, mediaH: number) => {
         // Defer EVERY state update (image + scale + position + reveal flag) to
         // the same animation frame, so the new map, the new camera, and the
         // overlay reveal all happen atomically in a single render. Without
@@ -5703,7 +2534,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             // Dimensions aren't ready yet — at minimum, swap in the new
             // image and mark the transition complete so the overlay fades.
             // A later ResizeObserver tick will set the camera.
-            setLoadedImage(img);
+            setLoadedImage(media);
             setDisplayedMapImage(mapImage);
             return;
           }
@@ -5720,8 +2551,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
             // No grid info: fit the map snugly in the viewport
             const padding = 80;
             scale = Math.min(
-              (dims.width - padding) / img.width,
-              (dims.height - padding) / img.height,
+              (dims.width - padding) / mediaW,
+              (dims.height - padding) / mediaH,
               1
             );
           }
@@ -5738,20 +2569,60 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 y: dims.height / 2 - vc.y * finalScale,
               }
             : {
-                x: (dims.width - img.width * finalScale) / 2,
-                y: (dims.height - img.height * finalScale) / 2,
+                x: (dims.width - mediaW * finalScale) / 2,
+                y: (dims.height - mediaH * finalScale) / 2,
               };
-          setLoadedImage(img);
+          setLoadedImage(media);
           setStageScale(finalScale);
           setStagePos(nextPos);
           setDisplayedMapImage(mapImage);
         });
       };
+
+      if (mapImage.startsWith('data:video/')) {
+        // Animated map (Dungeon Alchemist MP4/WEBM export). Konva draws a
+        // <video> element the same way it draws an image; a Konva.Animation
+        // (see the effect below) keeps the layer redrawing while it plays.
+        const video = document.createElement('video');
+        video.src = mapImage;
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.addEventListener('loadeddata', () => {
+          // Give the element explicit width/height attributes so all the
+          // downstream loadedImage.width/height reads work like they do
+          // for HTMLImageElement.
+          video.width = video.videoWidth;
+          video.height = video.videoHeight;
+          video.play().catch(() => { /* autoplay is allowed for muted video */ });
+          applyLoadedMedia(video, video.videoWidth, video.videoHeight);
+        }, { once: true });
+      } else {
+        const img = new Image();
+        img.src = mapImage;
+        img.onload = () => applyLoadedMedia(img, img.width, img.height);
+      }
     } else {
       setLoadedImage(null);
       setDisplayedMapImage(undefined);
     }
   }, [mapImage, gridResolution?.pixelsPerGrid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Animated (video) maps: Konva only repaints a layer when told to, so run a
+  // Konva.Animation that redraws the base-map layer every frame while a video
+  // map is playing. Cleanup pauses the old video and releases its decoder.
+  useEffect(() => {
+    if (!(loadedImage instanceof HTMLVideoElement)) return;
+    const video = loadedImage;
+    const anim = new Konva.Animation(() => { /* redraw only */ }, mapLayerRef.current);
+    anim.start();
+    return () => {
+      anim.stop();
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [loadedImage]);
 
   // When the player-view target center changes after the image is already
   // loaded (e.g. parent set floorCenters[newFloor]=arrival just after a
@@ -5808,14 +2679,60 @@ const MapViewInner: React.FC<MapViewProps> = ({
       };
       reader.readAsText(file);
     } else {
+      // Video maps (Dungeon Alchemist MP4/WEBM export): the OS may report a
+      // missing/generic MIME type, so force the data URL to data:video/… —
+      // that prefix is what the map-loading effect keys on.
+      const videoMime = ext === 'mp4' ? 'video/mp4' : ext === 'webm' ? 'video/webm' : null;
       const reader = new FileReader();
       reader.onload = (event) => {
-        if (event.target?.result) {
-          onMapChange(event.target.result as string);
+        let result = event.target?.result as string | undefined;
+        if (!result) return;
+        if (videoMime && !result.startsWith('data:video/')) {
+          result = result.replace(/^data:[^;,]*/, `data:${videoMime}`);
         }
+        onMapChange(result);
+        if (videoMime) notifyVideoImport(result);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // After a video map is uploaded onto a floor that already has UVTT data
+  // (walls/doors/lights/grid), tell the DM that data was kept — that's the
+  // intended Dungeon Alchemist workflow (import the .uvtt for walls, then the
+  // video as the visual). Warn instead if the video resolution doesn't match
+  // the UVTT map, since wall coordinates are in pixels of the original image.
+  const notifyVideoImport = (videoDataUrl: string) => {
+    const hasWallData = !!(walls?.length || objectWalls?.length || portals?.length || lights?.length);
+    if (!hasWallData && !gridResolution) return;
+
+    const probe = document.createElement('video');
+    probe.muted = true;
+    probe.src = videoDataUrl;
+    probe.addEventListener('loadedmetadata', () => {
+      const vw = probe.videoWidth;
+      const vh = probe.videoHeight;
+      probe.removeAttribute('src');
+      probe.load();
+
+      const expectedW = gridResolution ? Math.round(gridResolution.mapSize.x * gridResolution.pixelsPerGrid) : null;
+      const expectedH = gridResolution ? Math.round(gridResolution.mapSize.y * gridResolution.pixelsPerGrid) : null;
+      // Video encoders round dimensions to even numbers, so allow a couple px.
+      const mismatch = expectedW !== null && expectedH !== null &&
+        (Math.abs(vw - expectedW) > 2 || Math.abs(vh - expectedH) > 2);
+
+      if (mismatch) {
+        setVideoImportNotice({
+          kind: 'mismatch',
+          text: `Video is ${vw}×${vh}px but the imported UVTT map is ${expectedW}×${expectedH}px — walls, lights & grid may not line up. Re-export the video at the same resolution as the UVTT export.`,
+        });
+      } else if (hasWallData) {
+        setVideoImportNotice({
+          kind: 'kept',
+          text: 'Animated map imported — existing walls, doors, lights & grid were kept.',
+        });
+      }
+    }, { once: true });
   };
 
   const multiDragStartRef = useRef<{
@@ -6206,9 +3123,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
     isTokenDraggingRef.current = false;
     onDragStatusChange?.(false);
 
-    if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-      window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
-    } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+    // Player-side IPC is handled by onTokensChange → PlayerScreen.handleTokensChange,
+    // which merges this floor's tokens with the other floors' before sending.
+    // Sending the floor-filtered array from here would momentarily wipe the
+    // other floors' tokens on the DM screen (collapsing its split view).
+    if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
       window.electronAPI.sendDMTokenUpdate(updatedTokens);
     }
 
@@ -6274,9 +3193,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         t.id === tokenId ? { ...t, x: lastSeg.startPos.x, y: lastSeg.startPos.y } : t
       );
       onTokensChange(updatedTokens);
-      if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-        window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
-      } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+      if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
         window.electronAPI.sendDMTokenUpdate(updatedTokens);
       }
     } else {
@@ -6285,9 +3202,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         t.id === tokenId ? { ...t, x: path.startPos.x, y: path.startPos.y } : t
       );
       onTokensChange(updatedTokens);
-      if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-        window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
-      } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+      if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
         window.electronAPI.sendDMTokenUpdate(updatedTokens);
       }
       setMovementPaths(prev => {
@@ -6367,7 +3282,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
     // Other map-editing/drawing modes: suppress the right-click menu so the
     // user can right-click freely (e.g. to cancel) without it popping up.
-    if (wallErasing || drawingMode !== 'off') {
+    if (wallErasing || darkZoneErasing || terrainErasing || soundZoneErasing || drawingMode !== 'off') {
       return;
     }
     setTokenContextMenu(null);
@@ -6902,9 +3817,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
         const updatedTokens = [...tokens, newToken];
         onTokensChange(updatedTokens);
-        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-          window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
-        }
         setPlacingSpell(null);
         onCastingDismissed?.();
         e.evt.preventDefault();
@@ -7129,9 +4041,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         }
         const updatedTokens = [...tokens, newToken];
         onTokensChange(updatedTokens);
-        if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-          window.electronAPI.sendPlayerTokenUpdate(updatedTokens);
-        } else if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
+        if (!isPlayerView && window.electronAPI?.sendDMTokenUpdate) {
           window.electronAPI.sendDMTokenUpdate(updatedTokens);
         }
         setPlacingSpell(null);
@@ -7233,7 +4143,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // Wall painting: track hover so we can draw a preview line + origin-snap indicator.
     if (wallPainting) {
       const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
+      let pos = getCanvasPos(stage);
+      if (e.evt.shiftKey && wallPaintPoints.length >= 2) {
+        pos = constrainToAxis(pos, wallPaintPoints[wallPaintPoints.length - 2], wallPaintPoints[wallPaintPoints.length - 1]);
+      }
       let snap = false;
       if (wallPaintPoints.length >= 4) {
         const ox = wallPaintPoints[0];
@@ -7252,7 +4165,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // Difficult-terrain painting: track hover for the rubber-band preview + origin snap.
     if (difficultTerrainPainting) {
       const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
+      let pos = getCanvasPos(stage);
+      if (e.evt.shiftKey && terrainPaintPoints.length >= 2) {
+        pos = constrainToAxis(pos, terrainPaintPoints[terrainPaintPoints.length - 2], terrainPaintPoints[terrainPaintPoints.length - 1]);
+      }
       let snap = false;
       if (terrainPaintPoints.length >= 6) {
         const ox = terrainPaintPoints[0];
@@ -7269,7 +4185,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // Dark-zone painting: track hover for the rubber-band preview + origin snap.
     if (darkZonePainting) {
       const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
+      let pos = getCanvasPos(stage);
+      if (e.evt.shiftKey && darkPaintPoints.length >= 2) {
+        pos = constrainToAxis(pos, darkPaintPoints[darkPaintPoints.length - 2], darkPaintPoints[darkPaintPoints.length - 1]);
+      }
       let snap = false;
       if (darkPaintPoints.length >= 6) {
         const ox = darkPaintPoints[0];
@@ -7286,7 +4205,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // Sound-zone painting: track hover for the rubber-band preview + origin snap.
     if (zonePainting) {
       const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
+      let pos = getCanvasPos(stage);
+      if (e.evt.shiftKey && zonePaintPoints.length >= 2) {
+        pos = constrainToAxis(pos, zonePaintPoints[zonePaintPoints.length - 2], zonePaintPoints[zonePaintPoints.length - 1]);
+      }
       let snap = false;
       if (zonePaintPoints.length >= 6) {
         const ox = zonePaintPoints[0];
@@ -7303,7 +4225,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // Transition zone drawing: track hover for the rubber-band preview + origin snap.
     if (transitionZoneMode) {
       const stage = e.target.getStage();
-      const pos = getCanvasPos(stage);
+      let pos = getCanvasPos(stage);
+      if (e.evt.shiftKey && tzPaintPoints.length >= 2) {
+        pos = constrainToAxis(pos, tzPaintPoints[tzPaintPoints.length - 2], tzPaintPoints[tzPaintPoints.length - 1]);
+      }
       let snap = false;
       if (tzPaintPoints.length >= 6) {
         const ox = tzPaintPoints[0];
@@ -7344,7 +4269,12 @@ const MapViewInner: React.FC<MapViewProps> = ({
         const eErased = eraseAt(ephemeralStrokes, pos.x, pos.y, ERASER_RADIUS_PX);
         if (eErased.changed) setEphemeralStrokes(eErased.next);
       } else if (currentStroke) {
-        const pos = getCanvasPos(e.target.getStage());
+        let pos = getCanvasPos(e.target.getStage());
+        // Shift constrains the stroke to a straight horizontal/vertical line
+        // through its starting point.
+        if (e.evt.shiftKey && currentStroke.points.length >= 2) {
+          pos = constrainToAxis(pos, currentStroke.points[0], currentStroke.points[1]);
+        }
         const last = currentStroke.points;
         const lx = last[last.length - 2], ly = last[last.length - 1];
         const dx = pos.x - lx, dy = pos.y - ly;
@@ -7820,7 +4750,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 >
                   MAP SETTINGS <ChevronDown size={12} className={cn("transition-transform", isMapMenuOpen && "rotate-180")} />
                 </button>
-                <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,.uvtt,.dd2vtt,.df2vtt" />
+                <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="image/*,video/mp4,video/webm,.mp4,.webm,.uvtt,.dd2vtt,.df2vtt" />
 
                 <AnimatePresence>
                   {isMapMenuOpen && (
@@ -7878,6 +4808,25 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           >
                             <Cloud size={14} />
                             {showFog ? 'Turn Off Fog' : 'Turn On Fog'}
+                          </button>
+                        )}
+
+                        {loadedImage && exploredFogMaskKey && (
+                          <button
+                            onClick={() => {
+                              const now = Date.now();
+                              resetExploredFog(exploredFogMaskKey, now, !isPlayerView);
+                              // Stamp the timestamp onto the floor so the reset syncs
+                              // to the player window (and survives reloads).
+                              if (activeFloorId) {
+                                onUpdateFloorById?.(activeFloorId, f => ({ ...f, exploredFogResetAt: now }));
+                              }
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <Eraser size={14} />
+                            Reset Explored Fog
                           </button>
                         )}
 
@@ -7946,6 +4895,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                               <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Edit Walls</p>
                               <button
                                 onClick={() => {
+                                  exitDarkZoneEditMode();
+                                  exitTerrainEditMode();
+                                  exitSoundZoneEditMode();
                                   setWallEditMode(true);
                                   setIsMapMenuOpen(false);
                                 }}
@@ -7958,88 +4910,73 @@ const MapViewInner: React.FC<MapViewProps> = ({
                           </>
                         )}
 
-                        {loadedImage && (onStartDarkZonePainting || darkZones.length > 0) && (
+                        {loadedImage && onStartDarkZonePainting && (
                           <>
                             <div className="h-px bg-[var(--line)] mx-2 my-1" />
                             <div className="px-3 py-1.5">
                               <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Dark Zones</p>
-                              {darkZones.length > 0 && (
-                                <div className="flex flex-col gap-1 mb-1.5">
-                                  {darkZones.map((z, i) => (
-                                    <div key={z.id} className="flex items-center gap-1.5 text-[11px] bg-black/30 rounded px-2 py-1">
-                                      <Moon size={10} className="text-indigo-400 shrink-0" />
-                                      <span className="flex-1 truncate opacity-80">
-                                        {z.label || `Zone ${i + 1}`}
-                                      </span>
-                                      <button
-                                        onClick={() => {
-                                          onDarkZonesChange?.(darkZones.filter(d => d.id !== z.id));
-                                        }}
-                                        className="opacity-50 hover:opacity-100 hover:text-red-400 transition-colors"
-                                        title="Delete zone"
-                                      >
-                                        <Trash2 size={11} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
                               {onStartDarkZonePainting && (
                                 <button
                                   onClick={() => {
-                                    onStartDarkZonePainting();
+                                    exitWallEditMode();
+                                    exitTerrainEditMode();
+                                    exitSoundZoneEditMode();
+                                    setDarkZoneEditMode(true);
                                     setIsMapMenuOpen(false);
                                   }}
-                                  disabled={darkZonePainting}
-                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-md transition-colors disabled:opacity-40"
+                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-md transition-colors"
                                 >
-                                  <PlusCircle size={11} />
-                                  {darkZonePainting ? 'Painting…' : 'Paint Dark Zone'}
+                                  <Pencil size={11} />
+                                  Edit Dark Zones
                                 </button>
                               )}
                             </div>
                           </>
                         )}
 
-                        {loadedImage && (onStartDifficultTerrainPainting || difficultTerrain.length > 0) && (
+                        {loadedImage && onStartDifficultTerrainPainting && (
                           <>
                             <div className="h-px bg-[var(--line)] mx-2 my-1" />
                             <div className="px-3 py-1.5">
                               <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Difficult Terrain</p>
-                              {difficultTerrain.length > 0 && (
-                                <div className="flex flex-col gap-1 mb-1.5">
-                                  {difficultTerrain.map((z, i) => (
-                                    <div key={z.id} className="flex items-center gap-1.5 text-[11px] bg-black/30 rounded px-2 py-1">
-                                      <Footprints size={10} className="text-amber-600 shrink-0" />
-                                      <span className="flex-1 truncate opacity-80">
-                                        {z.label || `Area ${i + 1}`}
-                                      </span>
-                                      <button
-                                        onClick={() => {
-                                          onDifficultTerrainChange?.(difficultTerrain.filter(d => d.id !== z.id));
-                                        }}
-                                        className="opacity-50 hover:opacity-100 hover:text-red-400 transition-colors"
-                                        title="Delete area"
-                                      >
-                                        <Trash2 size={11} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
                               {onStartDifficultTerrainPainting && (
                                 <button
                                   onClick={() => {
-                                    onStartDifficultTerrainPainting();
+                                    exitWallEditMode();
+                                    exitDarkZoneEditMode();
+                                    exitSoundZoneEditMode();
+                                    setTerrainEditMode(true);
                                     setIsMapMenuOpen(false);
                                   }}
-                                  disabled={difficultTerrainPainting}
-                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 rounded-md transition-colors disabled:opacity-40"
+                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 rounded-md transition-colors"
                                 >
-                                  <PlusCircle size={11} />
-                                  {difficultTerrainPainting ? 'Painting…' : 'Paint Difficult Terrain'}
+                                  <Pencil size={11} />
+                                  Edit Difficult Terrain
                                 </button>
                               )}
+                            </div>
+                          </>
+                        )}
+
+                        {floors && floors.length > 1 && loadedImage && (
+                          <>
+                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
+                            <div className="px-3 py-1.5">
+                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Transition Zones</p>
+                              <button
+                                onClick={() => {
+                                  exitWallEditMode();
+                                  exitDarkZoneEditMode();
+                                  exitTerrainEditMode();
+                                  exitSoundZoneEditMode();
+                                  setTransitionZoneMode(!transitionZoneMode);
+                                  setIsMapMenuOpen(false);
+                                }}
+                                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-blue-500/15 hover:bg-blue-500/25 border border-blue-400/30 rounded-md transition-colors"
+                              >
+                                <ArrowUpDown size={11} />
+                                {transitionZoneMode ? 'Cancel Transition Zone' : 'Add Transition Zone'}
+                              </button>
                             </div>
                           </>
                         )}
@@ -8094,14 +5031,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                 {onOpenSoundZones && (
                                   <button
                                     onClick={() => {
-                                      onOpenSoundZones();
+                                      exitWallEditMode();
+                                      exitDarkZoneEditMode();
+                                      exitTerrainEditMode();
+                                      setSoundZoneEditMode(true);
                                       setIsMapMenuOpen(false);
                                     }}
                                     className="w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border border-[var(--accent)]/30 rounded-md transition-colors"
                                     title="Sound Zones (active floor)"
                                   >
                                     <Volume2 size={11} />
-                                    Sound Zones
+                                    Edit Sound Zones
                                   </button>
                                 )}
                               </div>
@@ -8151,6 +5091,43 @@ const MapViewInner: React.FC<MapViewProps> = ({
             />
           )}
         </AnimatePresence>
+        {/* Video map import notice — confirms UVTT wall data was kept, or
+            warns when the video resolution doesn't match the UVTT map. */}
+        <AnimatePresence>
+          {videoImportNotice && (
+            <motion.div
+              key="video-import-notice"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className={cn(
+                'absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-lg bg-black/85 border rounded-lg px-4 py-2 flex items-start gap-3 shadow-lg pointer-events-auto',
+                videoImportNotice.kind === 'mismatch'
+                  ? 'border-amber-500/50 shadow-amber-500/10'
+                  : 'border-emerald-500/50 shadow-emerald-500/10'
+              )}
+            >
+              <div className={cn(
+                'w-2 h-2 rounded-full mt-1.5 shrink-0',
+                videoImportNotice.kind === 'mismatch' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+              )} />
+              <span className={cn(
+                'text-sm',
+                videoImportNotice.kind === 'mismatch' ? 'text-amber-300' : 'text-emerald-300'
+              )}>
+                {videoImportNotice.text}
+              </span>
+              <button
+                onClick={() => setVideoImportNotice(null)}
+                className="ml-1 mt-0.5 shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+                aria-label="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Stage
           width={dimensions.width}
           height={dimensions.height}
@@ -8182,7 +5159,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
               if (stage && ptr) {
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
-                const p = tx.point(ptr);
+                let p = tx.point(ptr);
+                if (e.evt.shiftKey && zonePaintPoints.length >= 2) {
+                  p = constrainToAxis(p, zonePaintPoints[zonePaintPoints.length - 2], zonePaintPoints[zonePaintPoints.length - 1]);
+                }
                 // Clicking the first node closes the shape; double-click also commits.
                 // Either way we stay in paint mode for the next zone.
                 if (zoneSnapToOrigin && zonePaintPoints.length >= 6) {
@@ -8270,6 +5250,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
                 let p = tx.point(ptr);
+                if (e.evt.shiftKey && wallPaintPoints.length >= 2) {
+                  p = constrainToAxis(p, wallPaintPoints[wallPaintPoints.length - 2], wallPaintPoints[wallPaintPoints.length - 1]);
+                }
                 // Origin snap takes priority: clicking near the first vertex closes
                 // the loop by snapping the new vertex exactly to it, then committing.
                 if (wallSnapToOrigin && wallPaintPoints.length >= 4 && onWallsChange) {
@@ -8398,7 +5381,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
               if (stage && ptr) {
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
-                const p = tx.point(ptr);
+                let p = tx.point(ptr);
+                if (e.evt.shiftKey && darkPaintPoints.length >= 2) {
+                  p = constrainToAxis(p, darkPaintPoints[darkPaintPoints.length - 2], darkPaintPoints[darkPaintPoints.length - 1]);
+                }
                 // Clicking the first node closes the shape; double-click also commits.
                 // Either way we stay in paint mode for the next zone.
                 if (darkSnapToOrigin && darkPaintPoints.length >= 6) {
@@ -8420,7 +5406,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
               if (stage && ptr) {
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
-                const p = tx.point(ptr);
+                let p = tx.point(ptr);
+                if (e.evt.shiftKey && terrainPaintPoints.length >= 2) {
+                  p = constrainToAxis(p, terrainPaintPoints[terrainPaintPoints.length - 2], terrainPaintPoints[terrainPaintPoints.length - 1]);
+                }
                 // Clicking the first node (origin snap) closes the loop and finishes
                 // this area, staying in paint mode for the next one.
                 if (terrainSnapToOrigin && terrainPaintPoints.length >= 6) {
@@ -8443,7 +5432,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
               if (stage && ptr) {
                 const tx = stage.getAbsoluteTransform().copy();
                 tx.invert();
-                const p = tx.point(ptr);
+                let p = tx.point(ptr);
+                if (e.evt.shiftKey && tzPaintPoints.length >= 2) {
+                  p = constrainToAxis(p, tzPaintPoints[tzPaintPoints.length - 2], tzPaintPoints[tzPaintPoints.length - 1]);
+                }
                 // Clicking the first node (origin snap) or double-clicking finishes
                 // the shape and advances the transition-zone flow.
                 if (tzSnapToOrigin && tzPaintPoints.length >= 6) {
@@ -8477,7 +5469,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                drawing, fog, etc. don't force the full-resolution map image to
                re-render every frame. listening=false skips hit-testing on it
                (the map itself has no click handlers; the Stage handles those). ── */}
-          <Layer listening={false}>
+          <Layer listening={false} ref={mapLayerRef}>
             {loadedImage && (
               <KonvaImage
                 image={loadedImage}
@@ -8498,48 +5490,83 @@ const MapViewInner: React.FC<MapViewProps> = ({
               const r = parseInt(color.slice(1, 3), 16);
               const g = parseInt(color.slice(3, 5), 16);
               const b = parseInt(color.slice(5, 7), 16);
+              // Deleting removes the shape under the cursor, so onMouseLeave never
+              // fires — reset the cursor here or the pointer hand sticks around.
+              const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
+                const st = e.target.getStage();
+                if (st) st.container().style.cursor = 'default';
+                onSoundZonesChange?.(soundZones.filter(d => d.id !== z.id));
+              };
               return (
                 <Line
                   key={`soundzone-${z.id}`}
                   points={z.points}
                   closed
-                  fill={`rgba(${r}, ${g}, ${b}, 0.18)`}
-                  stroke={color}
+                  fill={soundZoneErasing ? 'rgba(220, 38, 38, 0.18)' : `rgba(${r}, ${g}, ${b}, 0.18)`}
+                  stroke={soundZoneErasing ? '#ef4444' : color}
                   strokeWidth={2}
                   dash={[10, 6]}
-                  listening={false}
+                  listening={soundZoneErasing}
+                  onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
+                  onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
+                  onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
+                  onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
                 />
               );
             })}
-            {/* ── Dark zones — DM only, hidden when walls are hidden ── */}
-            {!isPlayerView && showWalls && darkZones.length > 0 && darkZones.map(z => {
+            {/* ── Dark zones — DM only, hidden when walls are hidden (always shown
+                 while the Dark Zones toolbar is open so the eraser has targets) ── */}
+            {!isPlayerView && (showWalls || darkZoneEditMode) && darkZones.length > 0 && darkZones.map(z => {
               if (z.points.length < 6) return null;
+              // Deleting removes the shape under the cursor, so onMouseLeave never
+              // fires — reset the cursor here or the pointer hand sticks around.
+              const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
+                const st = e.target.getStage();
+                if (st) st.container().style.cursor = 'default';
+                onDarkZonesChange?.(darkZones.filter(d => d.id !== z.id));
+              };
               return (
                 <Line
                   key={`darkzone-${z.id}`}
                   points={z.points}
                   closed
-                  fill="rgba(20, 24, 60, 0.32)"
-                  stroke="#6366f1"
+                  fill={darkZoneErasing ? 'rgba(220, 38, 38, 0.18)' : 'rgba(20, 24, 60, 0.32)'}
+                  stroke={darkZoneErasing ? '#ef4444' : '#6366f1'}
                   strokeWidth={2}
                   dash={[8, 4]}
-                  listening={false}
+                  listening={darkZoneErasing}
+                  onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
+                  onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
+                  onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
+                  onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
                 />
               );
             })}
-            {/* ── Difficult terrain — DM only, hidden when walls are hidden ── */}
-            {!isPlayerView && showWalls && difficultTerrain.length > 0 && difficultTerrain.map(z => {
+            {/* ── Difficult terrain — DM only, hidden when walls are hidden (always
+                 shown while the Difficult Terrain toolbar is open so the eraser has targets) ── */}
+            {!isPlayerView && (showWalls || terrainEditMode) && difficultTerrain.length > 0 && difficultTerrain.map(z => {
               if (z.points.length < 6) return null;
+              // Deleting removes the shape under the cursor, so onMouseLeave never
+              // fires — reset the cursor here or the pointer hand sticks around.
+              const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
+                const st = e.target.getStage();
+                if (st) st.container().style.cursor = 'default';
+                onDifficultTerrainChange?.(difficultTerrain.filter(d => d.id !== z.id));
+              };
               return (
                 <Line
                   key={`terrain-${z.id}`}
                   points={z.points}
                   closed
-                  fill="rgba(180, 120, 30, 0.22)"
-                  stroke="#d97706"
+                  fill={terrainErasing ? 'rgba(220, 38, 38, 0.18)' : 'rgba(180, 120, 30, 0.22)'}
+                  stroke={terrainErasing ? '#ef4444' : '#d97706'}
                   strokeWidth={2}
                   dash={[3, 5]}
-                  listening={false}
+                  listening={terrainErasing}
+                  onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
+                  onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
+                  onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
+                  onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
                 />
               );
             })}
@@ -9125,8 +6152,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   lineCap="round"
                   dash={showVisuals && (!portal.closed || isSecret) ? [8, 6] : []}
                   opacity={showVisuals ? (isSecret ? 0.7 : 0.9) : 1}
-                  onClick={(e) => { e.cancelBubble = true; if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
-                  onTap={(e) => { e.cancelBubble = true; if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+                  onClick={(e) => { e.cancelBubble = true; if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+                  onTap={(e) => { e.cancelBubble = true; if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
                   hitStrokeWidth={isPlayerView ? 30 : 12}
                 />
               );
@@ -9598,7 +6625,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       </>
                     );
                   })()}
-                  {!isPlayerView && (
+                  {!isPlayerView && showTokenNames && (
                     <Text
                       text={token.name}
                       fontSize={Math.max(10, tokenRadius * 0.55)}
@@ -9640,9 +6667,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 const distLabelFontSize = isPlayerView
                   ? Math.max(12, tokenRadius * 0.6)
                   : Math.max(9, tokenRadius * 0.45);
-                // On the player view names are hidden, so sit the label tight under the avatar
+                // When names are hidden (player view or DM setting), sit the label tight under the avatar
                 let nameHeight = 0;
-                if (!isPlayerView) {
+                if (!isPlayerView && showTokenNames) {
                   // Estimate wrapped name height: ~0.6 * fontSize per char width, Konva line-height ≈ 1.2×
                   const nameWidth = tokenRadius * 5;
                   const avgCharWidth = nameFontSize * 0.55;
@@ -10366,349 +7393,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
 
           {/* ── Remote AoE (from the other screen) ── */}
-          {remoteAoe && (() => {
-            const ppg = gridResolution?.pixelsPerGrid || 40;
-            const feetToPx = (ft: number) => (ft / 5) * ppg;
-            const sizePx = feetToPx(remoteAoe.aoeSize);
-            const strokeW = 2 / stageScale;
-            const hasRemoteSaveResults = !!remoteAoe.saveResults;
-            const remoteRgb = getDamageRgb(remoteAoe.damageType);
-            const fillColor = hasRemoteSaveResults ? 'transparent' : `rgba(${remoteRgb}, 0.25)`;
-            const strokeColor = `rgba(${remoteRgb}, 0.6)`;
-            const aRad = remoteAoe.angle * (Math.PI / 180);
-            const edgeX = remoteAoe.originX + Math.cos(aRad) * remoteAoe.casterRadiusPx;
-            const edgeY = remoteAoe.originY + Math.sin(aRad) * remoteAoe.casterRadiusPx;
-            const isAnchored = remoteAoe.aoeType === 'cone' || remoteAoe.aoeType === 'line' || !!remoteAoe.selfOrigin;
-
-            return (
-              <>
-              <Layer listening={false}>
-                {(remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                  const cx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                  const cy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                  return (
-                    <>
-                      <Circle
-                        x={cx}
-                        y={cy}
-                        radius={sizePx}
-                        fill={isFireSphereSpell(remoteAoe.name) || isIceSphereSpell(remoteAoe.name) || isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name) || isThunderSphereSpell(remoteAoe.name) || isLightningSphereSpell(remoteAoe.name) || getSphereElement(remoteAoe.name) ? 'transparent' : fillColor}
-                        stroke={strokeColor} strokeWidth={strokeW}
-                        dash={[6 / stageScale, 4 / stageScale]}
-                      />
-                      {isIceSphereSpell(remoteAoe.name) && (
-                        <Circle
-                          x={cx}
-                          y={cy}
-                          radius={sizePx}
-                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientStartRadius={0}
-                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientEndRadius={sizePx}
-                          fillRadialGradientColorStops={[0, 'rgba(220,240,255,0.55)', 0.5, 'rgba(150,210,240,0.32)', 0.85, 'rgba(80,160,210,0.14)', 1, 'rgba(50,110,170,0)']}
-                          listening={false}
-                          perfectDrawEnabled={false}
-                        />
-                      )}
-                      {(isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name)) && (
-                        <Circle
-                          x={cx}
-                          y={cy}
-                          radius={sizePx}
-                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientStartRadius={0}
-                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientEndRadius={sizePx}
-                          fillRadialGradientColorStops={isNecroticSphereSpell(remoteAoe.name) ? NECROTIC_GRADIENT : isAcidSphereSpell(remoteAoe.name) ? ACID_GRADIENT : POISON_GRADIENT}
-                          listening={false}
-                          perfectDrawEnabled={false}
-                        />
-                      )}
-                      {isLightningSphereSpell(remoteAoe.name) && (
-                        <Circle
-                          x={cx}
-                          y={cy}
-                          radius={sizePx}
-                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientStartRadius={0}
-                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientEndRadius={sizePx}
-                          fillRadialGradientColorStops={LIGHTNING_GRADIENT}
-                          listening={false}
-                          perfectDrawEnabled={false}
-                        />
-                      )}
-                      {isThunderSphereSpell(remoteAoe.name) && (
-                        <Circle
-                          x={cx}
-                          y={cy}
-                          radius={sizePx}
-                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientStartRadius={0}
-                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientEndRadius={sizePx}
-                          fillRadialGradientColorStops={THUNDER_GRADIENT}
-                          listening={false}
-                          perfectDrawEnabled={false}
-                        />
-                      )}
-                      {getSphereElement(remoteAoe.name) && (
-                        <Circle
-                          x={cx}
-                          y={cy}
-                          radius={sizePx}
-                          fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientStartRadius={0}
-                          fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                          fillRadialGradientEndRadius={sizePx}
-                          fillRadialGradientColorStops={ELEMENT_STYLES[getSphereElement(remoteAoe.name)!].gradient}
-                          listening={false}
-                          perfectDrawEnabled={false}
-                        />
-                      )}
-                      {isFireSphereSpell(remoteAoe.name) && (
-                        <>
-                          <Circle
-                            x={cx}
-                            y={cy}
-                            radius={sizePx}
-                            fillRadialGradientStartPoint={{ x: 0, y: 0 }}
-                            fillRadialGradientStartRadius={0}
-                            fillRadialGradientEndPoint={{ x: 0, y: 0 }}
-                            fillRadialGradientEndRadius={sizePx}
-                            fillRadialGradientColorStops={[0, 'rgba(255,160,20,0.72)', 0.45, 'rgba(255,90,0,0.42)', 0.8, 'rgba(200,50,0,0.18)', 1, 'rgba(150,30,0,0)']}
-                            listening={false}
-                            perfectDrawEnabled={false}
-                          />
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-                {remoteAoe.aoeType === 'cube' && (() => {
-                  if (remoteAoe.selfOrigin) {
-                    const perpX = Math.cos(aRad + Math.PI / 2) * sizePx / 2;
-                    const perpY = Math.sin(aRad + Math.PI / 2) * sizePx / 2;
-                    const fwdX = Math.cos(aRad) * sizePx;
-                    const fwdY = Math.sin(aRad) * sizePx;
-                    const points = [-perpX, -perpY, perpX, perpY, perpX + fwdX, perpY + fwdY, -perpX + fwdX, -perpY + fwdY];
-                    return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
-                  }
-                  return <Rect x={remoteAoe.x - sizePx / 2} y={remoteAoe.y - sizePx / 2} width={sizePx} height={sizePx}
-                    fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
-                })()}
-                {remoteAoe.aoeType === 'cone' && (() => {
-                  const halfAngle = (53 / 2) * (Math.PI / 180);
-                  const points = [0, 0,
-                    Math.cos(aRad - halfAngle) * sizePx, Math.sin(aRad - halfAngle) * sizePx,
-                    Math.cos(aRad - halfAngle / 2) * sizePx, Math.sin(aRad - halfAngle / 2) * sizePx,
-                    Math.cos(aRad) * sizePx, Math.sin(aRad) * sizePx,
-                    Math.cos(aRad + halfAngle / 2) * sizePx, Math.sin(aRad + halfAngle / 2) * sizePx,
-                    Math.cos(aRad + halfAngle) * sizePx, Math.sin(aRad + halfAngle) * sizePx];
-                  return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
-                })()}
-                {remoteAoe.aoeType === 'line' && (() => {
-                  const halfWidth = feetToPx(5) / 2;
-                  const perpX = Math.cos(aRad + Math.PI / 2) * halfWidth;
-                  const perpY = Math.sin(aRad + Math.PI / 2) * halfWidth;
-                  const endX = Math.cos(aRad) * sizePx;
-                  const endY = Math.sin(aRad) * sizePx;
-                  const points = [-perpX, -perpY, endX - perpX, endY - perpY, endX + perpX, endY + perpY, perpX, perpY];
-                  return <Line x={edgeX} y={edgeY} points={points} closed fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} dash={[6 / stageScale, 4 / stageScale]} />;
-                })()}
-              </Layer>
-              {isFireSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                return (
-                  <Layer listening={false}>
-                    <Group x={rcx} y={rcy}>
-                      <FireballParticles radius={sizePx} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {isFireConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <FireConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
-                  </Group>
-                </Layer>
-              )}
-              {isFireLineSpell(remoteAoe.name) && remoteAoe.aoeType === 'line' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <FireLineParticles length={sizePx} width={feetToPx(5)} />
-                  </Group>
-                </Layer>
-              )}
-              {isFireCubeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cube' && (
-                <Layer listening={false}>
-                  {remoteAoe.selfOrigin ? (
-                    <Group
-                      x={edgeX + Math.cos(aRad) * sizePx / 2}
-                      y={edgeY + Math.sin(aRad) * sizePx / 2}
-                    >
-                      <FireCubeParticles size={sizePx} />
-                    </Group>
-                  ) : (
-                    <Group x={remoteAoe.x} y={remoteAoe.y}>
-                      <FireCubeParticles size={sizePx} />
-                    </Group>
-                  )}
-                </Layer>
-              )}
-              {isIceSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                return (
-                  <Layer listening={false}>
-                    <Group x={rcx} y={rcy}>
-                      <IceSphereParticles radius={sizePx} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {isIceConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <IceConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
-                  </Group>
-                </Layer>
-              )}
-              {isWindConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <WindConeParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} />
-                  </Group>
-                </Layer>
-              )}
-              {(isPoisonSphereSpell(remoteAoe.name) || isAcidSphereSpell(remoteAoe.name) || isNecroticSphereSpell(remoteAoe.name)) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                const palette = isNecroticSphereSpell(remoteAoe.name) ? NECROTIC_PALETTE : isAcidSphereSpell(remoteAoe.name) ? ACID_PALETTE : POISON_PALETTE;
-                const glow = isNecroticSphereSpell(remoteAoe.name) ? '#7e22ce' : isAcidSphereSpell(remoteAoe.name) ? '#a3e635' : '#65a30d';
-                const shape: 'circle' | 'triangle' = isNecroticSphereSpell(remoteAoe.name) ? 'triangle' : 'circle';
-                return (
-                  <Layer listening={false}>
-                    <Group x={rcx} y={rcy}>
-                      <RadialAoEParticles radius={sizePx} palette={palette} glow={glow} shape={shape} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {isAcidLineSpell(remoteAoe.name) && remoteAoe.aoeType === 'line' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <LineAoEParticles length={sizePx} width={feetToPx(5)} palette={ACID_PALETTE} glow="#a3e635" />
-                  </Group>
-                </Layer>
-              )}
-              {isNecroticConeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <ConeAoEParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} palette={NECROTIC_PALETTE} glow="#7e22ce" shape="triangle" />
-                  </Group>
-                </Layer>
-              )}
-              {isLightningSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                return (
-                  <Layer listening={false}>
-                    <Group x={rcx} y={rcy}>
-                      <LightningSphereParticles radius={sizePx} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {isLightningLineSpell(remoteAoe.name) && remoteAoe.aoeType === 'line' && (
-                <Layer listening={false}>
-                  <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                    <LightningLineParticles length={sizePx} width={feetToPx(5)} />
-                  </Group>
-                </Layer>
-              )}
-              {isThunderSphereSpell(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                return (
-                  <Layer listening={false}>
-                    <Group x={rcx} y={rcy}>
-                      <ThunderShockwaveParticles radius={sizePx} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {isThunderCubeSpell(remoteAoe.name) && remoteAoe.aoeType === 'cube' && (() => {
-                const groupX = remoteAoe.selfOrigin ? edgeX + Math.cos(aRad) * sizePx / 2 : remoteAoe.x;
-                const groupY = remoteAoe.selfOrigin ? edgeY + Math.sin(aRad) * sizePx / 2 : remoteAoe.y;
-                return (
-                  <Layer listening={false}>
-                    <Group x={groupX} y={groupY}>
-                      <ThunderCubeParticles size={sizePx} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {getSphereElement(remoteAoe.name) && (remoteAoe.aoeType === 'sphere' || remoteAoe.aoeType === 'cylinder') && (() => {
-                const rcx = isAnchored ? remoteAoe.originX + Math.cos(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.x;
-                const rcy = isAnchored ? remoteAoe.originY + Math.sin(aRad) * (remoteAoe.casterRadiusPx + sizePx) : remoteAoe.y;
-                const s = ELEMENT_STYLES[getSphereElement(remoteAoe.name)!];
-                return (
-                  <Layer listening={false}>
-                    <Group x={rcx} y={rcy}>
-                      <RadialAoEParticles radius={sizePx} palette={s.palette} glow={s.glow} basePeriod={s.basePeriod} inwardChance={s.inwardChance} shape={s.shape} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {getConeElement(remoteAoe.name) && remoteAoe.aoeType === 'cone' && (() => {
-                const s = ELEMENT_STYLES[getConeElement(remoteAoe.name)!];
-                return (
-                  <Layer listening={false}>
-                    <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                      <ConeAoEParticles length={sizePx} halfAngle={(53 / 2) * (Math.PI / 180)} palette={s.palette} glow={s.glow} shape={s.shape} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {getLineElement(remoteAoe.name) && remoteAoe.aoeType === 'line' && (() => {
-                const s = ELEMENT_STYLES[getLineElement(remoteAoe.name)!];
-                return (
-                  <Layer listening={false}>
-                    <Group x={edgeX} y={edgeY} rotation={(aRad * 180) / Math.PI}>
-                      <LineAoEParticles length={sizePx} width={feetToPx(5)} palette={s.palette} glow={s.glow} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {getCubeElement(remoteAoe.name) && remoteAoe.aoeType === 'cube' && (() => {
-                const s = ELEMENT_STYLES[getCubeElement(remoteAoe.name)!];
-                const groupX = remoteAoe.selfOrigin ? edgeX + Math.cos(aRad) * sizePx / 2 : remoteAoe.x;
-                const groupY = remoteAoe.selfOrigin ? edgeY + Math.sin(aRad) * sizePx / 2 : remoteAoe.y;
-                return (
-                  <Layer listening={false}>
-                    <Group x={groupX} y={groupY}>
-                      <CubeAoEParticles size={sizePx} palette={s.palette} glow={s.glow} />
-                    </Group>
-                  </Layer>
-                );
-              })()}
-              {remoteAoe.name === 'Gust of Wind' && remoteAoe.aoeType === 'line' && (
-                <Layer listening={false}>
-                  <Group
-                    x={edgeX}
-                    y={edgeY}
-                    rotation={(aRad * 180) / Math.PI}
-                  >
-                    <GustOfWindParticles length={sizePx} width={feetToPx(5)} />
-                  </Group>
-                </Layer>
-              )}
-            </>
-            );
-          })()}
+          {remoteAoe && <RemoteAoeLayers remoteAoe={remoteAoe} stageScale={stageScale} ppg={gridResolution?.pixelsPerGrid || 40} />}
 
           {/* ── Portal Icons — below fog layer, pans 1:1 with canvas ── */}
           {portals && portals.length > 0 && (
@@ -10762,10 +7447,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     y={midY - iconSize / 2}
                     scaleX={s}
                     scaleY={s}
-                    onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+                    onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
                     onTap={(e) => { e.cancelBubble = true; }}
                     onTouchStart={(e) => { e.cancelBubble = true; }}
-                    onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+                    onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
                     onContextMenu={!isPlayerView ? (e) => {
                       e.evt.preventDefault();
                       e.cancelBubble = true;
@@ -11005,10 +7690,14 @@ const MapViewInner: React.FC<MapViewProps> = ({
             <Layer listening={false}>
               <FogOfWarLayer
                 visibilityPolygons={useFromPlayerPerspective ? playerVisionData : visibilityPolygons}
-                playerLOSPolygons={playerFullLOSPolygons}
+                // DM view reuses the unlimited-LOS polygons as the light clip mask so
+                // torch carve-outs inside dark zones show up in the fog preview too.
+                playerLOSPolygons={useFromPlayerPerspective ? playerFullLOSPolygons : visibilityPolygons}
                 lightPolygons={lightPolygons}
                 darkZonePolygons={darkZonePolygons}
                 darkvisionRevealPolygons={darkvisionRevealPolygons}
+                exploredOverlayCanvas={exploredOverlayCanvas}
+                exploredMaskVersion={exploredMaskVersion}
                 mapWidth={loadedImage.width}
                 mapHeight={loadedImage.height}
                 opacity={useFromPlayerPerspective ? 1.0 : 0.7}
@@ -11771,348 +8460,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
             </Layer>
           )}
 
-          {/* ── Wall of Fire particle layer — isolated so RAF redraws don't dirty other layers ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Fire' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Fire' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 10, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WallOfFireParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wind Wall particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wind Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wind Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WindWallParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Light particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Light' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Light' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WallOfLightParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Sand particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Sand' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Sand' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WallOfSandParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Fire Ring particle layer ── */}
-          {spellMarkers.some(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && m.spellName !== 'Blade Barrier (Ring)' && m.spellName !== 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => (m.shapeType === 'ring' || m.spellName === 'Wall of Fire (Ring)') && m.spellName !== 'Wall of Ice (Dome)' && m.spellName !== 'Wall of Force (Dome)' && m.spellName !== 'Wall of Thorns (Ring)' && m.spellName !== 'Blade Barrier (Ring)' && m.spellName !== 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <WallOfFireRingParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
-                    hotSide={m.hotSide ?? 'outside'}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Wall of Ice particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Ice' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Ice' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WallOfIceParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Ice Dome particle layer ── */}
-          {spellMarkers.some(m => m.spellName === 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.spellName === 'Wall of Ice (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <WallOfIceDomeParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Wall of Force particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Force' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Force' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 30, m.thickness ?? 1, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WallOfForceParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Force Dome particle layer ── */}
-          {spellMarkers.some(m => m.spellName === 'Wall of Force (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.spellName === 'Wall of Force (Dome)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <WallOfForceDomeParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Prismatic Wall particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Prismatic Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Prismatic Wall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 90, m.thickness ?? 1, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <PrismaticWallParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Thorns particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Wall of Thorns' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Wall of Thorns' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 60, m.thickness ?? 5, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <WallOfThornsParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Wall of Thorns Ring particle layer ── */}
-          {spellMarkers.some(m => m.spellName === 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.spellName === 'Wall of Thorns (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <WallOfThornsRingParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    radiusPx={((m.aoeSize ?? 10) / 5) * ppg}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Hallow particle layer ── */}
-          {spellMarkers.some(m => m.spellName === 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.spellName === 'Hallow' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <HallowParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    radiusPx={((m.aoeSize ?? 30) / 5) * ppg}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Forcecage particle layer (Cage variant — bars) ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Forcecage' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Forcecage' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <ForcecageBarsParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    lengthPx={((m.length ?? 20) / 5) * ppg}
-                    thicknessPx={((m.thickness ?? 20) / 5) * ppg}
-                    angleRad={(m.angle ?? 0) * Math.PI / 180}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Forcecage particle layer (Box variant — solid shimmer) ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Forcecage (Box)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Forcecage (Box)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <ForcecageBoxParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    lengthPx={((m.length ?? 10) / 5) * ppg}
-                    thicknessPx={((m.thickness ?? 10) / 5) * ppg}
-                    angleRad={(m.angle ?? 0) * Math.PI / 180}
-                  />
-                ))}
-            </Layer>
-          )}
-
-          {/* ── Passwall particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Passwall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Passwall' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 20, m.thickness ?? 5, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <PasswallParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Blade Barrier particle layer ── */}
-          {spellMarkers.some(m => m.shapeType === 'wall' && m.spellName === 'Blade Barrier' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.shapeType === 'wall' && m.spellName === 'Blade Barrier' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => {
-                  const wCorners = computeWallCorners(m.x, m.y, m.length ?? 100, m.thickness ?? 5, m.angle ?? 0, ppg);
-                  const ang = (m.angle ?? 0) * Math.PI / 180;
-                  return (
-                    <BladeBarrierParticles
-                      key={m.id}
-                      p0={wCorners[0]}
-                      p1={wCorners[1]}
-                      normalX={Math.sin(ang)}
-                      normalY={-Math.cos(ang)}
-                    />
-                  );
-                })}
-            </Layer>
-          )}
-
-          {/* ── Blade Barrier Ring particle layer ── */}
-          {spellMarkers.some(m => m.spellName === 'Blade Barrier (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId)) && (
-            <Layer listening={false}>
-              {spellMarkers
-                .filter(m => m.spellName === 'Blade Barrier (Ring)' && (!isPlayerView || m.visibleToPlayers) && (!m.floorId || m.floorId === activeFloorId))
-                .map(m => (
-                  <BladeBarrierRingParticles
-                    key={m.id}
-                    cx={m.x}
-                    cy={m.y}
-                    radiusPx={((m.aoeSize ?? 30) / 5) * ppg}
-                  />
-                ))}
-            </Layer>
-          )}
+          {/* ── Wall/ring spell particle layers (Wall of Fire, Wind Wall, Forcecage, …) ── */}
+          <WallSpellParticleLayers spellMarkers={spellMarkers} isPlayerView={isPlayerView} activeFloorId={activeFloorId} ppg={ppg} />
 
           {/* Map Notes — above fog so they're always visible to the DM */}
           {!isPlayerView && mapNotes.length > 0 && (
@@ -13145,9 +9494,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     const updatedTokens = tokens.map(t => t.id === targetTokenId ? { ...t, size: newSize, enlargedFrom: originalSize } : t);
                     onTokensChange(updatedTokens);
                     try {
-                      if (isPlayerView) {
-                        window.electronAPI?.sendPlayerTokenUpdate?.(updatedTokens);
-                      } else {
+                      if (!isPlayerView) {
                         (window.electronAPI as any)?.sendDMTokenUpdate?.(updatedTokens);
                       }
                     } catch (_e) { /* IPC not available */ }
@@ -13288,6 +9635,203 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </div>
         )}
 
+        {/* Dark Zones Toolbar */}
+        {darkZoneEditMode && !isPlayerView && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 pointer-events-none">
+          <div className="bg-[#13121c] border border-indigo-400/50 rounded-md px-2 py-1.5 shadow-xl flex items-center gap-1.5 pointer-events-auto">
+            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Dark Zones</span>
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={() => {
+                if (darkZonePainting) {
+                  commitCurrentDark();
+                  onDarkZonePaintCancel?.();
+                } else {
+                  setDarkZoneErasing(false);
+                  onStartDarkZonePainting?.();
+                }
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                darkZonePainting
+                  ? 'bg-indigo-500/30 border-indigo-400/50 text-indigo-200'
+                  : 'bg-indigo-500/15 hover:bg-indigo-500/25 border-indigo-400/30'
+              )}
+            >
+              <Pencil size={11} />
+              {darkZonePainting ? 'Drawing…' : 'Draw Zone'}
+            </button>
+            <button
+              onClick={() => {
+                if (!darkZoneErasing && darkZonePainting) {
+                  commitCurrentDark();
+                  onDarkZonePaintCancel?.();
+                }
+                setDarkZoneErasing(v => !v);
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                darkZoneErasing
+                  ? 'bg-red-500/30 border-red-400/50 text-red-200'
+                  : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
+              )}
+            >
+              <Eraser size={11} />
+              {darkZoneErasing ? 'Erasing' : 'Eraser'}
+            </button>
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={exitDarkZoneEditMode}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border border-white/15 bg-white/5 hover:bg-white/15 transition-colors"
+            >
+              <X size={11} />
+              Done
+            </button>
+          </div>
+          {(darkZonePainting || darkZoneErasing) && (
+            <div className="text-[10px] opacity-60 whitespace-nowrap text-center">
+              {darkZonePainting ? (
+                <>Click points · click the first node or <kbd className="px-1 py-0.5 rounded bg-black/40">Enter</kbd> to close · <kbd className="px-1 py-0.5 rounded bg-black/40">Esc</kbd> stop</>
+              ) : (
+                <>Click a dark zone to delete it.</>
+              )}
+            </div>
+          )}
+          </div>
+        )}
+
+        {/* Difficult Terrain Toolbar */}
+        {terrainEditMode && !isPlayerView && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 pointer-events-none">
+          <div className="bg-[#1a1610] border border-amber-500/50 rounded-md px-2 py-1.5 shadow-xl flex items-center gap-1.5 pointer-events-auto">
+            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Difficult Terrain</span>
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={() => {
+                if (difficultTerrainPainting) {
+                  commitCurrentTerrain();
+                  onDifficultTerrainPaintCancel?.();
+                } else {
+                  setTerrainErasing(false);
+                  onStartDifficultTerrainPainting?.();
+                }
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                difficultTerrainPainting
+                  ? 'bg-amber-600/30 border-amber-500/50 text-amber-200'
+                  : 'bg-amber-600/15 hover:bg-amber-600/25 border-amber-500/30'
+              )}
+            >
+              <Pencil size={11} />
+              {difficultTerrainPainting ? 'Drawing…' : 'Draw Area'}
+            </button>
+            <button
+              onClick={() => {
+                if (!terrainErasing && difficultTerrainPainting) {
+                  commitCurrentTerrain();
+                  onDifficultTerrainPaintCancel?.();
+                }
+                setTerrainErasing(v => !v);
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                terrainErasing
+                  ? 'bg-red-500/30 border-red-400/50 text-red-200'
+                  : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
+              )}
+            >
+              <Eraser size={11} />
+              {terrainErasing ? 'Erasing' : 'Eraser'}
+            </button>
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={exitTerrainEditMode}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border border-white/15 bg-white/5 hover:bg-white/15 transition-colors"
+            >
+              <X size={11} />
+              Done
+            </button>
+          </div>
+          {(difficultTerrainPainting || terrainErasing) && (
+            <div className="text-[10px] opacity-60 whitespace-nowrap text-center">
+              {difficultTerrainPainting ? (
+                <>Click points · click the first node or <kbd className="px-1 py-0.5 rounded bg-black/40">Enter</kbd> to close · <kbd className="px-1 py-0.5 rounded bg-black/40">Esc</kbd> stop</>
+              ) : (
+                <>Click a difficult-terrain area to delete it.</>
+              )}
+            </div>
+          )}
+          </div>
+        )}
+
+        {/* Sound Zones Toolbar */}
+        {soundZoneEditMode && !isPlayerView && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 pointer-events-none">
+          <div className="bg-[#171512] border border-[var(--accent)]/50 rounded-md px-2 py-1.5 shadow-xl flex items-center gap-1.5 pointer-events-auto">
+            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Sound Zones</span>
+            <div className="w-px h-5 bg-white/10" />
+            {/* Painting needs a sound attached, so "Add Zone" goes through the
+                sound picker panel; painting starts from there. */}
+            <button
+              onClick={() => {
+                if (zonePainting) {
+                  commitCurrentZone();
+                  onSoundZonePaintCancel?.();
+                } else {
+                  setSoundZoneErasing(false);
+                  onOpenSoundZones?.();
+                }
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                zonePainting
+                  ? 'bg-[var(--accent)]/30 border-[var(--accent)]/50'
+                  : 'bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border-[var(--accent)]/30'
+              )}
+            >
+              <PlusCircle size={11} />
+              {zonePainting ? 'Drawing…' : 'Add Zone'}
+            </button>
+            <button
+              onClick={() => {
+                if (!soundZoneErasing && zonePainting) {
+                  commitCurrentZone();
+                  onSoundZonePaintCancel?.();
+                }
+                setSoundZoneErasing(v => !v);
+              }}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
+                soundZoneErasing
+                  ? 'bg-red-500/30 border-red-400/50 text-red-200'
+                  : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
+              )}
+            >
+              <Eraser size={11} />
+              {soundZoneErasing ? 'Erasing' : 'Eraser'}
+            </button>
+            <div className="w-px h-5 bg-white/10" />
+            <button
+              onClick={exitSoundZoneEditMode}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border border-white/15 bg-white/5 hover:bg-white/15 transition-colors"
+            >
+              <X size={11} />
+              Done
+            </button>
+          </div>
+          {(zonePainting || soundZoneErasing) && (
+            <div className="text-[10px] opacity-60 whitespace-nowrap text-center">
+              {zonePainting ? (
+                <>Painting <strong>{zonePainting.label ?? 'new zone'}</strong> · click points · first node or <kbd className="px-1 py-0.5 rounded bg-black/40">Enter</kbd> closes · <kbd className="px-1 py-0.5 rounded bg-black/40">Esc</kbd> stop</>
+              ) : (
+                <>Click a sound zone to delete it.</>
+              )}
+            </div>
+          )}
+          </div>
+        )}
+
         {/* DM Casting Mode Banner (mouse-follow phase only) */}
         {castingSpell && !isPlayerView && (
           <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-black/80 border border-orange-500/50 rounded-lg px-4 py-2 flex items-center gap-3 shadow-lg shadow-orange-500/10 pointer-events-auto">
@@ -13382,19 +9926,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   <ChevronRight size={12} className="opacity-30" />
                 </button>
                 */}
-                {floors && floors.length > 1 && (
-                  <button
-                    onMouseEnter={scheduleSubmenuClose}
-                    onClick={() => {
-                      setTransitionZoneMode(!transitionZoneMode);
-                      setContextMenu(null);
-                    }}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs hover:bg-[var(--accent)] hover:text-white transition-colors group"
-                  >
-                    <ArrowUpDown size={14} className="opacity-50 group-hover:opacity-100" />
-                    <span className="flex-1 text-left">{transitionZoneMode ? 'Cancel Transition Zone' : 'Add Transition Zone'}</span>
-                  </button>
-                )}
                 <div className="h-px bg-[var(--line)] my-1 mx-2 opacity-50" />
 
                 {/* Player Flyout Trigger */}
@@ -13442,7 +9973,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                 onClick={() => handleCombatantSelect(c, 'player')}
                                 className="w-full text-left px-4 py-2 text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2"
                               >
-                                <PlusCircle size={12} className="opacity-50" />
+                                <MenuAvatar avatar={c.avatar} name={c.name} color={c.color} />
                                 {c.name}
                               </button>
                             ))}
@@ -13455,7 +9986,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                     onClick={() => handleCombatantSelect(c, 'player')}
                                     className="w-full text-left px-4 py-2 text-xs hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-2"
                                   >
-                                    <ChevronRight size={12} className="opacity-50" />
+                                    <MenuAvatar avatar={c.avatar} name={c.name} color={c.color} />
                                     {c.name}
                                   </button>
                                 ))}
@@ -13512,7 +10043,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                 onClick={() => handleCombatantSelect(c, 'npc')}
                                 className="w-full text-left px-4 py-2 text-xs hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2"
                               >
-                                <PlusCircle size={12} className="opacity-50" />
+                                <MenuAvatar avatar={c.avatar} name={c.name} color={c.color} />
                                 {c.name}
                               </button>
                             ))}
@@ -13525,7 +10056,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                     onClick={() => handleCombatantSelect(c, 'npc')}
                                     className="w-full text-left px-4 py-2 text-xs hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2"
                                   >
-                                    <ChevronRight size={12} className="opacity-50" />
+                                    <MenuAvatar avatar={c.avatar} name={c.name} color={c.color} />
                                     {c.name}
                                   </button>
                                 ))}
@@ -14065,9 +10596,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                     const updatedTokens = tokens.map(t => t.id === ctxToken.id ? { ...t, size: originalSize, enlargedFrom: undefined } : t);
                     onTokensChange(updatedTokens);
                     try {
-                      if (isPlayerView) {
-                        window.electronAPI?.sendPlayerTokenUpdate?.(updatedTokens);
-                      } else {
+                      if (!isPlayerView) {
                         (window.electronAPI as any)?.sendDMTokenUpdate?.(updatedTokens);
                       }
                     } catch (_e) { /* IPC not available */ }
@@ -14441,9 +10970,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                   : t
                               );
                               onTokensChange(updated);
-                              if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                                window.electronAPI.sendPlayerTokenUpdate(updated);
-                              }
                               (onTransitionToFloor ?? onSwitchFloor)?.(zone.targetFloorId);
                               setTransitionPopup(null);
                             }}
@@ -14466,9 +10992,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                                   return t;
                                 });
                                 onTokensChange(updated);
-                                if (isPlayerView && window.electronAPI?.sendPlayerTokenUpdate) {
-                                  window.electronAPI.sendPlayerTokenUpdate(updated);
-                                }
                                 (onTransitionToFloor ?? onSwitchFloor)?.(zone.targetFloorId);
                                 setTransitionPopup(null);
                               }}
