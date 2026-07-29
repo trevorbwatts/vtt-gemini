@@ -5,7 +5,8 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc -p electron/tsconfig.json && electron-builder",
+    "build": "npm run build:app && electron-builder",
+    "build:app": "vite build && tsc -p electron/tsconfig.json",
     "typecheck": "tsc",
     "electron:start": "cross-env NODE_ENV=development electron .",
     "start": "concurrently -k \"npm run dev\" \"npm run electron:start\"",
@@ -46,8 +47,6 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "public/extras/**/*",
-      "public/sounds/**/*",
       "package.json"
     ],
     "win": {

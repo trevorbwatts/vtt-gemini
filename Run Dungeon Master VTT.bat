@@ -26,14 +26,26 @@ if not exist "node_modules\" (
     )
 )
 
-REM --- Launch the app (Vite dev server + Electron) ---
-echo.
-echo Launching Dungeon Master VTT...
-echo Keep this window open while you play. Closing it will quit the app.
-echo.
-call npm start
+REM --- Rebuild only when the app has changed since the last launch ---
+set "NEEDS_BUILD="
+node "scripts\check-build-fresh.mjs"
+if errorlevel 1 set "NEEDS_BUILD=1"
 
-REM --- Keep the window open if something went wrong so you can read it ---
-echo.
-echo The app has closed.
-pause
+if defined NEEDS_BUILD (
+    echo Updating the app after recent changes...
+    echo This only happens the first time you run a new version.
+    echo.
+    call npm run build:app
+    if errorlevel 1 (
+        echo.
+        echo The update failed. See the messages above.
+        pause
+        exit /b 1
+    )
+)
+
+REM --- Launch the built app and let this window close on its own ---
+REM  "start" hands the app off to Windows as its own process, so this script
+REM  finishes immediately instead of babysitting a dev server all session.
+set "NODE_ENV=production"
+start "" "node_modules\electron\dist\electron.exe" "%~dp0."

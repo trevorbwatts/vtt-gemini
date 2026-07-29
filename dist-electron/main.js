@@ -7,6 +7,127 @@ const electron_1 = require("electron");
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const promises_1 = __importDefault(require("fs/promises"));
+const http_1 = __importDefault(require("http"));
+// --- Serving the built app ---------------------------------------------------
+// Outside of dev there is no Vite server, but the app still asks for things by
+// absolute path (/tokens/goblin.jpg, /sounds/manifest.json, ...), which plain
+// file:// would resolve against the drive root and never find. So the built app
+// is served by a small static server inside the main process instead.
+//
+// It deliberately listens on the same address Vite uses in dev. Chromium keys
+// saved data to the address a page was served from, so anything else — file://,
+// a custom app:// scheme — would strand every campaign and map already saved
+// under this origin in a bucket the app can no longer see.
+const APP_PORT = 5173;
+const APP_ORIGIN = `http://localhost:${APP_PORT}`;
+// Campaigns, maps and settings live in a folder named after the app. The
+// installed build would otherwise pick a different name than the one the repo
+// launcher uses and open completely empty, so the name is pinned here and both
+// share a single data folder. Must run before the app is ready.
+electron_1.app.setName('dungeon-master-desktop-vtt');
+const MIME_TYPES = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.mp3': 'audio/mpeg',
+    '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav',
+    '.m4a': 'audio/mp4',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.woff2': 'font/woff2',
+};
+/** Locate a requested URL path on disk, or null if nothing matches. */
+function resolveRequest(urlPath) {
+    const segments = urlPath.split('/').filter(Boolean);
+    const top = segments[0];
+    // Extras and sounds are user-editable, so they're read from the writable
+    // library folder first and only then from the copy that shipped with the app.
+    // That way a freshly added avatar appears immediately rather than after the
+    // next rebuild, and the shipped library still shows up on a machine where
+    // nothing has been added yet.
+    let roots;
+    let relativePath;
+    if (top === 'extras' || top === 'sounds') {
+        relativePath = segments.slice(1).join(path_1.default.sep);
+        const bundled = bundledLibraryDir(top);
+        roots = bundled ? [libraryDir(top), bundled] : [libraryDir(top)];
+    }
+    else {
+        relativePath = segments.length > 0 ? segments.join(path_1.default.sep) : 'index.html';
+        roots = [path_1.default.resolve(__dirname, '..', 'dist')];
+    }
+    for (const root of roots) {
+        const filePath = path_1.default.join(root, relativePath);
+        // Never serve anything outside the intended root, whatever the page asks for.
+        if (!filePath.startsWith(root))
+            continue;
+        if (fs_1.default.existsSync(filePath) && fs_1.default.statSync(filePath).isFile())
+            return filePath;
+    }
+    return null;
+}
+/**
+ * Static server for the built app. Bound to the loopback address only, so it is
+ * reachable from this machine and nowhere else.
+ */
+function startStaticServer() {
+    const server = http_1.default.createServer((req, res) => {
+        let filePath = null;
+        try {
+            filePath = resolveRequest(decodeURIComponent(new URL(req.url ?? '/', APP_ORIGIN).pathname));
+        }
+        catch {
+            // Malformed URL — fall through to the 404 below.
+        }
+        if (!filePath) {
+            res.writeHead(404, { 'content-type': 'text/plain' });
+            res.end('Not found');
+            return;
+        }
+        const size = fs_1.default.statSync(filePath).size;
+        const type = MIME_TYPES[path_1.default.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
+        // Audio seeking asks for byte ranges rather than the whole file.
+        const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+        if (range) {
+            const start = range[1] ? parseInt(range[1], 10) : 0;
+            const end = range[2] ? parseInt(range[2], 10) : size - 1;
+            if (start >= size || end >= size || start > end) {
+                res.writeHead(416, { 'content-range': `bytes */${size}` });
+                res.end();
+                return;
+            }
+            res.writeHead(206, {
+                'content-type': type,
+                'content-length': end - start + 1,
+                'content-range': `bytes ${start}-${end}/${size}`,
+                'accept-ranges': 'bytes',
+            });
+            fs_1.default.createReadStream(filePath, { start, end }).pipe(res);
+            return;
+        }
+        res.writeHead(200, { 'content-type': type, 'content-length': size, 'accept-ranges': 'bytes' });
+        fs_1.default.createReadStream(filePath).pipe(res);
+    });
+    return new Promise((resolve) => {
+        server.once('error', (err) => {
+            // Something already owns the port — almost always a Vite dev server
+            // serving this same app. Loading the page will reach it either way.
+            if (err.code !== 'EADDRINUSE')
+                throw err;
+            resolve();
+        });
+        server.listen(APP_PORT, '127.0.0.1', resolve);
+    });
+}
 let dmWindow = null;
 let playerWindow = null;
 let lastKnownState = null;
@@ -29,19 +150,14 @@ function createDmWindow() {
     dmWindow.once('ready-to-show', () => {
         dmWindow?.show();
     });
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-        dmWindow.loadURL('http://localhost:5173');
-        // In dev the Vite server may still be starting when Electron launches;
-        // keep retrying until it responds (otherwise the hidden window would
-        // never fire ready-to-show and the app would never appear).
-        dmWindow.webContents.on('did-fail-load', () => {
-            setTimeout(() => dmWindow?.loadURL('http://localhost:5173'), 300);
-        });
-    }
-    else {
-        dmWindow.loadFile(path_1.default.join(__dirname, '../dist/index.html'));
-    }
+    // Same address in dev and in the built app — see the note on APP_PORT.
+    dmWindow.loadURL(APP_ORIGIN);
+    // In dev the Vite server may still be starting when Electron launches;
+    // keep retrying until it responds (otherwise the hidden window would
+    // never fire ready-to-show and the app would never appear).
+    dmWindow.webContents.on('did-fail-load', () => {
+        setTimeout(() => dmWindow?.loadURL(APP_ORIGIN), 300);
+    });
     dmWindow.on('enter-full-screen', () => {
         dmWindow?.webContents.send('fullscreen-status', true);
     });
@@ -92,14 +208,8 @@ function createPlayerWindow() {
     // Make it truly fullscreen on the target display
     playerWindow.setFullScreen(true);
     playerWindow.setMenuBarVisibility(false);
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-        // We pass a hash to let the react router/app differentiate the view
-        playerWindow.loadURL('http://localhost:5173/#player');
-    }
-    else {
-        playerWindow.loadFile(path_1.default.join(__dirname, '../dist/index.html'), { hash: 'player' });
-    }
+    // We pass a hash to let the react router/app differentiate the view
+    playerWindow.loadURL(`${APP_ORIGIN}/#player`);
     playerWindow.on('closed', () => {
         playerWindow = null;
         // Notify DM window that player screen was closed
@@ -108,7 +218,11 @@ function createPlayerWindow() {
         }
     });
 }
-electron_1.app.whenReady().then(() => {
+electron_1.app.whenReady().then(async () => {
+    // In dev, Vite is already serving this address.
+    if (process.env.NODE_ENV !== 'development') {
+        await startStaticServer();
+    }
     createDmWindow();
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
@@ -327,169 +441,119 @@ electron_1.ipcMain.on('ephemeral-stroke', (event, stroke) => {
         playerWindow.webContents.send('ephemeral-stroke', stroke);
     }
 });
-// ── Extras gallery (global, file-based) ──
-// Reusable background-character avatars committed to git as actual files
-// in <project>/public/extras/ alongside a manifest.json.
-//
-// In dev (__dirname = dist-electron/), the source folder lives one level up.
-// In packaged mode writes will likely fail (asar is read-only) — the user
-// builds up their library in dev, then commits the new files.
-function extrasDir() {
-    return path_1.default.resolve(__dirname, '..', 'public', 'extras');
+/** Writable location for a library — where new files and the manifest go. */
+function libraryDir(name) {
+    return electron_1.app.isPackaged
+        ? path_1.default.join(electron_1.app.getPath('userData'), name)
+        : path_1.default.resolve(__dirname, '..', 'public', name);
 }
-function extrasManifestPath() {
-    return path_1.default.join(extrasDir(), 'manifest.json');
+/**
+ * Read-only copy of a library shipped inside the installed app. Null when
+ * running from the repo, where the writable folder is already the only copy.
+ */
+function bundledLibraryDir(name) {
+    return electron_1.app.isPackaged ? path_1.default.join(__dirname, '..', 'dist', name) : null;
 }
-async function ensureExtrasDir() {
-    const dir = extrasDir();
+function libraryManifestPath(name) {
+    return path_1.default.join(libraryDir(name), 'manifest.json');
+}
+async function ensureLibraryDir(name) {
+    const dir = libraryDir(name);
     if (!fs_1.default.existsSync(dir)) {
         await promises_1.default.mkdir(dir, { recursive: true });
     }
 }
-electron_1.ipcMain.handle('extras-load-manifest', async () => {
-    try {
-        await ensureExtrasDir();
-        const p = extrasManifestPath();
+async function readLibraryManifest(name) {
+    // The user's own manifest takes over once they've added or edited anything.
+    // Until then, fall back to the manifest that shipped with the app.
+    const candidates = [libraryManifestPath(name)];
+    const bundled = bundledLibraryDir(name);
+    if (bundled)
+        candidates.push(path_1.default.join(bundled, 'manifest.json'));
+    for (const p of candidates) {
         if (!fs_1.default.existsSync(p))
-            return { manifest: [] };
-        const txt = await promises_1.default.readFile(p, 'utf-8');
-        const parsed = JSON.parse(txt);
-        return { manifest: Array.isArray(parsed) ? parsed : [] };
+            continue;
+        const parsed = JSON.parse(await promises_1.default.readFile(p, 'utf-8'));
+        if (Array.isArray(parsed))
+            return parsed;
     }
-    catch (err) {
-        return { manifest: [], error: err?.message ?? 'load failed' };
-    }
-});
-electron_1.ipcMain.handle('extras-save-manifest', async (_event, manifest) => {
-    try {
-        if (!Array.isArray(manifest))
-            return { ok: false, error: 'manifest must be an array' };
-        await ensureExtrasDir();
-        const p = extrasManifestPath();
-        await promises_1.default.writeFile(p, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
-        return { ok: true };
-    }
-    catch (err) {
-        return { ok: false, error: err?.message ?? 'save failed' };
-    }
-});
-electron_1.ipcMain.handle('extras-save-image', async (_event, payload) => {
-    try {
-        if (!payload?.filename || !payload?.dataUrl) {
-            return { ok: false, error: 'filename and dataUrl are required' };
-        }
-        // Defend against path traversal — filename must be a plain basename.
-        const safeName = path_1.default.basename(payload.filename);
-        if (safeName !== payload.filename) {
-            return { ok: false, error: 'invalid filename' };
-        }
-        const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (!match)
-            return { ok: false, error: 'expected a base64 data URL' };
-        const buf = Buffer.from(match[2], 'base64');
-        await ensureExtrasDir();
-        const outPath = path_1.default.join(extrasDir(), safeName);
-        await promises_1.default.writeFile(outPath, buf);
-        return { ok: true };
-    }
-    catch (err) {
-        return { ok: false, error: err?.message ?? 'save failed' };
-    }
-});
-electron_1.ipcMain.handle('extras-delete-image', async (_event, filename) => {
-    try {
-        const safeName = path_1.default.basename(filename);
-        if (safeName !== filename)
-            return { ok: false, error: 'invalid filename' };
-        const target = path_1.default.join(extrasDir(), safeName);
-        if (fs_1.default.existsSync(target)) {
-            await promises_1.default.unlink(target);
-        }
-        return { ok: true };
-    }
-    catch (err) {
-        return { ok: false, error: err?.message ?? 'delete failed' };
-    }
-});
-// ── Sound library (global, file-based) ──
-// Reusable audio files for the Sound Mixer feature. Same on-disk pattern as
-// Extras: actual files in <project>/public/sounds/ + manifest.json, intended
-// to be committed to git so they ship with the app.
-function soundsDir() {
-    return path_1.default.resolve(__dirname, '..', 'public', 'sounds');
+    return [];
 }
-function soundsManifestPath() {
-    return path_1.default.join(soundsDir(), 'manifest.json');
+/** Wire up the load/save/write/delete IPC for one library. */
+function registerLibraryIpc(name, channels) {
+    electron_1.ipcMain.handle(channels.load, async () => {
+        try {
+            await ensureLibraryDir(name);
+            return { manifest: await readLibraryManifest(name) };
+        }
+        catch (err) {
+            return { manifest: [], error: err?.message ?? 'load failed' };
+        }
+    });
+    electron_1.ipcMain.handle(channels.saveManifest, async (_event, manifest) => {
+        try {
+            if (!Array.isArray(manifest))
+                return { ok: false, error: 'manifest must be an array' };
+            await ensureLibraryDir(name);
+            const body = JSON.stringify(manifest, null, 2) + '\n';
+            await promises_1.default.writeFile(libraryManifestPath(name), body, 'utf-8');
+            return { ok: true };
+        }
+        catch (err) {
+            return { ok: false, error: err?.message ?? 'save failed' };
+        }
+    });
+    electron_1.ipcMain.handle(channels.writeFile, async (_event, payload) => {
+        try {
+            if (!payload?.filename || !payload?.dataUrl) {
+                return { ok: false, error: 'filename and dataUrl are required' };
+            }
+            // Defend against path traversal — filename must be a plain basename.
+            const safeName = path_1.default.basename(payload.filename);
+            if (safeName !== payload.filename) {
+                return { ok: false, error: 'invalid filename' };
+            }
+            const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (!match)
+                return { ok: false, error: 'expected a base64 data URL' };
+            const buf = Buffer.from(match[2], 'base64');
+            await ensureLibraryDir(name);
+            await promises_1.default.writeFile(path_1.default.join(libraryDir(name), safeName), buf);
+            return { ok: true };
+        }
+        catch (err) {
+            return { ok: false, error: err?.message ?? 'save failed' };
+        }
+    });
+    electron_1.ipcMain.handle(channels.deleteFile, async (_event, filename) => {
+        try {
+            const safeName = path_1.default.basename(filename);
+            if (safeName !== filename)
+                return { ok: false, error: 'invalid filename' };
+            const target = path_1.default.join(libraryDir(name), safeName);
+            if (fs_1.default.existsSync(target)) {
+                await promises_1.default.unlink(target);
+            }
+            // A file that exists only in the shipped copy can't be removed from disk.
+            // Dropping it from the manifest is enough to take it out of the app.
+            return { ok: true };
+        }
+        catch (err) {
+            return { ok: false, error: err?.message ?? 'delete failed' };
+        }
+    });
 }
-async function ensureSoundsDir() {
-    const dir = soundsDir();
-    if (!fs_1.default.existsSync(dir)) {
-        await promises_1.default.mkdir(dir, { recursive: true });
-    }
-}
-electron_1.ipcMain.handle('sounds-load-manifest', async () => {
-    try {
-        await ensureSoundsDir();
-        const p = soundsManifestPath();
-        if (!fs_1.default.existsSync(p))
-            return { manifest: [] };
-        const txt = await promises_1.default.readFile(p, 'utf-8');
-        const parsed = JSON.parse(txt);
-        return { manifest: Array.isArray(parsed) ? parsed : [] };
-    }
-    catch (err) {
-        return { manifest: [], error: err?.message ?? 'load failed' };
-    }
+registerLibraryIpc('extras', {
+    load: 'extras-load-manifest',
+    saveManifest: 'extras-save-manifest',
+    writeFile: 'extras-save-image',
+    deleteFile: 'extras-delete-image',
 });
-electron_1.ipcMain.handle('sounds-save-manifest', async (_event, manifest) => {
-    try {
-        if (!Array.isArray(manifest))
-            return { ok: false, error: 'manifest must be an array' };
-        await ensureSoundsDir();
-        const p = soundsManifestPath();
-        await promises_1.default.writeFile(p, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
-        return { ok: true };
-    }
-    catch (err) {
-        return { ok: false, error: err?.message ?? 'save failed' };
-    }
-});
-electron_1.ipcMain.handle('sounds-save-audio', async (_event, payload) => {
-    try {
-        if (!payload?.filename || !payload?.dataUrl) {
-            return { ok: false, error: 'filename and dataUrl are required' };
-        }
-        const safeName = path_1.default.basename(payload.filename);
-        if (safeName !== payload.filename) {
-            return { ok: false, error: 'invalid filename' };
-        }
-        const match = payload.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (!match)
-            return { ok: false, error: 'expected a base64 data URL' };
-        const buf = Buffer.from(match[2], 'base64');
-        await ensureSoundsDir();
-        const outPath = path_1.default.join(soundsDir(), safeName);
-        await promises_1.default.writeFile(outPath, buf);
-        return { ok: true };
-    }
-    catch (err) {
-        return { ok: false, error: err?.message ?? 'save failed' };
-    }
-});
-electron_1.ipcMain.handle('sounds-delete-audio', async (_event, filename) => {
-    try {
-        const safeName = path_1.default.basename(filename);
-        if (safeName !== filename)
-            return { ok: false, error: 'invalid filename' };
-        const target = path_1.default.join(soundsDir(), safeName);
-        if (fs_1.default.existsSync(target)) {
-            await promises_1.default.unlink(target);
-        }
-        return { ok: true };
-    }
-    catch (err) {
-        return { ok: false, error: err?.message ?? 'delete failed' };
-    }
+registerLibraryIpc('sounds', {
+    load: 'sounds-load-manifest',
+    saveManifest: 'sounds-save-manifest',
+    writeFile: 'sounds-save-audio',
+    deleteFile: 'sounds-delete-audio',
 });
 // D&D Beyond character import
 electron_1.ipcMain.handle('fetch-dndb-character', async (_event, url) => {
