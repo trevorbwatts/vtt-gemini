@@ -1,26 +1,18 @@
 import React, { useState } from 'react';
-import { Campaign, Floor } from '../types';
+import { Campaign } from '../types';
 import { X, Settings, Download } from '../icons';
 import { downloadCampaign } from '../utils/campaignFile';
-import { MixerPanel } from './MixerPanel';
 
 interface CampaignSettingsProps {
   campaign: Campaign;
   onUpdate: (campaign: Campaign) => void;
   onClose: () => void;
-  /** Sound Mixer context — passed straight through to the embedded mixer. */
-  currentScenarioFloors?: Floor[];
-  audioFocusFloorId?: string | null;
-  onAudioFocusChange?: (floorId: string | null) => void;
 }
 
 export const CampaignSettings: React.FC<CampaignSettingsProps> = ({
   campaign,
   onUpdate,
   onClose,
-  currentScenarioFloors = [],
-  audioFocusFloorId = null,
-  onAudioFocusChange,
 }) => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
 
@@ -107,18 +99,6 @@ export const CampaignSettings: React.FC<CampaignSettingsProps> = ({
                   <Download size={16} />
                   {saveStatus === 'saved' ? 'Saved' : 'Save Campaign'}
                 </button>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <label className="text-[10px] uppercase tracking-widest font-bold opacity-50 text-white">Sound Mixer</label>
-              <div className="h-[520px]">
-                <MixerPanel
-                  embedded
-                  currentScenarioFloors={currentScenarioFloors}
-                  audioFocusFloorId={audioFocusFloorId}
-                  onAudioFocusChange={onAudioFocusChange}
-                />
               </div>
             </div>
           </div>

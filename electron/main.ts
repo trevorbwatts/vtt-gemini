@@ -6,7 +6,7 @@ import http from 'http';
 
 // --- Serving the built app ---------------------------------------------------
 // Outside of dev there is no Vite server, but the app still asks for things by
-// absolute path (/tokens/goblin.jpg, /sounds/manifest.json, ...), which plain
+// absolute path (/tokens/goblin.jpg, /extras/manifest.json, ...), which plain
 // file:// would resolve against the drive root and never find. So the built app
 // is served by a small static server inside the main process instead.
 //
@@ -35,10 +35,6 @@ const MIME_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.mp3': 'audio/mpeg',
-  '.ogg': 'audio/ogg',
-  '.wav': 'audio/wav',
-  '.m4a': 'audio/mp4',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.woff2': 'font/woff2',
@@ -49,14 +45,14 @@ function resolveRequest(urlPath: string): string | null {
   const segments = urlPath.split('/').filter(Boolean);
   const top = segments[0];
 
-  // Extras and sounds are user-editable, so they're read from the writable
-  // library folder first and only then from the copy that shipped with the app.
+  // Extras are user-editable, so they're read from the writable library
+  // folder first and only then from the copy that shipped with the app.
   // That way a freshly added avatar appears immediately rather than after the
   // next rebuild, and the shipped library still shows up on a machine where
   // nothing has been added yet.
   let roots: string[];
   let relativePath: string;
-  if (top === 'extras' || top === 'sounds') {
+  if (top === 'extras') {
     relativePath = segments.slice(1).join(path.sep);
     const bundled = bundledLibraryDir(top);
     roots = bundled ? [libraryDir(top), bundled] : [libraryDir(top)];
@@ -96,7 +92,7 @@ function startStaticServer(): Promise<void> {
     const size = fs.statSync(filePath).size;
     const type = MIME_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
 
-    // Audio seeking asks for byte ranges rather than the whole file.
+    // Video seeking asks for byte ranges rather than the whole file.
     const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
     if (range) {
       const start = range[1] ? parseInt(range[1], 10) : 0;
@@ -487,9 +483,9 @@ ipcMain.on('ephemeral-stroke', (event, stroke) => {
   }
 });
 
-// ── Media libraries (Extras gallery + Sound mixer) ──
-// Both are global, file-based libraries: real files on disk next to a
-// manifest.json. Where they live depends on how the app is running.
+// ── Media library (Extras gallery) ──
+// A global, file-based library: real files on disk next to a
+// manifest.json. Where it lives depends on how the app is running.
 //
 //   From the repo (dev, or the .bat launcher) → <project>/public/<name>/
 //     Authoring mode. New files land in the source folder so they can be
@@ -498,7 +494,7 @@ ipcMain.on('ephemeral-stroke', (event, stroke) => {
 //     An installed app's own folder is read-only, so additions go to the
 //     Windows app-data folder and layer on top of the library that shipped.
 
-type LibraryName = 'extras' | 'sounds';
+type LibraryName = 'extras';
 
 /** Writable location for a library — where new files and the manifest go. */
 function libraryDir(name: LibraryName): string {
@@ -610,13 +606,6 @@ registerLibraryIpc('extras', {
   saveManifest: 'extras-save-manifest',
   writeFile: 'extras-save-image',
   deleteFile: 'extras-delete-image',
-});
-
-registerLibraryIpc('sounds', {
-  load: 'sounds-load-manifest',
-  saveManifest: 'sounds-save-manifest',
-  writeFile: 'sounds-save-audio',
-  deleteFile: 'sounds-delete-audio',
 });
 
 // D&D Beyond character import

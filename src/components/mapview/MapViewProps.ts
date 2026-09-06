@@ -133,7 +133,6 @@ export interface MapViewProps {
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   /** Detect Magic data — when active, reveals 'magic' type map notes within range below fog */
   detectMagicData?: { playerId: string; rangeFt: number } | null;
-  detectPoisonData?: { playerId: string; rangeFt: number } | null;
 
   /** Active emanation rings that follow their casters */
   activeEmanations?: import('../../types').ActiveEmanation[];
@@ -169,20 +168,6 @@ export interface MapViewProps {
   triggerPingRef?: React.MutableRefObject<((opts: { x: number; y: number; color: string }) => void) | null>;
   /** Called when the local user drops a ping by clicking — parent uses this to broadcast. */
   onPingDrop?: (opts: { x: number; y: number; color: string }) => void;
-
-  // ── Sound zones (Tier 2) ──
-  /** Painted sound zones on the active floor — rendered as DM-only polygon overlays. */
-  soundZones?: import('../../types').SoundZone[];
-  /** Called when zones change (commit/edit/delete from inside MapView). */
-  onSoundZonesChange?: (zones: import('../../types').SoundZone[]) => void;
-  /**
-   * When non-null, MapView captures clicks as polygon vertices to paint a new zone.
-   * On commit (Enter or 4+ vertices double-click), MapView calls onSoundZonePaintCommit
-   * with the points; on cancel (Escape), it calls onSoundZonePaintCancel.
-   */
-  zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
-  onSoundZonePaintCommit?: (points: number[]) => void;
-  onSoundZonePaintCancel?: () => void;
 
   // ── Dark zones ──
   /** Polygonal regions on the active floor that stay dark even in Daylight. */
@@ -243,13 +228,5 @@ export interface MapViewProps {
   onStopGridCalibration?: () => void;
   /** Called with the new GridResolution once two corners have been clicked. */
   onGridResolutionChange?: (gr: GridResolution) => void;
-
-  // ── Floor audio (ambient sound) ──
-  /** Open the SoundPicker for the active floor's ambient ("floor bed") sound. */
-  onOpenFloorAudioPicker?: (floorId: string) => void;
-  /** Clear the active floor's ambient sound. */
-  onClearFloorAudio?: (floorId: string) => void;
-  /** Open the Sound Zones panel for the active floor. */
-  onOpenSoundZones?: () => void;
 }
 

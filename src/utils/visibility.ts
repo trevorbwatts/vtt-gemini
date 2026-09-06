@@ -38,6 +38,33 @@ export function extractBlockingSegments(
 }
 
 /**
+ * How far to each side of a corner, in pixels at that corner, the flanking
+ * rays are aimed.
+ *
+ * This is a distance rather than a fixed angle on purpose. The original fixed
+ * 0.0001 rad scaled with distance: a corner 200px away was cleared by only
+ * 0.02px, finer than the noise in imported wall coordinates, so the side rays
+ * stopped reliably clearing the corner they exist to slip past.
+ */
+const RAY_OFFSET_PX = 0.5;
+
+/**
+ * How far past each end, in pixels, a segment still counts as hit.
+ *
+ * Wall polylines and door bounds arrive in separate arrays from a UVTT import,
+ * so a door jamb and the wall beside it frequently land a fraction of a pixel
+ * apart instead of exactly on the same point. That leaves a hairline crack at
+ * every doorway, and the ray aimed straight at the corner threads it and runs
+ * all the way to the map boundary — drawing a thin spoke of lit floor across
+ * the dark. Treating each segment as a touch longer seals those cracks.
+ *
+ * This must stay well under RAY_OFFSET_PX, or it would also swallow the
+ * flanking rays that are supposed to clear a corner and light the space behind
+ * it — which would stop shadows spilling through real openings.
+ */
+const SEGMENT_END_TOLERANCE_PX = 0.1;
+
+/**
  * Compute the visibility polygon from an observer point against blocking segments.
  * Uses the classic raycasting approach: cast rays toward each segment endpoint
  * (plus small angular offsets) and find the nearest intersection.
@@ -74,35 +101,83 @@ export function computeVisibilityPolygon(
     }
   }
 
-  // For each endpoint, compute angle from observer and create 3 rays
-  const EPSILON = 0.0001;
+  // For each endpoint: one ray straight at the corner (which pins the corner
+  // vertex) and one to each side (which reach whatever lies behind it).
   const angles: number[] = [];
 
   for (const ep of endpoints) {
-    const angle = Math.atan2(ep.y - observer.y, ep.x - observer.x);
-    angles.push(angle - EPSILON, angle, angle + EPSILON);
+    const dx = ep.x - observer.x;
+    const dy = ep.y - observer.y;
+    const angle = Math.atan2(dy, dx);
+    const dist = Math.hypot(dx, dy);
+    // atan2 of a zero-length vector is meaningless; guard the divide too.
+    const offset = dist > 1e-6 ? Math.min(RAY_OFFSET_PX / dist, 0.01) : 0.01;
+    angles.push(angle - offset, angle, angle + offset);
+  }
+
+  // This is the inner loop of the whole vision system — it runs for every
+  // light and every token that moves, at (rays x segments) per polygon. Flatten
+  // the segments into typed arrays once so the loop below reads packed numbers
+  // instead of chasing object properties, and precompute each segment's end
+  // tolerance (a fixed pixel distance, so in the segment's own parameter space
+  // it depends on that segment's length).
+  const segCount = allSegments.length;
+  const segAx = new Float64Array(segCount);
+  const segAy = new Float64Array(segCount);
+  const segDx = new Float64Array(segCount);
+  const segDy = new Float64Array(segCount);
+  const segPad = new Float64Array(segCount);
+
+  for (let i = 0; i < segCount; i++) {
+    const seg = allSegments[i];
+    const sx = seg.b.x - seg.a.x;
+    const sy = seg.b.y - seg.a.y;
+    segAx[i] = seg.a.x;
+    segAy[i] = seg.a.y;
+    segDx[i] = sx;
+    segDy[i] = sy;
+    const len = Math.hypot(sx, sy);
+    segPad[i] = len > 1e-9 ? SEGMENT_END_TOLERANCE_PX / len : 0;
   }
 
   // Cast each ray and find nearest intersection
   const intersections: { angle: number; point: WallPoint }[] = [];
+  const obsX = observer.x;
+  const obsY = observer.y;
 
   for (const angle of angles) {
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
 
     let closestT = Infinity;
-    let closestPoint: WallPoint | null = null;
 
-    for (const seg of allSegments) {
-      const hit = raySegmentIntersection(observer, dx, dy, seg);
-      if (hit !== null && hit.t < closestT) {
-        closestT = hit.t;
-        closestPoint = hit.point;
-      }
+    for (let si = 0; si < segCount; si++) {
+      const sx = segDx[si];
+      const sy = segDy[si];
+
+      const denom = dx * sy - dy * sx;
+      if (denom > -1e-10 && denom < 1e-10) continue; // parallel
+
+      const ox = segAx[si] - obsX;
+      const oy = segAy[si] - obsY;
+
+      const t = (ox * sy - oy * sx) / denom;
+      if (t <= 0 || t >= closestT) continue;
+
+      const u = (ox * dy - oy * dx) / denom;
+      const pad = segPad[si];
+      if (u < -pad || u > 1 + pad) continue;
+
+      closestT = t;
     }
 
-    if (closestPoint) {
-      intersections.push({ angle, point: closestPoint });
+    // Build the hit point only for the winning segment. Doing this inside the
+    // loop allocated an object for every one of the (rays x segments) tests.
+    if (closestT < Infinity) {
+      intersections.push({
+        angle,
+        point: { x: obsX + closestT * dx, y: obsY + closestT * dy },
+      });
     }
   }
 
@@ -189,42 +264,4 @@ export function computeRadiusLimitedVisibilityPolygon(
   if (radiusPx <= 0) return [];
   const polygon = computeVisibilityPolygon(observer, segments, mapWidth, mapHeight);
   return clipPolygonToCircle(polygon, observer, radiusPx);
-}
-
-/**
- * Ray-segment intersection test.
- * Ray: observer + t * (dx, dy), t > 0
- * Segment: a + u * (b - a), 0 <= u <= 1
- */
-function raySegmentIntersection(
-  observer: WallPoint,
-  dx: number,
-  dy: number,
-  seg: Segment
-): { t: number; point: WallPoint } | null {
-  const sx = seg.b.x - seg.a.x;
-  const sy = seg.b.y - seg.a.y;
-
-  const denom = dx * sy - dy * sx;
-  if (Math.abs(denom) < 1e-10) {
-    return null; // Parallel
-  }
-
-  const ox = seg.a.x - observer.x;
-  const oy = seg.a.y - observer.y;
-
-  const t = (ox * sy - oy * sx) / denom;
-  const u = (ox * dy - oy * dx) / denom;
-
-  if (t > 0 && u >= 0 && u <= 1) {
-    return {
-      t,
-      point: {
-        x: observer.x + t * dx,
-        y: observer.y + t * dy,
-      },
-    };
-  }
-
-  return null;
 }

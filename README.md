@@ -64,10 +64,10 @@ every existing campaign and map behind a bucket the app can't read:
   address Vite uses in dev) rather than from `file://` or a custom scheme. Chromium
   keys saved data to the address a page was served from.
 
-Added avatars and sounds behave differently depending on how you're running:
+Added avatars behave differently depending on how you're running:
 
-- **From this repo** they're written into `public/extras/` and `public/sounds/`, so
-  they can be committed to git and ship inside the next build for everyone.
+- **From this repo** they're written into `public/extras/`, so they can be
+  committed to git and ship inside the next build for everyone.
 - **From the installed app** they go to `%APPDATA%\dungeon-master-desktop-vtt\`
   and layer on top of the library that shipped — which is what lets the app add
   files at all once installed, since its own folder is read-only.

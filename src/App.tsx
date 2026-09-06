@@ -6,17 +6,13 @@ import { BottomPanel } from './components/BottomPanel';
 import { CampaignSettings } from './components/CampaignSettings';
 import { SplashScreen } from './components/SplashScreen';
 import { PlayerScreen } from './components/PlayerScreen';
-import { cn, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
+import { cn, nextImageRotation, Campaign, Scenario, Combatant, Token, Monster, WallSegment, Portal, GridResolution, MapNote, Viewpoint, Floor, TransitionZone, UVTTLight } from './types';
 import { Layout, Map as MapIcon, Settings, ChevronRight, Folder, FileText, Zap, Plus, Menu, Users, User, Skull, LogOut, ArrowLeft, Edit2, X, MonitorUp, MonitorX, Swords, Maximize, Minimize, Pencil, Eraser, Disc2 } from './icons';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { AddCombatantModal } from './components/AddCombatantModal';
-import { SoundPicker } from './components/SoundPicker';
-import { SoundZonesPanel } from './components/SoundZonesPanel';
-import { audioEngine, loadMixerSettings, soundUrlFromId } from './services/audioEngine';
-import { loadSoundBindings } from './services/soundBindings';
-import { zoneVolumeAtPoint } from './utils/soundZoneMath';
-import type { SoundZone, DarkZone, DifficultTerrainZone } from './types';
+import { createDebouncedWriter, type DebouncedWriter } from './utils/debouncedWriter';
+import type { DarkZone, DifficultTerrainZone } from './types';
 import { SpellDamageModal } from './components/SpellDamageModal';
 import { SpellConditionModal } from './components/SpellConditionModal';
 import { EnlargeReduceModal } from './components/EnlargeReduceModal';
@@ -24,7 +20,9 @@ import { ImageNoteOverlay } from './components/ImageNoteOverlay';
 import { parseDndBeyondCharacter } from './services/dndBeyondParser';
 import { parseSpellDamage } from './utils/actionParser';
 import { lookupSpell } from './data/spellDatabase';
-import { initImageStore, isImageStoreReady, getImage, setImage, removeImage } from './utils/imageStore';
+import { initImageStore, isImageStoreReady, getImage, setImage, removeImage, loadImages, releaseImagesExcept } from './utils/imageStore';
+import { rollInitiativeFor, type InitiativeRoll } from './utils/initiative';
+import { InitiativeRollModal } from './components/InitiativeRollModal';
 import { useUndoableState } from './hooks/useUndoableState';
 
 // Load persisted panel states from localStorage
@@ -85,6 +83,31 @@ function buildLightCampaignForIPC(campaign: Campaign, currentScenarioId: string)
   };
 }
 
+/**
+ * Every image-store key a campaign could reference: one per floor map, the
+ * pre-floors fallback key, and one per image note. Used to pull just this
+ * campaign's images into memory when it's opened, instead of loading every
+ * image the app has ever stored. A key with nothing behind it is harmless.
+ */
+function campaignImageKeys(campaign: Campaign): string[] {
+  const keys: string[] = [];
+  const addNoteKeys = (notes: MapNote[] | undefined) => {
+    for (const n of notes || []) {
+      if (n.type === 'image') keys.push(`note_img_${n.id}`);
+    }
+  };
+  for (const s of campaign.scenarios || []) {
+    // Pre-floors campaigns keep the map on the scenario itself.
+    keys.push(`map_img_${s.id}`);
+    addNoteKeys(s.mapNotes);
+    for (const f of s.floors || []) {
+      keys.push(`map_img_${s.id}_${f.id}`);
+      addNoteKeys(f.mapNotes);
+    }
+  }
+  return keys;
+}
+
 export function DMScreen() {
   const savedPanels = useRef(loadPanelStates());
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(savedPanels.current.left);
@@ -98,14 +121,6 @@ export function DMScreen() {
   /** When set, the Add NPC modal opens in edit mode for this combatant. */
   const [editingNPC, setEditingNPC] = useState<Combatant | null>(null);
   const [playerScreenOpen, setPlayerScreenOpen] = useState(false);
-  /** When set, an ambient sound picker is open for this floor id. */
-  const [ambientPickerFor, setAmbientPickerFor] = useState<string | null>(null);
-  /** Manual override: when non-null, only this floor's ambient/zone audio plays. */
-  const [audioFocusFloorId, setAudioFocusFloorId] = useState<string | null>(null);
-  /** When set, the Sound Zones panel is open. */
-  const [zonesPanelOpen, setZonesPanelOpen] = useState(false);
-  /** When set, the user is painting a new sound zone with this template. */
-  const [zonePainting, setZonePainting] = useState<{ soundId: string; falloffPx: number; color: string; label?: string } | null>(null);
   /** When true, the user is painting a new Dark Zone polygon. */
   const [darkZonePainting, setDarkZonePainting] = useState(false);
   const [difficultTerrainPainting, setDifficultTerrainPainting] = useState(false);
@@ -151,9 +166,19 @@ export function DMScreen() {
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
 
-  // Image store readiness — IndexedDB warmup + legacy localStorage migration
-  // must finish before we let the splash hydrate any map images.
+  // Image store readiness — opening the IndexedDB connection and migrating any
+  // legacy localStorage entries. This no longer reads the images themselves, so
+  // it finishes in milliseconds regardless of library size; the images for a
+  // campaign are fetched when that campaign is opened.
   const [imageStoreReady, setImageStoreReady] = useState<boolean>(isImageStoreReady());
+  /** Campaign whose images are being fetched, so the splash can show progress. */
+  const [openingCampaignId, setOpeningCampaignId] = useState<string | null>(null);
+  /** Initiative rolled but not yet committed — the roll modal is showing it. */
+  const [initiativeDraft, setInitiativeDraft] = useState<{
+    rolls: InitiativeRoll[];
+    existing: Combatant[];
+    isAddingToCombat: boolean;
+  } | null>(null);
   useEffect(() => {
     if (imageStoreReady) return;
     let cancelled = false;
@@ -236,12 +261,6 @@ export function DMScreen() {
   const skipStateBroadcastRef = useRef(false);
   const dmViewportCenterRef = useRef<{ x: number; y: number } | null>(null);
   const clearMovementPathsRef = useRef<(() => void) | null>(null);
-  /** Tracks the keys we've set on each audio loop bus, so the orchestration
-   *  effect can release stale ones when a floor or zone is removed. */
-  const prevAudioKeysRef = useRef<{ ambient: Set<string>; zones: Set<string> }>({
-    ambient: new Set(),
-    zones: new Set(),
-  });
   const clearRemoteAoeRef = useRef<(() => void) | null>(null);
   const cancelCastingRef = useRef<(() => void) | null>(null);
   const startCastingRef = useRef<((spell: { name: string; aoeType?: string; aoeSize?: number; range?: number; saveAbility?: string; saveDc?: number; halfDamageOnSave?: boolean; desc?: string }, combatantId: string) => void) | null>(null);
@@ -406,62 +425,117 @@ export function DMScreen() {
     savePanelStates(leftSidebarOpen, navSidebarOpen);
   }, [leftSidebarOpen, navSidebarOpen]);
 
-  // Persistence — store map images separately in IndexedDB (not localStorage)
-  // to avoid the ~5–10MB localStorage quota that silently kills uploads past
-  // ~12 floors of maps. The campaign JSON itself stays in localStorage.
+  // ── Campaign persistence ────────────────────────────────────────────────
+  // Writing a campaign is not cheap: it rebuilds every scenario minus its
+  // images, re-parses the whole saved-campaigns array, re-serialises it, and
+  // writes it back synchronously. Campaign state changes as often as 20x a
+  // second while a player drags a token on the table, so this runs on a
+  // trailing debounce rather than on every change.
+  //
+  // The writer's maxWait bounds how much can be lost: a pure debounce would
+  // never write at all during a long continuous drag, so a save is forced once
+  // the oldest unsaved change reaches that age. Quitting, unmounting, leaving
+  // to the campaign list, and switching campaigns all flush immediately.
+  const writeCampaign = useCallback((c: Campaign) => {
+    // Strip mapImage and note imageData from all scenarios/floors/notes before persisting the campaign JSON
+    const lightCampaign = {
+      ...c,
+      scenarios: c.scenarios.map(s => {
+        const { mapImage, ...rest } = s;
+        return {
+          ...rest,
+          floors: rest.floors?.map(f => {
+            const { mapImage: _fImg, ...fRest } = f;
+            return {
+              ...fRest,
+              mapNotes: (fRest.mapNotes || []).map(n => {
+                if (n.type !== 'image') return n;
+                const { imageData: _img, ...nRest } = n;
+                return nRest;
+              }),
+            };
+          })
+        };
+      })
+    };
+    const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
+    const index = savedCampaigns.findIndex((sc: Campaign) => sc.id === c.id);
+    if (index >= 0) {
+      savedCampaigns[index] = lightCampaign;
+    } else {
+      savedCampaigns.push(lightCampaign);
+    }
+    localStorage.setItem('dungeon_master_campaigns', JSON.stringify(savedCampaigns));
+  }, []);
+
+  // writeCampaign is stable, so this writer is created once and lives for the
+  // life of the screen.
+  const campaignWriterRef = useRef<DebouncedWriter<Campaign> | null>(null);
+  if (campaignWriterRef.current === null) {
+    campaignWriterRef.current = createDebouncedWriter<Campaign>(
+      c => writeCampaign(c),
+      {
+        debounceMs: 500,
+        maxWaitMs: 2000,
+        // Never let a campaign switch swallow the previous one's last edits.
+        sameTarget: (pending, next) => pending.id === next.id,
+      },
+    );
+  }
+
+  /** Write any pending campaign immediately and cancel the scheduled save. */
+  const flushCampaignSave = useCallback(() => {
+    campaignWriterRef.current?.flush();
+  }, []);
+
+  // Map images live in IndexedDB, not localStorage, to avoid the ~5–10MB
+  // localStorage quota that silently kills uploads past ~12 floors of maps.
+  // setImage ignores writes whose contents haven't changed, so this sweep is
+  // just a cache lookup per floor except when an image is actually new.
   useEffect(() => {
-    if (campaign) {
-      // Save map images separately, keyed by scenario ID + floor ID
-      for (const s of campaign.scenarios) {
-        if (s.floors) {
-          for (const f of s.floors) {
-            if (f.mapImage) {
-              setImage(`map_img_${s.id}_${f.id}`, f.mapImage);
-            }
-            // Note images on this floor
-            for (const n of f.mapNotes || []) {
-              if (n.type === 'image' && n.imageData) {
-                setImage(`note_img_${n.id}`, n.imageData);
-              }
+    if (!campaign) return;
+    for (const s of campaign.scenarios) {
+      if (s.floors) {
+        for (const f of s.floors) {
+          if (f.mapImage) {
+            setImage(`map_img_${s.id}_${f.id}`, f.mapImage);
+          }
+          // Note images on this floor
+          for (const n of f.mapNotes || []) {
+            if (n.type === 'image' && n.imageData) {
+              setImage(`note_img_${n.id}`, n.imageData);
             }
           }
         }
-        // Legacy fallback for non-migrated scenarios
-        if (s.mapImage && !s.floors) {
-          setImage(`map_img_${s.id}`, s.mapImage);
-        }
       }
-      // Strip mapImage and note imageData from all scenarios/floors/notes before persisting the campaign JSON
-      const lightCampaign = {
-        ...campaign,
-        scenarios: campaign.scenarios.map(s => {
-          const { mapImage, ...rest } = s;
-          return {
-            ...rest,
-            floors: rest.floors?.map(f => {
-              const { mapImage: _fImg, ...fRest } = f;
-              return {
-                ...fRest,
-                mapNotes: (fRest.mapNotes || []).map(n => {
-                  if (n.type !== 'image') return n;
-                  const { imageData: _img, ...nRest } = n;
-                  return nRest;
-                }),
-              };
-            })
-          };
-        })
-      };
-      const savedCampaigns = JSON.parse(localStorage.getItem('dungeon_master_campaigns') || '[]');
-      const index = savedCampaigns.findIndex((c: Campaign) => c.id === campaign.id);
-      if (index >= 0) {
-        savedCampaigns[index] = lightCampaign;
-      } else {
-        savedCampaigns.push(lightCampaign);
+      // Legacy fallback for non-migrated scenarios
+      if (s.mapImage && !s.floors) {
+        setImage(`map_img_${s.id}`, s.mapImage);
       }
-      localStorage.setItem('dungeon_master_campaigns', JSON.stringify(savedCampaigns));
     }
   }, [campaign]);
+
+  // Schedule the debounced campaign JSON write.
+  useEffect(() => {
+    if (!campaign) {
+      // Leaving to the campaign list. This screen doesn't unmount when the
+      // splash takes over, so commit now: the splash rewrites this same
+      // saved-campaigns array when deleting, and a write landing after that
+      // would re-add a campaign the user had just deleted.
+      campaignWriterRef.current?.flush();
+      return;
+    }
+    campaignWriterRef.current?.schedule(campaign);
+  }, [campaign]);
+
+  // Never lose the tail of a session: commit on quit and on unmount.
+  useEffect(() => {
+    window.addEventListener('beforeunload', flushCampaignSave);
+    return () => {
+      window.removeEventListener('beforeunload', flushCampaignSave);
+      flushCampaignSave();
+    };
+  }, [flushCampaignSave]);
 
   // Reset viewport center when the scenario changes so the player gets a fresh default view
   useEffect(() => {
@@ -762,11 +836,27 @@ export function DMScreen() {
         }
       ]
     };
+    // A fresh campaign has no stored images, so anything still cached belongs
+    // to a campaign that was open earlier this session.
+    releaseImagesExcept([]);
     setCampaign(newCampaign);
     setSelectedScenarioId(newCampaign.scenarios[0].id);
   };
 
-  const handleSelectCampaign = (selected: Campaign) => {
+  const handleSelectCampaign = async (selected: Campaign) => {
+    // Pull this campaign's images into the cache before rehydrating below —
+    // the rehydration reads them synchronously via getImage. Startup no longer
+    // loads every image in every campaign, so this is where they arrive now.
+    setOpeningCampaignId(selected.id);
+    try {
+      const keys = campaignImageKeys(selected);
+      await loadImages(keys);
+      // Anything held for a previously-opened campaign is dead weight now.
+      releaseImagesExcept(keys);
+    } finally {
+      setOpeningCampaignId(null);
+    }
+
     // Migrate old data if necessary, and rehydrate map images from separate storage
     const migrated = {
       ...selected,
@@ -826,6 +916,25 @@ export function DMScreen() {
             scenario.activeFloorId = scenario.floors[0]?.id;
           }
         }
+
+        // Two note types are gone from saved campaigns:
+        //   'sound'  — the sound feature was removed; drop those pins entirely,
+        //              along with the floor-level ambient/zone fields left behind,
+        //              so nothing lingers as an iconless note or a dead JSON key.
+        //   'poison' — the skull slot became the d20 'check' note. Convert rather
+        //              than drop, so any text on an old skull pin survives.
+        // Audio files on disk are left untouched.
+        const retypeNotes = (notes: MapNote[]) => notes
+          .filter(n => (n.type as string) !== 'sound')
+          .map(n => (n.type as string) === 'poison' ? { ...n, type: 'check' as const } : n);
+
+        scenario.floors = (scenario.floors || []).map(f => {
+          const { ambientSoundId, ambientVolume, soundZones, ...rest } =
+            f as Floor & { ambientSoundId?: string; ambientVolume?: number; soundZones?: unknown[] };
+          void ambientSoundId; void ambientVolume; void soundZones;
+          return { ...rest, mapNotes: retypeNotes(rest.mapNotes || []) };
+        });
+        scenario.mapNotes = retypeNotes(scenario.mapNotes || []);
 
         return scenario;
       })
@@ -1068,38 +1177,12 @@ export function DMScreen() {
   }, [updateActiveFloor]);
 
   const togglePortal = useCallback((portalId: string) => {
-    // Determine the *current* state of the portal (before toggling) so we can
-    // play the right interaction sound. Doors/windows that are locked do not toggle.
-    let opening: boolean | null = null;
-    let portalType: 'door' | 'window' | 'secret' | undefined;
-    const scenario = campaignRef.current?.scenarios.find(s => s.id === selectedScenarioIdRef.current);
-    const floor = scenario?.floors?.find(f => f.id === activeFloorIdRef.current);
-    const portal = floor?.portals?.find(p => p.id === portalId);
-    if (portal && !portal.locked) {
-      opening = portal.closed === true;  // it WAS closed, so this toggle opens it
-      portalType = portal.portalType;
-    }
-
     updateActiveFloor(f => ({
       ...f,
       portals: f.portals?.map(p =>
         p.id === portalId && !p.locked ? { ...p, closed: !p.closed } : p
       )
     }));
-
-    if (opening !== null && (portalType === 'door' || portalType === 'window' || !portalType)) {
-      const bindings = loadSoundBindings();
-      // Default to 'door' bindings when portalType is undefined (legacy portals).
-      const kind: 'door' | 'window' = portalType === 'window' ? 'window' : 'door';
-      const key = (kind === 'door')
-        ? (opening ? 'doorOpen' : 'doorClose')
-        : (opening ? 'windowOpen' : 'windowClose');
-      const soundId = bindings[key];
-      if (soundId) {
-        audioEngine.ensure();
-        audioEngine.playOneShot(soundUrlFromId(soundId), 'sfx', 1).catch(() => { /* ignore */ });
-      }
-    }
   }, [updateActiveFloor]);
 
   const changePortalType = useCallback((portalId: string, type: 'door' | 'window' | 'secret', locked?: boolean) => {
@@ -1133,99 +1216,6 @@ export function DMScreen() {
     });
     return () => { window.electronAPI?.removePlayerFloorChangeListener?.(); };
   }, [setActiveFloorId]);
-
-  // ─── Audio: floor ambient + sound-zone orchestration ───────────────────────
-  // Recomputes ambient (Tier 1) and zone (Tier 2) volumes based on player-token
-  // distribution. The engine de-duplicates by soundId within each bus so two
-  // floors using the same file collapse to a single stream.
-  useEffect(() => {
-    // Apply saved mixer settings to the engine on every render path — cheap, idempotent.
-    audioEngine.setSettings(loadMixerSettings());
-
-    // If the player screen isn't open, nothing should be playing.
-    if (!playerScreenOpen) {
-      audioEngine.clearAmbient();
-      audioEngine.clearZones();
-      return;
-    }
-    const scenario = campaign?.scenarios.find(s => s.id === selectedScenarioId);
-    const floors = scenario?.floors ?? [];
-    if (floors.length === 0) {
-      audioEngine.clearAmbient();
-      audioEngine.clearZones();
-      return;
-    }
-
-    // Tally player tokens per floor and compute centroid per floor.
-    const tokens = scenario?.tokens ?? [];
-    const playerTokens = tokens.filter(t => t.type === 'player');
-    const countsByFloor = new Map<string, number>();
-    const centroidByFloor = new Map<string, { x: number; y: number }>();
-    const sums = new Map<string, { x: number; y: number; n: number }>();
-    playerTokens.forEach(t => {
-      const fid = t.floorId || floors[0]?.id;
-      if (!fid) return;
-      countsByFloor.set(fid, (countsByFloor.get(fid) ?? 0) + 1);
-      const s = sums.get(fid) ?? { x: 0, y: 0, n: 0 };
-      s.x += t.x; s.y += t.y; s.n += 1;
-      sums.set(fid, s);
-    });
-    sums.forEach((s, fid) => centroidByFloor.set(fid, { x: s.x / s.n, y: s.y / s.n }));
-    const totalPlayers = playerTokens.length;
-
-    // If the DM forced a focus floor, only that floor plays at full weight.
-    const focused = audioFocusFloorId && floors.some(f => f.id === audioFocusFloorId)
-      ? audioFocusFloorId
-      : null;
-
-    // Tier 1 — ambient beds.
-    const newAmbientKeys = new Set<string>();
-    floors.forEach(floor => {
-      const soundId = floor.ambientSoundId;
-      const floorVol = floor.ambientVolume ?? 1;
-      let weight = 0;
-      if (focused) {
-        if (floor.id === focused) weight = floorVol;
-      } else if (totalPlayers > 0) {
-        const count = countsByFloor.get(floor.id) ?? 0;
-        if (count > 0) weight = (count / totalPlayers) * floorVol;
-      }
-      audioEngine.setAmbientRequest(floor.id, soundId ?? null, weight);
-      newAmbientKeys.add(floor.id);
-    });
-    // Release any ambient keys (floors) that no longer exist.
-    prevAudioKeysRef.current.ambient.forEach(k => {
-      if (!newAmbientKeys.has(k)) audioEngine.setAmbientRequest(k, null, 0);
-    });
-    prevAudioKeysRef.current.ambient = newAmbientKeys;
-
-    // Tier 2 — sound zones. Volume = zoneVolumeAtPoint(centroid, polygon, falloff)
-    // scaled by floor weight (so a zone on a half-empty floor is half-volume)
-    // and the zone's own per-zone volume slider. Engine de-dupes by soundId.
-    const newZoneKeys = new Set<string>();
-    floors.forEach(floor => {
-      const zones = floor.soundZones ?? [];
-      const floorWeight = focused
-        ? (floor.id === focused ? 1 : 0)
-        : (totalPlayers > 0 ? (countsByFloor.get(floor.id) ?? 0) / totalPlayers : 0);
-      const centroid = centroidByFloor.get(floor.id);
-      zones.forEach(zone => {
-        const key = `${floor.id}:${zone.id}`;
-        newZoneKeys.add(key);
-        let volume = 0;
-        if (floorWeight > 0 && centroid) {
-          const proximity = zoneVolumeAtPoint(centroid.x, centroid.y, zone.points, zone.falloffPx);
-          volume = proximity * (zone.volume ?? 1) * floorWeight;
-        }
-        audioEngine.setZoneRequest(key, zone.soundId, volume);
-      });
-    });
-    // Release any zone keys that no longer exist.
-    prevAudioKeysRef.current.zones.forEach(k => {
-      if (!newZoneKeys.has(k)) audioEngine.setZoneRequest(k, null, 0);
-    });
-    prevAudioKeysRef.current.zones = newZoneKeys;
-  }, [campaign, selectedScenarioId, playerScreenOpen, audioFocusFloorId]);
 
   // Listen for spell marker updates from the Player screen
   useEffect(() => {
@@ -1420,6 +1410,36 @@ export function DMScreen() {
     return campaign.scenarios.find(s => s.id === selectedScenarioId) || campaign.scenarios[0];
   }, [campaign, selectedScenarioId]);
 
+  // Drop the target as soon as its monster dies. The corpse stays on the board
+  // with a death marker, so without this the reticle sat on it indefinitely —
+  // and since only one thing can be targeted at a time, targeting the next
+  // monster would leave two reticles on the table. This also clears the
+  // "Targeted" badge the dead combatant kept in the initiative list.
+  //
+  // The DM is the authority on HP, so pruning here; the player screen picks it
+  // up from the state broadcast that already carries targetedCombatantIds.
+  useEffect(() => {
+    if (targetedCombatantIds.size === 0) return;
+    // Same set of sources, and the same id-or-sourceId matching, that MapView
+    // uses to decide which tokens are dead — keep them in step or a target can
+    // outlive the death marker drawn on the very same token.
+    const pool = [
+      ...(currentScenario?.activeCombatants || []),
+      ...(currentScenario?.combatants || []),
+      ...(campaign?.players || []),
+      ...(campaign?.npcs || []),
+      ...(campaign?.persistentEnemies || []),
+    ];
+    const survivors = new Set<string>();
+    for (const id of targetedCombatantIds) {
+      const c = pool.find(x => x.id === id || x.sourceCombatantId === id);
+      // Only drop what is known to be dead — an id we can't resolve stays put.
+      if (!c || c.hp > 0) survivors.add(id);
+    }
+    if (survivors.size === targetedCombatantIds.size) return;
+    setTargetedCombatantIds(survivors);
+  }, [targetedCombatantIds, currentScenario, campaign?.players, campaign?.npcs, campaign?.persistentEnemies]);
+
   const activeFloor = useMemo(() => {
     if (!currentScenario?.floors) return null;
     return currentScenario.floors.find(f => f.id === activeFloorId) || currentScenario.floors[0] || null;
@@ -1430,7 +1450,13 @@ export function DMScreen() {
   }
 
   if (!campaign) {
-    return <SplashScreen onSelectCampaign={handleSelectCampaign} onCreateCampaign={handleCreateCampaign} />;
+    return (
+      <SplashScreen
+        onSelectCampaign={handleSelectCampaign}
+        onCreateCampaign={handleCreateCampaign}
+        openingCampaignId={openingCampaignId}
+      />
+    );
   }
 
   const updateScenarioName = (name: string) => {
@@ -1512,30 +1538,32 @@ export function DMScreen() {
     setSpellConditionModal(null);
   };
 
+  /**
+   * Roll initiative for the selected tokens and stage the result for review.
+   * Nothing enters the tracker until the DM confirms in the modal, so rolls can
+   * be replaced with a player's own before combat begins.
+   */
   const startCombat = (tokenIds: string[]) => {
     if (!currentScenario) return;
 
     const selectedTokens = currentScenario.tokens.filter(t => tokenIds.includes(t.id));
     const currentActive = [...(currentScenario.activeCombatants || [])];
-    const newCombatants: Combatant[] = [];
-    
-    // Group non-player creatures by name so they share the same initiative roll
-    const groupInitiative = new Map<string, number>();
-    currentActive.forEach(c => {
-      if (c.type !== 'player' && c.name) {
-        groupInitiative.set(c.name, c.initiative);
-      }
-    });
 
-    selectedTokens.forEach(token => {
-      // Use the token's ID as the unique key in the combat tracker to allow multiple instances of same monster
+    // Creatures already in the fight seed the name groups, so a goblin joining
+    // mid-combat lands on the initiative its packmates are already using.
+    const seeded = new Map<string, number>();
+    for (const c of currentActive) {
+      if (c.type !== 'player' && c.name) seeded.set(c.name, c.initiative);
+    }
+
+    const entrants: Combatant[] = [];
+    for (const token of selectedTokens) {
+      // The token id keys the tracker entry, so several copies of one monster
+      // can be in combat at once.
       const combatantTrackerId = `combat-${token.id}`;
-
-      // Don't add if already in combat
-      if (currentActive.some(c => c.id === combatantTrackerId)) return;
+      if (currentActive.some(c => c.id === combatantTrackerId)) continue;
 
       let baseCombatant: Combatant | undefined;
-
       if (token.type === 'player') {
         baseCombatant = campaign.players.find(p => p.id === token.combatantId);
       } else if (token.type === 'npc') {
@@ -1547,52 +1575,29 @@ export function DMScreen() {
         }
       }
 
-      if (baseCombatant) {
-        let roll: number;
-        if (baseCombatant.type !== 'player' && groupInitiative.has(baseCombatant.name)) {
-          roll = groupInitiative.get(baseCombatant.name)!;
-        } else {
-          const dexMod = baseCombatant.stats ? Math.floor((baseCombatant.stats.dex - 10) / 2) : 0;
-          const bonus = baseCombatant.initiativeBonus ?? dexMod;
-          roll = Math.floor(Math.random() * 20) + 1 + bonus;
-          if (baseCombatant.type !== 'player') {
-            groupInitiative.set(baseCombatant.name, roll);
-          }
-        }
-
-        newCombatants.push({
-          ...baseCombatant,
-          id: combatantTrackerId,
-          initiative: roll,
-          sourceCombatantId: baseCombatant.id,
-        });
-      } else {
-        // Fallback for tokens without a full combatant record
-        let roll: number;
-        if (token.type !== 'player' && groupInitiative.has(token.name)) {
-          roll = groupInitiative.get(token.name)!;
-        } else {
-          roll = Math.floor(Math.random() * 20) + 1;
-          if (token.type !== 'player') {
-            groupInitiative.set(token.name, roll);
-          }
-        }
-        
-        newCombatants.push({
-          id: combatantTrackerId,
-          name: token.name,
-          type: token.type,
-          hp: 10,
-          maxHp: 10,
-          ac: 10,
-          initiative: roll
-        });
-      }
-    });
-
-    if (newCombatants.length > 0) {
-      updateActiveCombatants([...currentActive, ...newCombatants]);
+      entrants.push(baseCombatant
+        ? { ...baseCombatant, id: combatantTrackerId, sourceCombatantId: baseCombatant.id }
+        // Fallback for a token with no combatant record behind it.
+        : { id: combatantTrackerId, name: token.name, type: token.type, hp: 10, maxHp: 10, ac: 10, initiative: 0 });
     }
+
+    if (entrants.length === 0) return;
+    setInitiativeDraft({
+      rolls: rollInitiativeFor(entrants, { seeded }),
+      existing: currentActive,
+      isAddingToCombat: currentActive.length > 0,
+    });
+  };
+
+  /** Commit the staged rolls, with any overrides the DM typed in. */
+  const confirmInitiative = (totals: Record<string, number>) => {
+    if (!initiativeDraft) return;
+    const entering = initiativeDraft.rolls.map(r => ({
+      ...r.combatant,
+      initiative: totals[r.combatant.id] ?? r.total,
+    }));
+    updateActiveCombatants([...initiativeDraft.existing, ...entering]);
+    setInitiativeDraft(null);
   };
 
   const addScenario = () => {
@@ -2227,57 +2232,6 @@ export function DMScreen() {
             </button>
           </div>
         </header>
-        {ambientPickerFor && (() => {
-          const floor = currentScenario?.floors?.find(f => f.id === ambientPickerFor);
-          if (!floor) return null;
-          return (
-            <SoundPicker
-              title="Floor Ambient Sound"
-              subtitle={`${floor.name} — Tier 1 (floor bed)`}
-              selectedId={floor.ambientSoundId ?? null}
-              defaultCategory="ambient"
-              allowClear
-              onPick={(soundId) => {
-                setCampaign(prev => prev ? ({
-                  ...prev,
-                  scenarios: prev.scenarios.map(sc => sc.id !== currentScenario?.id ? sc : {
-                    ...sc,
-                    floors: sc.floors?.map(f =>
-                      f.id === floor.id
-                        ? { ...f, ambientSoundId: soundId ?? undefined }
-                        : f
-                    ),
-                  }),
-                }) : prev);
-              }}
-              onClose={() => setAmbientPickerFor(null)}
-            />
-          );
-        })()}
-        {zonesPanelOpen && activeFloor && (
-          <SoundZonesPanel
-            floor={activeFloor}
-            onUpdateZones={(zones) => {
-              setCampaign(prev => prev ? ({
-                ...prev,
-                scenarios: prev.scenarios.map(sc => sc.id !== currentScenario?.id ? sc : {
-                  ...sc,
-                  floors: sc.floors?.map(f =>
-                    f.id === activeFloor.id ? { ...f, soundZones: zones } : f
-                  ),
-                }),
-              }) : prev);
-            }}
-            onStartPainting={(tpl) => {
-              setDifficultTerrainPainting(false);
-              setZonePainting(tpl);
-              setZonesPanelOpen(false);
-            }}
-            onClose={() => setZonesPanelOpen(false)}
-          />
-        )}
-        {/* Sound-zone, dark-zone, and difficult-terrain painting states are shown
-            by MapView's floating per-zone-type toolbars. */}
         {portalPlacementMode && (
           <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[150] bg-[#1a1512] border border-blue-400/50 rounded-md px-4 py-2 shadow-xl flex items-center gap-3 pointer-events-auto">
             <span className="text-xs">
@@ -2411,32 +2365,9 @@ export function DMScreen() {
                 onSwitchFloor={setActiveFloorId}
                 onUpdateFloorById={updateFloorById}
                 onMoveAllPlayersHere={moveAllPlayersHere}
-                onOpenSoundZones={() => setZonesPanelOpen(true)}
-                onSoundZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, soundZones: zones }))}
-                zonePainting={zonePainting}
-                onSoundZonePaintCommit={(points) => {
-                  if (!zonePainting || !activeFloorId) return;
-                  const newZone: SoundZone = {
-                    id: `sz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    points,
-                    soundId: zonePainting.soundId,
-                    falloffPx: zonePainting.falloffPx,
-                    color: zonePainting.color,
-                    label: zonePainting.label,
-                    volume: 1,
-                  };
-                  updateFloorById(activeFloorId, f => ({
-                    ...f,
-                    soundZones: [...(f.soundZones || []), newZone],
-                  }));
-                  // Stay in paint mode (same sound) so several zones can be painted in
-                  // a row; the DM exits via right-click, Esc, or the Sound Zones toolbar.
-                }}
-                onSoundZonePaintCancel={() => setZonePainting(null)}
                 onDarkZonesChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, darkZones: zones }))}
                 darkZonePainting={darkZonePainting}
                 onStartDarkZonePainting={() => {
-                  setZonePainting(null);
                   setDifficultTerrainPainting(false);
                   setDarkZonePainting(true);
                 }}
@@ -2457,7 +2388,6 @@ export function DMScreen() {
                 onDifficultTerrainChange={(floorId, zones) => updateFloorById(floorId, f => ({ ...f, difficultTerrain: zones }))}
                 difficultTerrainPainting={difficultTerrainPainting}
                 onStartDifficultTerrainPainting={() => {
-                  setZonePainting(null);
                   setDarkZonePainting(false);
                   setDifficultTerrainPainting(false);
                   setWallPainting(false);
@@ -2485,7 +2415,6 @@ export function DMScreen() {
                 wallSnapToGrid={wallSnapToGrid}
                 onStartWallPainting={() => {
                   setWallErasing(false);
-                  setZonePainting(null);
                   setDarkZonePainting(false);
                   setDifficultTerrainPainting(false);
                   setWallPainting(true);
@@ -2501,7 +2430,6 @@ export function DMScreen() {
                 onStartPortalPlacement={(mode) => {
                   setWallPainting(false);
                   setWallErasing(false);
-                  setZonePainting(null);
                   setDarkZonePainting(false);
                   setDifficultTerrainPainting(false);
                   setPortalPlacementMode(mode);
@@ -2514,7 +2442,6 @@ export function DMScreen() {
                   setWallPainting(false);
                   setWallErasing(false);
                   setPortalPlacementMode(null);
-                  setZonePainting(null);
                   setDarkZonePainting(false);
                   setDifficultTerrainPainting(false);
                   setGridCalibrating(true);
@@ -2524,19 +2451,18 @@ export function DMScreen() {
                   updateGridResolution(gr);
                   setGridCalibrating(false);
                 }}
-                onOpenFloorAudioPicker={(floorId) => setAmbientPickerFor(floorId)}
-                onClearFloorAudio={(floorId) => updateFloorById(floorId, f => ({ ...f, ambientSoundId: undefined }))}
                 dmViewAsPlayerId={dmViewAsPlayerId}
               />
             )}
           </main>
 
-          {/* Left Sidebar: Notes (overlay) */}
+          {/* Left Sidebar: Notes (overlay). The slide-out distance below must
+              match the panel width, or a sliver stays on screen when closed. */}
           <motion.aside
             initial={false}
-            animate={{ x: leftSidebarOpen ? 0 : -320 }}
+            animate={{ x: leftSidebarOpen ? 0 : -420 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-y-0 left-0 w-[320px] bg-[var(--surface)] border-r border-[var(--line)] z-[45] overflow-hidden"
+            className="absolute inset-y-0 left-0 w-[420px] bg-[var(--surface)] border-r border-[var(--line)] z-[45] overflow-hidden"
           >
             <div className="w-full h-full relative">
               <div className="absolute inset-0 bg-[var(--parchment-texture)] opacity-10 pointer-events-none" />
@@ -2632,6 +2558,7 @@ export function DMScreen() {
                       classes: parsed.classes ?? p.classes,
                       initiative: parsed.initiative ?? p.initiative,
                       initiativeBonus: parsed.initiativeBonus ?? p.initiativeBonus,
+                      initiativeAdvantage: parsed.initiativeAdvantage ?? p.initiativeAdvantage,
                       stats: parsed.stats ?? p.stats,
                       proficiencyBonus: parsed.proficiencyBonus ?? p.proficiencyBonus,
                       spells: parsed.spells ?? p.spells,
@@ -2702,9 +2629,6 @@ export function DMScreen() {
                 campaign={campaign}
                 onUpdate={setCampaign}
                 onClose={() => setSettingsOpen(false)}
-                currentScenarioFloors={currentScenario?.floors || []}
-                audioFocusFloorId={audioFocusFloorId}
-                onAudioFocusChange={setAudioFocusFloorId}
               />
             </motion.div>
           )}
@@ -2745,6 +2669,16 @@ export function DMScreen() {
             });
           }}
         />
+
+        {/* Initiative roll review — rolls are staged here until confirmed */}
+        {initiativeDraft && (
+          <InitiativeRollModal
+            rolls={initiativeDraft.rolls}
+            isAddingToCombat={initiativeDraft.isAddingToCombat}
+            onConfirm={confirmInitiative}
+            onClose={() => setInitiativeDraft(null)}
+          />
+        )}
 
         {/* Spell Damage Modal — auto-opens when player confirms spell cast */}
         <SpellDamageModal
@@ -2790,7 +2724,7 @@ export function DMScreen() {
               imageData={note.imageData}
               caption={note.content}
               rotation={note.imageRotation || 0}
-              onRotate={() => setImageNoteRotation(note.id, ((note.imageRotation || 0) + 90) % 360)}
+              onRotate={() => setImageNoteRotation(note.id, nextImageRotation(note.imageRotation))}
               onClose={() => toggleDisplayImageNote(note.id)}
             />
           );

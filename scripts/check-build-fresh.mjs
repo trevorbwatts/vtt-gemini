@@ -13,11 +13,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outputs = ['dist/index.html', 'dist-electron/main.js'];
 const sources = ['src', 'electron', 'public', 'index.html', 'package.json', 'vite.config.ts'];
 
-// Extras and sounds are served live from public/ at runtime rather than from
-// the build, so adding an avatar or a sound file doesn't need a rebuild.
+// Extras are served live from public/ at runtime rather than from the build,
+// so adding an avatar doesn't need a rebuild.
 const ignored = new Set([
   path.join(root, 'public', 'extras'),
-  path.join(root, 'public', 'sounds'),
 ]);
 
 function newestMtime(target) {

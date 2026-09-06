@@ -638,7 +638,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                           isActive
                             ? "bg-[#1d1a16] border-[var(--accent)] shadow-[0_0_15px_rgba(205,127,50,0.15)]"
                             : isTargeted
-                            ? "bg-[#1a1214] border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
+                            ? "bg-[#121722] border-blue-400/60 shadow-[0_0_12px_rgba(96,165,250,0.15)]"
                             : isAoeAffected
                             ? "bg-[#1c1510] border-orange-500/50 shadow-[0_0_12px_rgba(255,120,30,0.15)]"
                             : "bg-[#181512] border-[#2e261d]"
@@ -684,7 +684,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-[13px] truncate font-serif text-white tracking-wide">{c.name}</span>
                               {isTargeted && (
-                                <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-sans font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
+                                <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-sans font-bold uppercase tracking-wider bg-blue-400/20 text-blue-300 border border-blue-400/30">
                                   Targeted
                                 </span>
                               )}
@@ -884,56 +884,57 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 
               {/* Detail content: stats, actions, spells */}
               <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex gap-8 min-h-0">
-                {/* Column 0: Combat stats (AC, Speed, Level/CR) */}
-                <div className="min-w-[120px] flex flex-col gap-2 shrink-0">
-                  <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-0">Stats</h5>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-black/20 rounded p-2 text-center">
-                      <div className="text-[9px] uppercase opacity-50">AC</div>
-                      <div className="text-sm font-bold">{detailSource.ac}</div>
-                    </div>
-                    {detailSource.type === 'player' ? (
-                      <div className="bg-black/20 rounded p-2 text-center">
-                        <div className="text-[9px] uppercase opacity-50">Level</div>
-                        <div className="text-sm font-bold">{getCharacterLevel(detailSource.classes)}</div>
-                      </div>
-                    ) : detailSource.stats ? (
-                      <div className="bg-black/20 rounded p-2 text-center">
-                        <div className="text-[9px] uppercase opacity-50">Initiative</div>
-                        <div className="text-sm font-bold">
-                          {Math.floor((detailSource.stats.dex - 10) / 2) >= 0 ? '+' : ''}{Math.floor((detailSource.stats.dex - 10) / 2)}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                  {(detailSource.speedText || detailSource.speed != null) && (() => {
-                    const raw = detailSource.speedText || `${detailSource.speed} ft.`;
-                    const segments = raw.split(/,\s*/).map(seg => {
-                      seg = seg.trim();
-                      if (/^fly\s/i.test(seg)) return { Icon: Feather, color: 'text-teal-300', value: seg.replace(/^fly\s*/i, '') };
-                      if (/^swim\s/i.test(seg)) return { Icon: Droplet, color: 'text-blue-400', value: seg.replace(/^swim\s*/i, '') };
-                      if (/^burrow\s/i.test(seg)) return { Icon: Shovel, color: 'text-amber-600', value: seg.replace(/^burrow\s*/i, '') };
-                      return { Icon: Footprints, color: 'text-white/60', value: seg };
-                    });
-                    return (
-                      <div className="bg-black/20 rounded p-2 col-span-2">
-                        <div className="text-[9px] uppercase opacity-50 mb-1.5 text-center">Speed</div>
-                        <div className="flex flex-col gap-1 items-center">
-                          {segments.map(({ Icon, color, value }, i) => (
-                            <div key={i} className="flex items-center gap-1.5">
-                              <Icon size={10} className={color} />
-                              <span className="text-sm font-bold leading-none">{value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Column 1: Attributes, Saving Throws, Skills, Traits */}
+                {/* Column 0: Stats + Attributes. Attributes moved here so the next
+                    column keeps its full height for Traits, which is what actually
+                    needs the scroll room. */}
                 <div className="min-w-[160px] max-w-[220px] flex flex-col min-h-0 shrink-0">
                   <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+                    <div className="flex flex-col gap-2">
+                      <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-0">Stats</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-black/20 rounded p-2 text-center">
+                          <div className="text-[9px] uppercase opacity-50">AC</div>
+                          <div className="text-sm font-bold">{detailSource.ac}</div>
+                        </div>
+                        {detailSource.type === 'player' ? (
+                          <div className="bg-black/20 rounded p-2 text-center">
+                            <div className="text-[9px] uppercase opacity-50">Level</div>
+                            <div className="text-sm font-bold">{getCharacterLevel(detailSource.classes)}</div>
+                          </div>
+                        ) : detailSource.stats ? (
+                          <div className="bg-black/20 rounded p-2 text-center">
+                            <div className="text-[9px] uppercase opacity-50">Initiative</div>
+                            <div className="text-sm font-bold">
+                              {Math.floor((detailSource.stats.dex - 10) / 2) >= 0 ? '+' : ''}{Math.floor((detailSource.stats.dex - 10) / 2)}
+                            </div>
+                          </div>
+                        ) : null}
+                    </div>
+                    {(detailSource.speedText || detailSource.speed != null) && (() => {
+                      const raw = detailSource.speedText || `${detailSource.speed} ft.`;
+                      const segments = raw.split(/,\s*/).map(seg => {
+                        seg = seg.trim();
+                        if (/^fly\s/i.test(seg)) return { Icon: Feather, color: 'text-teal-300', value: seg.replace(/^fly\s*/i, '') };
+                        if (/^swim\s/i.test(seg)) return { Icon: Droplet, color: 'text-blue-400', value: seg.replace(/^swim\s*/i, '') };
+                        if (/^burrow\s/i.test(seg)) return { Icon: Shovel, color: 'text-amber-600', value: seg.replace(/^burrow\s*/i, '') };
+                        return { Icon: Footprints, color: 'text-white/60', value: seg };
+                      });
+                      return (
+                        <div className="bg-black/20 rounded p-2 col-span-2">
+                          <div className="text-[9px] uppercase opacity-50 mb-1.5 text-center">Speed</div>
+                          <div className="flex flex-col gap-1 items-center">
+                            {segments.map(({ Icon, color, value }, i) => (
+                              <div key={i} className="flex items-center gap-1.5">
+                                <Icon size={10} className={color} />
+                                <span className="text-sm font-bold leading-none">{value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    </div>
+
                     {/* Attributes */}
                     <div>
                       <h5 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-2">Attributes</h5>
@@ -960,7 +961,12 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                         {detailSource.darkvision && <span className="px-2 py-1 bg-white/5 rounded text-[11px]">{detailSource.darkvision}ft Darkvision</span>}
                       </div>
                     </div>
+                  </div>
+                </div>
 
+                {/* Column 1: Saving Throws, Skills, Traits */}
+                <div className="min-w-[160px] max-w-[220px] flex flex-col min-h-0 shrink-0">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
                     {/* Saving Throws */}
                     {detailSource.saves && (
                       <div>

@@ -1398,8 +1398,6 @@ export function PlayerScreen() {
   const [tremorsenseData, setTremorsenseData] = useState<{ playerId: string; rangeFt: number } | null>(null);
   // Detect Magic — active when a player casts Detect Magic
   const [detectMagicData, setDetectMagicData] = useState<{ playerId: string; rangeFt: number } | null>(null);
-  // Detect Poison and Disease — active when a player casts Detect Poison and Disease
-  const [detectPoisonData, setDetectPoisonData] = useState<{ playerId: string; rangeFt: number } | null>(null);
 
   // Generic active emanations — persistent rings following their casters
   const [activeEmanations, setActiveEmanations] = useState<ActiveEmanation[]>([]);
@@ -1464,27 +1462,6 @@ export function PlayerScreen() {
     }, remaining);
     return () => clearTimeout(timeout);
   }, [detectMagicData, activeTimers]);
-
-  // Clear detect poison when its timer expires
-  useEffect(() => {
-    if (!detectPoisonData) return;
-    const timer = activeTimers.find(t => t.playerId === detectPoisonData.playerId && t.abilityId === 'detect-poison-and-disease');
-    if (!timer) {
-      setDetectPoisonData(null);
-      return;
-    }
-    const remaining = timer.durationMs - (Date.now() - timer.startTime);
-    if (remaining <= 0) {
-      setDetectPoisonData(null);
-      setActiveTimers(prev => prev.filter(t => !(t.playerId === detectPoisonData.playerId && t.abilityId === 'detect-poison-and-disease')));
-      return;
-    }
-    const timeout = setTimeout(() => {
-      setDetectPoisonData(null);
-      setActiveTimers(prev => prev.filter(t => !(t.playerId === detectPoisonData.playerId && t.abilityId === 'detect-poison-and-disease')));
-    }, remaining);
-    return () => clearTimeout(timeout);
-  }, [detectPoisonData, activeTimers]);
 
   // Clear emanations when their timers expire
   useEffect(() => {
@@ -1782,9 +1759,10 @@ export function PlayerScreen() {
 
   const handleToggleTarget = useCallback((combatantId: string) => {
     setTargetedCombatantIds(prev => {
-      const next = new Set(prev);
-      if (next.has(combatantId)) next.delete(combatantId);
-      else next.add(combatantId);
+      // Only one thing is targeted at a time: tapping a different monster
+      // moves the reticle rather than adding a second one, and tapping the
+      // targeted monster again clears it.
+      const next = prev.has(combatantId) ? new Set<string>() : new Set([combatantId]);
       window.electronAPI?.sendPlayerTargetUpdate?.([...next]);
       return next;
     });
@@ -1901,24 +1879,6 @@ export function PlayerScreen() {
           startTime: Date.now(),
           durationMs: 600000, // 10 minutes
           color: '#22d3ee',   // cyan to match magic note color
-        }
-      ]);
-      return;
-    }
-
-    // Detect Poison and Disease exception: activate poison note visibility + start 10-minute timer
-    if (spell?.name === 'Detect Poison and Disease') {
-      setActionRing(null);
-      setOpenPanel(null);
-      setDetectPoisonData({ playerId: player.id, rangeFt: 30 });
-      setActiveTimers(prev => [
-        ...prev.filter(t => !(t.playerId === player.id && t.abilityId === 'detect-poison-and-disease')),
-        {
-          playerId: player.id,
-          abilityId: 'detect-poison-and-disease',
-          startTime: Date.now(),
-          durationMs: 600000, // 10 minutes
-          color: '#16a34a',   // green to match poison note color
         }
       ]);
       return;
@@ -2777,7 +2737,6 @@ export function PlayerScreen() {
           }}
           tremorsenseData={tremorsenseData}
           detectMagicData={detectMagicData}
-          detectPoisonData={detectPoisonData}
           activeEmanations={activeEmanations}
           seeInvisibility={seeInvisibilityPlayerIds.size > 0}
           activeTimers={activeTimers}

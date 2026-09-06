@@ -28,8 +28,10 @@ declare global {
       requestStateUpdate: () => void;
       sendDMAoeUpdate: (aoe: any) => void;
       onDMAoeUpdate: (callback: (aoe: any) => void) => void;
+      removeDMAoeUpdateListener?: () => void;
       sendPlayerAoeUpdate: (aoe: any) => void;
       onPlayerAoeUpdate: (callback: (aoe: any) => void) => void;
+      removePlayerAoeUpdateListener?: () => void;
       sendDismissPlayerAoe: () => void;
       onDismissPlayerAoe: (callback: () => void) => void;
       removeDismissPlayerAoeListener?: () => void;
@@ -98,17 +100,26 @@ declare global {
       extrasSaveManifest?: (manifest: Extra[]) => Promise<{ ok: boolean; error?: string }>;
       extrasSaveImage?: (data: { filename: string; dataUrl: string }) => Promise<{ ok: boolean; error?: string }>;
       extrasDeleteImage?: (filename: string) => Promise<{ ok: boolean; error?: string }>;
-      // --- Sound library (global, file-based) ---
-      soundsLoadManifest?: () => Promise<{ manifest: SoundAsset[]; error?: string }>;
-      soundsSaveManifest?: (manifest: SoundAsset[]) => Promise<{ ok: boolean; error?: string }>;
-      soundsSaveAudio?: (data: { filename: string; dataUrl: string }) => Promise<{ ok: boolean; error?: string }>;
-      soundsDeleteAudio?: (filename: string) => Promise<{ ok: boolean; error?: string }>;
     }
   }
 }
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+/**
+ * Next rotation for a displayed image note.
+ *
+ * Players sit on one of two sides of the table, so only two orientations are
+ * ever useful: as placed, or turned to face the far side. Rotating toggles
+ * between them instead of stepping through 90° quarters — and because both
+ * views animate the CSS transform, turning back winds the image the way it
+ * came rather than continuing around. A legacy 90/270 value normalises to 0
+ * the first time it's rotated.
+ */
+export function nextImageRotation(current: number | undefined): 0 | 180 {
+  return (current ?? 0) === 0 ? 180 : 0;
 }
 
 export interface Token {
@@ -157,39 +168,6 @@ export interface Extra {
   name: string;
   /** Freeform tags for filtering (e.g. "tavern", "noble", "guard"). */
   tags: string[];
-}
-
-/**
- * A sound effect in the global library. Lives on disk at public/sounds/<filename>,
- * indexed by manifest.json — same pattern as Extras. The category is a
- * "primary intended use" hint that helps filter picker UIs; sounds can still
- * be assigned to any tier regardless of category.
- */
-export type SoundCategory = 'ambient' | 'zone' | 'interaction' | 'note' | 'other';
-
-export interface SoundAsset {
-  /** Stable unique id — the filename. */
-  id: string;
-  /** Filename within public/sounds/, e.g. "drippy-cave.ogg". */
-  filename: string;
-  /** Display name shown in pickers. */
-  name: string;
-  /** Primary intended tier this sound is suggested for. */
-  category: SoundCategory;
-  /** Freeform tags for filtering. */
-  tags: string[];
-}
-
-/**
- * Persistent master + per-bus volume settings for the audio engine.
- * Stored in localStorage under "vtt_mixer_settings". Each value is 0..1.
- */
-export interface MixerSettings {
-  master: number;
-  ambient: number;
-  zones: number;
-  sfx: number;
-  notes: number;
 }
 
 export interface MovementPathSegment {
@@ -276,6 +254,9 @@ export interface Combatant {
   /** Total bonus added to a d20 when rolling initiative (Dex mod + Alert feat, Jack of All Trades, etc.).
    *  When set, this is used instead of recomputing from Dex alone. */
   initiativeBonus?: number;
+  /** Rolls initiative with advantage (2024 Champion's Remarkable Athlete,
+   *  Feral Instinct, Sentinel Shield…). Imported from D&D Beyond. */
+  initiativeAdvantage?: boolean;
   hp: number;
   maxHp: number;
   ac: number;
@@ -379,7 +360,7 @@ export interface UVTTLight {
   intensity?: number; // 0–1
 }
 
-export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'magic' | 'poison' | 'image' | 'sound';
+export type MapNoteType = 'treasure' | 'quote' | 'warning' | 'magic' | 'check' | 'image';
 
 export interface MapNote {
   id: string;
@@ -391,8 +372,6 @@ export interface MapNote {
   imageData?: string;
   /** Rotation in degrees for image-type notes (0/90/180/270). Defaults to 0. */
   imageRotation?: number;
-  /** SoundAsset id for sound-type notes — tap on the map to play. */
-  soundId?: string;
 }
 
 export interface SpellMarker {
@@ -480,12 +459,6 @@ export interface Floor {
   transitionZones?: TransitionZone[];
   /** Persistent freehand drawings on this floor. Survives app restart; per-floor scope. */
   drawings?: Stroke[];
-  /** Sound library id of the looping ambient bed for this floor (Tier 1). */
-  ambientSoundId?: string;
-  /** Per-floor ambient volume, 0..1. Multiplied by the global ambient bus gain. */
-  ambientVolume?: number;
-  /** Tier 2: painted sound zones on this floor (e.g. river, fire pit). */
-  soundZones?: SoundZone[];
   /** Polygonal regions that remain dark even when the floor is set to Daylight (caves, houses, etc.). */
   darkZones?: DarkZone[];
   /** DM-only painted regions that cost double movement to cross (mud, rubble, undergrowth). */
@@ -521,31 +494,6 @@ export interface DarkZone {
   /** Polygon vertices in map pixel coordinates, flat: [x1, y1, x2, y2, ...]. */
   points: number[];
   /** Optional label shown in the DM panel (e.g. "Cave", "Tavern"). */
-  label?: string;
-}
-
-/**
- * A painted sound zone — Tier 2 of the audio system. The party hears the
- * zone's sound at full volume when inside the polygon, fading linearly to
- * silence as they move out to `falloffPx` map pixels from the nearest edge.
- *
- * "Listener" is the centroid of player tokens on this floor; multiple floors
- * with players sum their per-floor contributions (with same-soundId dedupe
- * across the whole campaign).
- */
-export interface SoundZone {
-  id: string;
-  /** Polygon vertices in map pixel coordinates, flat: [x1, y1, x2, y2, ...]. */
-  points: number[];
-  /** Sound asset id from the library. */
-  soundId: string;
-  /** Distance outside the polygon, in map pixels, at which the sound fades to silent. */
-  falloffPx: number;
-  /** Per-zone volume multiplier, 0..1. Defaults to 1. */
-  volume?: number;
-  /** Optional display color for the DM overlay. Defaults to amber. */
-  color?: string;
-  /** Optional label shown in the zones panel. */
   label?: string;
 }
 

@@ -58,9 +58,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDMAoeUpdate: (callback: (aoe: any) => void) => {
     ipcRenderer.on('dm-aoe-update', (_event, aoe) => callback(aoe));
   },
+  removeDMAoeUpdateListener: () => {
+    ipcRenderer.removeAllListeners('dm-aoe-update');
+  },
   sendPlayerAoeUpdate: (aoe: any) => ipcRenderer.send('player-aoe-update', aoe),
   onPlayerAoeUpdate: (callback: (aoe: any) => void) => {
     ipcRenderer.on('player-aoe-update', (_event, aoe) => callback(aoe));
+  },
+  removePlayerAoeUpdateListener: () => {
+    ipcRenderer.removeAllListeners('player-aoe-update');
   },
   sendDismissPlayerAoe: () => ipcRenderer.send('dismiss-player-aoe'),
   onDismissPlayerAoe: (callback: () => void) => {
@@ -218,10 +224,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('extras-save-image', data),
   extrasDeleteImage: (filename: string) => ipcRenderer.invoke('extras-delete-image', filename),
 
-  // ── Sound library (global, file-based) ──
-  soundsLoadManifest: () => ipcRenderer.invoke('sounds-load-manifest'),
-  soundsSaveManifest: (manifest: any) => ipcRenderer.invoke('sounds-save-manifest', manifest),
-  soundsSaveAudio: (data: { filename: string; dataUrl: string }) =>
-    ipcRenderer.invoke('sounds-save-audio', data),
-  soundsDeleteAudio: (filename: string) => ipcRenderer.invoke('sounds-delete-audio', filename),
 });

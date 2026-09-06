@@ -10,7 +10,7 @@ const promises_1 = __importDefault(require("fs/promises"));
 const http_1 = __importDefault(require("http"));
 // --- Serving the built app ---------------------------------------------------
 // Outside of dev there is no Vite server, but the app still asks for things by
-// absolute path (/tokens/goblin.jpg, /sounds/manifest.json, ...), which plain
+// absolute path (/tokens/goblin.jpg, /extras/manifest.json, ...), which plain
 // file:// would resolve against the drive root and never find. So the built app
 // is served by a small static server inside the main process instead.
 //
@@ -37,10 +37,6 @@ const MIME_TYPES = {
     '.webp': 'image/webp',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
-    '.mp3': 'audio/mpeg',
-    '.ogg': 'audio/ogg',
-    '.wav': 'audio/wav',
-    '.m4a': 'audio/mp4',
     '.mp4': 'video/mp4',
     '.webm': 'video/webm',
     '.woff2': 'font/woff2',
@@ -49,14 +45,14 @@ const MIME_TYPES = {
 function resolveRequest(urlPath) {
     const segments = urlPath.split('/').filter(Boolean);
     const top = segments[0];
-    // Extras and sounds are user-editable, so they're read from the writable
-    // library folder first and only then from the copy that shipped with the app.
+    // Extras are user-editable, so they're read from the writable library
+    // folder first and only then from the copy that shipped with the app.
     // That way a freshly added avatar appears immediately rather than after the
     // next rebuild, and the shipped library still shows up on a machine where
     // nothing has been added yet.
     let roots;
     let relativePath;
-    if (top === 'extras' || top === 'sounds') {
+    if (top === 'extras') {
         relativePath = segments.slice(1).join(path_1.default.sep);
         const bundled = bundledLibraryDir(top);
         roots = bundled ? [libraryDir(top), bundled] : [libraryDir(top)];
@@ -95,7 +91,7 @@ function startStaticServer() {
         }
         const size = fs_1.default.statSync(filePath).size;
         const type = MIME_TYPES[path_1.default.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
-        // Audio seeking asks for byte ranges rather than the whole file.
+        // Video seeking asks for byte ranges rather than the whole file.
         const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
         if (range) {
             const start = range[1] ? parseInt(range[1], 10) : 0;
@@ -548,12 +544,6 @@ registerLibraryIpc('extras', {
     saveManifest: 'extras-save-manifest',
     writeFile: 'extras-save-image',
     deleteFile: 'extras-delete-image',
-});
-registerLibraryIpc('sounds', {
-    load: 'sounds-load-manifest',
-    saveManifest: 'sounds-save-manifest',
-    writeFile: 'sounds-save-audio',
-    deleteFile: 'sounds-delete-audio',
 });
 // D&D Beyond character import
 electron_1.ipcMain.handle('fetch-dndb-character', async (_event, url) => {

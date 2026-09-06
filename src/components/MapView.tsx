@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Stage, Layer, Image as KonvaImage, Circle, RegularPolygon, Text, Group, Rect, Path, Line, Transformer, Arc } from 'react-konva';
 import Konva from 'konva';
+import { useStableCallback } from '../hooks/useStableCallback';
 import { Token, MapNote, MapNoteType, cn, Combatant, Monster, WallSegment, Portal, GridResolution, WallPoint, MovementPath, Floor, TransitionZone, UVTTLight, Stroke, Extra } from '../types';
 import { parseUVTTFile } from '../services/uvttParser';
-import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid, Pencil, Eraser, Volume2 } from '../icons';
+import { Upload, User, Users, Skull, Shield, X, EyeOff, Eye, Trash2, ChevronRight, ChevronDown, PlusCircle, Search, Map as MapIcon, FileText, Cloud, Sun, Moon, Footprints, Undo2, DoorClosed, Blinds, Edit2, SquareDashed, Layers, ArrowUpDown, SquareDashedTopSolid, Pencil, Eraser, BrickWall, SquareSplitHorizontal, Stone } from '../icons';
 import { useExtras, extraImageUrl, filterExtras, allTags } from '../data/extras';
 import { ManageExtrasModal } from './ManageExtrasModal';
 import { MakeCreatureModal } from './MakeCreatureModal';
@@ -19,10 +20,6 @@ import {
 } from '../utils/exploredFog';
 import { motion, AnimatePresence } from 'motion/react';
 import { NoteIcon } from './DMNotes';
-import { audioEngine, soundUrlFromId } from '../services/audioEngine';
-import { SoundPicker } from './SoundPicker';
-import { useSounds } from '../data/sounds';
-import { loadSoundBindings } from '../services/soundBindings';
 import { BESTIARY } from '../data/bestiary';
 import { BestiaryList } from './BestiaryList';
 import { lookupSpell } from '../data/spellDatabase';
@@ -67,6 +64,52 @@ import type { MapViewProps } from './mapview/MapViewProps';
 
 export type { SaveResult } from './mapview/helpers';
 
+/**
+ * Largest edge, in pixels, of the bitmap actually handed to the canvas.
+ *
+ * A map exported at "ultra" from a tool like Dungeon Alchemist can be 8000px+
+ * on the long edge. Every pan and zoom frame resamples that whole bitmap, and
+ * it sits in memory decoded at 4 bytes per pixel (8000x4500 ~ 144 MB), which
+ * is what makes big maps chug. The player screen is a 4K panel, so anything
+ * past ~4K on the long edge cannot be resolved when the whole map is in view.
+ *
+ * This only affects the pixels drawn. The map's coordinate space stays the
+ * original image's dimensions (see `mapSize`), so walls, grid calibration,
+ * fog masks, UVTT imports and saved token positions are all untouched — an
+ * existing campaign looks and behaves exactly as before, just lighter.
+ *
+ * Raise this if you zoom far past 1:1 and want more detail at the cost of
+ * memory and frame time; maps already under the cap are left alone entirely.
+ */
+const MAX_MAP_BITMAP_EDGE = 4096;
+
+/**
+ * Returns a downscaled canvas when `img` is larger than `maxEdge`, otherwise
+ * the original image. Aspect ratio is preserved, so the result can be drawn
+ * stretched back to the original dimensions with no distortion.
+ */
+function downscaleForDisplay(
+  img: HTMLImageElement,
+  maxEdge: number = MAX_MAP_BITMAP_EDGE,
+): HTMLImageElement | HTMLCanvasElement {
+  const longest = Math.max(img.width, img.height);
+  if (longest <= maxEdge) return img;
+
+  const ratio = maxEdge / longest;
+  const w = Math.max(1, Math.round(img.width * ratio));
+  const h = Math.max(1, Math.round(img.height * ratio));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return img; // no 2d context — fall back to the full-size image
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas;
+}
+
 /** Small round avatar for context-menu rows; falls back to a colored initial. */
 const MenuAvatar: React.FC<{ avatar?: string; name: string; color?: string }> = ({ avatar, name, color }) => (
   <div
@@ -78,6 +121,88 @@ const MenuAvatar: React.FC<{ avatar?: string; name: string; color?: string }> = 
       : name[0]?.toUpperCase()}
   </div>
 );
+
+const getNoteColor = (type: MapNoteType) => {
+  switch (type) {
+    case 'quote': return '#60a5fa';
+    case 'treasure': return '#CD7F32';
+    case 'warning': return '#ef4444';
+    case 'magic': return '#22d3ee';
+    case 'check': return '#16a34a';
+    case 'image': return '#a78bfa';
+    default: return '#ffffff';
+  }
+};
+
+/** Hoisted to module scope: defined inside the component it got a fresh
+ *  identity every render, so React remounted every note icon each time. */
+const NoteMapIcon = ({ type, noteRadius }: { type: MapNoteType; noteRadius: number }) => {
+  const s = noteRadius / 28;
+  const offset = -(12 * s);
+  const sp = { stroke: 'white', strokeWidth: 2, lineCap: 'round' as const, lineJoin: 'round' as const, fill: '' };
+
+  const icon = (() => {
+    switch (type) {
+      case 'treasure':
+        return (
+          <Group>
+            <Path data="M10.5 3 8 9l4 13 4-13-2.5-6" {...sp} />
+            <Path data="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z" {...sp} />
+            <Path data="M2 9h20" {...sp} />
+          </Group>
+        );
+      case 'quote':
+        return (
+          <Group>
+            <Path data="M12 7v14" {...sp} />
+            <Path data="M16 12h2" {...sp} />
+            <Path data="M16 8h2" {...sp} />
+            <Path data="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" {...sp} />
+            <Path data="M6 12h2" {...sp} />
+            <Path data="M6 8h2" {...sp} />
+          </Group>
+        );
+      case 'warning':
+        return (
+          <Group>
+            <Path data="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" {...sp} />
+            <Path data="M12 9v4" {...sp} />
+            <Circle x={12} y={17} radius={0.5} fill="white" stroke="white" strokeWidth={1} />
+          </Group>
+        );
+      case 'check':
+        // Keep in step with the D20 component in icons.tsx — same two paths.
+        return (
+          <Group>
+            <Path data="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...sp} />
+            <Path data="M12 6.5 L16.8 15.2 L7.2 15.2 Z" {...sp} />
+          </Group>
+        );
+      case 'magic':
+        return (
+          <Group>
+            <Path data="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" {...sp} />
+            <Path data="M20 3v4" {...sp} />
+            <Path data="M22 5h-4" {...sp} />
+            <Path data="M4 17v2" {...sp} />
+            <Path data="M5 18H3" {...sp} />
+          </Group>
+        );
+      case 'image':
+        return (
+          <Group>
+            <Path data="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10" {...sp} />
+            <Circle x={9} y={9} radius={2} {...sp} />
+            <Path data="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" {...sp} />
+          </Group>
+        );
+      default:
+        return null;
+    }
+  })();
+
+  return <Group scale={{ x: s, y: s }} x={offset} y={offset}>{icon}</Group>;
+};
 
 const MapViewInner: React.FC<MapViewProps> = ({
   tokens,
@@ -161,7 +286,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onSpellMarkersChange,
   tremorsenseData,
   detectMagicData,
-  detectPoisonData,
   activeEmanations = [],
   seeInvisibility,
   activeTimers = [],
@@ -177,11 +301,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   cancelPingRef,
   triggerPingRef,
   onPingDrop,
-  soundZones = [],
-  onSoundZonesChange,
-  zonePainting = null,
-  onSoundZonePaintCommit,
-  onSoundZonePaintCancel,
   darkZones = [],
   onDarkZonesChange,
   darkZonePainting = false,
@@ -211,14 +330,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   onStartGridCalibration,
   onStopGridCalibration,
   onGridResolutionChange,
-  onOpenFloorAudioPicker,
-  onClearFloorAudio,
-  onOpenSoundZones,
 }) => {
-  // ── Sound zone painting (Tier 2) ──
-  const [zonePaintPoints, setZonePaintPoints] = useState<number[]>([]);
-  const [zonePaintCursor, setZonePaintCursor] = useState<{ x: number; y: number } | null>(null);
-  const [zoneSnapToOrigin, setZoneSnapToOrigin] = useState(false);
   // ── Dark zone painting ──
   const [darkPaintPoints, setDarkPaintPoints] = useState<number[]>([]);
   const [darkPaintHover, setDarkPaintHover] = useState<{ x: number; y: number } | null>(null);
@@ -233,7 +345,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [wallPaintHover, setWallPaintHover] = useState<{ x: number; y: number } | null>(null);
   /** True when the hover position is close enough to the first vertex to snap back to it. */
   const [wallSnapToOrigin, setWallSnapToOrigin] = useState(false);
-  /** True while the floating "Edit Walls" toolbar is open. */
+  /** True while the floating "Walls & Doors" toolbar is open. */
   const [wallEditMode, setWallEditMode] = useState(false);
   /** Exit wall-editing: close the toolbar and stop any active sub-mode. */
   const exitWallEditMode = () => {
@@ -250,10 +362,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [terrainEditMode, setTerrainEditMode] = useState(false);
   /** True while clicking a difficult-terrain area on the map deletes it. */
   const [terrainErasing, setTerrainErasing] = useState(false);
-  /** True while the floating "Sound Zones" toolbar is open. */
-  const [soundZoneEditMode, setSoundZoneEditMode] = useState(false);
-  /** True while clicking a sound zone on the map deletes it. */
-  const [soundZoneErasing, setSoundZoneErasing] = useState(false);
   /**
    * Commit the wall currently being drawn (needs 2+ corners) and clear the
    * working points so a fresh wall can be started. Used by Enter and right-click.
@@ -303,15 +411,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     setDarkZoneErasing(false);
     setDarkZoneEditMode(false);
   };
-  /** Commit the sound-zone polygon being drawn (3+ corners) and clear, staying in mode. */
-  const commitCurrentZone = () => {
-    if (zonePaintPoints.length >= 6) {
-      onSoundZonePaintCommit?.(zonePaintPoints);
-    }
-    setZonePaintPoints([]);
-    setZoneSnapToOrigin(false);
-    setZonePaintCursor(null);
-  };
   /** Exit difficult-terrain editing: commit any in-progress shape, stop sub-modes, close the toolbar. */
   const exitTerrainEditMode = () => {
     if (difficultTerrainPainting) {
@@ -320,15 +419,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
     setTerrainErasing(false);
     setTerrainEditMode(false);
-  };
-  /** Exit sound-zone editing: commit any in-progress shape, stop sub-modes, close the toolbar. */
-  const exitSoundZoneEditMode = () => {
-    if (zonePainting) {
-      commitCurrentZone();
-      onSoundZonePaintCancel?.();
-    }
-    setSoundZoneErasing(false);
-    setSoundZoneEditMode(false);
   };
   const clearTzPaint = () => {
     setTzPaintPoints([]);
@@ -432,8 +522,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
     const startPpg = gridResolution?.pixelsPerGrid ?? 70;
     // Place near the center of the loaded map, falling back to (200,200).
-    const cx = loadedImage ? loadedImage.width / 2 : 200;
-    const cy = loadedImage ? loadedImage.height / 2 : 200;
+    const cx = mapSize ? mapW / 2 : 200;
+    const cy = mapSize ? mapH / 2 : 200;
     setCalibrationDraft({ x: cx, y: cy, ppg: startPpg });
   }, [gridCalibrating]); // eslint-disable-line react-hooks/exhaustive-deps
   // Esc cancels calibration.
@@ -485,28 +575,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const { wallId, edgeIndex, t, point } = best;
     return { wallId, edgeIndex, t, point };
   };
-  // Reset paint points whenever the painting session starts or ends.
-  useEffect(() => {
-    setZonePaintPoints([]);
-    setZonePaintCursor(null);
-    setZoneSnapToOrigin(false);
-  }, [zonePainting]);
-  // Keyboard: Enter commits the current sound zone and chains a new one; Esc commits
-  // any pending zone then exits paint mode.
-  useEffect(() => {
-    if (!zonePainting) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        commitCurrentZone();
-        onSoundZonePaintCancel?.();
-      } else if (e.key === 'Enter') {
-        commitCurrentZone();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zonePainting, zonePaintPoints, onSoundZonePaintCommit, onSoundZonePaintCancel]);
   useEffect(() => {
     setDarkPaintPoints([]);
     setDarkPaintHover(null);
@@ -594,42 +662,37 @@ const MapViewInner: React.FC<MapViewProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [wallErasing, onToggleWallErasing]);
-  // Keyboard for zone erasing (dark / terrain / sound): Esc exits eraser mode.
+  // Keyboard for zone erasing (dark / terrain): Esc exits eraser mode.
   useEffect(() => {
-    if (!darkZoneErasing && !terrainErasing && !soundZoneErasing) return;
+    if (!darkZoneErasing && !terrainErasing) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDarkZoneErasing(false);
         setTerrainErasing(false);
-        setSoundZoneErasing(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [darkZoneErasing, terrainErasing, soundZoneErasing]);
-  // Sound-zone painting starts from the App-level Sound Zones panel; open the
-  // toolbar automatically so the drawing state and hints are visible, and close
-  // the other zone toolbars so they don't stack on top of it.
-  useEffect(() => {
-    if (!zonePainting) return;
-    setSoundZoneEditMode(true);
-    setSoundZoneErasing(false);
-    setWallEditMode(false);
-    setDarkZoneEditMode(false);
-    setDarkZoneErasing(false);
-    setTerrainEditMode(false);
-    setTerrainErasing(false);
-  }, [zonePainting]);
-  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | HTMLVideoElement | null>(null);
+  }, [darkZoneErasing, terrainErasing]);
+  // The bitmap the canvas draws. May be a downscaled copy of the source map —
+  // never read its width/height for geometry, use mapW/mapH below.
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | null>(null);
+  // The map's logical coordinate space: always the *original* image's pixel
+  // dimensions. Walls, lights, grid calibration, fog masks and token positions
+  // are all stored in these units, so this stays fixed even when the drawn
+  // bitmap is downscaled. Set and cleared together with loadedImage.
+  const [mapSize, setMapSize] = useState<{ width: number; height: number } | null>(null);
+  const mapW = mapSize?.width ?? 0;
+  const mapH = mapSize?.height ?? 0;
   const mapLayerRef = useRef<Konva.Layer | null>(null);
   // Leaving a zone eraser mode (Done, Esc, or the toolbar toggle) can happen
   // while a zone is hovered; the shape stops listening, so its onMouseLeave never
   // fires to reset the pointer cursor. Reset it here instead.
   useEffect(() => {
-    if (darkZoneErasing || terrainErasing || soundZoneErasing) return;
+    if (darkZoneErasing || terrainErasing) return;
     const container = mapLayerRef.current?.getStage()?.container();
     if (container) container.style.cursor = 'default';
-  }, [darkZoneErasing, terrainErasing, soundZoneErasing]);
+  }, [darkZoneErasing, terrainErasing]);
   // Transient banner shown after uploading a video map onto a floor that
   // already has UVTT wall/light/grid data: confirms the data was kept, or
   // warns when the video resolution doesn't match the UVTT map.
@@ -696,9 +759,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const [tokenContextMenu, setTokenContextMenu] = useState<{ x: number, y: number, clientY: number, tokenId: string } | null>(null);
   const [conditionSubmenuOpen, setConditionSubmenuOpen] = useState(false);
   const [portalContextMenu, setPortalContextMenu] = useState<{ screenX: number, screenY: number, clientY: number, portalId: string, portalType: 'door' | 'window' | 'secret', locked: boolean } | null>(null);
-  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string, soundId?: string }>({ type: 'quote', content: '' });
-  const [noteSoundPickerOpen, setNoteSoundPickerOpen] = useState(false);
-  const { sounds: librarySoundsForNotes } = useSounds();
+  const [noteDraft, setNoteDraft] = useState<{ type: MapNoteType, content: string, imageData?: string }>({ type: 'quote', content: '' });
   const noteImageInputRef = useRef<HTMLInputElement>(null);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [viewpointDraft, setViewpointDraft] = useState<{ zoomPercent: number }>({ zoomPercent: 25 });
@@ -1011,7 +1072,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
     onMeasureDistanceChange(distFeet);
   }, [measureStart, measureEnd, isMeasuringActive, gridResolution, onMeasureDistanceChange]);
 
-  // Listen for AoE from the other screen
+  // Listen for AoE from the other screen.
+  // The cleanup matters more than it looks: FloorMapContainer renders one
+  // MapView per visible floor (up to four in quad layout) and rebuilds them
+  // when the layout changes, so without this every layout switch left another
+  // permanent ipcRenderer listener behind for the life of the process.
   useEffect(() => {
     try {
       if (isPlayerView) {
@@ -1022,6 +1087,17 @@ const MapViewInner: React.FC<MapViewProps> = ({
     } catch (e) {
       // IPC not available
     }
+    return () => {
+      try {
+        if (isPlayerView) {
+          window.electronAPI?.removeDMAoeUpdateListener?.();
+        } else {
+          window.electronAPI?.removePlayerAoeUpdateListener?.();
+        }
+      } catch (e) {
+        // IPC not available
+      }
+    };
   }, [isPlayerView]);
 
   // Use a ref for dragging positions so we can read them without triggering React re-renders.
@@ -1095,7 +1171,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transitionZoneMode, tzPaintPoints, pendingPairData]);
   // Ctrl+Z / Cmd+Z: undo the last point placed in whichever click-to-draw mode is
-  // active (walls, sound/dark zones, difficult terrain, transition zones). Registered
+  // active (walls, dark zones, difficult terrain, transition zones). Registered
   // before the movement-undo handler so it wins while drawing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1106,7 +1182,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       let handled = false;
       if (wallPainting && wallPaintPoints.length > 0) { setWallPaintPoints(pop); handled = true; }
       else if (darkZonePainting && darkPaintPoints.length > 0) { setDarkPaintPoints(pop); handled = true; }
-      else if (zonePainting && zonePaintPoints.length > 0) { setZonePaintPoints(pop); handled = true; }
       else if (difficultTerrainPainting && terrainPaintPoints.length > 0) { setTerrainPaintPoints(pop); handled = true; }
       else if (transitionZoneMode && tzPaintPoints.length > 0) { setTzPaintPoints(pop); handled = true; }
       if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
@@ -1116,7 +1191,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }, [
     wallPainting, wallPaintPoints,
     darkZonePainting, darkPaintPoints,
-    zonePainting, zonePaintPoints,
     difficultTerrainPainting, terrainPaintPoints,
     transitionZoneMode, tzPaintPoints,
   ]);
@@ -1651,18 +1725,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const ppgLocal = gridResolution?.pixelsPerGrid || 40;
     const allCombatants = [...activeCombatants, ...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
 
-    // Tier 3: spell sound binding — play one-shot if the DM has bound this spell.
-    const castingSpellName: string | undefined =
-      editingWall?.spellName ?? editingRing?.spellName ?? placedAoe?.name ?? placingSpell?.name;
-    if (castingSpellName) {
-      const bindings = loadSoundBindings();
-      const spellSoundId = bindings.spells[castingSpellName];
-      if (spellSoundId) {
-        audioEngine.ensure();
-        audioEngine.playOneShot(soundUrlFromId(spellSoundId), 'sfx', 1).catch(() => { /* ignore */ });
-      }
-    }
-
     /** Roll saves for a set of tokens and return results. */
     const rollSaves = (
       affectedTokens: typeof tokens,
@@ -1978,6 +2040,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
   useEffect(() => {
     if (!inCombat || isPlayerView) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack Ctrl+Z while the user is typing — undoing a token's
+      // movement instead of their text edit is never what they meant.
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         const targetId = selectedTokenIds.length === 1 ? selectedTokenIds[0] : null;
         if (targetId && movementPaths[targetId] && !movementPaths[targetId].isDragging) {
@@ -2069,8 +2135,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         computeVisibilityPolygon(
           { x: t.x, y: t.y },
           blockingSegments,
-          loadedImage.width,
-          loadedImage.height
+          mapW,
+          mapH
         )
       );
     },
@@ -2085,7 +2151,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const level = darknessLevel ?? 'dark';
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const fogPolygons: WallPoint[][] = [];
-    const { width: mapW, height: mapH } = loadedImage;
 
     for (const t of visionPlayerTokenPositions) {
       const combatant = allCombatants.find(c => c.id === t.combatantId);
@@ -2113,14 +2178,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
     return fogPolygons;
   }, [useFromPlayerPerspective, loadedImage, darknessLevel, visionPlayerTokenPositions, blockingSegments,
-    players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
+    players, npcs, persistentEnemies, scenarioCombatants, gridResolution, mapW, mapH]);
 
   // Light illumination polygons — UVTT static lights + placed Light spell markers.
   // Each polygon represents the area a light source can illuminate (wall-blocked raycasting
   // from the light's position). The FogOfWarLayer intersects these with player LOS to reveal fog.
   const lightPolygons = useMemo((): WallPoint[][] => {
     if (!loadedImage) return [];
-    const { width: mapW, height: mapH } = loadedImage;
     const results: WallPoint[][] = [];
 
     // UVTT static lights (torches, fires, etc. baked into the map file)
@@ -2149,17 +2213,16 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
 
     return results;
-  }, [lights, spellMarkers, liveMarkerPos, activeFloorId, blockingSegments, loadedImage, ppg]);
+  }, [lights, spellMarkers, liveMarkerPos, activeFloorId, blockingSegments, loadedImage, ppg, mapW, mapH]);
 
   // Full (unclipped) LOS polygons for every player token — used as clip masks when rendering
   // light-visible areas. Only computed when there are lights and we're rendering from a player's perspective.
   const playerFullLOSPolygons = useMemo((): WallPoint[][] => {
     if (!useFromPlayerPerspective || !loadedImage || !lightPolygons.length) return [];
-    const { width: mapW, height: mapH } = loadedImage;
     return visionPlayerTokenPositions.map(t =>
       computeVisibilityPolygon({ x: t.x, y: t.y }, blockingSegments, mapW, mapH)
     );
-  }, [useFromPlayerPerspective, loadedImage, lightPolygons.length, visionPlayerTokenPositions, blockingSegments]);
+  }, [useFromPlayerPerspective, loadedImage, lightPolygons.length, visionPlayerTokenPositions, blockingSegments, mapW, mapH]);
 
   // ── Dark Zones ──
   // In Daylight, dark-zone polygons should re-fog the area inside them. Applies to
@@ -2184,7 +2247,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // with darkvision can see partway into them.
   const darkvisionRevealPolygons = useMemo((): WallPoint[][] => {
     if (!loadedImage || !darkZonePolygons.length) return [];
-    const { width: mapW, height: mapH } = loadedImage;
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const result: WallPoint[][] = [];
     for (const t of visionPlayerTokenPositions) {
@@ -2202,7 +2264,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
     return result;
   }, [loadedImage, darkZonePolygons.length, visionPlayerTokenPositions, blockingSegments,
-    players, npcs, persistentEnemies, scenarioCombatants, gridResolution]);
+    players, npcs, persistentEnemies, scenarioCombatants, gridResolution, mapW, mapH]);
 
   const hasFogData = blockingSegments.length > 0;
 
@@ -2218,8 +2280,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   const exploredMaskEntry = useMemo(() => {
     if (!exploredFogMaskKey || !loadedImage || !hasFogData) return null;
-    return getExploredFogEntry(exploredFogMaskKey, loadedImage.width, loadedImage.height);
-  }, [exploredFogMaskKey, loadedImage, hasFogData]);
+    return getExploredFogEntry(exploredFogMaskKey, mapW, mapH);
+  }, [exploredFogMaskKey, loadedImage, hasFogData, mapW, mapH]);
 
   const [exploredMaskVersion, setExploredMaskVersion] = useState(0);
   useEffect(() => {
@@ -2244,7 +2306,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   // exploration accrues whenever tokens move — even during session prep.
   const exploredStampData = useMemo(() => {
     if (!loadedImage || !hasFogData || !exploredFogMaskKey) return null;
-    const { width: mapW, height: mapH } = loadedImage;
     const level = darknessLevel ?? 'dark';
     const allCombatants = [...players, ...npcs, ...persistentEnemies, ...scenarioCombatants];
     const visionPolys: WallPoint[][] = [];
@@ -2279,7 +2340,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     return { visionPolys, darkvisionPolys, losPolys };
   }, [loadedImage, hasFogData, exploredFogMaskKey, darknessLevel, playerTokenPositions,
     blockingSegments, players, npcs, persistentEnemies, scenarioCombatants, gridResolution,
-    darkZonePolygons.length, lightPolygons.length]);
+    darkZonePolygons.length, lightPolygons.length, mapW, mapH]);
 
   // Stamp the current visible region into the explored mask, trailing-throttled
   // so continuous token drags don't redraw the mask every frame.
@@ -2294,7 +2355,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     const { visionPolys, darkvisionPolys, losPolys } = exploredStampData;
     const anyLight = losPolys.length > 0 && lightPolygons.length > 0;
     if (!visionPolys.length && !darkvisionPolys.length && !anyLight) return;
-    const { width: mapW, height: mapH } = loadedImage;
 
     const doStamp = () => {
       // Paint the currently-visible region opaque, mirroring the compositing
@@ -2362,7 +2422,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
         fn?.();
       }, 200);
     }
-  }, [exploredFogMaskKey, loadedImage, exploredStampData, darkZonePolygons, lightPolygons, isPlayerView]);
+  }, [exploredFogMaskKey, loadedImage, exploredStampData, darkZonePolygons, lightPolygons, isPlayerView, mapW, mapH]);
 
   // Flush any pending stamp on unmount (e.g. switching floors mid-drag).
   useEffect(() => () => {
@@ -2413,6 +2473,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
 
   // Viewpoint proximity — which viewpoints have a player token within 3 grid squares
   const VIEWPOINT_RANGE_GRIDS = 3;
+  const viewpointProximityRef = useRef<Set<string>>(new Set());
   const viewpointProximity = useMemo(() => {
     const range = VIEWPOINT_RANGE_GRIDS * (gridResolution?.pixelsPerGrid ?? 70);
     const range2 = range * range;
@@ -2424,104 +2485,20 @@ const MapViewInner: React.FC<MapViewProps> = ({
         if (dx * dx + dy * dy <= range2) inRange.add(vp.id);
       });
     });
+    // playerTokenPositions changes on every drag tick, so this memo re-runs
+    // ~20x/second while a token moves — but which viewpoints are in range
+    // rarely actually changes. Hand back the previous Set when membership is
+    // identical so downstream memos (the viewpoint layer) can stay put.
+    const prev = viewpointProximityRef.current;
+    if (prev.size === inRange.size && [...inRange].every(id => prev.has(id))) return prev;
+    viewpointProximityRef.current = inRange;
     return inRange;
   }, [viewpoints, playerTokenPositions, gridResolution?.pixelsPerGrid]);
 
-  const getNoteColor = (type: MapNoteType) => {
-    switch (type) {
-      case 'quote': return '#60a5fa';
-      case 'treasure': return '#CD7F32';
-      case 'warning': return '#ef4444';
-      case 'magic': return '#22d3ee';
-      case 'poison': return '#16a34a';
-      case 'image': return '#a78bfa';
-      case 'sound': return '#f59e0b';
-      default: return '#ffffff';
-    }
-  };
-
-  const NoteMapIcon = ({ type }: { type: MapNoteType }) => {
-    const noteRadius = tokenRadius * 0.6;
-    const s = noteRadius / 28;
-    const offset = -(12 * s);
-    const sp = { stroke: 'white', strokeWidth: 2, lineCap: 'round' as const, lineJoin: 'round' as const, fill: '' };
-
-    const icon = (() => {
-      switch (type) {
-        case 'treasure':
-          return (
-            <Group>
-              <Path data="M10.5 3 8 9l4 13 4-13-2.5-6" {...sp} />
-              <Path data="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z" {...sp} />
-              <Path data="M2 9h20" {...sp} />
-            </Group>
-          );
-        case 'quote':
-          return (
-            <Group>
-              <Path data="M12 7v14" {...sp} />
-              <Path data="M16 12h2" {...sp} />
-              <Path data="M16 8h2" {...sp} />
-              <Path data="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" {...sp} />
-              <Path data="M6 12h2" {...sp} />
-              <Path data="M6 8h2" {...sp} />
-            </Group>
-          );
-        case 'warning':
-          return (
-            <Group>
-              <Path data="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" {...sp} />
-              <Path data="M12 9v4" {...sp} />
-              <Circle x={12} y={17} radius={0.5} fill="white" stroke="white" strokeWidth={1} />
-            </Group>
-          );
-        case 'poison':
-          return (
-            <Group>
-              <Path data="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z" {...sp} />
-              <Path data="m12.5 17-.5-1-.5 1h1z" {...{ ...sp, fill: 'white' }} />
-              <Circle x={15} y={12} radius={1} fill="white" stroke="white" strokeWidth={1} />
-              <Circle x={9} y={12} radius={1} fill="white" stroke="white" strokeWidth={1} />
-            </Group>
-          );
-        case 'magic':
-          return (
-            <Group>
-              <Path data="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" {...sp} />
-              <Path data="M20 3v4" {...sp} />
-              <Path data="M22 5h-4" {...sp} />
-              <Path data="M4 17v2" {...sp} />
-              <Path data="M5 18H3" {...sp} />
-            </Group>
-          );
-        case 'image':
-          return (
-            <Group>
-              <Path data="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10" {...sp} />
-              <Circle x={9} y={9} radius={2} {...sp} />
-              <Path data="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" {...sp} />
-            </Group>
-          );
-        case 'sound':
-          // Lucide Music icon paths
-          return (
-            <Group>
-              <Path data="M9 18V5l12-2v13" {...sp} />
-              <Circle x={6} y={18} radius={3} {...sp} />
-              <Circle x={18} y={16} radius={3} {...sp} />
-            </Group>
-          );
-        default:
-          return null;
-      }
-    })();
-
-    return <Group scale={{ x: s, y: s }} x={offset} y={offset}>{icon}</Group>;
-  };
 
   useEffect(() => {
     if (mapImage) {
-      const applyLoadedMedia = (media: HTMLImageElement | HTMLVideoElement, mediaW: number, mediaH: number) => {
+      const applyLoadedMedia = (media: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement, mediaW: number, mediaH: number) => {
         // Defer EVERY state update (image + scale + position + reveal flag) to
         // the same animation frame, so the new map, the new camera, and the
         // overlay reveal all happen atomically in a single render. Without
@@ -2535,6 +2512,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             // image and mark the transition complete so the overlay fades.
             // A later ResizeObserver tick will set the camera.
             setLoadedImage(media);
+            setMapSize({ width: mediaW, height: mediaH });
             setDisplayedMapImage(mapImage);
             return;
           }
@@ -2573,6 +2551,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 y: (dims.height - mediaH * finalScale) / 2,
               };
           setLoadedImage(media);
+          setMapSize({ width: mediaW, height: mediaH });
           setStageScale(finalScale);
           setStagePos(nextPos);
           setDisplayedMapImage(mapImage);
@@ -2590,8 +2569,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
         video.playsInline = true;
         video.addEventListener('loadeddata', () => {
           // Give the element explicit width/height attributes so all the
-          // downstream loadedImage.width/height reads work like they do
-          // for HTMLImageElement.
+          // downstream reads (and the mapSize the caller records) work
+          // like they do for HTMLImageElement.
           video.width = video.videoWidth;
           video.height = video.videoHeight;
           video.play().catch(() => { /* autoplay is allowed for muted video */ });
@@ -2600,10 +2579,15 @@ const MapViewInner: React.FC<MapViewProps> = ({
       } else {
         const img = new Image();
         img.src = mapImage;
-        img.onload = () => applyLoadedMedia(img, img.width, img.height);
+        img.onload = () => {
+          // Draw from a capped-size bitmap, but keep the original dimensions
+          // as the coordinate space so no existing map geometry shifts.
+          applyLoadedMedia(downscaleForDisplay(img), img.width, img.height);
+        };
       }
     } else {
       setLoadedImage(null);
+      setMapSize(null);
       setDisplayedMapImage(undefined);
     }
   }, [mapImage, gridResolution?.pixelsPerGrid]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2858,8 +2842,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
   const clampToMapBounds = (p: { x: number; y: number }, radius: number) => {
     if (!isPlayerView || !loadedImage) return p;
     return {
-      x: Math.max(radius, Math.min(loadedImage.width - radius, p.x)),
-      y: Math.max(radius, Math.min(loadedImage.height - radius, p.y)),
+      x: Math.max(radius, Math.min(mapW - radius, p.x)),
+      y: Math.max(radius, Math.min(mapH - radius, p.y)),
     };
   };
 
@@ -3218,11 +3202,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
     undoMovementRef.current = undoMovement;
   }
 
-  const handleNoteDragEnd = (id: string, e: any) => {
+  const handleNoteDragEnd = useStableCallback((id: string, e: any) => {
     onMapNotesChange(mapNotes.map(n =>
       n.id === id ? { ...n, x: e.target.x(), y: e.target.y() } : n
     ));
-  };
+  });
 
   const addToken = (type: Token['type']) => {
     const colors = { player: '#3b82f6', enemy: '#ef4444', npc: '#059669' };
@@ -3261,12 +3245,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       onDarkZonePaintCancel?.();
       return;
     }
-    // While painting a sound zone, right-click commits any completed area and exits.
-    if (zonePainting) {
-      commitCurrentZone();
-      onSoundZonePaintCancel?.();
-      return;
-    }
     // While drawing a transition zone, right-click finishes the current polygon (3+
     // points) and advances the flow; with too few points it cancels the whole flow.
     if (transitionZoneMode) {
@@ -3282,7 +3260,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     }
     // Other map-editing/drawing modes: suppress the right-click menu so the
     // user can right-click freely (e.g. to cancel) without it popping up.
-    if (wallErasing || darkZoneErasing || terrainErasing || soundZoneErasing || drawingMode !== 'off') {
+    if (wallErasing || darkZoneErasing || terrainErasing || drawingMode !== 'off') {
       return;
     }
     setTokenContextMenu(null);
@@ -3409,8 +3387,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
     if (!contextMenu) return;
     if (noteDraft.type === 'image') {
       if (!noteDraft.imageData) return;
-    } else if (noteDraft.type === 'sound') {
-      if (!noteDraft.soundId) return;
     } else if (!noteDraft.content.trim()) {
       return;
     }
@@ -3422,7 +3398,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       x: contextMenu.x,
       y: contextMenu.y,
       ...(noteDraft.type === 'image' && noteDraft.imageData ? { imageData: noteDraft.imageData, imageRotation: 0 } : {}),
-      ...(noteDraft.type === 'sound' && noteDraft.soundId ? { soundId: noteDraft.soundId } : {}),
     };
 
     onMapNotesChange([...mapNotes, newNote]);
@@ -3489,7 +3464,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
     zoomAnimRef.current = requestAnimationFrame(frame);
   };
 
-  const handleViewpointClick = (vp: Viewpoint) => {
+  const handleViewpointClick = useStableCallback((vp: Viewpoint) => {
     if (!isPlayerView) return;
     if (!viewpointProximity.has(vp.id)) return;
     if (activeViewpointId === vp.id) {
@@ -3512,17 +3487,23 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setActiveViewpointId(vp.id);
       animateZoom(targetScale, targetX, targetY);
     }
-  };
+  });
 
-  const handleViewpointDragEnd = (vpId: string, e: any) => {
+  const handleViewpointDragEnd = useStableCallback((vpId: string, e: any) => {
     const pos = { x: e.target.x(), y: e.target.y() };
     onViewpointsChange?.((viewpoints ?? []).map(v => v.id === vpId ? { ...v, ...pos } : v));
-  };
+  });
 
   const [isPanning, setIsPanning] = useState(false);
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  // Latest pan offset, readable from inside memoized layers' event handlers.
+  // Those handlers only need it at click time, so keeping it in a ref keeps
+  // `stagePos` out of their dependency arrays — otherwise every pan frame
+  // would rebuild layers that don't actually move with the pan.
+  const stagePosRef = useRef(stagePos);
+  stagePosRef.current = stagePos;
   const [spaceHeld, setSpaceHeld] = useState(false);
   const spaceHeldRef = useRef(false);
 
@@ -4202,26 +4183,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
       setDarkSnapToOrigin(snap);
       setDarkPaintHover(snap ? { x: darkPaintPoints[0], y: darkPaintPoints[1] } : pos);
     }
-    // Sound-zone painting: track hover for the rubber-band preview + origin snap.
-    if (zonePainting) {
-      const stage = e.target.getStage();
-      let pos = getCanvasPos(stage);
-      if (e.evt.shiftKey && zonePaintPoints.length >= 2) {
-        pos = constrainToAxis(pos, zonePaintPoints[zonePaintPoints.length - 2], zonePaintPoints[zonePaintPoints.length - 1]);
-      }
-      let snap = false;
-      if (zonePaintPoints.length >= 6) {
-        const ox = zonePaintPoints[0];
-        const oy = zonePaintPoints[1];
-        const scale = stage?.scaleX() || 1;
-        const thresh = 14 / scale;
-        const dx = pos.x - ox;
-        const dy = pos.y - oy;
-        if (dx * dx + dy * dy <= thresh * thresh) snap = true;
-      }
-      setZoneSnapToOrigin(snap);
-      setZonePaintCursor(snap ? { x: zonePaintPoints[0], y: zonePaintPoints[1] } : pos);
-    }
     // Transition zone drawing: track hover for the rubber-band preview + origin snap.
     if (transitionZoneMode) {
       const stage = e.target.getStage();
@@ -4596,6 +4557,861 @@ const MapViewInner: React.FC<MapViewProps> = ({
     });
   }, [isPlayerView, floors, activeFloorId, selectedZoneId, transitionZoneMode, onTransitionZonesChange]);
 
+  // ── Memoized layer subtrees ───────────────────────────────────────────
+  // Dragging a token calls setLivePlayerPos ~20x/second, which re-renders
+  // this whole component. Without these, every layer below rebuilds its
+  // entire node tree on each of those ticks even though none of their own
+  // inputs changed. Holding a stable element reference lets React skip
+  // reconciling the subtree entirely, so a drag only costs the layers that
+  // actually track token positions (tokens, vision, fog).
+  //
+  // Each dep array must list every value the subtree reads — a missing dep
+  // means a layer that silently stops updating.
+
+  const baseMapLayer = useMemo(() => (
+    <Layer listening={false} ref={mapLayerRef}>
+      {loadedImage && (
+        <KonvaImage
+          image={loadedImage}
+          width={mapW}
+          height={mapH}
+        />
+      )}
+    </Layer>
+  ), [loadedImage, mapW, mapH]);
+
+  const drawingsLayer = useMemo(() => {
+    if (drawings.length === 0 && ephemeralStrokes.length === 0 && !currentStroke) return null;
+    return (
+      <Layer listening={false}>
+        {drawings.map(s => (
+          <Line
+            key={s.id}
+            points={s.points}
+            stroke={s.color}
+            strokeWidth={s.width / stageScale}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.4}
+            perfectDrawEnabled={false}
+          />
+        ))}
+        {ephemeralStrokes.map(s => (
+          <Line
+            key={s.id}
+            points={s.points}
+            stroke={s.color}
+            strokeWidth={s.width / stageScale}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.4}
+            opacity={0.85}
+            perfectDrawEnabled={false}
+          />
+        ))}
+        {currentStroke && (
+          <Line
+            points={currentStroke.points}
+            stroke={currentStroke.color}
+            strokeWidth={currentStroke.width / stageScale}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.4}
+            perfectDrawEnabled={false}
+          />
+        )}
+      </Layer>
+    );
+  }, [drawings, ephemeralStrokes, currentStroke, stageScale]);
+
+  const spellMarkersLayer = useMemo(() => {
+    if (spellMarkers.length === 0) return null;
+    return (
+      <Layer>
+        {spellMarkers
+          .filter(m => !isPlayerView || m.visibleToPlayers)
+          .filter(m => !m.floorId || m.floorId === activeFloorId)
+          .map(marker => {
+            // Wall-shape marker (Wall of Sand, etc.) — rotated rectangle, locked after placement
+            if (marker.shapeType === 'wall') {
+              const wallAngle = marker.angle ?? 0;
+              const wallCorners = computeWallCorners(
+                marker.x, marker.y,
+                marker.length ?? 30,
+                marker.thickness ?? 10,
+                wallAngle,
+                ppg,
+              );
+              const wallPts = wallCorners.flatMap(c => [c.x, c.y]);
+              const isWoF = marker.spellName === 'Wall of Fire';
+              const wofAng = wallAngle * Math.PI / 180;
+              // Hot-side outward normal: (sinA, -cosA)
+              const wofNX = Math.sin(wofAng);
+              const wofNY = -Math.cos(wofAng);
+              if (isWoF) {
+                return (
+                  <React.Fragment key={marker.id}>
+                    {/* Fill */}
+                    <Line
+                      points={wallPts}
+                      closed
+                      fill="rgba(255,100,10,0.45)"
+                      stroke="transparent"
+                      listening={false}
+                    />
+                    {/* Hot side — solid bright orange */}
+                    <Line
+                      points={[wallCorners[0].x, wallCorners[0].y, wallCorners[1].x, wallCorners[1].y]}
+                      stroke="#ff8c00"
+                      strokeWidth={3 / stageScale}
+                      listening={false}
+                    />
+                    {/* Cold side — dashed */}
+                    <Line
+                      points={[wallCorners[3].x, wallCorners[3].y, wallCorners[2].x, wallCorners[2].y]}
+                      stroke="#8b5a2b"
+                      strokeWidth={1.5 / stageScale}
+                      dash={[8 / stageScale, 4 / stageScale]}
+                      listening={false}
+                    />
+                    {/* End caps */}
+                    <Line
+                      points={[wallCorners[0].x, wallCorners[0].y, wallCorners[3].x, wallCorners[3].y]}
+                      stroke="#8b5a2b" strokeWidth={1.5 / stageScale} listening={false}
+                    />
+                    <Line
+                      points={[wallCorners[1].x, wallCorners[1].y, wallCorners[2].x, wallCorners[2].y]}
+                      stroke="#8b5a2b" strokeWidth={1.5 / stageScale} listening={false}
+                    />
+                    {/* Transparent hit area for tap/context on the whole wall */}
+                    <Line
+                      points={wallPts}
+                      closed
+                      fill="rgba(0,0,0,0.001)"
+                      stroke="transparent"
+                  onTap={(e) => {
+                    if (!isPlayerView) return;
+                    e.cancelBubble = true;
+                    const now = Date.now();
+                    const last = lastMarkerTapRef.current;
+                    if (last && last.markerId === marker.id && now - last.time < 400) {
+                      lastMarkerTapRef.current = null;
+                      const rect = containerRef.current?.getBoundingClientRect();
+                      setDismissMarkerBubble({
+                        markerId: marker.id,
+                        screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePosRef.current.x,
+                        screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePosRef.current.y,
+                      });
+                    } else {
+                      lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                      setDismissMarkerBubble(null);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    if (isPlayerView) return;
+                    e.evt.preventDefault();
+                    e.cancelBubble = true;
+                    setContextMenu({
+                      x: marker.x,
+                      y: marker.y,
+                      stageX: e.evt.clientX,
+                      stageY: e.evt.clientY,
+                      clientY: e.evt.clientY,
+                      view: 'spell-marker',
+                      markerId: marker.id,
+                    });
+                  }}
+                  onMouseDown={(e) => { e.cancelBubble = true; }}
+                />
+                  </React.Fragment>
+                );
+              } else {
+                const isPasswall = marker.spellName === 'Passwall';
+                const isForcecage = marker.spellName === 'Forcecage' || marker.spellName === 'Forcecage (Box)';
+                const isForcecageBox = marker.spellName === 'Forcecage (Box)';
+                const fcFill = isForcecageBox ? 'rgba(167,139,250,0.32)' : 'rgba(167,139,250,0.10)';
+                const fcStroke = '#a78bfa';
+                return (
+                  <Line
+                    key={marker.id}
+                    points={wallPts}
+                    closed
+                    fill={isForcecage ? fcFill : isPasswall ? 'rgba(20,16,12,0.78)' : 'rgba(212,165,116,0.55)'}
+                    stroke={isForcecage ? fcStroke : isPasswall ? '#3a2c1c' : '#8b5a2b'}
+                    strokeWidth={isForcecage ? 2 / stageScale : isPasswall ? 2 / stageScale : 1.5 / stageScale}
+                    dash={isForcecage && !isForcecageBox ? [6 / stageScale, 4 / stageScale] : undefined}
+                    onTap={(e) => {
+                      if (!isPlayerView) return;
+                      e.cancelBubble = true;
+                      const now = Date.now();
+                      const last = lastMarkerTapRef.current;
+                      if (last && last.markerId === marker.id && now - last.time < 400) {
+                        lastMarkerTapRef.current = null;
+                        const rect = containerRef.current?.getBoundingClientRect();
+                        setDismissMarkerBubble({
+                          markerId: marker.id,
+                          screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePosRef.current.x,
+                          screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePosRef.current.y,
+                        });
+                      } else {
+                        lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                        setDismissMarkerBubble(null);
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      if (isPlayerView) return;
+                      e.evt.preventDefault();
+                      e.cancelBubble = true;
+                      setContextMenu({
+                        x: marker.x,
+                        y: marker.y,
+                        stageX: e.evt.clientX,
+                        stageY: e.evt.clientY,
+                        clientY: e.evt.clientY,
+                        view: 'spell-marker',
+                        markerId: marker.id,
+                      });
+                    }}
+                    onMouseDown={(e) => { e.cancelBubble = true; }}
+                  />
+                );
+              }
+            }
+            // Ring-shape marker (Wall of Fire Ring / Wall of Ice Dome) — also catches old sphere-format markers
+            if (marker.shapeType === 'ring' || marker.spellName === 'Wall of Fire (Ring)') {
+              const ringRadiusPx = ((marker.aoeSize ?? 10) / 5) * ppg;
+              const isIceDome = marker.spellName === 'Wall of Ice (Dome)';
+              const isForceDome = marker.spellName === 'Wall of Force (Dome)';
+              const isThornsRing = marker.spellName === 'Wall of Thorns (Ring)';
+              const isBladeRing = marker.spellName === 'Blade Barrier (Ring)';
+              const isHallow = marker.spellName === 'Hallow';
+              const ringFill = isForceDome
+                ? 'rgba(168,85,247,0.14)'
+                : isIceDome
+                ? 'rgba(126,200,238,0.18)'
+                : isThornsRing
+                ? 'rgba(34,197,94,0.18)'
+                : isBladeRing
+                ? 'rgba(203,213,225,0.18)'
+                : isHallow
+                ? 'rgba(251,191,36,0.16)'
+                : 'rgba(255,90,10,0.18)';
+              const ringStroke = isForceDome
+                ? '#c084fc'
+                : isIceDome
+                ? '#7ec8ee'
+                : isThornsRing
+                ? '#22c55e'
+                : isBladeRing
+                ? '#cbd5e1'
+                : isHallow
+                ? '#fbbf24'
+                : '#ff8c00';
+              const isHotOutside = (marker.hotSide ?? 'outside') === 'outside';
+              const tapHandler = (e: any) => {
+                if (!isPlayerView) return;
+                e.cancelBubble = true;
+                const now = Date.now();
+                const last = lastMarkerTapRef.current;
+                if (last && last.markerId === marker.id && now - last.time < 400) {
+                  lastMarkerTapRef.current = null;
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  setDismissMarkerBubble({
+                    markerId: marker.id,
+                    screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePosRef.current.x,
+                    screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePosRef.current.y,
+                  });
+                } else {
+                  lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                  setDismissMarkerBubble(null);
+                }
+              };
+              const ctxHandler = (e: any) => {
+                if (isPlayerView) return;
+                e.evt.preventDefault();
+                e.cancelBubble = true;
+                setContextMenu({
+                  x: marker.x, y: marker.y,
+                  stageX: e.evt.clientX,
+                  stageY: e.evt.clientY,
+                  clientY: e.evt.clientY,
+                  view: 'spell-marker',
+                  markerId: marker.id,
+                });
+              };
+              return (
+                <React.Fragment key={marker.id}>
+                  {/* Fill */}
+                  <Circle
+                    x={marker.x} y={marker.y}
+                    radius={ringRadiusPx}
+                    fill={ringFill}
+                    stroke="transparent"
+                    listening={false}
+                  />
+                  {/* Ring stroke */}
+                  <Circle
+                    x={marker.x} y={marker.y}
+                    radius={ringRadiusPx}
+                    fill="transparent"
+                    stroke={ringStroke}
+                    strokeWidth={3 / stageScale}
+                    listening={false}
+                  />
+                  {/* Transparent hit area */}
+                  <Circle
+                    x={marker.x} y={marker.y}
+                    radius={ringRadiusPx}
+                    fill="rgba(0,0,0,0.001)"
+                    stroke="transparent"
+                    strokeWidth={8 / stageScale}
+                    onTap={tapHandler}
+                    onContextMenu={ctxHandler}
+                    onMouseDown={(e) => { e.cancelBubble = true; }}
+                  />
+                </React.Fragment>
+              );
+            }
+            const color = SPELL_COLOR_OVERRIDES[marker.spellName] ?? getSchoolColor(marker.school);
+            const iconSvg = SPELL_ICON_SVGS[marker.spellName] ?? SCHOOL_ICON_SVGS[marker.school] ?? '';
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            iconVersion; // depend on iconVersion so we re-render when images load
+            const iconImg = iconSvg ? getIconImage(iconSvg) : null;
+            const markerRadius = tokenRadius * 0.5;
+            const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
+            const canInteract = true;
+            return (
+              <Group
+                key={marker.id}
+                x={marker.x}
+                y={marker.y}
+                draggable={canInteract}
+                onDragStart={(e) => {
+                  e.cancelBubble = true;
+                  markerDraggingRef.current = true;
+                  // Clear the dismiss bubble once at drag start — not on every move frame
+                  setDismissMarkerBubble(null);
+                }}
+                onDragMove={(e) => {
+                  if (marker.lightSource || marker.spellName === 'Darkness' || marker.spellName === 'Fog Cloud') {
+                    setLiveMarkerPos(prev => ({
+                      ...prev,
+                      [marker.id]: { x: e.target.x(), y: e.target.y() },
+                    }));
+                  }
+                }}
+                onDragEnd={(e) => {
+                  markerDraggingRef.current = false;
+                  // Clear live position override
+                  setLiveMarkerPos(prev => {
+                    const next = { ...prev };
+                    delete next[marker.id];
+                    return next;
+                  });
+                  const updated = spellMarkers.map(m =>
+                    m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
+                  );
+                  onSpellMarkersChange?.(updated);
+                  try {
+                    if (isPlayerView) {
+                      window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
+                    } else {
+                      window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
+                    }
+                  } catch (_e) { /* IPC not available */ }
+                }}
+                onTap={(e) => {
+                  if (!isPlayerView) return;
+                  if (!canInteract) return;
+                  // Suppress tap if a drag just completed
+                  if (markerDraggingRef.current) return;
+                  e.cancelBubble = true;
+                  const now = Date.now();
+                  const last = lastMarkerTapRef.current;
+                  if (last && last.markerId === marker.id && now - last.time < 400) {
+                    lastMarkerTapRef.current = null;
+                    const rect = containerRef.current?.getBoundingClientRect();
+                    setDismissMarkerBubble({
+                      markerId: marker.id,
+                      screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePosRef.current.x,
+                      screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePosRef.current.y,
+                    });
+                  } else {
+                    lastMarkerTapRef.current = { markerId: marker.id, time: now };
+                    setDismissMarkerBubble(null);
+                  }
+                }}
+                onMouseEnter={() => setHoveredMarkerId(marker.id)}
+                onMouseLeave={() => setHoveredMarkerId(null)}
+                onContextMenu={(e) => {
+                  if (isPlayerView) return;
+                  e.evt.preventDefault();
+                  e.cancelBubble = true;
+                  setContextMenu({
+                    x: marker.x,
+                    y: marker.y,
+                    stageX: e.evt.clientX,
+                    stageY: e.evt.clientY,
+                    clientY: e.evt.clientY,
+                    view: 'spell-marker',
+                    markerId: marker.id,
+                  });
+                }}
+                onMouseDown={(e) => { e.cancelBubble = true; }}
+              >
+                {/* AoE shape overlay — hidden for Light and Darkness.
+                    Renders the spell's actual area (cube/sphere/etc.) if aoeType is set,
+                    otherwise falls back to effectRadius circle. listening=false so the
+                    large shape doesn't capture drag events. */}
+                {marker.spellName !== 'Light' && marker.spellName !== 'Daylight' && marker.spellName !== 'Darkness' && marker.spellName !== 'Fog Cloud' && (() => {
+                  if (marker.aoeType && marker.aoeSize) {
+                    const aoePx = (marker.aoeSize / 5) * ppg;
+                    if (marker.aoeType === 'cube') {
+                      return (
+                        <Rect
+                          x={-aoePx / 2}
+                          y={-aoePx / 2}
+                          width={aoePx}
+                          height={aoePx}
+                          fill={color}
+                          opacity={0.12}
+                          stroke={color}
+                          strokeWidth={1}
+                          dash={[6, 4]}
+                          listening={false}
+                        />
+                      );
+                    }
+                    if (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') {
+                      return (
+                        <Circle
+                          radius={aoePx}
+                          fill={color}
+                          opacity={0.12}
+                          stroke={color}
+                          strokeWidth={1}
+                          dash={[6, 4]}
+                          listening={false}
+                        />
+                      );
+                    }
+                  }
+                  // Fall back to effectRadius circle
+                  if (effectPx > 0) {
+                    return (
+                      <Circle
+                        radius={effectPx}
+                        fill={color}
+                        opacity={0.1}
+                        stroke={color}
+                        strokeWidth={1}
+                        dash={[6, 4]}
+                        listening={false}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
+                {/* Spell-specific particle effects */}
+                {isFireSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <FireballParticles radius={(marker.aoeSize / 5) * ppg} />
+                )}
+                {isFireCubeSpell(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (
+                  <FireCubeParticles size={(marker.aoeSize / 5) * ppg} />
+                )}
+                {isIceSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <IceSphereParticles radius={(marker.aoeSize / 5) * ppg} />
+                )}
+                {isPoisonSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={POISON_PALETTE} glow="#65a30d" inwardChance={0.25} basePeriod={2000} />
+                )}
+                {isAcidSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={ACID_PALETTE} glow="#a3e635" inwardChance={0.4} basePeriod={1500} />
+                )}
+                {isNecroticSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={NECROTIC_PALETTE} glow="#7e22ce" inwardChance={0.5} basePeriod={2200} shape="triangle" />
+                )}
+                {isLightningSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <LightningSphereParticles radius={(marker.aoeSize / 5) * ppg} />
+                )}
+                {isThunderSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
+                  <ThunderShockwaveParticles radius={(marker.aoeSize / 5) * ppg} />
+                )}
+                {isThunderCubeSpell(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (
+                  <ThunderCubeParticles size={(marker.aoeSize / 5) * ppg} />
+                )}
+                {getSphereElement(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (() => {
+                  const s = ELEMENT_STYLES[getSphereElement(marker.spellName)!];
+                  return <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={s.palette} glow={s.glow} basePeriod={s.basePeriod} inwardChance={s.inwardChance} shape={s.shape} />;
+                })()}
+                {getCubeElement(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (() => {
+                  const s = ELEMENT_STYLES[getCubeElement(marker.spellName)!];
+                  return <CubeAoEParticles size={(marker.aoeSize / 5) * ppg} palette={s.palette} glow={s.glow} />;
+                })()}
+                {/* Invisible expanded hit area so the marker is easy to grab/drag on touch */}
+                <Circle
+                  radius={Math.max(markerRadius * 3, effectPx > 0 ? Math.min(effectPx, markerRadius * 5) : markerRadius * 3)}
+                  fill="rgba(0,0,0,0.001)"
+                  perfectDrawEnabled={false}
+                />
+                {/* Icon background circle */}
+                <Circle
+                  radius={markerRadius}
+                  fill={color}
+                  opacity={!isPlayerView && !marker.visibleToPlayers ? 0.4 : 0.85}
+                  stroke={hoveredMarkerId === marker.id ? 'white' : 'rgba(0,0,0,0.5)'}
+                  strokeWidth={hoveredMarkerId === marker.id ? 2 : 1}
+                />
+                {/* School icon — rendered as a Lucide SVG image so stroke-based icons display correctly */}
+                {iconImg && (
+                  <KonvaImage
+                    image={iconImg}
+                    width={markerRadius * 1.5}
+                    height={markerRadius * 1.5}
+                    offsetX={markerRadius * 0.75}
+                    offsetY={markerRadius * 0.75}
+                    opacity={0.9}
+                    listening={false}
+                  />
+                )}
+                {/* Hidden indicator for DM */}
+                {!isPlayerView && !marker.visibleToPlayers && (
+                  <Text
+                    text="🚫"
+                    fontSize={markerRadius * 0.6}
+                    x={markerRadius * 0.3}
+                    y={-markerRadius * 0.9}
+                  />
+                )}
+                {/* Spell name label — always visible below the marker */}
+                <Text
+                  text={marker.spellName}
+                  y={markerRadius + 4}
+                  fontSize={11 / stageScale}
+                  fill="white"
+                  align="center"
+                  width={120 / stageScale}
+                  x={-60 / stageScale}
+                  shadowColor="black"
+                  shadowBlur={3}
+                  shadowOpacity={0.9}
+                  listening={false}
+                />
+              </Group>
+            );
+          })}
+      </Layer>
+    );
+  }, [spellMarkers, isPlayerView, activeFloorId, hoveredMarkerId, iconVersion, onSpellMarkersChange, ppg, tokenRadius, stageScale]);
+
+  const portalsLayer = useMemo(() => {
+    if (!(portals && portals.length > 0)) return null;
+    return (
+      <Layer>
+        {portals.map(portal => {
+          const isSecret = portal.portalType === 'secret';
+          // Secret doors hidden from players entirely
+          if (isPlayerView && isSecret) return null;
+          const midX = (portal.bounds[0].x + portal.bounds[1].x) / 2;
+          const midY = (portal.bounds[0].y + portal.bounds[1].y) / 2;
+          const isWindow = portal.portalType === 'window';
+          const iconSize = tokenRadius * 0.82;
+          const s = iconSize / 24; // scale from 24×24 viewBox
+
+          // Colors
+          let iconColor: string;
+          let bgFill: string;
+          let bgStroke: string;
+          if (isSecret) {
+            iconColor = '#e879f9';
+            bgFill = 'rgba(168,85,247,0.35)';
+            bgStroke = 'rgba(232,121,249,0.6)';
+          } else if (portal.locked && !isPlayerView) {
+            iconColor = '#fbbf24';
+            bgFill = 'rgba(251,191,36,0.25)';
+            bgStroke = 'rgba(251,191,36,0.6)';
+          } else if (portal.closed) {
+            iconColor = '#ffffff';
+            bgFill = 'rgba(255,255,255,0.15)';
+            bgStroke = 'rgba(255,255,255,0.35)';
+          } else if (isWindow) {
+            iconColor = '#60a5fa';
+            bgFill = 'rgba(37,99,235,0.45)';
+            bgStroke = 'rgba(96,165,250,0.5)';
+          } else {
+            iconColor = '#16a34a';
+            bgFill = 'rgba(22,101,52,0.45)';
+            bgStroke = 'rgba(22,163,74,0.5)';
+          }
+
+          const nodes = isSecret
+            ? (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES)
+            : isWindow
+              ? (portal.closed ? BLINDS_NODES : GRID2X2_NODES)
+              : (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES);
+
+          return (
+            <Group
+              key={`portal-icon-${portal.id}`}
+              x={midX - iconSize / 2}
+              y={midY - iconSize / 2}
+              scaleX={s}
+              scaleY={s}
+              onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+              onTap={(e) => { e.cancelBubble = true; }}
+              onTouchStart={(e) => { e.cancelBubble = true; }}
+              onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
+              onContextMenu={!isPlayerView ? (e) => {
+                e.evt.preventDefault();
+                e.cancelBubble = true;
+                const stage = e.target.getStage();
+                const pos = stage?.getPointerPosition();
+                if (!pos) return;
+                setPortalContextMenu({
+                  screenX: pos.x,
+                  screenY: pos.y,
+                  clientY: e.evt.clientY,
+                  portalId: portal.id,
+                  portalType: (portal.portalType ?? 'door') as 'door' | 'window' | 'secret',
+                  locked: !!portal.locked,
+                });
+              } : undefined}
+            >
+              {/* Background pill */}
+              <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={1 / s} />
+              {/* Icon paths */}
+              {nodes.map((node, i) => {
+                const [type, props] = node;
+                const sw = 1.5;
+                if (type === 'path') return (
+                  <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
+                );
+                if (type === 'rect') return (
+                  <Rect key={i} x={parseFloat(props.x)} y={parseFloat(props.y)} width={parseFloat(props.width)} height={parseFloat(props.height)} cornerRadius={props.rx ? parseFloat(props.rx) : 0} stroke={iconColor} strokeWidth={sw} fillEnabled={false} listening={false} />
+                );
+                if (type === 'circle') return (
+                  <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} stroke={iconColor} strokeWidth={sw} fillEnabled={false} listening={false} />
+                );
+                return null;
+              })}
+            </Group>
+          );
+        })}
+      </Layer>
+    );
+  }, [portals, isPlayerView, onPortalToggle, onPortalsChange, wallErasing, wallPainting, tokenRadius]);
+
+  const viewpointsLayer = useMemo(() => {
+    if (!((viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).length > 0)) return null;
+    return (
+      <Layer>
+        {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).map(vp => {
+          const isInRange = viewpointProximity.has(vp.id);
+          const isActive = activeViewpointId === vp.id;
+          const iconSize = tokenRadius * 1.3;
+          const s = iconSize / 24;
+          let bgFill: string;
+          let bgStroke: string;
+          let iconColor: string;
+          if (!isPlayerView && vp.isHidden) {
+            bgFill = 'rgba(88,28,135,0.05)';
+            bgStroke = 'rgba(126,34,206,0.15)';
+            iconColor = 'rgba(216,180,254,0.15)';
+          } else if (isActive) {
+            bgFill = 'rgba(126,34,206,0.6)';
+            bgStroke = '#c026d3';
+            iconColor = '#f0abfc';
+          } else if (!isPlayerView || isInRange) {
+            bgFill = 'rgba(88,28,135,0.55)';
+            bgStroke = '#7e22ce';
+            iconColor = '#d8b4fe';
+          } else {
+            bgFill = 'rgba(88,28,135,0.15)';
+            bgStroke = 'rgba(126,34,206,0.3)';
+            iconColor = 'rgba(216,180,254,0.3)';
+          }
+          return (
+            <Group
+              key={vp.id}
+              x={vp.x - iconSize / 2}
+              y={vp.y - iconSize / 2}
+              scaleX={s}
+              scaleY={s}
+              draggable={!isPlayerView}
+              onDragEnd={!isPlayerView ? (e) => handleViewpointDragEnd(vp.id, e) : undefined}
+              onClick={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
+              onTap={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
+              onContextMenu={!isPlayerView ? (e) => {
+                e.evt.preventDefault();
+                e.cancelBubble = true;
+                const stage = e.target.getStage();
+                const pos = stage?.getPointerPosition();
+                if (!pos) return;
+                setViewpointContextMenu({
+                  screenX: pos.x,
+                  screenY: pos.y,
+                  clientY: e.evt.clientY,
+                  viewpointId: vp.id,
+                });
+              } : undefined}
+            >
+              <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={isActive ? 2 / s : 1 / s} />
+              {VIEWPOINT_NODES.map((node, i) => {
+                const [type, props] = node;
+                const sw = 1.5;
+                if (type === 'path') return (
+                  <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
+                );
+                if (type === 'circle') return (
+                  <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} fill={iconColor} listening={false} />
+                );
+                return null;
+              })}
+              {isActive && (
+                <Circle x={12} y={12} radius={15} fill="transparent" stroke="#d946ef" strokeWidth={1.5 / s} opacity={0.6} listening={false} />
+              )}
+            </Group>
+          );
+        })}
+      </Layer>
+    );
+  }, [viewpoints, isPlayerView, activeViewpointId, viewpointProximity, handleViewpointClick, handleViewpointDragEnd, tokenRadius]);
+  // Committed wall geometry — a UVTT import can bring in hundreds of segments,
+  // each rebuilding a flattened points array. None of it moves while a token
+  // is dragged, so build it once per wall change.
+  const wallsNodes = useMemo(() => {
+    if (!showWalls || isPlayerView) return null;
+    return (
+      <>
+        {walls?.map(wall => (
+          <Line
+            key={wall.id}
+            points={wall.points.flatMap(p => [p.x, p.y])}
+            stroke="#ff6b35"
+            strokeWidth={3}
+            lineCap="round"
+            lineJoin="round"
+            opacity={0.8}
+            listening={false}
+          />
+        ))}
+        {objectWalls?.map(wall => (
+          <Line
+            key={wall.id}
+            points={wall.points.flatMap(p => [p.x, p.y])}
+            stroke="#ff6b35"
+            strokeWidth={2}
+            lineCap="round"
+            lineJoin="round"
+            opacity={0.5}
+            dash={[6, 3]}
+            listening={false}
+          />
+        ))}
+      </>
+    );
+  }, [showWalls, isPlayerView, walls, objectWalls]);
+
+  const mapNotesLayer = useMemo(() => {
+    if (!(!isPlayerView && mapNotes.length > 0)) return null;
+    return (
+      <Layer>
+        {mapNotes.map(note => (
+          <Group
+            key={note.id}
+            x={note.x}
+            y={note.y}
+            draggable
+            onDragEnd={(e) => handleNoteDragEnd(note.id, e)}
+            onMouseEnter={() => setHoveredNoteId(note.id)}
+            onMouseLeave={() => setHoveredNoteId(null)}
+            onMouseDown={(e) => { e.cancelBubble = true; }}
+            onClick={(e) => {
+              e.cancelBubble = true;
+              setLeftSidebarOpen(true);
+              onNoteClick?.(note.id);
+            }}
+          >
+            <Circle
+              radius={tokenRadius * 0.6}
+              fill={getNoteColor(note.type)}
+              stroke={hoveredNoteId === note.id ? "white" : "rgba(0,0,0,0.4)"}
+              strokeWidth={hoveredNoteId === note.id ? 2 : 1}
+            />
+            <NoteMapIcon type={note.type} noteRadius={tokenRadius * 0.6} />
+          </Group>
+        ))}
+      </Layer>
+    );
+  }, [isPlayerView, mapNotes, hoveredNoteId, onNoteClick, setLeftSidebarOpen, handleNoteDragEnd, tokenRadius]);
+
+  // DM-only zone overlays (dark / difficult terrain). These share a layer with
+  // the tokens, so without this they were rebuilt on every drag tick even
+  // though none of them can move during a drag.
+  const dmZoneOverlays = useMemo(() => (
+    <>
+      {/* ── Dark zones — DM only, hidden when walls are hidden (always shown
+           while the Dark Zones toolbar is open so the eraser has targets) ── */}
+      {!isPlayerView && (showWalls || darkZoneEditMode) && darkZones.length > 0 && darkZones.map(z => {
+        if (z.points.length < 6) return null;
+        // Deleting removes the shape under the cursor, so onMouseLeave never
+        // fires — reset the cursor here or the pointer hand sticks around.
+        const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
+          const st = e.target.getStage();
+          if (st) st.container().style.cursor = 'default';
+          onDarkZonesChange?.(darkZones.filter(d => d.id !== z.id));
+        };
+        return (
+          <Line
+            key={`darkzone-${z.id}`}
+            points={z.points}
+            closed
+            fill={darkZoneErasing ? 'rgba(220, 38, 38, 0.18)' : 'rgba(20, 24, 60, 0.32)'}
+            stroke={darkZoneErasing ? '#ef4444' : '#6366f1'}
+            strokeWidth={2}
+            dash={[8, 4]}
+            listening={darkZoneErasing}
+            onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
+            onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
+            onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
+            onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
+          />
+        );
+      })}
+      {/* ── Difficult terrain — DM only, hidden when walls are hidden (always
+           shown while the Difficult Terrain toolbar is open so the eraser has targets) ── */}
+      {!isPlayerView && (showWalls || terrainEditMode) && difficultTerrain.length > 0 && difficultTerrain.map(z => {
+        if (z.points.length < 6) return null;
+        // Deleting removes the shape under the cursor, so onMouseLeave never
+        // fires — reset the cursor here or the pointer hand sticks around.
+        const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
+          const st = e.target.getStage();
+          if (st) st.container().style.cursor = 'default';
+          onDifficultTerrainChange?.(difficultTerrain.filter(d => d.id !== z.id));
+        };
+        return (
+          <Line
+            key={`terrain-${z.id}`}
+            points={z.points}
+            closed
+            fill={terrainErasing ? 'rgba(220, 38, 38, 0.18)' : 'rgba(180, 120, 30, 0.22)'}
+            stroke={terrainErasing ? '#ef4444' : '#d97706'}
+            strokeWidth={2}
+            dash={[3, 5]}
+            listening={terrainErasing}
+            onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
+            onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
+            onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
+            onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
+          />
+        );
+      })}
+    </>
+  ), [darkZones, difficultTerrain, isPlayerView, showWalls,
+      darkZoneEditMode, darkZoneErasing, terrainEditMode, terrainErasing,
+      onDarkZonesChange, onDifficultTerrainChange]);
+
+
   return (
     <div className={cn("h-full flex flex-col relative", (castingSpell || pingMode) && "cursor-crosshair")} ref={containerRef}>
       {/* Grid calibration floating panel — appears in the bottom-center while calibrating. */}
@@ -4831,227 +5647,105 @@ const MapViewInner: React.FC<MapViewProps> = ({
                         )}
 
                         <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                        <div className="px-3 py-1">
-                          <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Lighting</p>
-                          <div className="flex items-center bg-black/40 rounded-lg p-0.5">
-                            {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
-                              <button
-                                key={val}
-                                onClick={() => onDarknessLevelChange?.(val)}
-                                className={cn(
-                                  'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-sans font-semibold tracking-wide transition-all flex-1 justify-center',
-                                  (darknessLevel ?? 'dark') === val
-                                    ? 'bg-white/15 text-white shadow-sm'
-                                    : 'text-white/40 hover:text-white/60'
-                                )}
-                              >
-                                <Icon size={11} /> {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
+                        {/* Everything below the divider used to be its own titled section with a
+                            coloured button. They're ordinary menu rows now, so the whole menu reads
+                            as one list. Lighting moved out to the toolbar. */}
                         {onStartGridCalibration && loadedImage && (
-                          <>
-                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                            <div className="px-3 py-1.5">
-                              <div className="flex items-baseline justify-between mb-1.5">
-                                <p className="text-[10px] opacity-40 uppercase tracking-wider">Grid</p>
-                                {gridResolution && !gridCalibrating && (
-                                  <p className="text-[10px] opacity-50">
-                                    Current: {Math.round(gridResolution.pixelsPerGrid)} px / 5 ft
-                                  </p>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => {
-                                  onStartGridCalibration();
-                                  setIsMapMenuOpen(false);
-                                }}
-                                disabled={gridCalibrating}
-                                className={cn(
-                                  'w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors disabled:opacity-40',
-                                  gridCalibrating
-                                    ? 'bg-yellow-500/30 border-yellow-400/50 text-yellow-200'
-                                    : 'bg-yellow-500/15 hover:bg-yellow-500/25 border-yellow-400/30'
-                                )}
-                              >
-                                <SquareDashed size={11} />
-                                {gridCalibrating ? 'Calibrating…' : 'Calibrate Grid'}
-                              </button>
-                              {!gridResolution && !gridCalibrating && (
-                                <p className="text-[10px] opacity-40 mt-1 leading-snug">
-                                  Tell the app how big one square is so distances and snap-to-grid stay accurate.
-                                </p>
-                              )}
-                            </div>
-                          </>
+                          <button
+                            onClick={() => {
+                              onStartGridCalibration();
+                              setIsMapMenuOpen(false);
+                            }}
+                            disabled={gridCalibrating}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left disabled:opacity-40"
+                          >
+                            <SquareDashed size={14} />
+                            {gridCalibrating ? 'Calibrating…' : 'Calibrate Grid'}
+                            <span className="ml-auto text-[10px] opacity-40 tabular-nums">
+                              {gridResolution ? `${Math.round(gridResolution.pixelsPerGrid)} px / 5 ft` : 'Not set'}
+                            </span>
+                          </button>
                         )}
-
                         {onStartWallPainting && (
-                          <>
-                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                            <div className="px-3 py-1.5">
-                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Edit Walls</p>
-                              <button
-                                onClick={() => {
-                                  exitDarkZoneEditMode();
-                                  exitTerrainEditMode();
-                                  exitSoundZoneEditMode();
-                                  setWallEditMode(true);
-                                  setIsMapMenuOpen(false);
-                                }}
-                                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border transition-colors bg-orange-500/15 hover:bg-orange-500/25 border-orange-400/30"
-                              >
-                                <Pencil size={11} />
-                                Edit Walls
-                              </button>
-                            </div>
-                          </>
+                          <button
+                            onClick={() => {
+                              exitDarkZoneEditMode();
+                              exitTerrainEditMode();
+                              setWallEditMode(true);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <BrickWall size={14} /> Walls &amp; Doors
+                          </button>
                         )}
-
                         {loadedImage && onStartDarkZonePainting && (
-                          <>
-                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                            <div className="px-3 py-1.5">
-                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Dark Zones</p>
-                              {onStartDarkZonePainting && (
-                                <button
-                                  onClick={() => {
-                                    exitWallEditMode();
-                                    exitTerrainEditMode();
-                                    exitSoundZoneEditMode();
-                                    setDarkZoneEditMode(true);
-                                    setIsMapMenuOpen(false);
-                                  }}
-                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 rounded-md transition-colors"
-                                >
-                                  <Pencil size={11} />
-                                  Edit Dark Zones
-                                </button>
-                              )}
-                            </div>
-                          </>
+                          <button
+                            onClick={() => {
+                              exitWallEditMode();
+                              exitTerrainEditMode();
+                              setDarkZoneEditMode(true);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <SquareSplitHorizontal size={14} /> Dark Zones
+                          </button>
                         )}
-
                         {loadedImage && onStartDifficultTerrainPainting && (
-                          <>
-                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                            <div className="px-3 py-1.5">
-                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Difficult Terrain</p>
-                              {onStartDifficultTerrainPainting && (
-                                <button
-                                  onClick={() => {
-                                    exitWallEditMode();
-                                    exitDarkZoneEditMode();
-                                    exitSoundZoneEditMode();
-                                    setTerrainEditMode(true);
-                                    setIsMapMenuOpen(false);
-                                  }}
-                                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 rounded-md transition-colors"
-                                >
-                                  <Pencil size={11} />
-                                  Edit Difficult Terrain
-                                </button>
-                              )}
-                            </div>
-                          </>
+                          <button
+                            onClick={() => {
+                              exitWallEditMode();
+                              exitDarkZoneEditMode();
+                              setTerrainEditMode(true);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <Stone size={14} /> Difficult Terrain
+                          </button>
                         )}
-
                         {floors && floors.length > 1 && loadedImage && (
-                          <>
-                            <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                            <div className="px-3 py-1.5">
-                              <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Transition Zones</p>
-                              <button
-                                onClick={() => {
-                                  exitWallEditMode();
-                                  exitDarkZoneEditMode();
-                                  exitTerrainEditMode();
-                                  exitSoundZoneEditMode();
-                                  setTransitionZoneMode(!transitionZoneMode);
-                                  setIsMapMenuOpen(false);
-                                }}
-                                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-blue-500/15 hover:bg-blue-500/25 border border-blue-400/30 rounded-md transition-colors"
-                              >
-                                <ArrowUpDown size={11} />
-                                {transitionZoneMode ? 'Cancel Transition Zone' : 'Add Transition Zone'}
-                              </button>
-                            </div>
-                          </>
+                          <button
+                            onClick={() => {
+                              exitWallEditMode();
+                              exitDarkZoneEditMode();
+                              exitTerrainEditMode();
+                              setTransitionZoneMode(!transitionZoneMode);
+                              setIsMapMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                          >
+                            <ArrowUpDown size={14} />
+                            {transitionZoneMode ? 'Cancel Transition Zone' : 'Add Transition Zone'}
+                          </button>
                         )}
-
-                        {onOpenFloorAudioPicker && activeFloorId && (() => {
-                          const activeFloor = floors?.find(f => f.id === activeFloorId);
-                          if (!activeFloor) return null;
-                          const ambientId = activeFloor.ambientSoundId;
-                          const ambientSound = ambientId
-                            ? librarySoundsForNotes.find(s => s.id === ambientId)
-                            : null;
-                          const ambientLabel = ambientSound?.name ?? ambientId ?? null;
-                          return (
-                            <>
-                              <div className="h-px bg-[var(--line)] mx-2 my-1" />
-                              <div className="px-3 py-1.5">
-                                <p className="text-[10px] opacity-40 uppercase tracking-wider mb-1.5">Floor Audio</p>
-                                {ambientLabel ? (
-                                  <div className="flex items-center gap-1.5 text-[11px] bg-black/30 rounded px-2 py-1">
-                                    <Volume2 size={11} className="text-[var(--accent)] shrink-0" />
-                                    <span className="flex-1 truncate text-[var(--accent)]">{ambientLabel}</span>
-                                    <button
-                                      onClick={() => {
-                                        onOpenFloorAudioPicker(activeFloorId);
-                                        setIsMapMenuOpen(false);
-                                      }}
-                                      className="opacity-60 hover:opacity-100 transition-opacity"
-                                      title="Change sound"
-                                    >
-                                      <Edit2 size={11} />
-                                    </button>
-                                    <button
-                                      onClick={() => onClearFloorAudio?.(activeFloorId)}
-                                      className="opacity-60 hover:opacity-100 hover:text-red-400 transition-colors"
-                                      title="Clear sound"
-                                    >
-                                      <X size={11} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      onOpenFloorAudioPicker(activeFloorId);
-                                      setIsMapMenuOpen(false);
-                                    }}
-                                    className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border border-[var(--accent)]/30 rounded-md transition-colors"
-                                  >
-                                    <Volume2 size={11} />
-                                    Set Ambient Sound
-                                  </button>
-                                )}
-                                {onOpenSoundZones && (
-                                  <button
-                                    onClick={() => {
-                                      exitWallEditMode();
-                                      exitDarkZoneEditMode();
-                                      exitTerrainEditMode();
-                                      setSoundZoneEditMode(true);
-                                      setIsMapMenuOpen(false);
-                                    }}
-                                    className="w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border border-[var(--accent)]/30 rounded-md transition-colors"
-                                    title="Sound Zones (active floor)"
-                                  >
-                                    <Volume2 size={11} />
-                                    Edit Sound Zones
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          );
-                        })()}
                       </motion.div>
                     </>
                   )}
                 </AnimatePresence>
+              </div>
+
+              {/* Lighting — lifted out of the Map Settings menu so it's one tap.
+                  Icon-only to keep the toolbar narrow; the titles carry the labels. */}
+              <div className="flex items-center bg-black/40 rounded-lg p-0.5 shrink-0">
+                {([['daylight', 'Bright', Sun], ['dark', 'Dark', Moon]] as const).map(([val, label, Icon]) => (
+                  <button
+                    key={val}
+                    onClick={() => onDarknessLevelChange?.(val)}
+                    title={label}
+                    aria-label={`${label} lighting`}
+                    aria-pressed={(darknessLevel ?? 'dark') === val}
+                    className={cn(
+                      'flex items-center justify-center px-2.5 py-1 rounded-md transition-all',
+                      (darknessLevel ?? 'dark') === val
+                        ? 'bg-white/15 text-white shadow-sm'
+                        : 'text-white/40 hover:text-white/60'
+                    )}
+                  >
+                    <Icon size={12} />
+                  </button>
+                ))}
               </div>
 
             </div>
@@ -5149,31 +5843,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
               // Tap on empty space clears all targets
               if (onClearTargets && targetedCombatantIds && targetedCombatantIds.size > 0) {
                 onClearTargets();
-              }
-              return;
-            }
-            // Sound zone painting (Tier 2): clicks add polygon vertices.
-            if (zonePainting && e.evt.button === 0) {
-              const stage = e.target.getStage();
-              const ptr = stage?.getPointerPosition();
-              if (stage && ptr) {
-                const tx = stage.getAbsoluteTransform().copy();
-                tx.invert();
-                let p = tx.point(ptr);
-                if (e.evt.shiftKey && zonePaintPoints.length >= 2) {
-                  p = constrainToAxis(p, zonePaintPoints[zonePaintPoints.length - 2], zonePaintPoints[zonePaintPoints.length - 1]);
-                }
-                // Clicking the first node closes the shape; double-click also commits.
-                // Either way we stay in paint mode for the next zone.
-                if (zoneSnapToOrigin && zonePaintPoints.length >= 6) {
-                  commitCurrentZone();
-                  return;
-                }
-                if (e.evt.detail >= 2 && zonePaintPoints.length >= 6) {
-                  commitCurrentZone();
-                  return;
-                }
-                setZonePaintPoints(prev => [...prev, p.x, p.y]);
               }
               return;
             }
@@ -5469,107 +6138,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
                drawing, fog, etc. don't force the full-resolution map image to
                re-render every frame. listening=false skips hit-testing on it
                (the map itself has no click handlers; the Stage handles those). ── */}
-          <Layer listening={false} ref={mapLayerRef}>
-            {loadedImage && (
-              <KonvaImage
-                image={loadedImage}
-                width={loadedImage.width}
-                height={loadedImage.height}
-              />
-            )}
-          </Layer>
+          {baseMapLayer}
 
           <Layer>
             {/* Render Transition Zones — DM only (memoized above) */}
             {transitionZonesNodes}
 
-            {/* ── Sound zones (Tier 2) — DM only ── */}
-            {!isPlayerView && soundZones.length > 0 && soundZones.map(z => {
-              if (z.points.length < 6) return null;
-              const color = z.color ?? '#f59e0b';
-              const r = parseInt(color.slice(1, 3), 16);
-              const g = parseInt(color.slice(3, 5), 16);
-              const b = parseInt(color.slice(5, 7), 16);
-              // Deleting removes the shape under the cursor, so onMouseLeave never
-              // fires — reset the cursor here or the pointer hand sticks around.
-              const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
-                const st = e.target.getStage();
-                if (st) st.container().style.cursor = 'default';
-                onSoundZonesChange?.(soundZones.filter(d => d.id !== z.id));
-              };
-              return (
-                <Line
-                  key={`soundzone-${z.id}`}
-                  points={z.points}
-                  closed
-                  fill={soundZoneErasing ? 'rgba(220, 38, 38, 0.18)' : `rgba(${r}, ${g}, ${b}, 0.18)`}
-                  stroke={soundZoneErasing ? '#ef4444' : color}
-                  strokeWidth={2}
-                  dash={[10, 6]}
-                  listening={soundZoneErasing}
-                  onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
-                  onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
-                  onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
-                  onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
-                />
-              );
-            })}
-            {/* ── Dark zones — DM only, hidden when walls are hidden (always shown
-                 while the Dark Zones toolbar is open so the eraser has targets) ── */}
-            {!isPlayerView && (showWalls || darkZoneEditMode) && darkZones.length > 0 && darkZones.map(z => {
-              if (z.points.length < 6) return null;
-              // Deleting removes the shape under the cursor, so onMouseLeave never
-              // fires — reset the cursor here or the pointer hand sticks around.
-              const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
-                const st = e.target.getStage();
-                if (st) st.container().style.cursor = 'default';
-                onDarkZonesChange?.(darkZones.filter(d => d.id !== z.id));
-              };
-              return (
-                <Line
-                  key={`darkzone-${z.id}`}
-                  points={z.points}
-                  closed
-                  fill={darkZoneErasing ? 'rgba(220, 38, 38, 0.18)' : 'rgba(20, 24, 60, 0.32)'}
-                  stroke={darkZoneErasing ? '#ef4444' : '#6366f1'}
-                  strokeWidth={2}
-                  dash={[8, 4]}
-                  listening={darkZoneErasing}
-                  onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
-                  onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
-                  onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
-                  onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
-                />
-              );
-            })}
-            {/* ── Difficult terrain — DM only, hidden when walls are hidden (always
-                 shown while the Difficult Terrain toolbar is open so the eraser has targets) ── */}
-            {!isPlayerView && (showWalls || terrainEditMode) && difficultTerrain.length > 0 && difficultTerrain.map(z => {
-              if (z.points.length < 6) return null;
-              // Deleting removes the shape under the cursor, so onMouseLeave never
-              // fires — reset the cursor here or the pointer hand sticks around.
-              const deleteZone = (e: Konva.KonvaEventObject<Event>) => {
-                const st = e.target.getStage();
-                if (st) st.container().style.cursor = 'default';
-                onDifficultTerrainChange?.(difficultTerrain.filter(d => d.id !== z.id));
-              };
-              return (
-                <Line
-                  key={`terrain-${z.id}`}
-                  points={z.points}
-                  closed
-                  fill={terrainErasing ? 'rgba(220, 38, 38, 0.18)' : 'rgba(180, 120, 30, 0.22)'}
-                  stroke={terrainErasing ? '#ef4444' : '#d97706'}
-                  strokeWidth={2}
-                  dash={[3, 5]}
-                  listening={terrainErasing}
-                  onClick={(e) => { e.cancelBubble = true; deleteZone(e); }}
-                  onTap={(e) => { e.cancelBubble = true; deleteZone(e); }}
-                  onMouseEnter={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'pointer'; }}
-                  onMouseLeave={(e) => { const st = e.target.getStage(); if (st) st.container().style.cursor = 'default'; }}
-                />
-              );
-            })}
+            {dmZoneOverlays}
             {/* ── Grid calibration: a draggable/resizable Bandit token ── */}
             {!isPlayerView && gridCalibrating && calibrationDraft && (() => {
               const calColor = '#ef4444';      // Bandit red
@@ -5978,66 +6553,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 })}
               </Group>
             )}
-            {/* In-progress sound zone polygon */}
-            {!isPlayerView && zonePainting && zonePaintPoints.length >= 2 && (() => {
-              const color = zonePainting.color;
-              const r = parseInt(color.slice(1, 3), 16);
-              const g = parseInt(color.slice(3, 5), 16);
-              const b = parseInt(color.slice(5, 7), 16);
-              return (
-                <Group listening={false}>
-                  <Line
-                    points={zonePaintPoints}
-                    closed={zonePaintPoints.length >= 6}
-                    fill={zonePaintPoints.length >= 6 ? `rgba(${r}, ${g}, ${b}, 0.12)` : undefined}
-                    stroke={color}
-                    strokeWidth={2}
-                    dash={[6, 4]}
-                  />
-                  {/* Rubber-band preview from last vertex to cursor (or origin when snapping). */}
-                  {zonePaintCursor && (
-                    <Line
-                      points={[
-                        zonePaintPoints[zonePaintPoints.length - 2],
-                        zonePaintPoints[zonePaintPoints.length - 1],
-                        zonePaintCursor.x,
-                        zonePaintCursor.y,
-                      ]}
-                      stroke={color}
-                      strokeWidth={2}
-                      dash={[6, 4]}
-                      opacity={0.55}
-                    />
-                  )}
-                  {Array.from({ length: zonePaintPoints.length / 2 }).map((_, i) => {
-                    const isOrigin = i === 0;
-                    const highlight = isOrigin && zoneSnapToOrigin;
-                    return (
-                      <React.Fragment key={`zp-${i}`}>
-                        {highlight && (
-                          <Circle
-                            x={zonePaintPoints[i * 2]}
-                            y={zonePaintPoints[i * 2 + 1]}
-                            radius={11}
-                            stroke="#fbbf24"
-                            strokeWidth={2}
-                            opacity={0.9}
-                          />
-                        )}
-                        <Circle
-                          x={zonePaintPoints[i * 2]}
-                          y={zonePaintPoints[i * 2 + 1]}
-                          radius={highlight ? 6 : 5}
-                          fill={highlight ? '#fbbf24' : (isOrigin ? 'white' : color)}
-                          stroke={color}
-                          strokeWidth={1.5}
-                        />
-                      </React.Fragment>
-                    );
-                  })}
-                </Group>
-              );
-            })()}
 
             {/* In-progress transition zone polygon */}
             {!isPlayerView && transitionZoneMode && tzPaintPoints.length >= 2 && (
@@ -6109,31 +6624,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
             )}
 
             {/* Render Walls */}
-            {showWalls && !isPlayerView && walls?.map(wall => (
-              <Line
-                key={wall.id}
-                points={wall.points.flatMap(p => [p.x, p.y])}
-                stroke="#ff6b35"
-                strokeWidth={3}
-                lineCap="round"
-                lineJoin="round"
-                opacity={0.8}
-                listening={false}
-              />
-            ))}
-            {showWalls && !isPlayerView && objectWalls?.map(wall => (
-              <Line
-                key={wall.id}
-                points={wall.points.flatMap(p => [p.x, p.y])}
-                stroke="#ff6b35"
-                strokeWidth={2}
-                lineCap="round"
-                lineJoin="round"
-                opacity={0.5}
-                dash={[6, 3]}
-                listening={false}
-              />
-            ))}
+            {wallsNodes}
             {/* Render Portals (Doors/Windows) — line overlay on DM view, invisible hitboxes on Player view */}
             {((showWalls && !isPlayerView) || isPlayerView) && portals?.map(portal => {
               const isSecret = portal.portalType === 'secret';
@@ -6319,8 +6810,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       return;
                     }
                     if (isPlayerView) tokenTapConsumedRef.current = true;
-                    // Player view: tap enemy/npc token to toggle targeting
-                    if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
+                    // Player view: tap a living enemy/npc token to toggle targeting.
+                    // Corpses stay on the board, so exclude them or a tap would
+                    // target something that is already dead.
+                    if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId && !deadTokenIds.has(token.id)) {
                       onToggleTarget(token.combatantId);
                       return;
                     }
@@ -6377,8 +6870,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   onTap={(e) => {
                     e.cancelBubble = true;
                     if (isPlayerView) tokenTapConsumedRef.current = true;
-                    // Player view: tap enemy/npc token to toggle targeting
-                    if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId) {
+                    // Player view: tap a living enemy/npc token to toggle targeting.
+                    // Corpses stay on the board, so exclude them or a tap would
+                    // target something that is already dead.
+                    if (isPlayerView && onToggleTarget && token.type !== 'player' && token.combatantId && !deadTokenIds.has(token.id)) {
                       onToggleTarget(token.combatantId);
                       return;
                     }
@@ -7396,173 +7891,10 @@ const MapViewInner: React.FC<MapViewProps> = ({
           {remoteAoe && <RemoteAoeLayers remoteAoe={remoteAoe} stageScale={stageScale} ppg={gridResolution?.pixelsPerGrid || 40} />}
 
           {/* ── Portal Icons — below fog layer, pans 1:1 with canvas ── */}
-          {portals && portals.length > 0 && (
-            <Layer>
-              {portals.map(portal => {
-                const isSecret = portal.portalType === 'secret';
-                // Secret doors hidden from players entirely
-                if (isPlayerView && isSecret) return null;
-                const midX = (portal.bounds[0].x + portal.bounds[1].x) / 2;
-                const midY = (portal.bounds[0].y + portal.bounds[1].y) / 2;
-                const isWindow = portal.portalType === 'window';
-                const iconSize = tokenRadius * 0.82;
-                const s = iconSize / 24; // scale from 24×24 viewBox
-
-                // Colors
-                let iconColor: string;
-                let bgFill: string;
-                let bgStroke: string;
-                if (isSecret) {
-                  iconColor = '#e879f9';
-                  bgFill = 'rgba(168,85,247,0.35)';
-                  bgStroke = 'rgba(232,121,249,0.6)';
-                } else if (portal.locked && !isPlayerView) {
-                  iconColor = '#fbbf24';
-                  bgFill = 'rgba(251,191,36,0.25)';
-                  bgStroke = 'rgba(251,191,36,0.6)';
-                } else if (portal.closed) {
-                  iconColor = '#ffffff';
-                  bgFill = 'rgba(255,255,255,0.15)';
-                  bgStroke = 'rgba(255,255,255,0.35)';
-                } else if (isWindow) {
-                  iconColor = '#60a5fa';
-                  bgFill = 'rgba(37,99,235,0.45)';
-                  bgStroke = 'rgba(96,165,250,0.5)';
-                } else {
-                  iconColor = '#16a34a';
-                  bgFill = 'rgba(22,101,52,0.45)';
-                  bgStroke = 'rgba(22,163,74,0.5)';
-                }
-
-                const nodes = isSecret
-                  ? (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES)
-                  : isWindow
-                    ? (portal.closed ? BLINDS_NODES : GRID2X2_NODES)
-                    : (portal.closed ? DOOR_CLOSED_NODES : DOOR_OPEN_NODES);
-
-                return (
-                  <Group
-                    key={`portal-icon-${portal.id}`}
-                    x={midX - iconSize / 2}
-                    y={midY - iconSize / 2}
-                    scaleX={s}
-                    scaleY={s}
-                    onClick={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
-                    onTap={(e) => { e.cancelBubble = true; }}
-                    onTouchStart={(e) => { e.cancelBubble = true; }}
-                    onTouchEnd={(e) => { e.cancelBubble = true; setPortalContextMenu(null); if (!isPlayerView && wallErasing && !wallPainting) { onPortalsChange?.((portals || []).filter(p => p.id !== portal.id)); return; } if (isPlayerView && portal.locked) return; onPortalToggle?.(portal.id); }}
-                    onContextMenu={!isPlayerView ? (e) => {
-                      e.evt.preventDefault();
-                      e.cancelBubble = true;
-                      const stage = e.target.getStage();
-                      const pos = stage?.getPointerPosition();
-                      if (!pos) return;
-                      setPortalContextMenu({
-                        screenX: pos.x,
-                        screenY: pos.y,
-                        clientY: e.evt.clientY,
-                        portalId: portal.id,
-                        portalType: (portal.portalType ?? 'door') as 'door' | 'window' | 'secret',
-                        locked: !!portal.locked,
-                      });
-                    } : undefined}
-                  >
-                    {/* Background pill */}
-                    <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={1 / s} />
-                    {/* Icon paths */}
-                    {nodes.map((node, i) => {
-                      const [type, props] = node;
-                      const sw = 1.5;
-                      if (type === 'path') return (
-                        <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
-                      );
-                      if (type === 'rect') return (
-                        <Rect key={i} x={parseFloat(props.x)} y={parseFloat(props.y)} width={parseFloat(props.width)} height={parseFloat(props.height)} cornerRadius={props.rx ? parseFloat(props.rx) : 0} stroke={iconColor} strokeWidth={sw} fillEnabled={false} listening={false} />
-                      );
-                      if (type === 'circle') return (
-                        <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} stroke={iconColor} strokeWidth={sw} fillEnabled={false} listening={false} />
-                      );
-                      return null;
-                    })}
-                  </Group>
-                );
-              })}
-            </Layer>
-          )}
+          {portalsLayer}
 
           {/* Viewpoints — below darkness layer on player view, like doors/windows */}
-          {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).length > 0 && (
-            <Layer>
-              {(viewpoints ?? []).filter(vp => !isPlayerView || !vp.isHidden).map(vp => {
-                const isInRange = viewpointProximity.has(vp.id);
-                const isActive = activeViewpointId === vp.id;
-                const iconSize = tokenRadius * 1.3;
-                const s = iconSize / 24;
-                let bgFill: string;
-                let bgStroke: string;
-                let iconColor: string;
-                if (!isPlayerView && vp.isHidden) {
-                  bgFill = 'rgba(88,28,135,0.05)';
-                  bgStroke = 'rgba(126,34,206,0.15)';
-                  iconColor = 'rgba(216,180,254,0.15)';
-                } else if (isActive) {
-                  bgFill = 'rgba(126,34,206,0.6)';
-                  bgStroke = '#c026d3';
-                  iconColor = '#f0abfc';
-                } else if (!isPlayerView || isInRange) {
-                  bgFill = 'rgba(88,28,135,0.55)';
-                  bgStroke = '#7e22ce';
-                  iconColor = '#d8b4fe';
-                } else {
-                  bgFill = 'rgba(88,28,135,0.15)';
-                  bgStroke = 'rgba(126,34,206,0.3)';
-                  iconColor = 'rgba(216,180,254,0.3)';
-                }
-                return (
-                  <Group
-                    key={vp.id}
-                    x={vp.x - iconSize / 2}
-                    y={vp.y - iconSize / 2}
-                    scaleX={s}
-                    scaleY={s}
-                    draggable={!isPlayerView}
-                    onDragEnd={!isPlayerView ? (e) => handleViewpointDragEnd(vp.id, e) : undefined}
-                    onClick={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
-                    onTap={isPlayerView ? (e) => { e.cancelBubble = true; handleViewpointClick(vp); } : undefined}
-                    onContextMenu={!isPlayerView ? (e) => {
-                      e.evt.preventDefault();
-                      e.cancelBubble = true;
-                      const stage = e.target.getStage();
-                      const pos = stage?.getPointerPosition();
-                      if (!pos) return;
-                      setViewpointContextMenu({
-                        screenX: pos.x,
-                        screenY: pos.y,
-                        clientY: e.evt.clientY,
-                        viewpointId: vp.id,
-                      });
-                    } : undefined}
-                  >
-                    <Circle x={12} y={12} radius={13.5} fill={bgFill} stroke={bgStroke} strokeWidth={isActive ? 2 / s : 1 / s} />
-                    {VIEWPOINT_NODES.map((node, i) => {
-                      const [type, props] = node;
-                      const sw = 1.5;
-                      if (type === 'path') return (
-                        <Path key={i} data={props.d} stroke={iconColor} strokeWidth={sw} fillEnabled={false} lineCap="round" lineJoin="round" listening={false} />
-                      );
-                      if (type === 'circle') return (
-                        <Circle key={i} x={parseFloat(props.cx)} y={parseFloat(props.cy)} radius={parseFloat(props.r)} fill={iconColor} listening={false} />
-                      );
-                      return null;
-                    })}
-                    {isActive && (
-                      <Circle x={12} y={12} radius={15} fill="transparent" stroke="#d946ef" strokeWidth={1.5 / s} opacity={0.6} listening={false} />
-                    )}
-                  </Group>
-                );
-              })}
-            </Layer>
-          )}
+          {viewpointsLayer}
 
           {/* ── Detect Magic: magic item notes below fog (player view only) ── */}
           {isPlayerView && detectMagicData && (() => {
@@ -7594,44 +7926,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       opacity={0.85}
                       perfectDrawEnabled={false}
                     />
-                    <NoteMapIcon type="magic" />
-                  </Group>
-                ))}
-              </Layer>
-            );
-          })()}
-
-          {/* ── Detect Poison and Disease: poison/skull notes below fog (player view only) ── */}
-          {isPlayerView && detectPoisonData && (() => {
-            const casterToken = tokens.find(t => t.combatantId === detectPoisonData.playerId);
-            if (!casterToken) return null;
-            const casterPos = livePlayerPos[casterToken.id] ?? casterToken;
-            const rangePx = gridResolution
-              ? (detectPoisonData.rangeFt / 5) * gridResolution.pixelsPerGrid
-              : detectPoisonData.rangeFt * 4;
-
-            // Filter poison notes within range of caster
-            const poisonNotes = mapNotes.filter(note => {
-              if (note.type !== 'poison') return false;
-              const dx = note.x - casterPos.x;
-              const dy = note.y - casterPos.y;
-              return Math.sqrt(dx * dx + dy * dy) <= rangePx;
-            });
-            if (poisonNotes.length === 0) return null;
-            const noteR = tokenRadius * 0.6;
-            return (
-              <Layer listening={false}>
-                {poisonNotes.map(note => (
-                  <Group key={`poison-${note.id}`} x={note.x} y={note.y}>
-                    <Circle
-                      radius={noteR}
-                      fill={getNoteColor('poison')}
-                      stroke="rgba(22,163,74,0.6)"
-                      strokeWidth={2 * tokenScale}
-                      opacity={0.85}
-                      perfectDrawEnabled={false}
-                    />
-                    <NoteMapIcon type="poison" />
+                    <NoteMapIcon type="magic" noteRadius={tokenRadius * 0.6} />
                   </Group>
                 ))}
               </Layer>
@@ -7698,8 +7993,8 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 darkvisionRevealPolygons={darkvisionRevealPolygons}
                 exploredOverlayCanvas={exploredOverlayCanvas}
                 exploredMaskVersion={exploredMaskVersion}
-                mapWidth={loadedImage.width}
-                mapHeight={loadedImage.height}
+                mapWidth={mapW}
+                mapHeight={mapH}
                 opacity={useFromPlayerPerspective ? 1.0 : 0.7}
               />
             </Layer>
@@ -7983,523 +8278,13 @@ const MapViewInner: React.FC<MapViewProps> = ({
           )}
 
           {/* Spell Markers — visible to both DM and players */}
-          {spellMarkers.length > 0 && (
-            <Layer>
-              {spellMarkers
-                .filter(m => !isPlayerView || m.visibleToPlayers)
-                .filter(m => !m.floorId || m.floorId === activeFloorId)
-                .map(marker => {
-                  // Wall-shape marker (Wall of Sand, etc.) — rotated rectangle, locked after placement
-                  if (marker.shapeType === 'wall') {
-                    const wallAngle = marker.angle ?? 0;
-                    const wallCorners = computeWallCorners(
-                      marker.x, marker.y,
-                      marker.length ?? 30,
-                      marker.thickness ?? 10,
-                      wallAngle,
-                      ppg,
-                    );
-                    const wallPts = wallCorners.flatMap(c => [c.x, c.y]);
-                    const isWoF = marker.spellName === 'Wall of Fire';
-                    const wofAng = wallAngle * Math.PI / 180;
-                    // Hot-side outward normal: (sinA, -cosA)
-                    const wofNX = Math.sin(wofAng);
-                    const wofNY = -Math.cos(wofAng);
-                    if (isWoF) {
-                      return (
-                        <React.Fragment key={marker.id}>
-                          {/* Fill */}
-                          <Line
-                            points={wallPts}
-                            closed
-                            fill="rgba(255,100,10,0.45)"
-                            stroke="transparent"
-                            listening={false}
-                          />
-                          {/* Hot side — solid bright orange */}
-                          <Line
-                            points={[wallCorners[0].x, wallCorners[0].y, wallCorners[1].x, wallCorners[1].y]}
-                            stroke="#ff8c00"
-                            strokeWidth={3 / stageScale}
-                            listening={false}
-                          />
-                          {/* Cold side — dashed */}
-                          <Line
-                            points={[wallCorners[3].x, wallCorners[3].y, wallCorners[2].x, wallCorners[2].y]}
-                            stroke="#8b5a2b"
-                            strokeWidth={1.5 / stageScale}
-                            dash={[8 / stageScale, 4 / stageScale]}
-                            listening={false}
-                          />
-                          {/* End caps */}
-                          <Line
-                            points={[wallCorners[0].x, wallCorners[0].y, wallCorners[3].x, wallCorners[3].y]}
-                            stroke="#8b5a2b" strokeWidth={1.5 / stageScale} listening={false}
-                          />
-                          <Line
-                            points={[wallCorners[1].x, wallCorners[1].y, wallCorners[2].x, wallCorners[2].y]}
-                            stroke="#8b5a2b" strokeWidth={1.5 / stageScale} listening={false}
-                          />
-                          {/* Transparent hit area for tap/context on the whole wall */}
-                          <Line
-                            points={wallPts}
-                            closed
-                            fill="rgba(0,0,0,0.001)"
-                            stroke="transparent"
-                        onTap={(e) => {
-                          if (!isPlayerView) return;
-                          e.cancelBubble = true;
-                          const now = Date.now();
-                          const last = lastMarkerTapRef.current;
-                          if (last && last.markerId === marker.id && now - last.time < 400) {
-                            lastMarkerTapRef.current = null;
-                            const rect = containerRef.current?.getBoundingClientRect();
-                            setDismissMarkerBubble({
-                              markerId: marker.id,
-                              screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
-                              screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
-                            });
-                          } else {
-                            lastMarkerTapRef.current = { markerId: marker.id, time: now };
-                            setDismissMarkerBubble(null);
-                          }
-                        }}
-                        onContextMenu={(e) => {
-                          if (isPlayerView) return;
-                          e.evt.preventDefault();
-                          e.cancelBubble = true;
-                          setContextMenu({
-                            x: marker.x,
-                            y: marker.y,
-                            stageX: e.evt.clientX,
-                            stageY: e.evt.clientY,
-                            clientY: e.evt.clientY,
-                            view: 'spell-marker',
-                            markerId: marker.id,
-                          });
-                        }}
-                        onMouseDown={(e) => { e.cancelBubble = true; }}
-                      />
-                        </React.Fragment>
-                      );
-                    } else {
-                      const isPasswall = marker.spellName === 'Passwall';
-                      const isForcecage = marker.spellName === 'Forcecage' || marker.spellName === 'Forcecage (Box)';
-                      const isForcecageBox = marker.spellName === 'Forcecage (Box)';
-                      const fcFill = isForcecageBox ? 'rgba(167,139,250,0.32)' : 'rgba(167,139,250,0.10)';
-                      const fcStroke = '#a78bfa';
-                      return (
-                        <Line
-                          key={marker.id}
-                          points={wallPts}
-                          closed
-                          fill={isForcecage ? fcFill : isPasswall ? 'rgba(20,16,12,0.78)' : 'rgba(212,165,116,0.55)'}
-                          stroke={isForcecage ? fcStroke : isPasswall ? '#3a2c1c' : '#8b5a2b'}
-                          strokeWidth={isForcecage ? 2 / stageScale : isPasswall ? 2 / stageScale : 1.5 / stageScale}
-                          dash={isForcecage && !isForcecageBox ? [6 / stageScale, 4 / stageScale] : undefined}
-                          onTap={(e) => {
-                            if (!isPlayerView) return;
-                            e.cancelBubble = true;
-                            const now = Date.now();
-                            const last = lastMarkerTapRef.current;
-                            if (last && last.markerId === marker.id && now - last.time < 400) {
-                              lastMarkerTapRef.current = null;
-                              const rect = containerRef.current?.getBoundingClientRect();
-                              setDismissMarkerBubble({
-                                markerId: marker.id,
-                                screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
-                                screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
-                              });
-                            } else {
-                              lastMarkerTapRef.current = { markerId: marker.id, time: now };
-                              setDismissMarkerBubble(null);
-                            }
-                          }}
-                          onContextMenu={(e) => {
-                            if (isPlayerView) return;
-                            e.evt.preventDefault();
-                            e.cancelBubble = true;
-                            setContextMenu({
-                              x: marker.x,
-                              y: marker.y,
-                              stageX: e.evt.clientX,
-                              stageY: e.evt.clientY,
-                              clientY: e.evt.clientY,
-                              view: 'spell-marker',
-                              markerId: marker.id,
-                            });
-                          }}
-                          onMouseDown={(e) => { e.cancelBubble = true; }}
-                        />
-                      );
-                    }
-                  }
-                  // Ring-shape marker (Wall of Fire Ring / Wall of Ice Dome) — also catches old sphere-format markers
-                  if (marker.shapeType === 'ring' || marker.spellName === 'Wall of Fire (Ring)') {
-                    const ringRadiusPx = ((marker.aoeSize ?? 10) / 5) * ppg;
-                    const isIceDome = marker.spellName === 'Wall of Ice (Dome)';
-                    const isForceDome = marker.spellName === 'Wall of Force (Dome)';
-                    const isThornsRing = marker.spellName === 'Wall of Thorns (Ring)';
-                    const isBladeRing = marker.spellName === 'Blade Barrier (Ring)';
-                    const isHallow = marker.spellName === 'Hallow';
-                    const ringFill = isForceDome
-                      ? 'rgba(168,85,247,0.14)'
-                      : isIceDome
-                      ? 'rgba(126,200,238,0.18)'
-                      : isThornsRing
-                      ? 'rgba(34,197,94,0.18)'
-                      : isBladeRing
-                      ? 'rgba(203,213,225,0.18)'
-                      : isHallow
-                      ? 'rgba(251,191,36,0.16)'
-                      : 'rgba(255,90,10,0.18)';
-                    const ringStroke = isForceDome
-                      ? '#c084fc'
-                      : isIceDome
-                      ? '#7ec8ee'
-                      : isThornsRing
-                      ? '#22c55e'
-                      : isBladeRing
-                      ? '#cbd5e1'
-                      : isHallow
-                      ? '#fbbf24'
-                      : '#ff8c00';
-                    const isHotOutside = (marker.hotSide ?? 'outside') === 'outside';
-                    const tapHandler = (e: any) => {
-                      if (!isPlayerView) return;
-                      e.cancelBubble = true;
-                      const now = Date.now();
-                      const last = lastMarkerTapRef.current;
-                      if (last && last.markerId === marker.id && now - last.time < 400) {
-                        lastMarkerTapRef.current = null;
-                        const rect = containerRef.current?.getBoundingClientRect();
-                        setDismissMarkerBubble({
-                          markerId: marker.id,
-                          screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
-                          screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
-                        });
-                      } else {
-                        lastMarkerTapRef.current = { markerId: marker.id, time: now };
-                        setDismissMarkerBubble(null);
-                      }
-                    };
-                    const ctxHandler = (e: any) => {
-                      if (isPlayerView) return;
-                      e.evt.preventDefault();
-                      e.cancelBubble = true;
-                      setContextMenu({
-                        x: marker.x, y: marker.y,
-                        stageX: e.evt.clientX,
-                        stageY: e.evt.clientY,
-                        clientY: e.evt.clientY,
-                        view: 'spell-marker',
-                        markerId: marker.id,
-                      });
-                    };
-                    return (
-                      <React.Fragment key={marker.id}>
-                        {/* Fill */}
-                        <Circle
-                          x={marker.x} y={marker.y}
-                          radius={ringRadiusPx}
-                          fill={ringFill}
-                          stroke="transparent"
-                          listening={false}
-                        />
-                        {/* Ring stroke */}
-                        <Circle
-                          x={marker.x} y={marker.y}
-                          radius={ringRadiusPx}
-                          fill="transparent"
-                          stroke={ringStroke}
-                          strokeWidth={3 / stageScale}
-                          listening={false}
-                        />
-                        {/* Transparent hit area */}
-                        <Circle
-                          x={marker.x} y={marker.y}
-                          radius={ringRadiusPx}
-                          fill="rgba(0,0,0,0.001)"
-                          stroke="transparent"
-                          strokeWidth={8 / stageScale}
-                          onTap={tapHandler}
-                          onContextMenu={ctxHandler}
-                          onMouseDown={(e) => { e.cancelBubble = true; }}
-                        />
-                      </React.Fragment>
-                    );
-                  }
-                  const color = SPELL_COLOR_OVERRIDES[marker.spellName] ?? getSchoolColor(marker.school);
-                  const iconSvg = SPELL_ICON_SVGS[marker.spellName] ?? SCHOOL_ICON_SVGS[marker.school] ?? '';
-                  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-                  iconVersion; // depend on iconVersion so we re-render when images load
-                  const iconImg = iconSvg ? getIconImage(iconSvg) : null;
-                  const markerRadius = tokenRadius * 0.5;
-                  const effectPx = marker.effectRadius ? (marker.effectRadius / 5) * ppg : 0;
-                  const canInteract = true;
-                  return (
-                    <Group
-                      key={marker.id}
-                      x={marker.x}
-                      y={marker.y}
-                      draggable={canInteract}
-                      onDragStart={(e) => {
-                        e.cancelBubble = true;
-                        markerDraggingRef.current = true;
-                        // Clear the dismiss bubble once at drag start — not on every move frame
-                        setDismissMarkerBubble(null);
-                      }}
-                      onDragMove={(e) => {
-                        if (marker.lightSource || marker.spellName === 'Darkness' || marker.spellName === 'Fog Cloud') {
-                          setLiveMarkerPos(prev => ({
-                            ...prev,
-                            [marker.id]: { x: e.target.x(), y: e.target.y() },
-                          }));
-                        }
-                      }}
-                      onDragEnd={(e) => {
-                        markerDraggingRef.current = false;
-                        // Clear live position override
-                        setLiveMarkerPos(prev => {
-                          const next = { ...prev };
-                          delete next[marker.id];
-                          return next;
-                        });
-                        const updated = spellMarkers.map(m =>
-                          m.id === marker.id ? { ...m, x: e.target.x(), y: e.target.y() } : m
-                        );
-                        onSpellMarkersChange?.(updated);
-                        try {
-                          if (isPlayerView) {
-                            window.electronAPI?.sendPlayerSpellMarkerUpdate?.(updated);
-                          } else {
-                            window.electronAPI?.sendDMSpellMarkerUpdate?.(updated);
-                          }
-                        } catch (_e) { /* IPC not available */ }
-                      }}
-                      onTap={(e) => {
-                        if (!isPlayerView) return;
-                        if (!canInteract) return;
-                        // Suppress tap if a drag just completed
-                        if (markerDraggingRef.current) return;
-                        e.cancelBubble = true;
-                        const now = Date.now();
-                        const last = lastMarkerTapRef.current;
-                        if (last && last.markerId === marker.id && now - last.time < 400) {
-                          lastMarkerTapRef.current = null;
-                          const rect = containerRef.current?.getBoundingClientRect();
-                          setDismissMarkerBubble({
-                            markerId: marker.id,
-                            screenX: (rect?.left ?? 0) + marker.x * stageScale + stagePos.x,
-                            screenY: (rect?.top ?? 0) + marker.y * stageScale + stagePos.y,
-                          });
-                        } else {
-                          lastMarkerTapRef.current = { markerId: marker.id, time: now };
-                          setDismissMarkerBubble(null);
-                        }
-                      }}
-                      onMouseEnter={() => setHoveredMarkerId(marker.id)}
-                      onMouseLeave={() => setHoveredMarkerId(null)}
-                      onContextMenu={(e) => {
-                        if (isPlayerView) return;
-                        e.evt.preventDefault();
-                        e.cancelBubble = true;
-                        setContextMenu({
-                          x: marker.x,
-                          y: marker.y,
-                          stageX: e.evt.clientX,
-                          stageY: e.evt.clientY,
-                          clientY: e.evt.clientY,
-                          view: 'spell-marker',
-                          markerId: marker.id,
-                        });
-                      }}
-                      onMouseDown={(e) => { e.cancelBubble = true; }}
-                    >
-                      {/* AoE shape overlay — hidden for Light and Darkness.
-                          Renders the spell's actual area (cube/sphere/etc.) if aoeType is set,
-                          otherwise falls back to effectRadius circle. listening=false so the
-                          large shape doesn't capture drag events. */}
-                      {marker.spellName !== 'Light' && marker.spellName !== 'Daylight' && marker.spellName !== 'Darkness' && marker.spellName !== 'Fog Cloud' && (() => {
-                        if (marker.aoeType && marker.aoeSize) {
-                          const aoePx = (marker.aoeSize / 5) * ppg;
-                          if (marker.aoeType === 'cube') {
-                            return (
-                              <Rect
-                                x={-aoePx / 2}
-                                y={-aoePx / 2}
-                                width={aoePx}
-                                height={aoePx}
-                                fill={color}
-                                opacity={0.12}
-                                stroke={color}
-                                strokeWidth={1}
-                                dash={[6, 4]}
-                                listening={false}
-                              />
-                            );
-                          }
-                          if (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') {
-                            return (
-                              <Circle
-                                radius={aoePx}
-                                fill={color}
-                                opacity={0.12}
-                                stroke={color}
-                                strokeWidth={1}
-                                dash={[6, 4]}
-                                listening={false}
-                              />
-                            );
-                          }
-                        }
-                        // Fall back to effectRadius circle
-                        if (effectPx > 0) {
-                          return (
-                            <Circle
-                              radius={effectPx}
-                              fill={color}
-                              opacity={0.1}
-                              stroke={color}
-                              strokeWidth={1}
-                              dash={[6, 4]}
-                              listening={false}
-                            />
-                          );
-                        }
-                        return null;
-                      })()}
-                      {/* Spell-specific particle effects */}
-                      {isFireSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <FireballParticles radius={(marker.aoeSize / 5) * ppg} />
-                      )}
-                      {isFireCubeSpell(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (
-                        <FireCubeParticles size={(marker.aoeSize / 5) * ppg} />
-                      )}
-                      {isIceSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <IceSphereParticles radius={(marker.aoeSize / 5) * ppg} />
-                      )}
-                      {isPoisonSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={POISON_PALETTE} glow="#65a30d" inwardChance={0.25} basePeriod={2000} />
-                      )}
-                      {isAcidSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={ACID_PALETTE} glow="#a3e635" inwardChance={0.4} basePeriod={1500} />
-                      )}
-                      {isNecroticSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={NECROTIC_PALETTE} glow="#7e22ce" inwardChance={0.5} basePeriod={2200} shape="triangle" />
-                      )}
-                      {isLightningSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <LightningSphereParticles radius={(marker.aoeSize / 5) * ppg} />
-                      )}
-                      {isThunderSphereSpell(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (
-                        <ThunderShockwaveParticles radius={(marker.aoeSize / 5) * ppg} />
-                      )}
-                      {isThunderCubeSpell(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (
-                        <ThunderCubeParticles size={(marker.aoeSize / 5) * ppg} />
-                      )}
-                      {getSphereElement(marker.spellName) && (marker.aoeType === 'sphere' || marker.aoeType === 'cylinder') && marker.aoeSize && (() => {
-                        const s = ELEMENT_STYLES[getSphereElement(marker.spellName)!];
-                        return <RadialAoEParticles radius={(marker.aoeSize / 5) * ppg} palette={s.palette} glow={s.glow} basePeriod={s.basePeriod} inwardChance={s.inwardChance} shape={s.shape} />;
-                      })()}
-                      {getCubeElement(marker.spellName) && marker.aoeType === 'cube' && marker.aoeSize && (() => {
-                        const s = ELEMENT_STYLES[getCubeElement(marker.spellName)!];
-                        return <CubeAoEParticles size={(marker.aoeSize / 5) * ppg} palette={s.palette} glow={s.glow} />;
-                      })()}
-                      {/* Invisible expanded hit area so the marker is easy to grab/drag on touch */}
-                      <Circle
-                        radius={Math.max(markerRadius * 3, effectPx > 0 ? Math.min(effectPx, markerRadius * 5) : markerRadius * 3)}
-                        fill="rgba(0,0,0,0.001)"
-                        perfectDrawEnabled={false}
-                      />
-                      {/* Icon background circle */}
-                      <Circle
-                        radius={markerRadius}
-                        fill={color}
-                        opacity={!isPlayerView && !marker.visibleToPlayers ? 0.4 : 0.85}
-                        stroke={hoveredMarkerId === marker.id ? 'white' : 'rgba(0,0,0,0.5)'}
-                        strokeWidth={hoveredMarkerId === marker.id ? 2 : 1}
-                      />
-                      {/* School icon — rendered as a Lucide SVG image so stroke-based icons display correctly */}
-                      {iconImg && (
-                        <KonvaImage
-                          image={iconImg}
-                          width={markerRadius * 1.5}
-                          height={markerRadius * 1.5}
-                          offsetX={markerRadius * 0.75}
-                          offsetY={markerRadius * 0.75}
-                          opacity={0.9}
-                          listening={false}
-                        />
-                      )}
-                      {/* Hidden indicator for DM */}
-                      {!isPlayerView && !marker.visibleToPlayers && (
-                        <Text
-                          text="🚫"
-                          fontSize={markerRadius * 0.6}
-                          x={markerRadius * 0.3}
-                          y={-markerRadius * 0.9}
-                        />
-                      )}
-                      {/* Spell name label — always visible below the marker */}
-                      <Text
-                        text={marker.spellName}
-                        y={markerRadius + 4}
-                        fontSize={11 / stageScale}
-                        fill="white"
-                        align="center"
-                        width={120 / stageScale}
-                        x={-60 / stageScale}
-                        shadowColor="black"
-                        shadowBlur={3}
-                        shadowOpacity={0.9}
-                        listening={false}
-                      />
-                    </Group>
-                  );
-                })}
-            </Layer>
-          )}
+          {spellMarkersLayer}
 
           {/* ── Wall/ring spell particle layers (Wall of Fire, Wind Wall, Forcecage, …) ── */}
           <WallSpellParticleLayers spellMarkers={spellMarkers} isPlayerView={isPlayerView} activeFloorId={activeFloorId} ppg={ppg} />
 
           {/* Map Notes — above fog so they're always visible to the DM */}
-          {!isPlayerView && mapNotes.length > 0 && (
-            <Layer>
-              {mapNotes.map(note => (
-                <Group
-                  key={note.id}
-                  x={note.x}
-                  y={note.y}
-                  draggable
-                  onDragEnd={(e) => handleNoteDragEnd(note.id, e)}
-                  onMouseEnter={() => setHoveredNoteId(note.id)}
-                  onMouseLeave={() => setHoveredNoteId(null)}
-                  onMouseDown={(e) => { e.cancelBubble = true; }}
-                  onClick={(e) => {
-                    e.cancelBubble = true;
-                    if (note.type === 'sound') {
-                      if (note.soundId) {
-                        audioEngine.ensure();
-                        audioEngine.playOneShot(soundUrlFromId(note.soundId), 'notes', 1).catch(() => { /* ignore */ });
-                      }
-                      return;
-                    }
-                    setLeftSidebarOpen(true);
-                    onNoteClick?.(note.id);
-                  }}
-                >
-                  <Circle
-                    radius={tokenRadius * 0.6}
-                    fill={getNoteColor(note.type)}
-                    stroke={hoveredNoteId === note.id ? "white" : "rgba(0,0,0,0.4)"}
-                    strokeWidth={hoveredNoteId === note.id ? 2 : 1}
-                  />
-                  <NoteMapIcon type={note.type} />
-                </Group>
-              ))}
-            </Layer>
-          )}
+          {mapNotesLayer}
 
           {/* ── AoE range line overlay — above tokens so it's never hidden ── */}
           {placedAoe && (() => {
@@ -8970,46 +8755,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
           })()}
 
           {/* ── Drawings — above fog of war so players can scribble on dark areas ── */}
-          {(drawings.length > 0 || ephemeralStrokes.length > 0 || currentStroke) && (
-            <Layer listening={false}>
-              {drawings.map(s => (
-                <Line
-                  key={s.id}
-                  points={s.points}
-                  stroke={s.color}
-                  strokeWidth={s.width / stageScale}
-                  lineCap="round"
-                  lineJoin="round"
-                  tension={0.4}
-                  perfectDrawEnabled={false}
-                />
-              ))}
-              {ephemeralStrokes.map(s => (
-                <Line
-                  key={s.id}
-                  points={s.points}
-                  stroke={s.color}
-                  strokeWidth={s.width / stageScale}
-                  lineCap="round"
-                  lineJoin="round"
-                  tension={0.4}
-                  opacity={0.85}
-                  perfectDrawEnabled={false}
-                />
-              ))}
-              {currentStroke && (
-                <Line
-                  points={currentStroke.points}
-                  stroke={currentStroke.color}
-                  strokeWidth={currentStroke.width / stageScale}
-                  lineCap="round"
-                  lineJoin="round"
-                  tension={0.4}
-                  perfectDrawEnabled={false}
-                />
-              )}
-            </Layer>
-          )}
+          {drawingsLayer}
 
           {/* ── Measure / Ruler — above fog of war ── */}
           {isMeasuringActive && measureStart && measureEnd && (() => {
@@ -9519,11 +9265,11 @@ const MapViewInner: React.FC<MapViewProps> = ({
           </div>
         )}
 
-        {/* Edit Walls Toolbar */}
+        {/* Walls & Doors Toolbar */}
         {wallEditMode && !isPlayerView && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 pointer-events-none">
           <div className="bg-[#1a1512] border border-orange-400/50 rounded-md px-2 py-1.5 shadow-xl flex items-center gap-1.5 pointer-events-auto">
-            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Edit Walls</span>
+            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Walls &amp; Doors</span>
             <div className="w-px h-5 bg-white/10" />
             <button
               onClick={() => {
@@ -9759,73 +9505,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 <>Click points · click the first node or <kbd className="px-1 py-0.5 rounded bg-black/40">Enter</kbd> to close · <kbd className="px-1 py-0.5 rounded bg-black/40">Esc</kbd> stop</>
               ) : (
                 <>Click a difficult-terrain area to delete it.</>
-              )}
-            </div>
-          )}
-          </div>
-        )}
-
-        {/* Sound Zones Toolbar */}
-        {soundZoneEditMode && !isPlayerView && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 pointer-events-none">
-          <div className="bg-[#171512] border border-[var(--accent)]/50 rounded-md px-2 py-1.5 shadow-xl flex items-center gap-1.5 pointer-events-auto">
-            <span className="text-[10px] uppercase tracking-wider opacity-40 px-1.5">Sound Zones</span>
-            <div className="w-px h-5 bg-white/10" />
-            {/* Painting needs a sound attached, so "Add Zone" goes through the
-                sound picker panel; painting starts from there. */}
-            <button
-              onClick={() => {
-                if (zonePainting) {
-                  commitCurrentZone();
-                  onSoundZonePaintCancel?.();
-                } else {
-                  setSoundZoneErasing(false);
-                  onOpenSoundZones?.();
-                }
-              }}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
-                zonePainting
-                  ? 'bg-[var(--accent)]/30 border-[var(--accent)]/50'
-                  : 'bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border-[var(--accent)]/30'
-              )}
-            >
-              <PlusCircle size={11} />
-              {zonePainting ? 'Drawing…' : 'Add Zone'}
-            </button>
-            <button
-              onClick={() => {
-                if (!soundZoneErasing && zonePainting) {
-                  commitCurrentZone();
-                  onSoundZonePaintCancel?.();
-                }
-                setSoundZoneErasing(v => !v);
-              }}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border transition-colors',
-                soundZoneErasing
-                  ? 'bg-red-500/30 border-red-400/50 text-red-200'
-                  : 'bg-red-500/10 hover:bg-red-500/20 border-red-400/25'
-              )}
-            >
-              <Eraser size={11} />
-              {soundZoneErasing ? 'Erasing' : 'Eraser'}
-            </button>
-            <div className="w-px h-5 bg-white/10" />
-            <button
-              onClick={exitSoundZoneEditMode}
-              className="flex items-center gap-1 px-2.5 py-1 text-[11px] whitespace-nowrap rounded-md border border-white/15 bg-white/5 hover:bg-white/15 transition-colors"
-            >
-              <X size={11} />
-              Done
-            </button>
-          </div>
-          {(zonePainting || soundZoneErasing) && (
-            <div className="text-[10px] opacity-60 whitespace-nowrap text-center">
-              {zonePainting ? (
-                <>Painting <strong>{zonePainting.label ?? 'new zone'}</strong> · click points · first node or <kbd className="px-1 py-0.5 rounded bg-black/40">Enter</kbd> closes · <kbd className="px-1 py-0.5 rounded bg-black/40">Esc</kbd> stop</>
-              ) : (
-                <>Click a sound zone to delete it.</>
               )}
             </div>
           )}
@@ -10226,7 +9905,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                 </div>
 
                 <div className="flex justify-between mb-3 bg-black/20 p-1 rounded-lg">
-                  {(['quote', 'treasure', 'warning', 'magic', 'poison', 'image', 'sound'] as MapNoteType[]).map(type => (
+                  {(['quote', 'treasure', 'check', 'warning', 'magic', 'image'] as MapNoteType[]).map(type => (
                     <button
                       key={type}
                       onClick={() => setNoteDraft(prev => ({ ...prev, type, imageData: type === 'image' ? prev.imageData : undefined }))}
@@ -10241,47 +9920,7 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   ))}
                 </div>
 
-                {noteDraft.type === 'sound' ? (
-                  <>
-                    {noteDraft.soundId ? (() => {
-                      const picked = librarySoundsForNotes.find(s => s.id === noteDraft.soundId);
-                      return (
-                        <div className="mb-3 rounded-lg overflow-hidden border border-[var(--line)] bg-black/30 p-3">
-                          <div className="text-[10px] uppercase tracking-widest opacity-50 mb-1">Sound</div>
-                          <div className="text-sm font-medium truncate">{picked?.name ?? noteDraft.soundId}</div>
-                          {picked && (
-                            <div className="text-[10px] opacity-50 truncate mt-0.5">{picked.filename}</div>
-                          )}
-                          <button
-                            onClick={() => setNoteSoundPickerOpen(true)}
-                            className="mt-2 text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100"
-                          >
-                            Change sound
-                          </button>
-                        </div>
-                      );
-                    })() : (
-                      <button
-                        onClick={() => setNoteSoundPickerOpen(true)}
-                        className="w-full mb-3 py-6 rounded-lg border border-dashed border-[var(--line)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors text-xs uppercase tracking-widest opacity-60 hover:opacity-100"
-                      >
-                        Choose Sound…
-                      </button>
-                    )}
-                    <input
-                      value={noteDraft.content}
-                      onChange={(e) => setNoteDraft(prev => ({ ...prev, content: e.target.value }))}
-                      placeholder="Label (optional)"
-                      className="w-full bg-black border border-[var(--line)] rounded-lg p-2 text-sm outline-none focus:border-[var(--accent)] transition-colors mb-3"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          saveNote();
-                        }
-                      }}
-                    />
-                  </>
-                ) : noteDraft.type === 'image' ? (
+                {noteDraft.type === 'image' ? (
                   <>
                     <input
                       ref={noteImageInputRef}
@@ -10341,8 +9980,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
                   disabled={
                     noteDraft.type === 'image'
                       ? !noteDraft.imageData
-                      : noteDraft.type === 'sound'
-                      ? !noteDraft.soundId
                       : !noteDraft.content.trim()
                   }
                   onClick={saveNote}
@@ -10689,18 +10326,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
             onAdd={addExtras}
             onUpdate={updateExtra}
             onDelete={deleteExtra}
-          />
-        )}
-
-        {/* Sound picker for sound-type map notes */}
-        {noteSoundPickerOpen && (
-          <SoundPicker
-            title="Pick a Sound for this Note"
-            subtitle="Tier 4 — tap on the map to play"
-            selectedId={noteDraft.soundId ?? null}
-            defaultCategory="note"
-            onPick={(soundId) => setNoteDraft(prev => ({ ...prev, soundId: soundId ?? undefined }))}
-            onClose={() => setNoteSoundPickerOpen(false)}
           />
         )}
 

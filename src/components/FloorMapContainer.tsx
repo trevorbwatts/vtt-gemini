@@ -91,7 +91,6 @@ interface FloorMapContainerProps {
   onPingDrop?: (opts: { x: number; y: number; color: string; floorId: string }) => void;
   tremorsenseData?: { playerId: string; rangeFt: number } | null;
   detectMagicData?: { playerId: string; rangeFt: number } | null;
-  detectPoisonData?: { playerId: string; rangeFt: number } | null;
   activeEmanations?: import('../types').ActiveEmanation[];
   seeInvisibility?: boolean;
   activeTimers?: import('../types').TokenTimer[];
@@ -101,12 +100,7 @@ interface FloorMapContainerProps {
    *  Used to position quadrants in 4-up GoldenEye-style split. */
   playerSpots?: Record<string, QuadSpotId>;
   onPromoteExtra?: (tokenId: string, monster: Monster, opts: { combatantType: 'enemy' | 'npc'; size: string }) => void;
-  /** Tier 2 sound zones: per-floor updates. */
-  onSoundZonesChange?: (floorId: string, zones: import('../types').SoundZone[]) => void;
   /** Tier 2 zone painting template (active only on the primary panel). */
-  zonePainting?: { soundId: string; falloffPx: number; color: string; label?: string } | null;
-  onSoundZonePaintCommit?: (points: number[]) => void;
-  onSoundZonePaintCancel?: () => void;
   /** Per-floor updates to the list of Dark Zones. */
   onDarkZonesChange?: (floorId: string, zones: import('../types').DarkZone[]) => void;
   /** When true, the primary MapView captures clicks as polygon vertices for a new dark zone. */
@@ -147,11 +141,6 @@ interface FloorMapContainerProps {
   onStartGridCalibration?: () => void;
   onStopGridCalibration?: () => void;
   onGridResolutionChange?: (gr: import('../types').GridResolution) => void;
-  // ── Floor audio (ambient sound) ──
-  onOpenFloorAudioPicker?: (floorId: string) => void;
-  onClearFloorAudio?: (floorId: string) => void;
-  // ── Sound zones panel ──
-  onOpenSoundZones?: () => void;
 }
 
 export function FloorMapContainer(props: FloorMapContainerProps) {
@@ -386,11 +375,6 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onSpellMarkersChange: isPrimary ? props.onSpellMarkersChange : undefined,
     drawings: floor.drawings || [],
     onDrawingsChange: (next: import('../types').Stroke[]) => props.onDrawingsChange?.(floor.id, next),
-    soundZones: floor.soundZones || [],
-    onSoundZonesChange: (next: import('../types').SoundZone[]) => props.onSoundZonesChange?.(floor.id, next),
-    zonePainting: isPrimary ? (props.zonePainting ?? null) : null,
-    onSoundZonePaintCommit: isPrimary ? props.onSoundZonePaintCommit : undefined,
-    onSoundZonePaintCancel: isPrimary ? props.onSoundZonePaintCancel : undefined,
     darkZones: floor.darkZones || [],
     onDarkZonesChange: (next: import('../types').DarkZone[]) => props.onDarkZonesChange?.(floor.id, next),
     darkZonePainting: isPrimary ? (props.darkZonePainting ?? false) : false,
@@ -420,9 +404,6 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onStartGridCalibration: isPrimary ? props.onStartGridCalibration : undefined,
     onStopGridCalibration: isPrimary ? props.onStopGridCalibration : undefined,
     onGridResolutionChange: isPrimary ? props.onGridResolutionChange : undefined,
-    onOpenFloorAudioPicker: isPrimary ? props.onOpenFloorAudioPicker : undefined,
-    onClearFloorAudio: isPrimary ? props.onClearFloorAudio : undefined,
-    onOpenSoundZones: isPrimary ? props.onOpenSoundZones : undefined,
     activeCombatantId: props.activeCombatantId,
     targetedCombatantIds: props.targetedCombatantIds,
     onPlayerTokenDoubleTap: props.onPlayerTokenDoubleTap,
@@ -430,7 +411,6 @@ export function FloorMapContainer(props: FloorMapContainerProps) {
     onClearTargets: props.onClearTargets,
     tremorsenseData: props.tremorsenseData,
     detectMagicData: props.detectMagicData,
-    detectPoisonData: props.detectPoisonData,
     activeEmanations: props.activeEmanations,
     seeInvisibility: props.seeInvisibility,
     activeTimers: props.activeTimers,

@@ -106,6 +106,22 @@ function getInitiativeBonus(data: any): number {
   return dexMod + flatBonus + profBonus;
 }
 
+/**
+ * True when something grants advantage on Initiative — the 2024 Champion's
+ * Remarkable Athlete, a Barbarian's Feral Instinct, a Sentinel Shield, and so
+ * on. D&D Beyond models these as an ordinary modifier with type 'advantage',
+ * alongside the 'bonus' and 'proficiency' ones above, so no rules text has to
+ * be parsed. Conditional grants carry a `restriction` string; we only take the
+ * unconditional ones, since the app has nothing to evaluate a condition with.
+ */
+function hasInitiativeAdvantage(data: any): boolean {
+  return getAllModifiers(data).some(m =>
+    m.type === 'advantage' &&
+    m.subType === 'initiative' &&
+    !(m as { restriction?: string }).restriction
+  );
+}
+
 // --- HP Calculations ---
 
 function getMaxHp(data: any): number {
@@ -447,6 +463,7 @@ export function parseDndBeyondCharacter(response: any): Omit<Combatant, 'id'> {
     name: data.name || 'Unknown Character',
     initiative: initBonus,
     initiativeBonus: initBonus,
+    initiativeAdvantage: hasInitiativeAdvantage(data),
     hp: getCurrentHp(data),
     maxHp: getMaxHp(data),
     ac: getArmorClass(data),

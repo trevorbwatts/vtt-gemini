@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MapNote, MapNoteType } from '../types';
+import { MapNote, MapNoteType, nextImageRotation } from '../types';
 import {
   TreasureChest,
   BookOpenText,
   TriangleAlert,
   Sparkles,
-  Skull,
+  D20,
   Trash2,
   Edit2,
   FileText,
@@ -16,7 +16,6 @@ import {
   EyeOff,
   RotateCw,
   Upload,
-  Music,
 } from '../icons';
 
 interface DMNotesProps {
@@ -39,9 +38,8 @@ export const NoteIcon = ({ type, size = 16, className = "" }: { type: MapNoteTyp
     case 'treasure': return <TreasureChest size={size} className={`text-[var(--accent)] ${className}`} />;
     case 'warning': return <TriangleAlert size={size} className={`text-red-400 ${className}`} />;
     case 'magic': return <Sparkles size={size} className={`text-cyan-400 ${className}`} />;
-    case 'poison': return <Skull size={size} className={`text-green-600 ${className}`} />;
+    case 'check': return <D20 size={size} className={`text-green-600 ${className}`} />;
     case 'image': return <ImageIcon size={size} className={`text-purple-400 ${className}`} />;
-    case 'sound': return <Music size={size} className={`text-amber-400 ${className}`} />;
     default: return null;
   }
 };
@@ -57,8 +55,7 @@ export const DMNotes: React.FC<DMNotesProps> = ({ notes, onChange, title, onTitl
   const rotateNote = (id: string) => {
     onChange(notes.map(n => {
       if (n.id !== id) return n;
-      const next = ((n.imageRotation || 0) + 90) % 360;
-      return { ...n, imageRotation: next };
+      return { ...n, imageRotation: nextImageRotation(n.imageRotation) };
     }));
   };
 

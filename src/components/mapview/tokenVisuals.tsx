@@ -96,21 +96,77 @@ export const ActiveTurnRing: React.FC<{ radius: number; tokenScale: number; colo
   );
 };
 
-/** Target ring — red crosshair-style indicator for targeted monsters */
+/** Target crosshair — blue reticle for targeted monsters. Kept visually distinct from the red engaged-range ring. */
 export const TargetRing: React.FC<{ radius: number; tokenScale: number }> = ({ radius, tokenScale }) => {
-  const r = radius + 5 * tokenScale;
-  const dashLen = r * 0.35;
+  const r = radius + 6 * tokenScale;
+  const band = 2.5 * tokenScale;
+  const tickIn = r - 5 * tokenScale;
+  const tickOut = r + 5 * tokenScale;
+  const BLUE = '#60A5FA';
+
+  // Four 60° arc segments centered on the diagonals, leaving gaps on the axes for the ticks.
+  const arcRotations = [15, 105, 195, 285];
+  // Tick marks crossing the ring at 12/3/6/9 o'clock.
+  const ticks = [
+    [0, -tickIn, 0, -tickOut],
+    [tickIn, 0, tickOut, 0],
+    [0, tickIn, 0, tickOut],
+    [-tickIn, 0, -tickOut, 0],
+  ];
+
   return (
-    <Circle
-      radius={r}
-      fill=""
-      stroke="#ef4444"
-      strokeWidth={2.5 * tokenScale}
-      opacity={0.9}
-      dash={[dashLen, dashLen]}
-      listening={false}
-      perfectDrawEnabled={false}
-    />
+    <>
+      {/* Dark halo behind the reticle so it reads on light maps */}
+      {arcRotations.map(rot => (
+        <Arc
+          key={`halo-${rot}`}
+          innerRadius={r - band}
+          outerRadius={r + band}
+          angle={60}
+          rotation={rot}
+          fill="#000000"
+          opacity={0.45}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
+      {ticks.map((pts, i) => (
+        <Line
+          key={`halo-tick-${i}`}
+          points={pts}
+          stroke="#000000"
+          strokeWidth={4 * tokenScale}
+          opacity={0.45}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
+      {/* Blue reticle */}
+      {arcRotations.map(rot => (
+        <Arc
+          key={`arc-${rot}`}
+          innerRadius={r - band / 2}
+          outerRadius={r + band / 2}
+          angle={60}
+          rotation={rot}
+          fill={BLUE}
+          opacity={0.95}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
+      {ticks.map((pts, i) => (
+        <Line
+          key={`tick-${i}`}
+          points={pts}
+          stroke={BLUE}
+          strokeWidth={2 * tokenScale}
+          opacity={0.95}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
+    </>
   );
 };
 

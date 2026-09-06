@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Campaign } from '../types';
+import { Campaign, cn } from '../types';
 import { Plus, FolderOpen, Sword, Trash2, ChevronRight, Sparkles, Upload } from '../icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { readCampaignFile } from '../utils/campaignFile';
@@ -7,10 +7,12 @@ import { removeImage } from '../utils/imageStore';
 
 interface SplashScreenProps {
   onSelectCampaign: (campaign: Campaign) => void;
+  /** Campaign currently having its images loaded, if any. */
+  openingCampaignId?: string | null;
   onCreateCampaign: (name: string) => void;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, onCreateCampaign }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, onCreateCampaign, openingCampaignId = null }) => {
   const [savedCampaigns, setSavedCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState('');
@@ -171,29 +173,47 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onSelectCampaign, on
                     <p className="mt-2 text-[10px] uppercase tracking-widest">No history found</p>
                   </div>
                 ) : (
-                  savedCampaigns.map((c) => (
+                  savedCampaigns.map((c) => {
+                    const isOpening = openingCampaignId === c.id;
+                    // A campaign's maps are fetched on open, so a big one takes a
+                    // moment. Disable the list meanwhile so the click isn't dead
+                    // and a second campaign can't be started on top of it.
+                    const anyOpening = openingCampaignId !== null;
+                    return (
                     <button
                       key={c.id}
                       onClick={() => onSelectCampaign(c)}
-                      className="w-full group flex items-center justify-between p-4 rounded-2xl bg-black/5 hover:bg-black/10 border border-transparent hover:border-[var(--line)] transition-all text-left"
+                      disabled={anyOpening}
+                      className={cn(
+                        "w-full group flex items-center justify-between p-4 rounded-2xl bg-black/5 border border-transparent transition-all text-left",
+                        anyOpening ? "cursor-default" : "hover:bg-black/10 hover:border-[var(--line)]",
+                        anyOpening && !isOpening && "opacity-30"
+                      )}
                     >
                       <div className="flex flex-col">
                         <span className="font-bold text-lg group-hover:text-[var(--accent)] transition-colors font-serif">{c.name}</span>
                         <span className="text-[10px] opacity-40 uppercase tracking-widest">
-                          {c.players.length} Players • {c.scenarios.length} Scenarios
+                          {isOpening ? 'Loading maps…' : `${c.players.length} Players • ${c.scenarios.length} Scenarios`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div 
-                          onClick={(e) => deleteCampaign(c.id, e)}
-                          className="p-2 opacity-0 group-hover:opacity-100 hover:bg-[var(--accent)]/20 text-[var(--accent)] rounded-lg transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </div>
-                        <ChevronRight size={18} className="opacity-20 group-hover:opacity-100 transition-all" />
+                        {!anyOpening && (
+                          <div
+                            onClick={(e) => deleteCampaign(c.id, e)}
+                            className="p-2 opacity-0 group-hover:opacity-100 hover:bg-[var(--accent)]/20 text-[var(--accent)] rounded-lg transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </div>
+                        )}
+                        {isOpening ? (
+                          <div className="w-[18px] h-[18px] rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+                        ) : (
+                          <ChevronRight size={18} className="opacity-20 group-hover:opacity-100 transition-all" />
+                        )}
                       </div>
                     </button>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
