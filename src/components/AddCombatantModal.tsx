@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, AlertCircle, Skull, Search, Swords } from '../icons';
+import { X, User, Shield, Eye, Link as LinkIcon, Download, Edit2, ImagePlus, AlertCircle, Skull, Search } from '../icons';
 import { Combatant, Monster, cn } from '../types';
 import { parseDndBeyondCharacter } from '../services/dndBeyondParser';
 import { BESTIARY } from '../data/bestiary';
 import { ImageCropper } from './ImageCropper';
+import { BestiaryList } from './BestiaryList';
 
 const CURATED_COLORS = [
   '#3b82f6', // Blue
@@ -203,14 +204,21 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           className={cn(
             "relative w-full bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl overflow-hidden",
-            isBestiaryStep ? "max-w-4xl" : "max-w-lg"
+            isBestiaryStep ? "max-w-md" : "max-w-lg"
           )}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--line)] bg-black/10">
-            <h2 className="text-xl font-serif font-bold tracking-tight">
-              {editing ? 'Edit' : 'Add'} {type === 'player' ? 'Player' : 'NPC'}
-            </h2>
+            {isBestiaryStep ? (
+              <div className="flex items-center gap-2">
+                <Skull size={14} className="text-[#ef4444]" />
+                <p className="text-xs font-bold uppercase tracking-widest opacity-50">Bestiary</p>
+              </div>
+            ) : (
+              <h2 className="text-xl font-serif font-bold tracking-tight">
+                {editing ? 'Edit' : 'Add'} {type === 'player' ? 'Player' : 'NPC'}
+              </h2>
+            )}
             <button
               onClick={resetAndClose}
               className="p-2 hover:bg-black/5 rounded-full transition-colors opacity-50 hover:opacity-100"
@@ -219,8 +227,10 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
             </button>
           </div>
 
-          {/* Content */}
-          <div className={cn(isBestiaryStep ? "" : "p-8")}>
+          {/* Content. Each step supplies its own padding — this wrapper used to
+              add p-8 as well, which left the customize step only 384px of content
+              and wrapped the tenth colour swatch onto a row of its own. */}
+          <div>
             {step === 'choice' && (
               <div className="space-y-8 text-center p-8">
                 <h3 className="text-2xl font-serif font-bold tracking-tight">
@@ -396,210 +406,41 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
             )}
 
             {step === 'bestiary' && (
-              <div className="flex flex-col h-[600px]">
-                <div className="flex-1 flex overflow-hidden">
-                  {/* Left Panel: List */}
-                  <div className="w-2/5 border-r border-[var(--line)] flex flex-col overflow-hidden">
-                    <div className="p-2 border-b border-[var(--line)]">
-                      <div className="relative">
-                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
-                        <input
-                          autoFocus
-                          type="text"
-                          value={monsterSearch}
-                          onChange={(e) => setMonsterSearch(e.target.value)}
-                          placeholder="Search monsters..."
-                          className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                        <span className="text-xs opacity-60">2014</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                        <span className="text-xs opacity-60">2024</span>
-                      </label>
-                    </div>
-                    <div className="flex-1 overflow-y-auto py-1">
-                      {filteredMonsters.map(m => (
-                        <button
-                          key={m.id}
-                          onClick={() => { setSelectedMonster(m); setSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}
-                          className={cn(
-                            "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between",
-                            selectedMonster?.id === m.id ? "bg-[var(--accent)] text-white" : "hover:bg-white/5"
-                          )}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-bold">{m.name}</span>
-                            <span className={cn("text-[10px] opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>{m.type}</span>
-                          </div>
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className={cn("text-[10px] font-sans opacity-50", selectedMonster?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
-                            <span className={cn("text-[9px] font-sans opacity-30", selectedMonster?.id === m.id ? "text-white" : "")}>{m.source}</span>
-                          </div>
-                        </button>
-                      ))}
+              <div className="flex flex-col h-[550px]">
+                {/* Just the list — same single-panel shape as the Bestiary. The
+                    full stat block used to sit alongside it, which was more detail
+                    than picking a monster needs. */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="p-2 border-b border-[var(--line)]">
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 opacity-30" />
+                      <input
+                        autoFocus
+                        type="text"
+                        value={monsterSearch}
+                        onChange={(e) => setMonsterSearch(e.target.value)}
+                        placeholder="Search monsters..."
+                        className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
+                      />
                     </div>
                   </div>
-
-                  {/* Right Panel: Stat Block */}
-                  <div className="w-3/5 flex flex-col overflow-hidden bg-black/5">
-                    {selectedMonster ? (
-                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {/* Header */}
-                        <div className="flex items-center gap-3">
-                          {selectedMonster.avatar && (
-                            <img
-                              key={selectedMonster.id}
-                              src={selectedMonster.avatar}
-                              alt={selectedMonster.name}
-                              className="w-12 h-12 rounded-full object-cover shrink-0 bg-black/20"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-xl font-bold tracking-tight truncate">{selectedMonster.name}</h4>
-                            <p className="text-xs italic opacity-50">{selectedMonster.type}</p>
-                          </div>
-                          <div className="flex flex-col gap-1 shrink-0 items-end">
-                            <div className="flex gap-1.5">
-                              <div className="bg-[var(--accent)]/20 text-[var(--accent)] px-2 py-0.5 rounded text-xs font-bold">HP {selectedMonster.hp}</div>
-                              <div className="bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded text-xs font-bold">AC {selectedMonster.ac}</div>
-                            </div>
-                            <div className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs font-bold self-end">CR {selectedMonster.cr}</div>
-                          </div>
-                        </div>
-
-                        {selectedMonster.size?.includes('/') && (
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Size</span>
-                            <div className="flex items-center bg-black/20 rounded-lg p-0.5 gap-0.5">
-                              {selectedMonster.size.split('/').map(s => s.trim()).map(s => (
-                                <button
-                                  key={s}
-                                  onClick={() => setSizeChoice(s)}
-                                  className={cn(
-                                    "px-3 py-1 rounded text-xs font-bold transition-colors",
-                                    sizeChoice === s ? "bg-[var(--accent)] text-white" : "opacity-50 hover:opacity-100"
-                                  )}
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Speed / Senses / Languages */}
-                        {(selectedMonster.speed || selectedMonster.senses || selectedMonster.languages) && (
-                          <div className="text-xs space-y-0.5 opacity-60">
-                            {selectedMonster.speed && <div><span className="font-bold">Speed:</span> {selectedMonster.speed}</div>}
-                            {selectedMonster.senses && <div><span className="font-bold">Senses:</span> {selectedMonster.senses}</div>}
-                            {selectedMonster.languages && <div><span className="font-bold">Languages:</span> {selectedMonster.languages}</div>}
-                          </div>
-                        )}
-
-                        {/* Stats Grid */}
-                        <div className="grid grid-cols-6 gap-1 text-center">
-                          {Object.entries(selectedMonster.stats).map(([stat, val]) => (
-                            <div key={stat} className="bg-black/20 rounded p-1">
-                              <div className="text-[9px] uppercase opacity-50">{stat}</div>
-                              <div className="text-sm font-bold">{val}</div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Saves & Defenses */}
-                        {(selectedMonster.saves || selectedMonster.immunities || selectedMonster.resistances || selectedMonster.conditionImmunities) && (
-                          <div className="text-xs space-y-0.5 opacity-60">
-                            {selectedMonster.saves && <div><span className="font-bold">Saves:</span> {selectedMonster.saves}</div>}
-                            {selectedMonster.resistances && <div><span className="font-bold">Resistances:</span> {selectedMonster.resistances}</div>}
-                            {selectedMonster.immunities && <div><span className="font-bold">Immunities:</span> {selectedMonster.immunities}</div>}
-                            {selectedMonster.conditionImmunities && <div><span className="font-bold">Cond. Immunities:</span> {selectedMonster.conditionImmunities}</div>}
-                          </div>
-                        )}
-
-                        {/* Description */}
-                        {selectedMonster.description && (
-                          <div>
-                            <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Description</h5>
-                            <p className="text-sm leading-relaxed opacity-70">{selectedMonster.description}</p>
-                          </div>
-                        )}
-
-                        {/* Special Abilities */}
-                        {selectedMonster.specialAbilities && selectedMonster.specialAbilities.length > 0 && (
-                          <div>
-                            <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Traits</h5>
-                            <div className="space-y-2">
-                              {selectedMonster.specialAbilities.map((ability, i) => (
-                                <div key={i} className="text-sm leading-relaxed">
-                                  <span className="font-bold italic text-purple-400">{ability.name}.</span>{' '}
-                                  <span className="opacity-80 whitespace-pre-wrap">{ability.desc}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        {selectedMonster.actions.length > 0 && (
-                          <div>
-                            <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Actions</h5>
-                            <div className="space-y-2">
-                              {selectedMonster.actions.map((action, i) => (
-                                <div key={i} className="text-sm leading-relaxed">
-                                  <span className="font-bold italic text-[var(--accent)]">{action.name}.</span>{' '}
-                                  <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Reactions */}
-                        {selectedMonster.reactions && selectedMonster.reactions.length > 0 && (
-                          <div>
-                            <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Reactions</h5>
-                            <div className="space-y-2">
-                              {selectedMonster.reactions.map((reaction, i) => (
-                                <div key={i} className="text-sm leading-relaxed">
-                                  <span className="font-bold italic text-blue-400">{reaction.name}.</span>{' '}
-                                  <span className="opacity-80 whitespace-pre-wrap">{reaction.desc}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Legendary Actions */}
-                        {selectedMonster.legendaryActions && selectedMonster.legendaryActions.length > 0 && (
-                          <div>
-                            <h5 className="text-xs font-bold uppercase tracking-widest opacity-30 mb-1">Legendary Actions</h5>
-                            <div className="space-y-2">
-                              {selectedMonster.legendaryActions.map((action, i) => (
-                                <div key={i} className="text-sm leading-relaxed">
-                                  <span className="font-bold italic text-amber-400">{action.name}.</span>{' '}
-                                  <span className="opacity-80 whitespace-pre-wrap">{action.desc}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center opacity-20">
-                        <div className="text-center space-y-2">
-                          <Skull size={32} className="mx-auto" />
-                          <p className="text-sm">Select a monster</p>
-                        </div>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
+                      <span className="text-xs opacity-60">2014</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
+                      <span className="text-xs opacity-60">2024</span>
+                    </label>
                   </div>
+                  {/* Same virtualized list the Bestiary uses, so both routes to
+                      picking a monster look and perform identically. */}
+                  <BestiaryList
+                    monsters={filteredMonsters}
+                    selectedId={selectedMonster?.id ?? null}
+                    onSelect={(m) => { setSelectedMonster(m); setSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}
+                  />
                 </div>
 
                 {/* Footer */}
