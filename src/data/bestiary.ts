@@ -1,6 +1,5 @@
 import { Monster } from '../types';
-import bestiary2014 from './bestiary-2014.json';
-import bestiary2024 from './bestiary-2024.json';
+import bestiaryData from './bestiary.json';
 
 function tokenSlug(name: string): string {
   return name
@@ -62,29 +61,16 @@ function withAvatar(monsters: Monster[]): Monster[] {
   }));
 }
 
-export const BESTIARY: Monster[] = [
-  ...withAvatar(bestiary2014 as Monster[]),
-  ...withAvatar(bestiary2024 as Monster[]),
-];
+export const BESTIARY: Monster[] = withAvatar(bestiaryData as Monster[]);
 
-/** Look up a specific monster by name (case-insensitive). Prefers 2024 source, falls back to 2014. */
-export function lookupBeast(name: string, preferSource: '2014' | '2024' = '2024'): Monster | undefined {
+/** Look up a specific monster by name (case-insensitive). */
+export function lookupBeast(name: string): Monster | undefined {
   const lower = name.toLowerCase().trim();
-  let fallback: Monster | undefined;
-  for (const m of BESTIARY) {
-    if (m.name.toLowerCase() !== lower) continue;
-    if (m.source === preferSource) return m;
-    if (!fallback) fallback = m;
-  }
-  return fallback;
+  return BESTIARY.find(m => m.name.toLowerCase() === lower);
 }
 
-/** Search beasts by name, filtered by source. Returns up to `limit` results sorted by CR then name. */
-export function searchBeasts(
-  query: string,
-  limit = 20,
-  filter?: { sources?: Set<'2014' | '2024'> },
-): Monster[] {
+/** Search beasts by name. Returns up to `limit` results sorted by CR then name. */
+export function searchBeasts(query: string, limit = 20): Monster[] {
   if (!query.trim()) return [];
   const lower = query.toLowerCase().trim();
   const seen = new Set<string>();
@@ -93,7 +79,6 @@ export function searchBeasts(
   for (const m of BESTIARY) {
     if (!m.type?.toLowerCase().includes('beast')) continue;
     if (!m.name.toLowerCase().includes(lower)) continue;
-    if (filter?.sources && m.source && !filter.sources.has(m.source)) continue;
     const dedupeKey = m.name.toLowerCase();
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);

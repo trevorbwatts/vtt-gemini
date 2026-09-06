@@ -22,19 +22,14 @@ interface MakeCreatureModalProps {
  */
 export const MakeCreatureModal: React.FC<MakeCreatureModalProps> = ({ token, onClose, onConfirm }) => {
   const [search, setSearch] = useState('');
-  const [show2014, setShow2014] = useState(false);
-  const [show2024, setShow2024] = useState(true);
   const [selected, setSelected] = useState<Monster | null>(null);
   const [combatantType, setCombatantType] = useState<'enemy' | 'npc'>('enemy');
   const [sizeChoice, setSizeChoice] = useState<string>('Medium');
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return BESTIARY.filter(m =>
-      m.name.toLowerCase().includes(q) &&
-      ((show2014 && m.source === '2014') || (show2024 && m.source === '2024'))
-    );
-  }, [search, show2014, show2024]);
+    return BESTIARY.filter(m => m.name.toLowerCase().includes(q));
+  }, [search]);
 
   const pickMonster = (m: Monster) => {
     setSelected(m);
@@ -94,16 +89,6 @@ export const MakeCreatureModal: React.FC<MakeCreatureModalProps> = ({ token, onC
                 />
               </div>
             </div>
-            <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={show2014} onChange={(e) => setShow2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                <span className="text-xs opacity-60">2014</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={show2024} onChange={(e) => setShow2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                <span className="text-xs opacity-60">2024</span>
-              </label>
-            </div>
             <div className="flex-1 overflow-y-auto py-1">
               {filtered.map(m => (
                 <button
@@ -120,7 +105,6 @@ export const MakeCreatureModal: React.FC<MakeCreatureModalProps> = ({ token, onC
                   </div>
                   <div className="flex flex-col items-end gap-0.5">
                     <span className={cn("text-[10px] font-sans opacity-50", selected?.id === m.id ? "text-white" : "")}>CR {m.cr}</span>
-                    <span className={cn("text-[9px] font-sans opacity-30", selected?.id === m.id ? "text-white" : "")}>{m.source}</span>
                   </div>
                 </button>
               ))}

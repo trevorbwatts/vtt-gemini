@@ -432,9 +432,8 @@ const SpellsPanel: React.FC<{
   onDismissSeeInvisibility?: () => void;
 }> = ({ player, anchorX, anchorY, edge, onCast, onPlace, onSummon, onClose, onDarkvisionChange, preAbilityDarkvisionRef, onTremorsenseChange, activeAbilities, onToggleAbility, onCastAbility, tremorsenseActive, isTorchLit, onToggleTorch, onMeasure, onDraw, isPlayersTurn, onEndTurn, onWildShape, isWildShaped, onRevertWildShape, activeEmanations, onDismissEmanation, invisibilityActive, onDismissInvisibility, seeInvisibilityActive, onDismissSeeInvisibility }) => {
   const spells = useMemo(() => {
-    const rs = player.ruleset;
     const enrich = (spell: any) => {
-      const db = lookupSpell(spell.name, rs);
+      const db = lookupSpell(spell.name);
       return {
         ...spell,
         aoeType: spell.aoeType ?? db?.aoeType,
@@ -446,7 +445,7 @@ const SpellsPanel: React.FC<{
     };
     const base = (player.spells || []).map(enrich);
     const atWill = (player.atWillSpells || []).flatMap(({ spellName, source }) => {
-      const found = lookupSpell(spellName, rs);
+      const found = lookupSpell(spellName);
       if (!found) return [];
       return [enrich({ ...found, atWill: true as const, source })];
     });
@@ -454,7 +453,7 @@ const SpellsPanel: React.FC<{
     const manualNames = new Set(base.map((s: any) => s.name.toLowerCase()));
     return [...atWill.filter((s: any) => !manualNames.has(s.name.toLowerCase())), ...base]
       .sort((a: any, b: any) => a.name.localeCompare(b.name));
-  }, [player.spells, player.atWillSpells, player.ruleset]);
+  }, [player.spells, player.atWillSpells]);
 
   const spellSaveDc = useMemo(() => {
     if (player.spellSaveDc) return player.spellSaveDc;
@@ -508,7 +507,6 @@ const SpellsPanel: React.FC<{
 
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'abilities' | 'lookup' | 'wildshape'>(isWildShaped ? 'wildshape' : 'my');
-  const [enabledSources, setEnabledSources] = useState<Set<'2014' | '2024'>>(new Set(['2024']));
   const [recentSpells, setRecentSpells] = useState<any[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
   const [beastSearch, setBeastSearch] = useState('');
@@ -520,28 +518,19 @@ const SpellsPanel: React.FC<{
 
   const searchResults = useMemo(() => {
     if (spellSearch.trim().length < 2) return [];
-    return searchSpells(spellSearch, 40, { sources: enabledSources }).filter(spell => {
+    return searchSpells(spellSearch, 40).filter(spell => {
       const mi = getMapInteraction(spell);
       return mi !== 'none';
     }).slice(0, 20).map(spell => ({
       ...spell,
       mapInteraction: spell.mapInteraction ?? getMapInteraction(spell),
     }));
-  }, [spellSearch, enabledSources]);
+  }, [spellSearch]);
 
   const beastResults = useMemo(() => {
     if (beastSearch.trim().length < 2) return [];
-    return searchBeasts(beastSearch, 20, { sources: enabledSources });
-  }, [beastSearch, enabledSources]);
-
-  const toggleSource = (src: '2014' | '2024') => {
-    setEnabledSources(prev => {
-      const next = new Set(prev);
-      if (next.has(src) && next.size > 1) next.delete(src);
-      else next.add(src);
-      return next;
-    });
-  };
+    return searchBeasts(beastSearch, 20);
+  }, [beastSearch]);
 
   const handleSpellTap = (spell: any) => {
     const mi = getMapInteraction(spell);
@@ -713,7 +702,7 @@ const SpellsPanel: React.FC<{
             onPlace={() => onPlace(spell)}
             onSummon={() => onSummon(spell)}
             onRoll={(mode) => {
-              const localDesc = lookupSpell(spell.name, player.ruleset)?.desc || '';
+              const localDesc = lookupSpell(spell.name)?.desc || '';
               const groups = parseSpellDamage(spell.desc || '') ?? parseSpellDamage(localDesc);
               if (!groups) return;
               const bonus = spellAttackBonus ?? 0;
@@ -913,18 +902,6 @@ const SpellsPanel: React.FC<{
       {/* Spell Lookup */}
       {activeTab === 'lookup' && (
         <div>
-          <div className="flex items-center gap-1 mb-2">
-            {(['2014', '2024'] as const).map(src => (
-              <button
-                key={src}
-                onClick={() => toggleSource(src)}
-                className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
-                  enabledSources.has(src) ? 'bg-purple-500/25 text-purple-300' : 'bg-white/5 text-white/20')}
-              >
-                {src}
-              </button>
-            ))}
-          </div>
           {searchResults.length === 0 && recentSpells.length > 0 && (
             <div className="mb-2">
               <div className="text-[9px] uppercase tracking-widest text-white/20 mb-1 font-bold">Recent</div>
@@ -977,18 +954,6 @@ const SpellsPanel: React.FC<{
               Revert Wild Shape
             </button>
           )}
-          <div className="flex items-center gap-1 mb-2">
-            {(['2014', '2024'] as const).map(src => (
-              <button
-                key={src}
-                onClick={() => toggleSource(src)}
-                className={cn('px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide transition-colors',
-                  enabledSources.has(src) ? 'bg-emerald-500/25 text-emerald-300' : 'bg-white/5 text-white/20')}
-              >
-                {src}
-              </button>
-            ))}
-          </div>
           {beastResults.length > 0 && (
             <div className="divide-y divide-white/10 max-h-[150px] overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mb-2">
               {beastResults.map((beast, i) => (
@@ -2324,7 +2289,7 @@ export function PlayerScreen() {
 
     // Detect wall-shape spell (fallback to spell DB lookup if the spell object
     // passed in doesn't carry shapeType)
-    const dbEntry = lookupSpell(spell?.name || '', player.ruleset);
+    const dbEntry = lookupSpell(spell?.name || '');
     const isWallSpell = spell?.shapeType === 'wall' || dbEntry?.shapeType === 'wall';
     // Merge in DB metadata so MapView gets maxLength/maxThickness/blocksVision/shapeType
     const enrichedSpell = isWallSpell

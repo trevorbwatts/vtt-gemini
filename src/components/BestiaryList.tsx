@@ -77,7 +77,6 @@ export function BestiaryList({ monsters, selectedId, onSelect }: BestiaryListPro
               </div>
               <div className="flex flex-col items-end gap-0.5 shrink-0">
                 <span className={cn("text-[10px] font-sans opacity-50", isSelected ? "text-white" : "")}>CR {m.cr}</span>
-                <span className={cn("text-[9px] font-sans opacity-30", isSelected ? "text-white" : "")}>{m.source}</span>
               </div>
             </button>
           );

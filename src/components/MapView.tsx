@@ -789,8 +789,6 @@ const MapViewInner: React.FC<MapViewProps> = ({
   }, [contextMenu, tokenContextMenu, portalContextMenu, viewpointContextMenu, zoneContextMenu]);
 
   const [monsterSearch, setMonsterSearch] = useState('');
-  const [showSource2014, setShowSource2014] = useState(false);
-  const [showSource2024, setShowSource2024] = useState(true);
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [monsterQuantity, setMonsterQuantity] = useState(1);
   const [monsterSizeChoice, setMonsterSizeChoice] = useState<string>('Medium');
@@ -10086,20 +10084,9 @@ const MapViewInner: React.FC<MapViewProps> = ({
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                      <span className="text-xs opacity-60">2014</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                      <span className="text-xs opacity-60">2024</span>
-                    </label>
-                  </div>
                   <BestiaryList
                     monsters={BESTIARY.filter(m =>
-                      m.name.toLowerCase().includes(monsterSearch.toLowerCase()) &&
-                      ((showSource2014 && m.source === '2014') || (showSource2024 && m.source === '2024'))
+                      m.name.toLowerCase().includes(monsterSearch.toLowerCase())
                     )}
                     selectedId={selectedMonster?.id ?? null}
                     onSelect={(m) => { setSelectedMonster(m); setMonsterSizeChoice(m.size?.includes('/') ? 'Medium' : (m.size || 'Medium')); }}

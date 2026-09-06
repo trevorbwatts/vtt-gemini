@@ -215,7 +215,6 @@ export interface MonsterAction {
 export interface Monster {
   id: string;
   name: string;
-  source: '2014' | '2024';
   hp: number;
   ac: number;
   type: string;
@@ -268,7 +267,6 @@ export interface Combatant {
   classes?: ClassDefinition[];
   dndBeyondId?: string;
   dndBeyondUrl?: string;
-  ruleset?: '2014' | '2024';
   proficiencyBonus?: number;
   description?: string;
   stats?: {

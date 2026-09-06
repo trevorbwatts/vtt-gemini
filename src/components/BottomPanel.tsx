@@ -357,8 +357,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
         const ws = token.combatantId && wildShapeState?.[token.combatantId];
         if (ws) {
           // Build a virtual combatant from the beast data
-          const beast = BESTIARY.find(m => m.name === ws.creatureName && m.source === '2024')
-            || BESTIARY.find(m => m.name === ws.creatureName);
+          const beast = BESTIARY.find(m => m.name === ws.creatureName);
           if (!beast) return null;
           const player = allSourceCombatants.find(c => c.id === token.combatantId);
           const virtualCombatant: Combatant = {
@@ -417,9 +416,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
     }
     if (combatant.type === 'player') return combatant;
     // Look up the original monster by name to fill in missing fields
-    // Prefer 2024 source over 2014 when both exist
-    const monster = BESTIARY.find(m => m.name === combatant.name && m.source === '2024')
-      || BESTIARY.find(m => m.name === combatant.name);
+    const monster = BESTIARY.find(m => m.name === combatant.name);
     if (!monster) return combatant;
     return {
       ...combatant,

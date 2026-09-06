@@ -2,7 +2,6 @@
   {
     "id": "2024-aarakocra-aeromancer",
     "name": "Aarakocra Aeromancer",
-    "source": "2024",
     "hp": 66,
     "ac": 16,
     "type": "Medium Elemental",
@@ -45,7 +44,6 @@
   {
     "id": "2024-aarakocra-skirmisher",
     "name": "Aarakocra Skirmisher",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Medium Elemental",
@@ -77,7 +75,6 @@
   {
     "id": "2024-aberrant-cultist",
     "name": "Aberrant Cultist",
-    "source": "2024",
     "hp": 137,
     "ac": 14,
     "type": "Small/Medium Humanoid",
@@ -125,7 +122,6 @@
   {
     "id": "2024-abjurer-wizard",
     "name": "Abjurer Wizard",
-    "source": "2024",
     "hp": 104,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -174,7 +170,6 @@
   {
     "id": "2024-aboleth",
     "name": "Aboleth",
-    "source": "2024",
     "hp": 150,
     "ac": 17,
     "type": "Large Aberration",
@@ -248,7 +243,6 @@
   {
     "id": "2024-abominable-yeti",
     "name": "Abominable Yeti",
-    "source": "2024",
     "hp": 137,
     "ac": 15,
     "type": "Huge Monstrosity",
@@ -300,7 +294,6 @@
   {
     "id": "2024-adult-black-dragon",
     "name": "Adult Black Dragon",
-    "source": "2024",
     "hp": 195,
     "ac": 19,
     "type": "Huge Dragon (chromatic)",
@@ -367,7 +360,6 @@
   {
     "id": "2024-adult-blue-dragon",
     "name": "Adult Blue Dragon",
-    "source": "2024",
     "hp": 212,
     "ac": 19,
     "type": "Huge Dragon (chromatic)",
@@ -430,7 +422,6 @@
   {
     "id": "2024-adult-brass-dragon",
     "name": "Adult Brass Dragon",
-    "source": "2024",
     "hp": 172,
     "ac": 18,
     "type": "Huge Dragon (metallic)",
@@ -497,7 +488,6 @@
   {
     "id": "2024-adult-bronze-dragon",
     "name": "Adult Bronze Dragon",
-    "source": "2024",
     "hp": 212,
     "ac": 18,
     "type": "Huge Dragon (metallic)",
@@ -568,7 +558,6 @@
   {
     "id": "2024-adult-copper-dragon",
     "name": "Adult Copper Dragon",
-    "source": "2024",
     "hp": 184,
     "ac": 18,
     "type": "Huge Dragon (metallic)",
@@ -635,7 +624,6 @@
   {
     "id": "2024-adult-gold-dragon",
     "name": "Adult Gold Dragon",
-    "source": "2024",
     "hp": 243,
     "ac": 19,
     "type": "Huge Dragon (metallic)",
@@ -706,7 +694,6 @@
   {
     "id": "2024-adult-green-dragon",
     "name": "Adult Green Dragon",
-    "source": "2024",
     "hp": 207,
     "ac": 19,
     "type": "Huge Dragon (chromatic)",
@@ -774,7 +761,6 @@
   {
     "id": "2024-adult-kruthik",
     "name": "Adult Kruthik",
-    "source": "2024",
     "hp": 39,
     "ac": 18,
     "type": "Medium Monstrosity",
@@ -821,7 +807,6 @@
   {
     "id": "2024-adult-oblex",
     "name": "Adult Oblex",
-    "source": "2024",
     "hp": 75,
     "ac": 14,
     "type": "Medium Ooze",
@@ -878,7 +863,6 @@
   {
     "id": "2024-adult-red-dragon",
     "name": "Adult Red Dragon",
-    "source": "2024",
     "hp": 256,
     "ac": 19,
     "type": "Huge Dragon (chromatic)",
@@ -941,7 +925,6 @@
   {
     "id": "2024-adult-silver-dragon",
     "name": "Adult Silver Dragon",
-    "source": "2024",
     "hp": 216,
     "ac": 19,
     "type": "Huge Dragon (metallic)",
@@ -1008,7 +991,6 @@
   {
     "id": "2024-adult-white-dragon",
     "name": "Adult White Dragon",
-    "source": "2024",
     "hp": 200,
     "ac": 18,
     "type": "Huge Dragon (chromatic)",
@@ -1071,7 +1053,6 @@
   {
     "id": "2024-air-elemental",
     "name": "Air Elemental",
-    "source": "2024",
     "hp": 90,
     "ac": 15,
     "type": "Large Elemental",
@@ -1117,7 +1098,6 @@
   {
     "id": "2024-air-elemental-myrmidon",
     "name": "Air Elemental Myrmidon",
-    "source": "2024",
     "hp": 117,
     "ac": 18,
     "type": "Medium Elemental",
@@ -1157,7 +1137,6 @@
   {
     "id": "2024-alhoon",
     "name": "Alhoon",
-    "source": "2024",
     "hp": 150,
     "ac": 15,
     "type": "Medium Undead (mind flayer, wizard)",
@@ -1222,7 +1201,6 @@
   {
     "id": "2024-alkilith",
     "name": "Alkilith",
-    "source": "2024",
     "hp": 168,
     "ac": 17,
     "type": "Medium Fiend (demon)",
@@ -1289,7 +1267,6 @@
   {
     "id": "2024-allip",
     "name": "Allip",
-    "source": "2024",
     "hp": 40,
     "ac": 13,
     "type": "Medium Undead",
@@ -1340,7 +1317,6 @@
   {
     "id": "2024-allosaurus",
     "name": "Allosaurus",
-    "source": "2024",
     "hp": 51,
     "ac": 13,
     "type": "Large Beast (dinosaur)",
@@ -1371,7 +1347,6 @@
   {
     "id": "2024-amnizu",
     "name": "Amnizu",
-    "source": "2024",
     "hp": 202,
     "ac": 21,
     "type": "Medium Fiend (devil)",
@@ -1436,7 +1411,6 @@
   {
     "id": "2024-ancient-black-dragon",
     "name": "Ancient Black Dragon",
-    "source": "2024",
     "hp": 367,
     "ac": 22,
     "type": "Gargantuan Dragon (chromatic)",
@@ -1503,7 +1477,6 @@
   {
     "id": "2024-ancient-blue-dragon",
     "name": "Ancient Blue Dragon",
-    "source": "2024",
     "hp": 481,
     "ac": 22,
     "type": "Gargantuan Dragon (chromatic)",
@@ -1566,7 +1539,6 @@
   {
     "id": "2024-ancient-brass-dragon",
     "name": "Ancient Brass Dragon",
-    "source": "2024",
     "hp": 332,
     "ac": 20,
     "type": "Gargantuan Dragon (metallic)",
@@ -1633,7 +1605,6 @@
   {
     "id": "2024-ancient-bronze-dragon",
     "name": "Ancient Bronze Dragon",
-    "source": "2024",
     "hp": 444,
     "ac": 22,
     "type": "Gargantuan Dragon (metallic)",
@@ -1704,7 +1675,6 @@
   {
     "id": "2024-ancient-copper-dragon",
     "name": "Ancient Copper Dragon",
-    "source": "2024",
     "hp": 367,
     "ac": 21,
     "type": "Gargantuan Dragon (metallic)",
@@ -1771,7 +1741,6 @@
   {
     "id": "2024-ancient-gold-dragon",
     "name": "Ancient Gold Dragon",
-    "source": "2024",
     "hp": 546,
     "ac": 22,
     "type": "Gargantuan Dragon (metallic)",
@@ -1842,7 +1811,6 @@
   {
     "id": "2024-ancient-green-dragon",
     "name": "Ancient Green Dragon",
-    "source": "2024",
     "hp": 402,
     "ac": 21,
     "type": "Gargantuan Dragon (chromatic)",
@@ -1910,7 +1878,6 @@
   {
     "id": "2024-ancient-red-dragon",
     "name": "Ancient Red Dragon",
-    "source": "2024",
     "hp": 507,
     "ac": 22,
     "type": "Gargantuan Dragon (chromatic)",
@@ -1973,7 +1940,6 @@
   {
     "id": "2024-ancient-silver-dragon",
     "name": "Ancient Silver Dragon",
-    "source": "2024",
     "hp": 468,
     "ac": 22,
     "type": "Gargantuan Dragon (metallic)",
@@ -2040,7 +2006,6 @@
   {
     "id": "2024-ancient-white-dragon",
     "name": "Ancient White Dragon",
-    "source": "2024",
     "hp": 333,
     "ac": 20,
     "type": "Gargantuan Dragon (chromatic)",
@@ -2103,7 +2068,6 @@
   {
     "id": "2024-angry-sorrowsworn",
     "name": "Angry Sorrowsworn",
-    "source": "2024",
     "hp": 255,
     "ac": 18,
     "type": "Medium Monstrosity",
@@ -2147,7 +2111,6 @@
   {
     "id": "2024-animal-lord",
     "name": "Animal Lord",
-    "source": "2024",
     "hp": 323,
     "ac": 19,
     "type": "Medium Celestial",
@@ -2223,7 +2186,6 @@
   {
     "id": "2024-animated-armor",
     "name": "Animated Armor",
-    "source": "2024",
     "hp": 33,
     "ac": 18,
     "type": "Medium Construct",
@@ -2257,7 +2219,6 @@
   {
     "id": "2024-animated-broom",
     "name": "Animated Broom",
-    "source": "2024",
     "hp": 14,
     "ac": 15,
     "type": "Small Construct",
@@ -2293,7 +2254,6 @@
   {
     "id": "2024-animated-flying-sword",
     "name": "Animated Flying Sword",
-    "source": "2024",
     "hp": 14,
     "ac": 17,
     "type": "Small Construct",
@@ -2324,7 +2284,6 @@
   {
     "id": "2024-animated-rug-of-smothering",
     "name": "Animated Rug of Smothering",
-    "source": "2024",
     "hp": 27,
     "ac": 12,
     "type": "Large Construct",
@@ -2354,7 +2313,6 @@
   {
     "id": "2024-ankheg",
     "name": "Ankheg",
-    "source": "2024",
     "hp": 45,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -2392,7 +2350,6 @@
   {
     "id": "2024-ankylosaurus",
     "name": "Ankylosaurus",
-    "source": "2024",
     "hp": 68,
     "ac": 15,
     "type": "Huge Beast (dinosaur)",
@@ -2424,7 +2381,6 @@
   {
     "id": "2024-annis-hag",
     "name": "Annis Hag",
-    "source": "2024",
     "hp": 90,
     "ac": 17,
     "type": "Large Fey",
@@ -2473,7 +2429,6 @@
   {
     "id": "2024-ape",
     "name": "Ape",
-    "source": "2024",
     "hp": 19,
     "ac": 12,
     "type": "Medium Beast",
@@ -2508,7 +2463,6 @@
   {
     "id": "2024-apprentice-wizard",
     "name": "Apprentice Wizard",
-    "source": "2024",
     "hp": 13,
     "ac": 10,
     "type": "Medium Humanoid",
@@ -2542,7 +2496,6 @@
   {
     "id": "2024-arcanaloth",
     "name": "Arcanaloth",
-    "source": "2024",
     "hp": 175,
     "ac": 18,
     "type": "Medium Fiend (yugoloth)",
@@ -2605,7 +2558,6 @@
   {
     "id": "2024-arch-hag",
     "name": "Arch-hag",
-    "source": "2024",
     "hp": 333,
     "ac": 20,
     "type": "Large Fey",
@@ -2681,7 +2633,6 @@
   {
     "id": "2024-archdruid",
     "name": "Archdruid",
-    "source": "2024",
     "hp": 154,
     "ac": 14,
     "type": "Medium Humanoid (druid)",
@@ -2724,7 +2675,6 @@
   {
     "id": "2024-archelon",
     "name": "Archelon",
-    "source": "2024",
     "hp": 90,
     "ac": 17,
     "type": "Huge Beast (dinosaur)",
@@ -2761,7 +2711,6 @@
   {
     "id": "2024-archer",
     "name": "Archer",
-    "source": "2024",
     "hp": 75,
     "ac": 16,
     "type": "Medium Humanoid",
@@ -2797,7 +2746,6 @@
   {
     "id": "2024-archmage",
     "name": "Archmage",
-    "source": "2024",
     "hp": 170,
     "ac": 17,
     "type": "Small/Medium Humanoid (wizard)",
@@ -2850,7 +2798,6 @@
   {
     "id": "2024-archpriest",
     "name": "Archpriest",
-    "source": "2024",
     "hp": 240,
     "ac": 16,
     "type": "Small/Medium Humanoid (cleric)",
@@ -2897,7 +2844,6 @@
   {
     "id": "2024-armanite",
     "name": "Armanite",
-    "source": "2024",
     "hp": 94,
     "ac": 16,
     "type": "Large Fiend (demon)",
@@ -2951,7 +2897,6 @@
   {
     "id": "2024-assassin",
     "name": "Assassin",
-    "source": "2024",
     "hp": 97,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -2995,7 +2940,6 @@
   {
     "id": "2024-astral-dreadnought",
     "name": "Astral Dreadnought",
-    "source": "2024",
     "hp": 297,
     "ac": 20,
     "type": "Gargantuan Monstrosity (titan)",
@@ -3074,7 +3018,6 @@
   {
     "id": "2024-aurochs",
     "name": "Aurochs",
-    "source": "2024",
     "hp": 38,
     "ac": 11,
     "type": "Large Beast (cattle)",
@@ -3101,7 +3044,6 @@
   {
     "id": "2024-autumn-eladrin",
     "name": "Autumn Eladrin",
-    "source": "2024",
     "hp": 165,
     "ac": 19,
     "type": "Medium Fey (elf)",
@@ -3159,7 +3101,6 @@
   {
     "id": "2024-awakened-shrub",
     "name": "Awakened Shrub",
-    "source": "2024",
     "hp": 10,
     "ac": 9,
     "type": "Small Plant",
@@ -3188,7 +3129,6 @@
   {
     "id": "2024-awakened-tree",
     "name": "Awakened Tree",
-    "source": "2024",
     "hp": 59,
     "ac": 13,
     "type": "Huge Plant",
@@ -3217,7 +3157,6 @@
   {
     "id": "2024-axe-beak",
     "name": "Axe Beak",
-    "source": "2024",
     "hp": 19,
     "ac": 11,
     "type": "Large Monstrosity",
@@ -3244,7 +3183,6 @@
   {
     "id": "2024-azer-pyromancer",
     "name": "Azer Pyromancer",
-    "source": "2024",
     "hp": 97,
     "ac": 18,
     "type": "Medium Elemental",
@@ -3297,7 +3235,6 @@
   {
     "id": "2024-azer-sentinel",
     "name": "Azer Sentinel",
-    "source": "2024",
     "hp": 39,
     "ac": 17,
     "type": "Medium Elemental",
@@ -3338,7 +3275,6 @@
   {
     "id": "2024-babau",
     "name": "Babau",
-    "source": "2024",
     "hp": 82,
     "ac": 16,
     "type": "Medium Fiend (demon)",
@@ -3384,7 +3320,6 @@
   {
     "id": "2024-baboon",
     "name": "Baboon",
-    "source": "2024",
     "hp": 3,
     "ac": 12,
     "type": "Small Beast",
@@ -3417,7 +3352,6 @@
   {
     "id": "2024-badger",
     "name": "Badger",
-    "source": "2024",
     "hp": 5,
     "ac": 11,
     "type": "Tiny Beast",
@@ -3446,7 +3380,6 @@
   {
     "id": "2024-bael",
     "name": "Bael",
-    "source": "2024",
     "hp": 189,
     "ac": 18,
     "type": "Large Fiend (devil)",
@@ -3527,7 +3460,6 @@
   {
     "id": "2024-balhannoth",
     "name": "Balhannoth",
-    "source": "2024",
     "hp": 114,
     "ac": 17,
     "type": "Large Aberration",
@@ -3586,7 +3518,6 @@
   {
     "id": "2024-balor",
     "name": "Balor",
-    "source": "2024",
     "hp": 287,
     "ac": 19,
     "type": "Huge Fiend (demon)",
@@ -3645,7 +3576,6 @@
   {
     "id": "2024-banderhobb",
     "name": "Banderhobb",
-    "source": "2024",
     "hp": 84,
     "ac": 15,
     "type": "Large Monstrosity",
@@ -3697,7 +3627,6 @@
   {
     "id": "2024-bandit",
     "name": "Bandit",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Small/Medium Humanoid",
@@ -3729,7 +3658,6 @@
   {
     "id": "2024-bandit-captain",
     "name": "Bandit Captain",
-    "source": "2024",
     "hp": 52,
     "ac": 15,
     "type": "Small/Medium Humanoid",
@@ -3772,7 +3700,6 @@
   {
     "id": "2024-bandit-crime-lord",
     "name": "Bandit Crime Lord",
-    "source": "2024",
     "hp": 169,
     "ac": 17,
     "type": "Small/Medium Humanoid",
@@ -3815,7 +3742,6 @@
   {
     "id": "2024-bandit-deceiver",
     "name": "Bandit Deceiver",
-    "source": "2024",
     "hp": 130,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -3858,7 +3784,6 @@
   {
     "id": "2024-banshee",
     "name": "Banshee",
-    "source": "2024",
     "hp": 54,
     "ac": 12,
     "type": "Medium Undead",
@@ -3913,7 +3838,6 @@
   {
     "id": "2024-baphomet",
     "name": "Baphomet",
-    "source": "2024",
     "hp": 319,
     "ac": 22,
     "type": "Huge Fiend (demon)",
@@ -3990,7 +3914,6 @@
   {
     "id": "2024-barbed-devil",
     "name": "Barbed Devil",
-    "source": "2024",
     "hp": 110,
     "ac": 15,
     "type": "Medium Fiend (devil)",
@@ -4049,7 +3972,6 @@
   {
     "id": "2024-bard",
     "name": "Bard",
-    "source": "2024",
     "hp": 44,
     "ac": 15,
     "type": "Medium Humanoid",
@@ -4096,7 +4018,6 @@
   {
     "id": "2024-barghest",
     "name": "Barghest",
-    "source": "2024",
     "hp": 60,
     "ac": 17,
     "type": "Large Fiend",
@@ -4150,7 +4071,6 @@
   {
     "id": "2024-barlgura",
     "name": "Barlgura",
-    "source": "2024",
     "hp": 85,
     "ac": 15,
     "type": "Large Fiend (demon)",
@@ -4201,7 +4121,6 @@
   {
     "id": "2024-basilisk",
     "name": "Basilisk",
-    "source": "2024",
     "hp": 52,
     "ac": 15,
     "type": "Medium Monstrosity",
@@ -4229,7 +4148,6 @@
   {
     "id": "2024-bat",
     "name": "Bat",
-    "source": "2024",
     "hp": 1,
     "ac": 12,
     "type": "Tiny Beast",
@@ -4257,7 +4175,6 @@
   {
     "id": "2024-bearded-devil",
     "name": "Bearded Devil",
-    "source": "2024",
     "hp": 58,
     "ac": 13,
     "type": "Medium Fiend (devil)",
@@ -4304,7 +4221,6 @@
   {
     "id": "2024-behir",
     "name": "Behir",
-    "source": "2024",
     "hp": 168,
     "ac": 17,
     "type": "Huge Monstrosity",
@@ -4346,7 +4262,6 @@
   {
     "id": "2024-beholder",
     "name": "Beholder",
-    "source": "2024",
     "hp": 190,
     "ac": 18,
     "type": "Large Aberration",
@@ -4401,7 +4316,6 @@
   {
     "id": "2024-beholder-zombie",
     "name": "Beholder Zombie",
-    "source": "2024",
     "hp": 93,
     "ac": 15,
     "type": "Large Undead",
@@ -4447,7 +4361,6 @@
   {
     "id": "2024-berbalang",
     "name": "Berbalang",
-    "source": "2024",
     "hp": 49,
     "ac": 14,
     "type": "Medium Aberration",
@@ -4491,7 +4404,6 @@
   {
     "id": "2024-berserker",
     "name": "Berserker",
-    "source": "2024",
     "hp": 67,
     "ac": 13,
     "type": "Small/Medium Humanoid",
@@ -4525,7 +4437,6 @@
   {
     "id": "2024-berserker-commander",
     "name": "Berserker Commander",
-    "source": "2024",
     "hp": 136,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -4569,7 +4480,6 @@
   {
     "id": "2024-bheur-hag",
     "name": "Bheur Hag",
-    "source": "2024",
     "hp": 91,
     "ac": 17,
     "type": "Medium Fey",
@@ -4630,7 +4540,6 @@
   {
     "id": "2024-black-abishai",
     "name": "Black Abishai",
-    "source": "2024",
     "hp": 58,
     "ac": 15,
     "type": "Medium Fiend (devil)",
@@ -4685,7 +4594,6 @@
   {
     "id": "2024-black-bear",
     "name": "Black Bear",
-    "source": "2024",
     "hp": 19,
     "ac": 11,
     "type": "Medium Beast",
@@ -4717,7 +4625,6 @@
   {
     "id": "2024-black-dragon-wyrmling",
     "name": "Black Dragon Wyrmling",
-    "source": "2024",
     "hp": 33,
     "ac": 17,
     "type": "Medium Dragon (chromatic)",
@@ -4762,7 +4669,6 @@
   {
     "id": "2024-black-pudding",
     "name": "Black Pudding",
-    "source": "2024",
     "hp": 68,
     "ac": 7,
     "type": "Large Ooze",
@@ -4812,7 +4718,6 @@
   {
     "id": "2024-blackguard",
     "name": "Blackguard",
-    "source": "2024",
     "hp": 119,
     "ac": 18,
     "type": "Medium Humanoid (paladin)",
@@ -4859,7 +4764,6 @@
   {
     "id": "2024-blink-dog",
     "name": "Blink Dog",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Medium Fey",
@@ -4888,7 +4792,6 @@
   {
     "id": "2024-blob-of-annihilation",
     "name": "Blob of Annihilation",
-    "source": "2024",
     "hp": 448,
     "ac": 18,
     "type": "Gargantuan Ooze (titan)",
@@ -4960,7 +4863,6 @@
   {
     "id": "2024-blood-hawk",
     "name": "Blood Hawk",
-    "source": "2024",
     "hp": 7,
     "ac": 12,
     "type": "Small Beast",
@@ -4993,7 +4895,6 @@
   {
     "id": "2024-blue-abishai",
     "name": "Blue Abishai",
-    "source": "2024",
     "hp": 202,
     "ac": 19,
     "type": "Medium Fiend (devil, wizard)",
@@ -5048,7 +4949,6 @@
   {
     "id": "2024-blue-dragon-wyrmling",
     "name": "Blue Dragon Wyrmling",
-    "source": "2024",
     "hp": 65,
     "ac": 17,
     "type": "Medium Dragon (chromatic)",
@@ -5087,7 +4987,6 @@
   {
     "id": "2024-blue-slaad",
     "name": "Blue Slaad",
-    "source": "2024",
     "hp": 133,
     "ac": 15,
     "type": "Large Aberration",
@@ -5131,7 +5030,6 @@
   {
     "id": "2024-boar",
     "name": "Boar",
-    "source": "2024",
     "hp": 13,
     "ac": 11,
     "type": "Medium Beast",
@@ -5164,7 +5062,6 @@
   {
     "id": "2024-bodak",
     "name": "Bodak",
-    "source": "2024",
     "hp": 58,
     "ac": 15,
     "type": "Medium Undead",
@@ -5214,7 +5111,6 @@
   {
     "id": "2024-boggle",
     "name": "Boggle",
-    "source": "2024",
     "hp": 18,
     "ac": 14,
     "type": "Small Fey",
@@ -5248,7 +5144,6 @@
   {
     "id": "2024-bone-devil",
     "name": "Bone Devil",
-    "source": "2024",
     "hp": 161,
     "ac": 16,
     "type": "Large Fiend (devil)",
@@ -5299,7 +5194,6 @@
   {
     "id": "2024-bone-naga",
     "name": "Bone Naga",
-    "source": "2024",
     "hp": 65,
     "ac": 15,
     "type": "Large Undead",
@@ -5344,7 +5238,6 @@
   {
     "id": "2024-boneclaw",
     "name": "Boneclaw",
-    "source": "2024",
     "hp": 150,
     "ac": 16,
     "type": "Large Undead",
@@ -5400,7 +5293,6 @@
   {
     "id": "2024-brass-dragon-wyrmling",
     "name": "Brass Dragon Wyrmling",
-    "source": "2024",
     "hp": 22,
     "ac": 15,
     "type": "Medium Dragon (metallic)",
@@ -5439,7 +5331,6 @@
   {
     "id": "2024-brazen-gorgon",
     "name": "Brazen Gorgon",
-    "source": "2024",
     "hp": 161,
     "ac": 19,
     "type": "Large Construct",
@@ -5487,7 +5378,6 @@
   {
     "id": "2024-brontosaurus",
     "name": "Brontosaurus",
-    "source": "2024",
     "hp": 121,
     "ac": 15,
     "type": "Gargantuan Beast (dinosaur)",
@@ -5519,7 +5409,6 @@
   {
     "id": "2024-bronze-dragon-wyrmling",
     "name": "Bronze Dragon Wyrmling",
-    "source": "2024",
     "hp": 39,
     "ac": 15,
     "type": "Medium Dragon (metallic)",
@@ -5568,7 +5457,6 @@
   {
     "id": "2024-brown-bear",
     "name": "Brown Bear",
-    "source": "2024",
     "hp": 22,
     "ac": 11,
     "type": "Large Beast",
@@ -5604,7 +5492,6 @@
   {
     "id": "2024-bugbear-stalker",
     "name": "Bugbear Stalker",
-    "source": "2024",
     "hp": 65,
     "ac": 15,
     "type": "Medium Fey (goblinoid)",
@@ -5648,7 +5535,6 @@
   {
     "id": "2024-bugbear-warrior",
     "name": "Bugbear Warrior",
-    "source": "2024",
     "hp": 33,
     "ac": 14,
     "type": "Medium Fey (goblinoid)",
@@ -5687,7 +5573,6 @@
   {
     "id": "2024-bulette",
     "name": "Bulette",
-    "source": "2024",
     "hp": 94,
     "ac": 17,
     "type": "Large Monstrosity",
@@ -5723,7 +5608,6 @@
   {
     "id": "2024-bulette-pup",
     "name": "Bulette Pup",
-    "source": "2024",
     "hp": 45,
     "ac": 16,
     "type": "Medium Monstrosity",
@@ -5751,7 +5635,6 @@
   {
     "id": "2024-bulezau",
     "name": "Bulezau",
-    "source": "2024",
     "hp": 52,
     "ac": 14,
     "type": "Medium Fiend (demon)",
@@ -5797,7 +5680,6 @@
   {
     "id": "2024-bullywug-bog-sage",
     "name": "Bullywug Bog Sage",
-    "source": "2024",
     "hp": 52,
     "ac": 16,
     "type": "Medium Fey",
@@ -5844,7 +5726,6 @@
   {
     "id": "2024-bullywug-warrior",
     "name": "Bullywug Warrior",
-    "source": "2024",
     "hp": 11,
     "ac": 15,
     "type": "Medium Fey",
@@ -5882,7 +5763,6 @@
   {
     "id": "2024-cadaver-collector",
     "name": "Cadaver Collector",
-    "source": "2024",
     "hp": 189,
     "ac": 17,
     "type": "Large Construct",
@@ -5931,7 +5811,6 @@
   {
     "id": "2024-cambion",
     "name": "Cambion",
-    "source": "2024",
     "hp": 105,
     "ac": 19,
     "type": "Medium Fiend",
@@ -5977,7 +5856,6 @@
   {
     "id": "2024-camel",
     "name": "Camel",
-    "source": "2024",
     "hp": 17,
     "ac": 10,
     "type": "Large Beast",
@@ -6006,7 +5884,6 @@
   {
     "id": "2024-canoloth",
     "name": "Canoloth",
-    "source": "2024",
     "hp": 120,
     "ac": 16,
     "type": "Medium Fiend (yugoloth)",
@@ -6064,7 +5941,6 @@
   {
     "id": "2024-carrion-crawler",
     "name": "Carrion Crawler",
-    "source": "2024",
     "hp": 51,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -6106,7 +5982,6 @@
   {
     "id": "2024-cat",
     "name": "Cat",
-    "source": "2024",
     "hp": 2,
     "ac": 12,
     "type": "Tiny Beast",
@@ -6141,7 +6016,6 @@
   {
     "id": "2024-catoblepas",
     "name": "Catoblepas",
-    "source": "2024",
     "hp": 84,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -6179,7 +6053,6 @@
   {
     "id": "2024-cave-fisher",
     "name": "Cave Fisher",
-    "source": "2024",
     "hp": 58,
     "ac": 16,
     "type": "Medium Monstrosity",
@@ -6225,7 +6098,6 @@
   {
     "id": "2024-centaur-trooper",
     "name": "Centaur Trooper",
-    "source": "2024",
     "hp": 45,
     "ac": 16,
     "type": "Large Fey",
@@ -6261,7 +6133,6 @@
   {
     "id": "2024-centaur-warden",
     "name": "Centaur Warden",
-    "source": "2024",
     "hp": 105,
     "ac": 16,
     "type": "Large Fey",
@@ -6304,7 +6175,6 @@
   {
     "id": "2024-chain-devil",
     "name": "Chain Devil",
-    "source": "2024",
     "hp": 85,
     "ac": 15,
     "type": "Medium Fiend (devil)",
@@ -6361,7 +6231,6 @@
   {
     "id": "2024-champion",
     "name": "Champion",
-    "source": "2024",
     "hp": 143,
     "ac": 18,
     "type": "Medium Humanoid",
@@ -6404,7 +6273,6 @@
   {
     "id": "2024-chasme",
     "name": "Chasme",
-    "source": "2024",
     "hp": 78,
     "ac": 15,
     "type": "Large Fiend (demon)",
@@ -6451,7 +6319,6 @@
   {
     "id": "2024-chimera",
     "name": "Chimera",
-    "source": "2024",
     "hp": 114,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -6496,7 +6363,6 @@
   {
     "id": "2024-chitine",
     "name": "Chitine",
-    "source": "2024",
     "hp": 18,
     "ac": 14,
     "type": "Small Monstrosity",
@@ -6547,7 +6413,6 @@
   {
     "id": "2024-choker",
     "name": "Choker",
-    "source": "2024",
     "hp": 13,
     "ac": 16,
     "type": "Small Aberration",
@@ -6594,7 +6459,6 @@
   {
     "id": "2024-choldrith",
     "name": "Choldrith",
-    "source": "2024",
     "hp": 66,
     "ac": 15,
     "type": "Medium Monstrosity (cleric)",
@@ -6653,7 +6517,6 @@
   {
     "id": "2024-chuul",
     "name": "Chuul",
-    "source": "2024",
     "hp": 76,
     "ac": 16,
     "type": "Large Aberration",
@@ -6702,7 +6565,6 @@
   {
     "id": "2024-clay-golem",
     "name": "Clay Golem",
-    "source": "2024",
     "hp": 123,
     "ac": 14,
     "type": "Large Construct",
@@ -6756,7 +6618,6 @@
   {
     "id": "2024-cloaker",
     "name": "Cloaker",
-    "source": "2024",
     "hp": 91,
     "ac": 14,
     "type": "Large Aberration",
@@ -6804,7 +6665,6 @@
   {
     "id": "2024-clockwork-bronze-scout",
     "name": "Clockwork Bronze Scout",
-    "source": "2024",
     "hp": 36,
     "ac": 13,
     "type": "Medium Construct",
@@ -6853,7 +6713,6 @@
   {
     "id": "2024-clockwork-iron-cobra",
     "name": "Clockwork Iron Cobra",
-    "source": "2024",
     "hp": 91,
     "ac": 13,
     "type": "Medium Construct",
@@ -6894,7 +6753,6 @@
   {
     "id": "2024-clockwork-oaken-bolter",
     "name": "Clockwork Oaken Bolter",
-    "source": "2024",
     "hp": 117,
     "ac": 16,
     "type": "Medium Construct",
@@ -6947,7 +6805,6 @@
   {
     "id": "2024-clockwork-stone-defender",
     "name": "Clockwork Stone Defender",
-    "source": "2024",
     "hp": 105,
     "ac": 16,
     "type": "Medium Construct",
@@ -6994,7 +6851,6 @@
   {
     "id": "2024-cloud-giant",
     "name": "Cloud Giant",
-    "source": "2024",
     "hp": 200,
     "ac": 14,
     "type": "Huge Giant",
@@ -7041,7 +6897,6 @@
   {
     "id": "2024-cloud-giant-smiling-one",
     "name": "Cloud Giant Smiling One",
-    "source": "2024",
     "hp": 250,
     "ac": 15,
     "type": "Huge Giant",
@@ -7092,7 +6947,6 @@
   {
     "id": "2024-cockatrice",
     "name": "Cockatrice",
-    "source": "2024",
     "hp": 22,
     "ac": 11,
     "type": "Small Monstrosity",
@@ -7121,7 +6975,6 @@
   {
     "id": "2024-cockatrice-regent",
     "name": "Cockatrice Regent",
-    "source": "2024",
     "hp": 136,
     "ac": 15,
     "type": "Large Monstrosity",
@@ -7171,7 +7024,6 @@
   {
     "id": "2024-colossus",
     "name": "Colossus",
-    "source": "2024",
     "hp": 553,
     "ac": 23,
     "type": "Gargantuan Construct (titan)",
@@ -7244,7 +7096,6 @@
   {
     "id": "2024-commoner",
     "name": "Commoner",
-    "source": "2024",
     "hp": 4,
     "ac": 10,
     "type": "Small/Medium Humanoid",
@@ -7278,7 +7129,6 @@
   {
     "id": "2024-conjurer-wizard",
     "name": "Conjurer Wizard",
-    "source": "2024",
     "hp": 58,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -7317,7 +7167,6 @@
   {
     "id": "2024-constrictor-snake",
     "name": "Constrictor Snake",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Large Beast",
@@ -7349,7 +7198,6 @@
   {
     "id": "2024-copper-dragon-wyrmling",
     "name": "Copper Dragon Wyrmling",
-    "source": "2024",
     "hp": 22,
     "ac": 16,
     "type": "Medium Dragon (metallic)",
@@ -7388,7 +7236,6 @@
   {
     "id": "2024-corpse-flower",
     "name": "Corpse Flower",
-    "source": "2024",
     "hp": 127,
     "ac": 12,
     "type": "Large Plant",
@@ -7439,7 +7286,6 @@
   {
     "id": "2024-couatl",
     "name": "Couatl",
-    "source": "2024",
     "hp": 60,
     "ac": 19,
     "type": "Medium Celestial",
@@ -7489,7 +7335,6 @@
   {
     "id": "2024-crab",
     "name": "Crab",
-    "source": "2024",
     "hp": 3,
     "ac": 11,
     "type": "Tiny Beast",
@@ -7523,7 +7368,6 @@
   {
     "id": "2024-cranium-rat",
     "name": "Cranium Rat",
-    "source": "2024",
     "hp": 2,
     "ac": 12,
     "type": "Tiny Aberration",
@@ -7558,7 +7402,6 @@
   {
     "id": "2024-crawling-claw",
     "name": "Crawling Claw",
-    "source": "2024",
     "hp": 2,
     "ac": 12,
     "type": "Tiny Undead",
@@ -7589,7 +7432,6 @@
   {
     "id": "2024-crocodile",
     "name": "Crocodile",
-    "source": "2024",
     "hp": 13,
     "ac": 12,
     "type": "Large Beast",
@@ -7623,7 +7465,6 @@
   {
     "id": "2024-cultist",
     "name": "Cultist",
-    "source": "2024",
     "hp": 9,
     "ac": 12,
     "type": "Small/Medium Humanoid",
@@ -7652,7 +7493,6 @@
   {
     "id": "2024-cultist-fanatic",
     "name": "Cultist Fanatic",
-    "source": "2024",
     "hp": 44,
     "ac": 13,
     "type": "Small/Medium Humanoid",
@@ -7691,7 +7531,6 @@
   {
     "id": "2024-cultist-hierophant",
     "name": "Cultist Hierophant",
-    "source": "2024",
     "hp": 144,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -7734,7 +7573,6 @@
   {
     "id": "2024-cyclops-oracle",
     "name": "Cyclops Oracle",
-    "source": "2024",
     "hp": 207,
     "ac": 16,
     "type": "Huge Giant",
@@ -7784,7 +7622,6 @@
   {
     "id": "2024-cyclops-sentry",
     "name": "Cyclops Sentry",
-    "source": "2024",
     "hp": 138,
     "ac": 14,
     "type": "Huge Giant",
@@ -7826,7 +7663,6 @@
   {
     "id": "2024-dao",
     "name": "Dao",
-    "source": "2024",
     "hp": 200,
     "ac": 18,
     "type": "Large Elemental (genie)",
@@ -7887,7 +7723,6 @@
   {
     "id": "2024-darkling",
     "name": "Darkling",
-    "source": "2024",
     "hp": 13,
     "ac": 14,
     "type": "Small Fey",
@@ -7926,7 +7761,6 @@
   {
     "id": "2024-darkling-elder",
     "name": "Darkling Elder",
-    "source": "2024",
     "hp": 27,
     "ac": 15,
     "type": "Medium Fey",
@@ -7969,7 +7803,6 @@
   {
     "id": "2024-darkmantle",
     "name": "Darkmantle",
-    "source": "2024",
     "hp": 22,
     "ac": 11,
     "type": "Small Aberration",
@@ -8001,7 +7834,6 @@
   {
     "id": "2024-death-cultist",
     "name": "Death Cultist",
-    "source": "2024",
     "hp": 127,
     "ac": 17,
     "type": "Small/Medium Humanoid",
@@ -8044,7 +7876,6 @@
   {
     "id": "2024-death-dog",
     "name": "Death Dog",
-    "source": "2024",
     "hp": 39,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -8077,7 +7908,6 @@
   {
     "id": "2024-death-kiss",
     "name": "Death Kiss",
-    "source": "2024",
     "hp": 142,
     "ac": 15,
     "type": "Large Aberration (beholder)",
@@ -8123,7 +7953,6 @@
   {
     "id": "2024-death-knight",
     "name": "Death Knight",
-    "source": "2024",
     "hp": 199,
     "ac": 20,
     "type": "Small/Medium Undead",
@@ -8205,7 +8034,6 @@
   {
     "id": "2024-death-knight-aspirant",
     "name": "Death Knight Aspirant",
-    "source": "2024",
     "hp": 178,
     "ac": 20,
     "type": "Small/Medium Undead",
@@ -8265,7 +8093,6 @@
   {
     "id": "2024-death-slaad",
     "name": "Death Slaad",
-    "source": "2024",
     "hp": 178,
     "ac": 18,
     "type": "Medium Aberration",
@@ -8313,7 +8140,6 @@
   {
     "id": "2024-death-tyrant",
     "name": "Death Tyrant",
-    "source": "2024",
     "hp": 195,
     "ac": 19,
     "type": "Large Undead (beholder)",
@@ -8369,7 +8195,6 @@
   {
     "id": "2024-deathlock",
     "name": "Deathlock",
-    "source": "2024",
     "hp": 36,
     "ac": 12,
     "type": "Medium Undead (warlock)",
@@ -8424,7 +8249,6 @@
   {
     "id": "2024-deathlock-mastermind",
     "name": "Deathlock Mastermind",
-    "source": "2024",
     "hp": 110,
     "ac": 13,
     "type": "Medium Undead (warlock)",
@@ -8483,7 +8307,6 @@
   {
     "id": "2024-deathlock-wight",
     "name": "Deathlock Wight",
-    "source": "2024",
     "hp": 37,
     "ac": 12,
     "type": "Medium Undead (warlock)",
@@ -8538,7 +8361,6 @@
   {
     "id": "2024-deep-roth",
     "name": "Deep Rothé",
-    "source": "2024",
     "hp": 13,
     "ac": 10,
     "type": "Medium Beast (cattle)",
@@ -8576,7 +8398,6 @@
   {
     "id": "2024-deep-scion",
     "name": "Deep Scion",
-    "source": "2024",
     "hp": 67,
     "ac": 11,
     "type": "Medium Monstrosity",
@@ -8628,7 +8449,6 @@
   {
     "id": "2024-deer",
     "name": "Deer",
-    "source": "2024",
     "hp": 4,
     "ac": 13,
     "type": "Medium Beast",
@@ -8662,7 +8482,6 @@
   {
     "id": "2024-deinonychus",
     "name": "Deinonychus",
-    "source": "2024",
     "hp": 26,
     "ac": 13,
     "type": "Medium Beast (dinosaur)",
@@ -8703,7 +8522,6 @@
   {
     "id": "2024-demilich",
     "name": "Demilich",
-    "source": "2024",
     "hp": 180,
     "ac": 20,
     "type": "Tiny Undead",
@@ -8767,7 +8585,6 @@
   {
     "id": "2024-demogorgon",
     "name": "Demogorgon",
-    "source": "2024",
     "hp": 464,
     "ac": 22,
     "type": "Huge Fiend (demon)",
@@ -8840,7 +8657,6 @@
   {
     "id": "2024-derro",
     "name": "Derro",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Small Aberration",
@@ -8883,7 +8699,6 @@
   {
     "id": "2024-derro-savant",
     "name": "Derro Savant",
-    "source": "2024",
     "hp": 36,
     "ac": 13,
     "type": "Small Aberration (sorcerer)",
@@ -8930,7 +8745,6 @@
   {
     "id": "2024-deva",
     "name": "Deva",
-    "source": "2024",
     "hp": 229,
     "ac": 17,
     "type": "Medium Celestial (angel)",
@@ -8984,7 +8798,6 @@
   {
     "id": "2024-devourer",
     "name": "Devourer",
-    "source": "2024",
     "hp": 189,
     "ac": 16,
     "type": "Large Undead",
@@ -9034,7 +8847,6 @@
   {
     "id": "2024-dhergoloth",
     "name": "Dhergoloth",
-    "source": "2024",
     "hp": 119,
     "ac": 15,
     "type": "Medium Fiend (yugoloth)",
@@ -9089,7 +8901,6 @@
   {
     "id": "2024-dimetrodon",
     "name": "Dimetrodon",
-    "source": "2024",
     "hp": 19,
     "ac": 12,
     "type": "Medium Beast (dinosaur)",
@@ -9116,7 +8927,6 @@
   {
     "id": "2024-dire-troll",
     "name": "Dire Troll",
-    "source": "2024",
     "hp": 172,
     "ac": 15,
     "type": "Huge Giant",
@@ -9166,7 +8976,6 @@
   {
     "id": "2024-dire-wolf",
     "name": "Dire Wolf",
-    "source": "2024",
     "hp": 22,
     "ac": 14,
     "type": "Large Beast",
@@ -9200,7 +9009,6 @@
   {
     "id": "2024-dire-worg",
     "name": "Dire Worg",
-    "source": "2024",
     "hp": 147,
     "ac": 16,
     "type": "Huge Fey",
@@ -9244,7 +9052,6 @@
   {
     "id": "2024-displacer-beast",
     "name": "Displacer Beast",
-    "source": "2024",
     "hp": 76,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -9291,7 +9098,6 @@
   {
     "id": "2024-diviner-wizard",
     "name": "Diviner Wizard",
-    "source": "2024",
     "hp": 90,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -9340,7 +9146,6 @@
   {
     "id": "2024-djinni",
     "name": "Djinni",
-    "source": "2024",
     "hp": 218,
     "ac": 17,
     "type": "Large Elemental (genie)",
@@ -9401,7 +9206,6 @@
   {
     "id": "2024-dolphin",
     "name": "Dolphin",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Medium Beast",
@@ -9435,7 +9239,6 @@
   {
     "id": "2024-dolphin-delighter",
     "name": "Dolphin Delighter",
-    "source": "2024",
     "hp": 27,
     "ac": 14,
     "type": "Medium Fey",
@@ -9475,7 +9278,6 @@
   {
     "id": "2024-doppelganger",
     "name": "Doppelganger",
-    "source": "2024",
     "hp": 52,
     "ac": 14,
     "type": "Medium Monstrosity",
@@ -9519,7 +9321,6 @@
   {
     "id": "2024-dracolich",
     "name": "Dracolich",
-    "source": "2024",
     "hp": 225,
     "ac": 20,
     "type": "Huge/Gargantuan Undead",
@@ -9595,7 +9396,6 @@
   {
     "id": "2024-draegloth",
     "name": "Draegloth",
-    "source": "2024",
     "hp": 123,
     "ac": 15,
     "type": "Large Fiend (demon)",
@@ -9645,7 +9445,6 @@
   {
     "id": "2024-draft-horse",
     "name": "Draft Horse",
-    "source": "2024",
     "hp": 15,
     "ac": 10,
     "type": "Large Beast",
@@ -9672,7 +9471,6 @@
   {
     "id": "2024-dragon-turtle",
     "name": "Dragon Turtle",
-    "source": "2024",
     "hp": 356,
     "ac": 20,
     "type": "Gargantuan Dragon",
@@ -9721,7 +9519,6 @@
   {
     "id": "2024-dretch",
     "name": "Dretch",
-    "source": "2024",
     "hp": 18,
     "ac": 11,
     "type": "Small Fiend (demon)",
@@ -9757,7 +9554,6 @@
   {
     "id": "2024-drider",
     "name": "Drider",
-    "source": "2024",
     "hp": 123,
     "ac": 19,
     "type": "Large Monstrosity",
@@ -9812,7 +9608,6 @@
   {
     "id": "2024-drow-arachnomancer",
     "name": "Drow Arachnomancer",
-    "source": "2024",
     "hp": 162,
     "ac": 15,
     "type": "Medium Humanoid (elf)",
@@ -9877,7 +9672,6 @@
   {
     "id": "2024-drow-favored-consort",
     "name": "Drow Favored Consort",
-    "source": "2024",
     "hp": 240,
     "ac": 15,
     "type": "Medium Humanoid (elf, wizard)",
@@ -9935,7 +9729,6 @@
   {
     "id": "2024-drow-house-captain",
     "name": "Drow House Captain",
-    "source": "2024",
     "hp": 162,
     "ac": 16,
     "type": "Medium Humanoid (elf)",
@@ -9997,7 +9790,6 @@
   {
     "id": "2024-drow-inquisitor",
     "name": "Drow Inquisitor",
-    "source": "2024",
     "hp": 149,
     "ac": 16,
     "type": "Medium Humanoid (cleric, elf)",
@@ -10050,7 +9842,6 @@
   {
     "id": "2024-drow-matron-mother",
     "name": "Drow Matron Mother",
-    "source": "2024",
     "hp": 247,
     "ac": 17,
     "type": "Medium Humanoid (cleric, elf)",
@@ -10125,7 +9916,6 @@
   {
     "id": "2024-drow-shadowblade",
     "name": "Drow Shadowblade",
-    "source": "2024",
     "hp": 150,
     "ac": 17,
     "type": "Medium Humanoid (elf)",
@@ -10181,7 +9971,6 @@
   {
     "id": "2024-druid",
     "name": "Druid",
-    "source": "2024",
     "hp": 44,
     "ac": 13,
     "type": "Small/Medium Humanoid",
@@ -10223,7 +10012,6 @@
   {
     "id": "2024-dryad",
     "name": "Dryad",
-    "source": "2024",
     "hp": 22,
     "ac": 16,
     "type": "Medium Fey",
@@ -10274,7 +10062,6 @@
   {
     "id": "2024-duergar-despot",
     "name": "Duergar Despot",
-    "source": "2024",
     "hp": 119,
     "ac": 21,
     "type": "Medium Humanoid (dwarf)",
@@ -10336,7 +10123,6 @@
   {
     "id": "2024-duergar-hammerer",
     "name": "Duergar Hammerer",
-    "source": "2024",
     "hp": 33,
     "ac": 17,
     "type": "Medium Construct (dwarf)",
@@ -10387,7 +10173,6 @@
   {
     "id": "2024-duergar-kavalrachni",
     "name": "Duergar Kavalrachni",
-    "source": "2024",
     "hp": 26,
     "ac": 16,
     "type": "Medium Humanoid (dwarf)",
@@ -10443,7 +10228,6 @@
   {
     "id": "2024-duergar-mind-master",
     "name": "Duergar Mind Master",
-    "source": "2024",
     "hp": 39,
     "ac": 14,
     "type": "Medium Humanoid (dwarf)",
@@ -10496,7 +10280,6 @@
   {
     "id": "2024-duergar-screamer",
     "name": "Duergar Screamer",
-    "source": "2024",
     "hp": 38,
     "ac": 15,
     "type": "Medium Construct (dwarf)",
@@ -10541,7 +10324,6 @@
   {
     "id": "2024-duergar-soulblade",
     "name": "Duergar Soulblade",
-    "source": "2024",
     "hp": 27,
     "ac": 14,
     "type": "Medium Humanoid (dwarf)",
@@ -10585,7 +10367,6 @@
   {
     "id": "2024-duergar-stone-guard",
     "name": "Duergar Stone Guard",
-    "source": "2024",
     "hp": 39,
     "ac": 18,
     "type": "Medium Humanoid (dwarf)",
@@ -10641,7 +10422,6 @@
   {
     "id": "2024-duergar-warlord",
     "name": "Duergar Warlord",
-    "source": "2024",
     "hp": 75,
     "ac": 20,
     "type": "Medium Humanoid (dwarf)",
@@ -10703,7 +10483,6 @@
   {
     "id": "2024-duergar-xarrorn",
     "name": "Duergar Xarrorn",
-    "source": "2024",
     "hp": 26,
     "ac": 18,
     "type": "Medium Humanoid (dwarf)",
@@ -10751,7 +10530,6 @@
   {
     "id": "2024-dust-mephit",
     "name": "Dust Mephit",
-    "source": "2024",
     "hp": 17,
     "ac": 12,
     "type": "Small Elemental",
@@ -10796,7 +10574,6 @@
   {
     "id": "2024-dybbuk",
     "name": "Dybbuk",
-    "source": "2024",
     "hp": 37,
     "ac": 14,
     "type": "Medium Fiend (demon)",
@@ -10846,7 +10623,6 @@
   {
     "id": "2024-eagle",
     "name": "Eagle",
-    "source": "2024",
     "hp": 4,
     "ac": 12,
     "type": "Small Beast",
@@ -10873,7 +10649,6 @@
   {
     "id": "2024-earth-elemental",
     "name": "Earth Elemental",
-    "source": "2024",
     "hp": 147,
     "ac": 17,
     "type": "Large Elemental",
@@ -10922,7 +10697,6 @@
   {
     "id": "2024-earth-elemental-myrmidon",
     "name": "Earth Elemental Myrmidon",
-    "source": "2024",
     "hp": 127,
     "ac": 18,
     "type": "Medium Elemental",
@@ -10962,7 +10736,6 @@
   {
     "id": "2024-efreeti",
     "name": "Efreeti",
-    "source": "2024",
     "hp": 212,
     "ac": 17,
     "type": "Large Elemental (genie)",
@@ -11019,7 +10792,6 @@
   {
     "id": "2024-eidolon",
     "name": "Eidolon",
-    "source": "2024",
     "hp": 63,
     "ac": 9,
     "type": "Medium Undead",
@@ -11070,7 +10842,6 @@
   {
     "id": "2024-elder-brain",
     "name": "Elder Brain",
-    "source": "2024",
     "hp": 210,
     "ac": 10,
     "type": "Large Aberration (mind flayer)",
@@ -11144,7 +10915,6 @@
   {
     "id": "2024-elder-oblex",
     "name": "Elder Oblex",
-    "source": "2024",
     "hp": 115,
     "ac": 16,
     "type": "Huge Ooze",
@@ -11201,7 +10971,6 @@
   {
     "id": "2024-elder-tempest",
     "name": "Elder Tempest",
-    "source": "2024",
     "hp": 264,
     "ac": 19,
     "type": "Gargantuan Elemental",
@@ -11277,7 +11046,6 @@
   {
     "id": "2024-elemental-cataclysm",
     "name": "Elemental Cataclysm",
-    "source": "2024",
     "hp": 370,
     "ac": 20,
     "type": "Gargantuan Elemental (titan)",
@@ -11345,7 +11113,6 @@
   {
     "id": "2024-elemental-cultist",
     "name": "Elemental Cultist",
-    "source": "2024",
     "hp": 135,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -11394,7 +11161,6 @@
   {
     "id": "2024-elephant",
     "name": "Elephant",
-    "source": "2024",
     "hp": 76,
     "ac": 12,
     "type": "Huge Beast",
@@ -11425,7 +11191,6 @@
   {
     "id": "2024-elk",
     "name": "Elk",
-    "source": "2024",
     "hp": 11,
     "ac": 10,
     "type": "Large Beast",
@@ -11453,7 +11218,6 @@
   {
     "id": "2024-empyrean",
     "name": "Empyrean",
-    "source": "2024",
     "hp": 346,
     "ac": 22,
     "type": "Huge [object Object] (titan)",
@@ -11521,7 +11285,6 @@
   {
     "id": "2024-empyrean-iota",
     "name": "Empyrean Iota",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Medium [object Object] (titan)",
@@ -11570,7 +11333,6 @@
   {
     "id": "2024-enchanter-wizard",
     "name": "Enchanter Wizard",
-    "source": "2024",
     "hp": 49,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -11615,7 +11377,6 @@
   {
     "id": "2024-erinyes",
     "name": "Erinyes",
-    "source": "2024",
     "hp": 178,
     "ac": 18,
     "type": "Medium Fiend (devil)",
@@ -11676,7 +11437,6 @@
   {
     "id": "2024-ettercap",
     "name": "Ettercap",
-    "source": "2024",
     "hp": 44,
     "ac": 13,
     "type": "Medium Monstrosity",
@@ -11726,7 +11486,6 @@
   {
     "id": "2024-ettin",
     "name": "Ettin",
-    "source": "2024",
     "hp": 85,
     "ac": 12,
     "type": "Large Giant",
@@ -11764,7 +11523,6 @@
   {
     "id": "2024-evoker-wizard",
     "name": "Evoker Wizard",
-    "source": "2024",
     "hp": 121,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -11807,7 +11565,6 @@
   {
     "id": "2024-faerie-dragon-adult",
     "name": "Faerie Dragon Adult",
-    "source": "2024",
     "hp": 35,
     "ac": 15,
     "type": "Tiny Dragon",
@@ -11854,7 +11611,6 @@
   {
     "id": "2024-faerie-dragon-youth",
     "name": "Faerie Dragon Youth",
-    "source": "2024",
     "hp": 21,
     "ac": 13,
     "type": "Tiny Dragon",
@@ -11901,7 +11657,6 @@
   {
     "id": "2024-female-steeder",
     "name": "Female Steeder",
-    "source": "2024",
     "hp": 30,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -11943,7 +11698,6 @@
   {
     "id": "2024-fiend-cultist",
     "name": "Fiend Cultist",
-    "source": "2024",
     "hp": 127,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -11987,7 +11741,6 @@
   {
     "id": "2024-fire-elemental",
     "name": "Fire Elemental",
-    "source": "2024",
     "hp": 93,
     "ac": 13,
     "type": "Large Elemental",
@@ -12041,7 +11794,6 @@
   {
     "id": "2024-fire-elemental-myrmidon",
     "name": "Fire Elemental Myrmidon",
-    "source": "2024",
     "hp": 123,
     "ac": 18,
     "type": "Medium Elemental",
@@ -12091,7 +11843,6 @@
   {
     "id": "2024-fire-giant",
     "name": "Fire Giant",
-    "source": "2024",
     "hp": 162,
     "ac": 18,
     "type": "Huge Giant",
@@ -12129,7 +11880,6 @@
   {
     "id": "2024-fire-giant-dreadnought",
     "name": "Fire Giant Dreadnought",
-    "source": "2024",
     "hp": 187,
     "ac": 21,
     "type": "Huge Giant",
@@ -12177,7 +11927,6 @@
   {
     "id": "2024-firenewt-warlock-of-imix",
     "name": "Firenewt Warlock of Imix",
-    "source": "2024",
     "hp": 33,
     "ac": 10,
     "type": "Medium Elemental",
@@ -12233,7 +11982,6 @@
   {
     "id": "2024-firenewt-warrior",
     "name": "Firenewt Warrior",
-    "source": "2024",
     "hp": 27,
     "ac": 13,
     "type": "Medium Elemental",
@@ -12276,7 +12024,6 @@
   {
     "id": "2024-flail-snail",
     "name": "Flail Snail",
-    "source": "2024",
     "hp": 52,
     "ac": 16,
     "type": "Large Elemental",
@@ -12324,7 +12071,6 @@
   {
     "id": "2024-flameskull",
     "name": "Flameskull",
-    "source": "2024",
     "hp": 40,
     "ac": 13,
     "type": "Tiny Undead",
@@ -12377,7 +12123,6 @@
   {
     "id": "2024-flaming-skeleton",
     "name": "Flaming Skeleton",
-    "source": "2024",
     "hp": 65,
     "ac": 15,
     "type": "Medium Undead",
@@ -12426,7 +12171,6 @@
   {
     "id": "2024-flesh-golem",
     "name": "Flesh Golem",
-    "source": "2024",
     "hp": 127,
     "ac": 9,
     "type": "Medium Construct",
@@ -12483,7 +12227,6 @@
   {
     "id": "2024-flind",
     "name": "Flind",
-    "source": "2024",
     "hp": 127,
     "ac": 16,
     "type": "Medium Fiend (gnoll)",
@@ -12535,7 +12278,6 @@
   {
     "id": "2024-flumph",
     "name": "Flumph",
-    "source": "2024",
     "hp": 7,
     "ac": 12,
     "type": "Small Aberration",
@@ -12582,7 +12324,6 @@
   {
     "id": "2024-flying-snake",
     "name": "Flying Snake",
-    "source": "2024",
     "hp": 5,
     "ac": 14,
     "type": "Tiny Monstrosity",
@@ -12616,7 +12357,6 @@
   {
     "id": "2024-fomorian",
     "name": "Fomorian",
-    "source": "2024",
     "hp": 172,
     "ac": 14,
     "type": "Huge Giant",
@@ -12653,7 +12393,6 @@
   {
     "id": "2024-fraz-urb-luu",
     "name": "Fraz-Urb'luu",
-    "source": "2024",
     "hp": 337,
     "ac": 18,
     "type": "Large Fiend (demon)",
@@ -12726,7 +12465,6 @@
   {
     "id": "2024-frog",
     "name": "Frog",
-    "source": "2024",
     "hp": 1,
     "ac": 11,
     "type": "Tiny Beast",
@@ -12764,7 +12502,6 @@
   {
     "id": "2024-froghemoth",
     "name": "Froghemoth",
-    "source": "2024",
     "hp": 161,
     "ac": 14,
     "type": "Huge Monstrosity",
@@ -12816,7 +12553,6 @@
   {
     "id": "2024-frost-giant",
     "name": "Frost Giant",
-    "source": "2024",
     "hp": 149,
     "ac": 15,
     "type": "Huge Giant",
@@ -12854,7 +12590,6 @@
   {
     "id": "2024-frost-giant-everlasting-one",
     "name": "Frost Giant Everlasting One",
-    "source": "2024",
     "hp": 189,
     "ac": 15,
     "type": "Huge Giant",
@@ -12903,7 +12638,6 @@
   {
     "id": "2024-frost-salamander",
     "name": "Frost Salamander",
-    "source": "2024",
     "hp": 168,
     "ac": 17,
     "type": "Huge Elemental",
@@ -12952,7 +12686,6 @@
   {
     "id": "2024-galeb-duhr",
     "name": "Galeb Duhr",
-    "source": "2024",
     "hp": 123,
     "ac": 16,
     "type": "Medium Elemental",
@@ -12987,7 +12720,6 @@
   {
     "id": "2024-gargoyle",
     "name": "Gargoyle",
-    "source": "2024",
     "hp": 67,
     "ac": 15,
     "type": "Medium Elemental",
@@ -13028,7 +12760,6 @@
   {
     "id": "2024-gas-spore-fungus",
     "name": "Gas Spore Fungus",
-    "source": "2024",
     "hp": 13,
     "ac": 8,
     "type": "Large Plant",
@@ -13064,7 +12795,6 @@
   {
     "id": "2024-gauth",
     "name": "Gauth",
-    "source": "2024",
     "hp": 52,
     "ac": 15,
     "type": "Medium Aberration (beholder)",
@@ -13109,7 +12839,6 @@
   {
     "id": "2024-gazer",
     "name": "Gazer",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Tiny Aberration (beholder)",
@@ -13149,7 +12878,6 @@
   {
     "id": "2024-gelatinous-cube",
     "name": "Gelatinous Cube",
-    "source": "2024",
     "hp": 63,
     "ac": 6,
     "type": "Large Ooze",
@@ -13193,7 +12921,6 @@
   {
     "id": "2024-geryon",
     "name": "Geryon",
-    "source": "2024",
     "hp": 300,
     "ac": 19,
     "type": "Huge Fiend (devil)",
@@ -13270,7 +12997,6 @@
   {
     "id": "2024-ghast",
     "name": "Ghast",
-    "source": "2024",
     "hp": 36,
     "ac": 13,
     "type": "Medium Undead",
@@ -13313,7 +13039,6 @@
   {
     "id": "2024-ghast-gravecaller",
     "name": "Ghast Gravecaller",
-    "source": "2024",
     "hp": 97,
     "ac": 16,
     "type": "Medium Undead",
@@ -13363,7 +13088,6 @@
   {
     "id": "2024-ghost",
     "name": "Ghost",
-    "source": "2024",
     "hp": 45,
     "ac": 11,
     "type": "Medium Undead",
@@ -13421,7 +13145,6 @@
   {
     "id": "2024-ghoul",
     "name": "Ghoul",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Medium Undead",
@@ -13460,7 +13183,6 @@
   {
     "id": "2024-giant-ape",
     "name": "Giant Ape",
-    "source": "2024",
     "hp": 168,
     "ac": 12,
     "type": "Huge Beast",
@@ -13495,7 +13217,6 @@
   {
     "id": "2024-giant-axe-beak",
     "name": "Giant Axe Beak",
-    "source": "2024",
     "hp": 84,
     "ac": 15,
     "type": "Huge Monstrosity",
@@ -13530,7 +13251,6 @@
   {
     "id": "2024-giant-badger",
     "name": "Giant Badger",
-    "source": "2024",
     "hp": 15,
     "ac": 13,
     "type": "Medium Beast",
@@ -13559,7 +13279,6 @@
   {
     "id": "2024-giant-bat",
     "name": "Giant Bat",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Large Beast",
@@ -13587,7 +13306,6 @@
   {
     "id": "2024-giant-boar",
     "name": "Giant Boar",
-    "source": "2024",
     "hp": 42,
     "ac": 13,
     "type": "Large Beast",
@@ -13621,7 +13339,6 @@
   {
     "id": "2024-giant-centipede",
     "name": "Giant Centipede",
-    "source": "2024",
     "hp": 9,
     "ac": 14,
     "type": "Small Beast",
@@ -13649,7 +13366,6 @@
   {
     "id": "2024-giant-constrictor-snake",
     "name": "Giant Constrictor Snake",
-    "source": "2024",
     "hp": 60,
     "ac": 12,
     "type": "Huge Beast",
@@ -13685,7 +13401,6 @@
   {
     "id": "2024-giant-crab",
     "name": "Giant Crab",
-    "source": "2024",
     "hp": 13,
     "ac": 15,
     "type": "Medium Beast",
@@ -13719,7 +13434,6 @@
   {
     "id": "2024-giant-crocodile",
     "name": "Giant Crocodile",
-    "source": "2024",
     "hp": 85,
     "ac": 14,
     "type": "Huge Beast",
@@ -13760,7 +13474,6 @@
   {
     "id": "2024-giant-eagle",
     "name": "Giant Eagle",
-    "source": "2024",
     "hp": 26,
     "ac": 13,
     "type": "Large Celestial",
@@ -13793,7 +13506,6 @@
   {
     "id": "2024-giant-elk",
     "name": "Giant Elk",
-    "source": "2024",
     "hp": 42,
     "ac": 14,
     "type": "Huge Celestial",
@@ -13824,7 +13536,6 @@
   {
     "id": "2024-giant-fire-beetle",
     "name": "Giant Fire Beetle",
-    "source": "2024",
     "hp": 4,
     "ac": 13,
     "type": "Small Beast",
@@ -13859,7 +13570,6 @@
   {
     "id": "2024-giant-frog",
     "name": "Giant Frog",
-    "source": "2024",
     "hp": 18,
     "ac": 11,
     "type": "Medium Beast",
@@ -13901,7 +13611,6 @@
   {
     "id": "2024-giant-goat",
     "name": "Giant Goat",
-    "source": "2024",
     "hp": 19,
     "ac": 11,
     "type": "Large Beast",
@@ -13930,7 +13639,6 @@
   {
     "id": "2024-giant-hyena",
     "name": "Giant Hyena",
-    "source": "2024",
     "hp": 45,
     "ac": 12,
     "type": "Large Beast",
@@ -13958,7 +13666,6 @@
   {
     "id": "2024-giant-lizard",
     "name": "Giant Lizard",
-    "source": "2024",
     "hp": 19,
     "ac": 12,
     "type": "Large Beast",
@@ -13993,7 +13700,6 @@
   {
     "id": "2024-giant-octopus",
     "name": "Giant Octopus",
-    "source": "2024",
     "hp": 45,
     "ac": 11,
     "type": "Large Beast",
@@ -14033,7 +13739,6 @@
   {
     "id": "2024-giant-owl",
     "name": "Giant Owl",
-    "source": "2024",
     "hp": 19,
     "ac": 12,
     "type": "Large Celestial",
@@ -14074,7 +13779,6 @@
   {
     "id": "2024-giant-rat",
     "name": "Giant Rat",
-    "source": "2024",
     "hp": 7,
     "ac": 13,
     "type": "Small Beast",
@@ -14109,7 +13813,6 @@
   {
     "id": "2024-giant-scorpion",
     "name": "Giant Scorpion",
-    "source": "2024",
     "hp": 52,
     "ac": 15,
     "type": "Large Beast",
@@ -14145,7 +13848,6 @@
   {
     "id": "2024-giant-seahorse",
     "name": "Giant Seahorse",
-    "source": "2024",
     "hp": 16,
     "ac": 14,
     "type": "Large Beast",
@@ -14178,7 +13880,6 @@
   {
     "id": "2024-giant-shark",
     "name": "Giant Shark",
-    "source": "2024",
     "hp": 92,
     "ac": 13,
     "type": "Huge Beast",
@@ -14216,7 +13917,6 @@
   {
     "id": "2024-giant-spider",
     "name": "Giant Spider",
-    "source": "2024",
     "hp": 26,
     "ac": 14,
     "type": "Large Beast",
@@ -14258,7 +13958,6 @@
   {
     "id": "2024-giant-squid",
     "name": "Giant Squid",
-    "source": "2024",
     "hp": 120,
     "ac": 12,
     "type": "Huge Beast",
@@ -14307,7 +14006,6 @@
   {
     "id": "2024-giant-strider",
     "name": "Giant Strider",
-    "source": "2024",
     "hp": 22,
     "ac": 14,
     "type": "Large Elemental",
@@ -14345,7 +14043,6 @@
   {
     "id": "2024-giant-toad",
     "name": "Giant Toad",
-    "source": "2024",
     "hp": 39,
     "ac": 11,
     "type": "Large Beast",
@@ -14387,7 +14084,6 @@
   {
     "id": "2024-giant-venomous-snake",
     "name": "Giant Venomous Snake",
-    "source": "2024",
     "hp": 11,
     "ac": 14,
     "type": "Medium Beast",
@@ -14415,7 +14111,6 @@
   {
     "id": "2024-giant-vulture",
     "name": "Giant Vulture",
-    "source": "2024",
     "hp": 25,
     "ac": 10,
     "type": "Large Monstrosity",
@@ -14451,7 +14146,6 @@
   {
     "id": "2024-giant-wasp",
     "name": "Giant Wasp",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Medium Beast",
@@ -14484,7 +14178,6 @@
   {
     "id": "2024-giant-weasel",
     "name": "Giant Weasel",
-    "source": "2024",
     "hp": 9,
     "ac": 13,
     "type": "Medium Beast",
@@ -14512,7 +14205,6 @@
   {
     "id": "2024-giant-wolf-spider",
     "name": "Giant Wolf Spider",
-    "source": "2024",
     "hp": 11,
     "ac": 13,
     "type": "Medium Beast",
@@ -14546,7 +14238,6 @@
   {
     "id": "2024-gibbering-mouther",
     "name": "Gibbering Mouther",
-    "source": "2024",
     "hp": 52,
     "ac": 9,
     "type": "Medium Aberration",
@@ -14589,7 +14280,6 @@
   {
     "id": "2024-giff",
     "name": "Giff",
-    "source": "2024",
     "hp": 60,
     "ac": 16,
     "type": "Medium Humanoid",
@@ -14643,7 +14333,6 @@
   {
     "id": "2024-girallon",
     "name": "Girallon",
-    "source": "2024",
     "hp": 59,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -14679,7 +14368,6 @@
   {
     "id": "2024-githyanki-dracomancer",
     "name": "Githyanki Dracomancer",
-    "source": "2024",
     "hp": 255,
     "ac": 18,
     "type": "Medium Aberration (gith)",
@@ -14727,7 +14415,6 @@
   {
     "id": "2024-githyanki-gish",
     "name": "Githyanki Gish",
-    "source": "2024",
     "hp": 130,
     "ac": 17,
     "type": "Medium Humanoid (gith, wizard)",
@@ -14770,7 +14457,6 @@
   {
     "id": "2024-githyanki-kith-rak",
     "name": "Githyanki Kith'rak",
-    "source": "2024",
     "hp": 180,
     "ac": 18,
     "type": "Medium Humanoid (gith)",
@@ -14815,7 +14501,6 @@
   {
     "id": "2024-githyanki-knight",
     "name": "Githyanki Knight",
-    "source": "2024",
     "hp": 117,
     "ac": 18,
     "type": "Medium Aberration (gith)",
@@ -14858,7 +14543,6 @@
   {
     "id": "2024-githyanki-supreme-commander",
     "name": "Githyanki Supreme Commander",
-    "source": "2024",
     "hp": 187,
     "ac": 18,
     "type": "Medium Humanoid (gith)",
@@ -14917,7 +14601,6 @@
   {
     "id": "2024-githyanki-warrior",
     "name": "Githyanki Warrior",
-    "source": "2024",
     "hp": 49,
     "ac": 17,
     "type": "Medium Aberration (gith)",
@@ -14960,7 +14643,6 @@
   {
     "id": "2024-githzerai-anarch",
     "name": "Githzerai Anarch",
-    "source": "2024",
     "hp": 144,
     "ac": 20,
     "type": "Medium Humanoid (gith)",
@@ -15021,7 +14703,6 @@
   {
     "id": "2024-githzerai-enlightened",
     "name": "Githzerai Enlightened",
-    "source": "2024",
     "hp": 112,
     "ac": 18,
     "type": "Medium Humanoid (gith)",
@@ -15074,7 +14755,6 @@
   {
     "id": "2024-githzerai-monk",
     "name": "Githzerai Monk",
-    "source": "2024",
     "hp": 38,
     "ac": 14,
     "type": "Medium Aberration (gith)",
@@ -15121,7 +14801,6 @@
   {
     "id": "2024-githzerai-psion",
     "name": "Githzerai Psion",
-    "source": "2024",
     "hp": 169,
     "ac": 18,
     "type": "Medium Aberration (gith)",
@@ -15164,7 +14843,6 @@
   {
     "id": "2024-githzerai-zerth",
     "name": "Githzerai Zerth",
-    "source": "2024",
     "hp": 84,
     "ac": 17,
     "type": "Medium Aberration (gith)",
@@ -15211,7 +14889,6 @@
   {
     "id": "2024-glabrezu",
     "name": "Glabrezu",
-    "source": "2024",
     "hp": 189,
     "ac": 17,
     "type": "Large Fiend (demon)",
@@ -15266,7 +14943,6 @@
   {
     "id": "2024-gladiator",
     "name": "Gladiator",
-    "source": "2024",
     "hp": 112,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -15309,7 +14985,6 @@
   {
     "id": "2024-gloomwillow",
     "name": "Gloomwillow",
-    "source": "2024",
     "hp": 130,
     "ac": 15,
     "type": "Large Plant",
@@ -15364,7 +15039,6 @@
   {
     "id": "2024-gnoll-demoniac",
     "name": "Gnoll Demoniac",
-    "source": "2024",
     "hp": 135,
     "ac": 16,
     "type": "Medium Fiend",
@@ -15402,7 +15076,6 @@
   {
     "id": "2024-gnoll-fang-of-yeenoghu",
     "name": "Gnoll Fang of Yeenoghu",
-    "source": "2024",
     "hp": 71,
     "ac": 14,
     "type": "Medium Fiend",
@@ -15440,7 +15113,6 @@
   {
     "id": "2024-gnoll-flesh-gnawer",
     "name": "Gnoll Flesh Gnawer",
-    "source": "2024",
     "hp": 22,
     "ac": 14,
     "type": "Medium Monstrosity",
@@ -15482,7 +15154,6 @@
   {
     "id": "2024-gnoll-hunter",
     "name": "Gnoll Hunter",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Medium Monstrosity",
@@ -15523,7 +15194,6 @@
   {
     "id": "2024-gnoll-pack-lord",
     "name": "Gnoll Pack Lord",
-    "source": "2024",
     "hp": 49,
     "ac": 15,
     "type": "Medium Fiend",
@@ -15564,7 +15234,6 @@
   {
     "id": "2024-gnoll-warrior",
     "name": "Gnoll Warrior",
-    "source": "2024",
     "hp": 27,
     "ac": 15,
     "type": "Medium Fiend",
@@ -15597,7 +15266,6 @@
   {
     "id": "2024-gnoll-witherling",
     "name": "Gnoll Witherling",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Medium Undead",
@@ -15648,7 +15316,6 @@
   {
     "id": "2024-goat",
     "name": "Goat",
-    "source": "2024",
     "hp": 4,
     "ac": 10,
     "type": "Medium Beast",
@@ -15677,7 +15344,6 @@
   {
     "id": "2024-goblin-boss",
     "name": "Goblin Boss",
-    "source": "2024",
     "hp": 21,
     "ac": 17,
     "type": "Small Fey (goblinoid)",
@@ -15720,7 +15386,6 @@
   {
     "id": "2024-goblin-hexer",
     "name": "Goblin Hexer",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Small Fey (goblinoid)",
@@ -15765,7 +15430,6 @@
   {
     "id": "2024-goblin-minion",
     "name": "Goblin Minion",
-    "source": "2024",
     "hp": 7,
     "ac": 12,
     "type": "Small Fey (goblinoid)",
@@ -15794,7 +15458,6 @@
   {
     "id": "2024-goblin-warrior",
     "name": "Goblin Warrior",
-    "source": "2024",
     "hp": 10,
     "ac": 15,
     "type": "Small Fey (goblinoid)",
@@ -15827,7 +15490,6 @@
   {
     "id": "2024-gold-dragon-wyrmling",
     "name": "Gold Dragon Wyrmling",
-    "source": "2024",
     "hp": 60,
     "ac": 17,
     "type": "Medium Dragon (metallic)",
@@ -15876,7 +15538,6 @@
   {
     "id": "2024-gorgon",
     "name": "Gorgon",
-    "source": "2024",
     "hp": 114,
     "ac": 19,
     "type": "Large Construct",
@@ -15909,7 +15570,6 @@
   {
     "id": "2024-goristro",
     "name": "Goristro",
-    "source": "2024",
     "hp": 310,
     "ac": 19,
     "type": "Huge Fiend (demon)",
@@ -15964,7 +15624,6 @@
   {
     "id": "2024-graveyard-revenant",
     "name": "Graveyard Revenant",
-    "source": "2024",
     "hp": 161,
     "ac": 14,
     "type": "Huge Undead",
@@ -16011,7 +15670,6 @@
   {
     "id": "2024-gray-ooze",
     "name": "Gray Ooze",
-    "source": "2024",
     "hp": 22,
     "ac": 9,
     "type": "Medium Ooze",
@@ -16051,7 +15709,6 @@
   {
     "id": "2024-gray-render",
     "name": "Gray Render",
-    "source": "2024",
     "hp": 189,
     "ac": 19,
     "type": "Large Monstrosity",
@@ -16094,7 +15751,6 @@
   {
     "id": "2024-gray-slaad",
     "name": "Gray Slaad",
-    "source": "2024",
     "hp": 150,
     "ac": 18,
     "type": "Medium Aberration",
@@ -16142,7 +15798,6 @@
   {
     "id": "2024-graz-zt",
     "name": "Graz'zt",
-    "source": "2024",
     "hp": 346,
     "ac": 20,
     "type": "Large Fiend (demon)",
@@ -16217,7 +15872,6 @@
   {
     "id": "2024-green-abishai",
     "name": "Green Abishai",
-    "source": "2024",
     "hp": 195,
     "ac": 18,
     "type": "Medium Fiend (devil)",
@@ -16268,7 +15922,6 @@
   {
     "id": "2024-green-dragon-wyrmling",
     "name": "Green Dragon Wyrmling",
-    "source": "2024",
     "hp": 38,
     "ac": 17,
     "type": "Medium Dragon (chromatic)",
@@ -16314,7 +15967,6 @@
   {
     "id": "2024-green-hag",
     "name": "Green Hag",
-    "source": "2024",
     "hp": 82,
     "ac": 17,
     "type": "Medium Fey",
@@ -16365,7 +16017,6 @@
   {
     "id": "2024-green-slaad",
     "name": "Green Slaad",
-    "source": "2024",
     "hp": 144,
     "ac": 16,
     "type": "Large Aberration",
@@ -16413,7 +16064,6 @@
   {
     "id": "2024-grell",
     "name": "Grell",
-    "source": "2024",
     "hp": 55,
     "ac": 12,
     "type": "Medium Aberration",
@@ -16458,7 +16108,6 @@
   {
     "id": "2024-grick",
     "name": "Grick",
-    "source": "2024",
     "hp": 54,
     "ac": 14,
     "type": "Medium Aberration",
@@ -16494,7 +16143,6 @@
   {
     "id": "2024-grick-ancient",
     "name": "Grick Ancient",
-    "source": "2024",
     "hp": 135,
     "ac": 18,
     "type": "Large Aberration",
@@ -16534,7 +16182,6 @@
   {
     "id": "2024-griffon",
     "name": "Griffon",
-    "source": "2024",
     "hp": 59,
     "ac": 12,
     "type": "Large Monstrosity",
@@ -16566,7 +16213,6 @@
   {
     "id": "2024-grimlock",
     "name": "Grimlock",
-    "source": "2024",
     "hp": 11,
     "ac": 11,
     "type": "Medium Aberration",
@@ -16594,7 +16240,6 @@
   {
     "id": "2024-grung",
     "name": "Grung",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Small Humanoid",
@@ -16643,7 +16288,6 @@
   {
     "id": "2024-grung-elite-warrior",
     "name": "Grung Elite Warrior",
-    "source": "2024",
     "hp": 49,
     "ac": 13,
     "type": "Small Humanoid",
@@ -16700,7 +16344,6 @@
   {
     "id": "2024-grung-wildling",
     "name": "Grung Wildling",
-    "source": "2024",
     "hp": 27,
     "ac": 16,
     "type": "Small Humanoid",
@@ -16757,7 +16400,6 @@
   {
     "id": "2024-guard",
     "name": "Guard",
-    "source": "2024",
     "hp": 11,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -16785,7 +16427,6 @@
   {
     "id": "2024-guard-captain",
     "name": "Guard Captain",
-    "source": "2024",
     "hp": 75,
     "ac": 18,
     "type": "Small/Medium Humanoid",
@@ -16821,7 +16462,6 @@
   {
     "id": "2024-guard-drake",
     "name": "Guard Drake",
-    "source": "2024",
     "hp": 52,
     "ac": 14,
     "type": "Medium Dragon",
@@ -16858,7 +16498,6 @@
   {
     "id": "2024-guardian-naga",
     "name": "Guardian Naga",
-    "source": "2024",
     "hp": 136,
     "ac": 18,
     "type": "Large Celestial",
@@ -16908,7 +16547,6 @@
   {
     "id": "2024-gulthias-blight",
     "name": "Gulthias Blight",
-    "source": "2024",
     "hp": 264,
     "ac": 20,
     "type": "Gargantuan Plant",
@@ -16957,7 +16595,6 @@
   {
     "id": "2024-hadrosaurus",
     "name": "Hadrosaurus",
-    "source": "2024",
     "hp": 19,
     "ac": 11,
     "type": "Large Beast (dinosaur)",
@@ -16984,7 +16621,6 @@
   {
     "id": "2024-half-dragon",
     "name": "Half-Dragon",
-    "source": "2024",
     "hp": 105,
     "ac": 18,
     "type": "Medium Dragon",
@@ -17029,7 +16665,6 @@
   {
     "id": "2024-harpy",
     "name": "Harpy",
-    "source": "2024",
     "hp": 38,
     "ac": 11,
     "type": "Medium Monstrosity",
@@ -17061,7 +16696,6 @@
   {
     "id": "2024-haunting-revenant",
     "name": "Haunting Revenant",
-    "source": "2024",
     "hp": 203,
     "ac": 20,
     "type": "Gargantuan Undead",
@@ -17112,7 +16746,6 @@
   {
     "id": "2024-hawk",
     "name": "Hawk",
-    "source": "2024",
     "hp": 1,
     "ac": 13,
     "type": "Tiny Beast",
@@ -17139,7 +16772,6 @@
   {
     "id": "2024-hell-hound",
     "name": "Hell Hound",
-    "source": "2024",
     "hp": 58,
     "ac": 15,
     "type": "Medium Fiend",
@@ -17183,7 +16815,6 @@
   {
     "id": "2024-hellfire-engine",
     "name": "Hellfire Engine",
-    "source": "2024",
     "hp": 216,
     "ac": 18,
     "type": "Huge Construct",
@@ -17234,7 +16865,6 @@
   {
     "id": "2024-helmed-horror",
     "name": "Helmed Horror",
-    "source": "2024",
     "hp": 67,
     "ac": 20,
     "type": "Medium Construct",
@@ -17279,7 +16909,6 @@
   {
     "id": "2024-hezrou",
     "name": "Hezrou",
-    "source": "2024",
     "hp": 157,
     "ac": 18,
     "type": "Large Fiend (demon)",
@@ -17330,7 +16959,6 @@
   {
     "id": "2024-hill-giant",
     "name": "Hill Giant",
-    "source": "2024",
     "hp": 105,
     "ac": 13,
     "type": "Huge Giant",
@@ -17366,7 +16994,6 @@
   {
     "id": "2024-hippogriff",
     "name": "Hippogriff",
-    "source": "2024",
     "hp": 26,
     "ac": 11,
     "type": "Large Monstrosity",
@@ -17403,7 +17030,6 @@
   {
     "id": "2024-hippopotamus",
     "name": "Hippopotamus",
-    "source": "2024",
     "hp": 82,
     "ac": 14,
     "type": "Large Beast",
@@ -17441,7 +17067,6 @@
   {
     "id": "2024-hobgoblin-captain",
     "name": "Hobgoblin Captain",
-    "source": "2024",
     "hp": 58,
     "ac": 17,
     "type": "Medium Fey (goblinoid)",
@@ -17484,7 +17109,6 @@
   {
     "id": "2024-hobgoblin-devastator",
     "name": "Hobgoblin Devastator",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Medium Fey (goblinoid)",
@@ -17531,7 +17155,6 @@
   {
     "id": "2024-hobgoblin-iron-shadow",
     "name": "Hobgoblin Iron Shadow",
-    "source": "2024",
     "hp": 32,
     "ac": 15,
     "type": "Medium Fey (goblinoid)",
@@ -17582,7 +17205,6 @@
   {
     "id": "2024-hobgoblin-warlord",
     "name": "Hobgoblin Warlord",
-    "source": "2024",
     "hp": 112,
     "ac": 20,
     "type": "Medium Fey (goblinoid)",
@@ -17632,7 +17254,6 @@
   {
     "id": "2024-hobgoblin-warrior",
     "name": "Hobgoblin Warrior",
-    "source": "2024",
     "hp": 11,
     "ac": 18,
     "type": "Medium Fey (goblinoid)",
@@ -17671,7 +17292,6 @@
   {
     "id": "2024-homunculus",
     "name": "Homunculus",
-    "source": "2024",
     "hp": 4,
     "ac": 13,
     "type": "Tiny Construct",
@@ -17709,7 +17329,6 @@
   {
     "id": "2024-hook-horror",
     "name": "Hook Horror",
-    "source": "2024",
     "hp": 75,
     "ac": 15,
     "type": "Large Monstrosity",
@@ -17743,7 +17362,6 @@
   {
     "id": "2024-horned-devil",
     "name": "Horned Devil",
-    "source": "2024",
     "hp": 199,
     "ac": 18,
     "type": "Large Fiend (devil)",
@@ -17797,7 +17415,6 @@
   {
     "id": "2024-howler",
     "name": "Howler",
-    "source": "2024",
     "hp": 90,
     "ac": 16,
     "type": "Large Fiend",
@@ -17842,7 +17459,6 @@
   {
     "id": "2024-hungry-sorrowsworn",
     "name": "Hungry Sorrowsworn",
-    "source": "2024",
     "hp": 225,
     "ac": 17,
     "type": "Medium Monstrosity",
@@ -17886,7 +17502,6 @@
   {
     "id": "2024-hunter-shark",
     "name": "Hunter Shark",
-    "source": "2024",
     "hp": 45,
     "ac": 12,
     "type": "Large Beast",
@@ -17920,7 +17535,6 @@
   {
     "id": "2024-hutijin",
     "name": "Hutijin",
-    "source": "2024",
     "hp": 200,
     "ac": 19,
     "type": "Large Fiend (devil)",
@@ -18015,7 +17629,6 @@
   {
     "id": "2024-hydra",
     "name": "Hydra",
-    "source": "2024",
     "hp": 184,
     "ac": 15,
     "type": "Huge Monstrosity",
@@ -18062,7 +17675,6 @@
   {
     "id": "2024-hydroloth",
     "name": "Hydroloth",
-    "source": "2024",
     "hp": 135,
     "ac": 15,
     "type": "Medium Fiend (yugoloth)",
@@ -18132,7 +17744,6 @@
   {
     "id": "2024-hyena",
     "name": "Hyena",
-    "source": "2024",
     "hp": 5,
     "ac": 11,
     "type": "Medium Beast",
@@ -18166,7 +17777,6 @@
   {
     "id": "2024-ice-devil",
     "name": "Ice Devil",
-    "source": "2024",
     "hp": 228,
     "ac": 18,
     "type": "Large Fiend (devil)",
@@ -18220,7 +17830,6 @@
   {
     "id": "2024-ice-mephit",
     "name": "Ice Mephit",
-    "source": "2024",
     "hp": 21,
     "ac": 11,
     "type": "Small Elemental",
@@ -18265,7 +17874,6 @@
   {
     "id": "2024-illusionist-wizard",
     "name": "Illusionist Wizard",
-    "source": "2024",
     "hp": 44,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -18304,7 +17912,6 @@
   {
     "id": "2024-imp",
     "name": "Imp",
-    "source": "2024",
     "hp": 21,
     "ac": 13,
     "type": "Tiny Fiend (devil)",
@@ -18350,7 +17957,6 @@
   {
     "id": "2024-incubus",
     "name": "Incubus",
-    "source": "2024",
     "hp": 66,
     "ac": 15,
     "type": "Medium Fiend",
@@ -18394,7 +18000,6 @@
   {
     "id": "2024-intellect-devourer",
     "name": "Intellect Devourer",
-    "source": "2024",
     "hp": 28,
     "ac": 12,
     "type": "Tiny Aberration",
@@ -18442,7 +18047,6 @@
   {
     "id": "2024-invisible-stalker",
     "name": "Invisible Stalker",
-    "source": "2024",
     "hp": 97,
     "ac": 14,
     "type": "Large Elemental",
@@ -18492,7 +18096,6 @@
   {
     "id": "2024-iron-golem",
     "name": "Iron Golem",
-    "source": "2024",
     "hp": 252,
     "ac": 20,
     "type": "Large Construct",
@@ -18549,7 +18152,6 @@
   {
     "id": "2024-jackal",
     "name": "Jackal",
-    "source": "2024",
     "hp": 3,
     "ac": 12,
     "type": "Small Beast",
@@ -18577,7 +18179,6 @@
   {
     "id": "2024-jackalwere",
     "name": "Jackalwere",
-    "source": "2024",
     "hp": 18,
     "ac": 12,
     "type": "Small Fiend",
@@ -18624,7 +18225,6 @@
   {
     "id": "2024-juiblex",
     "name": "Juiblex",
-    "source": "2024",
     "hp": 350,
     "ac": 18,
     "type": "Huge Fiend (demon)",
@@ -18701,7 +18301,6 @@
   {
     "id": "2024-juvenile-shadow-dragon",
     "name": "Juvenile Shadow Dragon",
-    "source": "2024",
     "hp": 45,
     "ac": 15,
     "type": "Medium Dragon",
@@ -18751,7 +18350,6 @@
   {
     "id": "2024-kenku",
     "name": "Kenku",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Medium Monstrosity",
@@ -18790,7 +18388,6 @@
   {
     "id": "2024-ki-rin",
     "name": "Ki-rin",
-    "source": "2024",
     "hp": 153,
     "ac": 20,
     "type": "Large Celestial",
@@ -18857,7 +18454,6 @@
   {
     "id": "2024-killer-whale",
     "name": "Killer Whale",
-    "source": "2024",
     "hp": 90,
     "ac": 12,
     "type": "Huge Beast",
@@ -18891,7 +18487,6 @@
   {
     "id": "2024-knight",
     "name": "Knight",
-    "source": "2024",
     "hp": 52,
     "ac": 18,
     "type": "Small/Medium Humanoid",
@@ -18935,7 +18530,6 @@
   {
     "id": "2024-kobold-dragonshield",
     "name": "Kobold Dragonshield",
-    "source": "2024",
     "hp": 44,
     "ac": 15,
     "type": "Small Dragon",
@@ -18987,7 +18581,6 @@
   {
     "id": "2024-kobold-inventor",
     "name": "Kobold Inventor",
-    "source": "2024",
     "hp": 13,
     "ac": 12,
     "type": "Small Humanoid",
@@ -19034,7 +18627,6 @@
   {
     "id": "2024-kobold-scale-sorcerer",
     "name": "Kobold Scale Sorcerer",
-    "source": "2024",
     "hp": 27,
     "ac": 15,
     "type": "Small Humanoid",
@@ -19085,7 +18677,6 @@
   {
     "id": "2024-kobold-warrior",
     "name": "Kobold Warrior",
-    "source": "2024",
     "hp": 7,
     "ac": 14,
     "type": "Small Dragon",
@@ -19124,7 +18715,6 @@
   {
     "id": "2024-korred",
     "name": "Korred",
-    "source": "2024",
     "hp": 93,
     "ac": 17,
     "type": "Small Fey",
@@ -19172,7 +18762,6 @@
   {
     "id": "2024-kraken",
     "name": "Kraken",
-    "source": "2024",
     "hp": 481,
     "ac": 18,
     "type": "Gargantuan Monstrosity (titan)",
@@ -19244,7 +18833,6 @@
   {
     "id": "2024-kraken-priest",
     "name": "Kraken Priest",
-    "source": "2024",
     "hp": 75,
     "ac": 15,
     "type": "Medium Monstrosity",
@@ -19294,7 +18882,6 @@
   {
     "id": "2024-kruthik-hive-lord",
     "name": "Kruthik Hive Lord",
-    "source": "2024",
     "hp": 102,
     "ac": 20,
     "type": "Large Monstrosity",
@@ -19345,7 +18932,6 @@
   {
     "id": "2024-kuo-toa",
     "name": "Kuo-toa",
-    "source": "2024",
     "hp": 18,
     "ac": 13,
     "type": "Medium Aberration",
@@ -19394,7 +18980,6 @@
   {
     "id": "2024-kuo-toa-archpriest",
     "name": "Kuo-toa Archpriest",
-    "source": "2024",
     "hp": 105,
     "ac": 13,
     "type": "Medium Aberration",
@@ -19445,7 +19030,6 @@
   {
     "id": "2024-kuo-toa-monitor",
     "name": "Kuo-toa Monitor",
-    "source": "2024",
     "hp": 65,
     "ac": 13,
     "type": "Medium Aberration",
@@ -19488,7 +19072,6 @@
   {
     "id": "2024-kuo-toa-whip",
     "name": "Kuo-toa Whip",
-    "source": "2024",
     "hp": 45,
     "ac": 11,
     "type": "Medium Aberration",
@@ -19535,7 +19118,6 @@
   {
     "id": "2024-lacedon-ghoul",
     "name": "Lacedon Ghoul",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Medium Undead",
@@ -19575,7 +19157,6 @@
   {
     "id": "2024-lamia",
     "name": "Lamia",
-    "source": "2024",
     "hp": 97,
     "ac": 13,
     "type": "Large Fiend",
@@ -19618,7 +19199,6 @@
   {
     "id": "2024-larva",
     "name": "Larva",
-    "source": "2024",
     "hp": 9,
     "ac": 9,
     "type": "Medium Fiend",
@@ -19647,7 +19227,6 @@
   {
     "id": "2024-lemure",
     "name": "Lemure",
-    "source": "2024",
     "hp": 9,
     "ac": 9,
     "type": "Medium Fiend (devil)",
@@ -19685,7 +19264,6 @@
   {
     "id": "2024-leucrotta",
     "name": "Leucrotta",
-    "source": "2024",
     "hp": 67,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -19732,7 +19310,6 @@
   {
     "id": "2024-leviathan",
     "name": "Leviathan",
-    "source": "2024",
     "hp": 328,
     "ac": 17,
     "type": "Gargantuan Elemental",
@@ -19804,7 +19381,6 @@
   {
     "id": "2024-lich",
     "name": "Lich",
-    "source": "2024",
     "hp": 315,
     "ac": 20,
     "type": "Medium Undead (wizard)",
@@ -19877,7 +19453,6 @@
   {
     "id": "2024-lion",
     "name": "Lion",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Large Beast",
@@ -19923,7 +19498,6 @@
   {
     "id": "2024-lizard",
     "name": "Lizard",
-    "source": "2024",
     "hp": 2,
     "ac": 10,
     "type": "Tiny Beast",
@@ -19957,7 +19531,6 @@
   {
     "id": "2024-lizardfolk-geomancer",
     "name": "Lizardfolk Geomancer",
-    "source": "2024",
     "hp": 33,
     "ac": 13,
     "type": "Medium Elemental",
@@ -19999,7 +19572,6 @@
   {
     "id": "2024-lizardfolk-sovereign",
     "name": "Lizardfolk Sovereign",
-    "source": "2024",
     "hp": 78,
     "ac": 15,
     "type": "Medium Elemental",
@@ -20038,7 +19610,6 @@
   {
     "id": "2024-lonely-sorrowsworn",
     "name": "Lonely Sorrowsworn",
-    "source": "2024",
     "hp": 112,
     "ac": 16,
     "type": "Medium Monstrosity",
@@ -20086,7 +19657,6 @@
   {
     "id": "2024-lost-sorrowsworn",
     "name": "Lost Sorrowsworn",
-    "source": "2024",
     "hp": 78,
     "ac": 15,
     "type": "Medium Monstrosity",
@@ -20130,7 +19700,6 @@
   {
     "id": "2024-mage",
     "name": "Mage",
-    "source": "2024",
     "hp": 81,
     "ac": 15,
     "type": "Small/Medium Humanoid (wizard)",
@@ -20177,7 +19746,6 @@
   {
     "id": "2024-mage-apprentice",
     "name": "Mage Apprentice",
-    "source": "2024",
     "hp": 49,
     "ac": 15,
     "type": "Small/Medium Humanoid (wizard)",
@@ -20212,7 +19780,6 @@
   {
     "id": "2024-magma-mephit",
     "name": "Magma Mephit",
-    "source": "2024",
     "hp": 18,
     "ac": 11,
     "type": "Small Elemental",
@@ -20253,7 +19820,6 @@
   {
     "id": "2024-magmin",
     "name": "Magmin",
-    "source": "2024",
     "hp": 13,
     "ac": 14,
     "type": "Small Elemental",
@@ -20289,7 +19855,6 @@
   {
     "id": "2024-male-steeder",
     "name": "Male Steeder",
-    "source": "2024",
     "hp": 13,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -20331,7 +19896,6 @@
   {
     "id": "2024-mammoth",
     "name": "Mammoth",
-    "source": "2024",
     "hp": 126,
     "ac": 13,
     "type": "Huge Beast",
@@ -20363,7 +19927,6 @@
   {
     "id": "2024-manes",
     "name": "Manes",
-    "source": "2024",
     "hp": 9,
     "ac": 9,
     "type": "Small Fiend (demon)",
@@ -20395,7 +19958,6 @@
   {
     "id": "2024-manes-vaporspawn",
     "name": "Manes Vaporspawn",
-    "source": "2024",
     "hp": 19,
     "ac": 13,
     "type": "Medium Fiend (demon)",
@@ -20437,7 +19999,6 @@
   {
     "id": "2024-manticore",
     "name": "Manticore",
-    "source": "2024",
     "hp": 68,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -20474,7 +20035,6 @@
   {
     "id": "2024-marid",
     "name": "Marid",
-    "source": "2024",
     "hp": 229,
     "ac": 17,
     "type": "Large Elemental (genie)",
@@ -20535,7 +20095,6 @@
   {
     "id": "2024-marilith",
     "name": "Marilith",
-    "source": "2024",
     "hp": 220,
     "ac": 16,
     "type": "Large Fiend (demon)",
@@ -20596,7 +20155,6 @@
   {
     "id": "2024-martial-arts-adept",
     "name": "Martial Arts Adept",
-    "source": "2024",
     "hp": 60,
     "ac": 16,
     "type": "Medium Humanoid",
@@ -20644,7 +20202,6 @@
   {
     "id": "2024-marut",
     "name": "Marut",
-    "source": "2024",
     "hp": 432,
     "ac": 22,
     "type": "Large Construct (inevitable)",
@@ -20707,7 +20264,6 @@
   {
     "id": "2024-master-thief",
     "name": "Master Thief",
-    "source": "2024",
     "hp": 84,
     "ac": 16,
     "type": "Medium Humanoid",
@@ -20756,7 +20312,6 @@
   {
     "id": "2024-mastiff",
     "name": "Mastiff",
-    "source": "2024",
     "hp": 5,
     "ac": 12,
     "type": "Medium Beast",
@@ -20784,7 +20339,6 @@
   {
     "id": "2024-maurezhi",
     "name": "Maurezhi",
-    "source": "2024",
     "hp": 88,
     "ac": 15,
     "type": "Medium Fiend (demon)",
@@ -20838,7 +20392,6 @@
   {
     "id": "2024-maw-demon",
     "name": "Maw Demon",
-    "source": "2024",
     "hp": 33,
     "ac": 13,
     "type": "Medium Fiend (demon)",
@@ -20874,7 +20427,6 @@
   {
     "id": "2024-meazel",
     "name": "Meazel",
-    "source": "2024",
     "hp": 35,
     "ac": 13,
     "type": "Medium Monstrosity",
@@ -20911,7 +20463,6 @@
   {
     "id": "2024-medusa",
     "name": "Medusa",
-    "source": "2024",
     "hp": 127,
     "ac": 15,
     "type": "Medium Monstrosity",
@@ -20953,7 +20504,6 @@
   {
     "id": "2024-meenlock",
     "name": "Meenlock",
-    "source": "2024",
     "hp": 31,
     "ac": 15,
     "type": "Small Fey",
@@ -20993,7 +20543,6 @@
   {
     "id": "2024-merfolk-skirmisher",
     "name": "Merfolk Skirmisher",
-    "source": "2024",
     "hp": 11,
     "ac": 11,
     "type": "Medium Elemental",
@@ -21027,7 +20576,6 @@
   {
     "id": "2024-merfolk-wavebender",
     "name": "Merfolk Wavebender",
-    "source": "2024",
     "hp": 97,
     "ac": 14,
     "type": "Medium Elemental",
@@ -21077,7 +20625,6 @@
   {
     "id": "2024-merregon",
     "name": "Merregon",
-    "source": "2024",
     "hp": 45,
     "ac": 16,
     "type": "Medium Fiend (devil)",
@@ -21133,7 +20680,6 @@
   {
     "id": "2024-merrenoloth",
     "name": "Merrenoloth",
-    "source": "2024",
     "hp": 40,
     "ac": 13,
     "type": "Medium Fiend (yugoloth)",
@@ -21184,7 +20730,6 @@
   {
     "id": "2024-merrow",
     "name": "Merrow",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -21231,7 +20776,6 @@
   {
     "id": "2024-mezzoloth",
     "name": "Mezzoloth",
-    "source": "2024",
     "hp": 75,
     "ac": 18,
     "type": "Medium Fiend (yugoloth)",
@@ -21285,7 +20829,6 @@
   {
     "id": "2024-mimic",
     "name": "Mimic",
-    "source": "2024",
     "hp": 58,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -21325,7 +20868,6 @@
   {
     "id": "2024-mind-flayer",
     "name": "Mind Flayer",
-    "source": "2024",
     "hp": 99,
     "ac": 15,
     "type": "Medium Aberration",
@@ -21374,7 +20916,6 @@
   {
     "id": "2024-mind-flayer-arcanist",
     "name": "Mind Flayer Arcanist",
-    "source": "2024",
     "hp": 143,
     "ac": 16,
     "type": "Medium Aberration",
@@ -21428,7 +20969,6 @@
   {
     "id": "2024-mindwitness",
     "name": "Mindwitness",
-    "source": "2024",
     "hp": 75,
     "ac": 15,
     "type": "Large Aberration",
@@ -21477,7 +21017,6 @@
   {
     "id": "2024-minotaur-of-baphomet",
     "name": "Minotaur of Baphomet",
-    "source": "2024",
     "hp": 85,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -21510,7 +21049,6 @@
   {
     "id": "2024-minotaur-skeleton",
     "name": "Minotaur Skeleton",
-    "source": "2024",
     "hp": 45,
     "ac": 12,
     "type": "Large Undead",
@@ -21545,7 +21083,6 @@
   {
     "id": "2024-modron-duodrone",
     "name": "Modron Duodrone",
-    "source": "2024",
     "hp": 11,
     "ac": 15,
     "type": "Medium Construct",
@@ -21585,7 +21122,6 @@
   {
     "id": "2024-modron-monodrone",
     "name": "Modron Monodrone",
-    "source": "2024",
     "hp": 5,
     "ac": 15,
     "type": "Medium Construct",
@@ -21625,7 +21161,6 @@
   {
     "id": "2024-modron-pentadrone",
     "name": "Modron Pentadrone",
-    "source": "2024",
     "hp": 32,
     "ac": 16,
     "type": "Large Construct",
@@ -21673,7 +21208,6 @@
   {
     "id": "2024-modron-quadrone",
     "name": "Modron Quadrone",
-    "source": "2024",
     "hp": 22,
     "ac": 16,
     "type": "Medium Construct",
@@ -21717,7 +21251,6 @@
   {
     "id": "2024-modron-tridrone",
     "name": "Modron Tridrone",
-    "source": "2024",
     "hp": 16,
     "ac": 15,
     "type": "Medium Construct",
@@ -21757,7 +21290,6 @@
   {
     "id": "2024-mokujin",
     "name": "Mokujin",
-    "source": "2024",
     "hp": 55,
     "ac": 15,
     "type": "Medium Construct",
@@ -21802,7 +21334,6 @@
   {
     "id": "2024-moloch",
     "name": "Moloch",
-    "source": "2024",
     "hp": 253,
     "ac": 19,
     "type": "Large Fiend (devil)",
@@ -21887,7 +21418,6 @@
   {
     "id": "2024-molydeus",
     "name": "Molydeus",
-    "source": "2024",
     "hp": 216,
     "ac": 19,
     "type": "Huge Fiend (demon)",
@@ -21960,7 +21490,6 @@
   {
     "id": "2024-morkoth",
     "name": "Morkoth",
-    "source": "2024",
     "hp": 165,
     "ac": 17,
     "type": "Large Aberration",
@@ -22018,7 +21547,6 @@
   {
     "id": "2024-mouth-of-grolantor",
     "name": "Mouth of Grolantor",
-    "source": "2024",
     "hp": 105,
     "ac": 14,
     "type": "Huge Giant (hill giant)",
@@ -22057,7 +21585,6 @@
   {
     "id": "2024-mud-mephit",
     "name": "Mud Mephit",
-    "source": "2024",
     "hp": 13,
     "ac": 11,
     "type": "Small Elemental",
@@ -22098,7 +21625,6 @@
   {
     "id": "2024-mule",
     "name": "Mule",
-    "source": "2024",
     "hp": 11,
     "ac": 10,
     "type": "Medium Beast",
@@ -22132,7 +21658,6 @@
   {
     "id": "2024-mummy",
     "name": "Mummy",
-    "source": "2024",
     "hp": 58,
     "ac": 11,
     "type": "Small/Medium Undead",
@@ -22172,7 +21697,6 @@
   {
     "id": "2024-mummy-lord",
     "name": "Mummy Lord",
-    "source": "2024",
     "hp": 187,
     "ac": 17,
     "type": "Small/Medium Undead (cleric)",
@@ -22254,7 +21778,6 @@
   {
     "id": "2024-myconid-adult",
     "name": "Myconid Adult",
-    "source": "2024",
     "hp": 16,
     "ac": 12,
     "type": "Medium Plant",
@@ -22297,7 +21820,6 @@
   {
     "id": "2024-myconid-sovereign",
     "name": "Myconid Sovereign",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Large Plant",
@@ -22348,7 +21870,6 @@
   {
     "id": "2024-myconid-spore-servant",
     "name": "Myconid Spore Servant",
-    "source": "2024",
     "hp": 37,
     "ac": 13,
     "type": "Small/Medium Plant",
@@ -22379,7 +21900,6 @@
   {
     "id": "2024-myconid-sprout",
     "name": "Myconid Sprout",
-    "source": "2024",
     "hp": 3,
     "ac": 10,
     "type": "Small Plant",
@@ -22418,7 +21938,6 @@
   {
     "id": "2024-nabassu",
     "name": "Nabassu",
-    "source": "2024",
     "hp": 190,
     "ac": 18,
     "type": "Medium Fiend (demon)",
@@ -22477,7 +21996,6 @@
   {
     "id": "2024-nagpa",
     "name": "Nagpa",
-    "source": "2024",
     "hp": 203,
     "ac": 19,
     "type": "Medium Monstrosity (wizard)",
@@ -22521,7 +22039,6 @@
   {
     "id": "2024-nalfeshnee",
     "name": "Nalfeshnee",
-    "source": "2024",
     "hp": 184,
     "ac": 18,
     "type": "Large Fiend (demon)",
@@ -22578,7 +22095,6 @@
   {
     "id": "2024-narzugon",
     "name": "Narzugon",
-    "source": "2024",
     "hp": 112,
     "ac": 20,
     "type": "Medium Fiend (devil)",
@@ -22637,7 +22153,6 @@
   {
     "id": "2024-necromancer-wizard",
     "name": "Necromancer Wizard",
-    "source": "2024",
     "hp": 110,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -22683,7 +22198,6 @@
   {
     "id": "2024-needle-blight",
     "name": "Needle Blight",
-    "source": "2024",
     "hp": 16,
     "ac": 12,
     "type": "Medium Plant",
@@ -22717,7 +22231,6 @@
   {
     "id": "2024-neogi",
     "name": "Neogi",
-    "source": "2024",
     "hp": 33,
     "ac": 15,
     "type": "Small Aberration",
@@ -22764,7 +22277,6 @@
   {
     "id": "2024-neogi-hatchling",
     "name": "Neogi Hatchling",
-    "source": "2024",
     "hp": 7,
     "ac": 11,
     "type": "Tiny Aberration",
@@ -22802,7 +22314,6 @@
   {
     "id": "2024-neogi-master",
     "name": "Neogi Master",
-    "source": "2024",
     "hp": 71,
     "ac": 15,
     "type": "Medium Aberration (warlock)",
@@ -22862,7 +22373,6 @@
   {
     "id": "2024-neothelid",
     "name": "Neothelid",
-    "source": "2024",
     "hp": 232,
     "ac": 16,
     "type": "Gargantuan Aberration",
@@ -22909,7 +22419,6 @@
   {
     "id": "2024-night-hag",
     "name": "Night Hag",
-    "source": "2024",
     "hp": 112,
     "ac": 17,
     "type": "Medium Fiend",
@@ -22966,7 +22475,6 @@
   {
     "id": "2024-nightmare",
     "name": "Nightmare",
-    "source": "2024",
     "hp": 68,
     "ac": 13,
     "type": "Large Fiend",
@@ -23009,7 +22517,6 @@
   {
     "id": "2024-nightwalker",
     "name": "Nightwalker",
-    "source": "2024",
     "hp": 337,
     "ac": 14,
     "type": "Huge Undead",
@@ -23063,7 +22570,6 @@
   {
     "id": "2024-nilbog",
     "name": "Nilbog",
-    "source": "2024",
     "hp": 7,
     "ac": 13,
     "type": "Small Fey (goblinoid)",
@@ -23112,7 +22618,6 @@
   {
     "id": "2024-noble",
     "name": "Noble",
-    "source": "2024",
     "hp": 9,
     "ac": 15,
     "type": "Small/Medium Humanoid",
@@ -23146,7 +22651,6 @@
   {
     "id": "2024-noble-prodigy",
     "name": "Noble Prodigy",
-    "source": "2024",
     "hp": 148,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -23189,7 +22693,6 @@
   {
     "id": "2024-nothic",
     "name": "Nothic",
-    "source": "2024",
     "hp": 45,
     "ac": 15,
     "type": "Medium Aberration",
@@ -23226,7 +22729,6 @@
   {
     "id": "2024-nupperibo",
     "name": "Nupperibo",
-    "source": "2024",
     "hp": 11,
     "ac": 13,
     "type": "Medium Fiend (devil)",
@@ -23268,7 +22770,6 @@
   {
     "id": "2024-nycaloth",
     "name": "Nycaloth",
-    "source": "2024",
     "hp": 152,
     "ac": 18,
     "type": "Large Fiend (yugoloth)",
@@ -23314,7 +22815,6 @@
   {
     "id": "2024-oblex-spawn",
     "name": "Oblex Spawn",
-    "source": "2024",
     "hp": 18,
     "ac": 13,
     "type": "Tiny Ooze",
@@ -23358,7 +22858,6 @@
   {
     "id": "2024-ochre-jelly",
     "name": "Ochre Jelly",
-    "source": "2024",
     "hp": 52,
     "ac": 8,
     "type": "Large Ooze",
@@ -23405,7 +22904,6 @@
   {
     "id": "2024-octopus",
     "name": "Octopus",
-    "source": "2024",
     "hp": 3,
     "ac": 12,
     "type": "Small Beast",
@@ -23449,7 +22947,6 @@
   {
     "id": "2024-ogre",
     "name": "Ogre",
-    "source": "2024",
     "hp": 68,
     "ac": 11,
     "type": "Large Giant",
@@ -23482,7 +22979,6 @@
   {
     "id": "2024-ogre-battering-ram",
     "name": "Ogre Battering Ram",
-    "source": "2024",
     "hp": 76,
     "ac": 11,
     "type": "Large Giant",
@@ -23527,7 +23023,6 @@
   {
     "id": "2024-ogre-bolt-launcher",
     "name": "Ogre Bolt Launcher",
-    "source": "2024",
     "hp": 59,
     "ac": 13,
     "type": "Large Giant",
@@ -23560,7 +23055,6 @@
   {
     "id": "2024-ogre-chain-brute",
     "name": "Ogre Chain Brute",
-    "source": "2024",
     "hp": 59,
     "ac": 11,
     "type": "Large Giant",
@@ -23597,7 +23091,6 @@
   {
     "id": "2024-ogre-howdah",
     "name": "Ogre Howdah",
-    "source": "2024",
     "hp": 59,
     "ac": 15,
     "type": "Large Giant",
@@ -23632,7 +23125,6 @@
   {
     "id": "2024-ogre-zombie",
     "name": "Ogre Zombie",
-    "source": "2024",
     "hp": 85,
     "ac": 8,
     "type": "Large Undead",
@@ -23670,7 +23162,6 @@
   {
     "id": "2024-ogrillon-ogre",
     "name": "Ogrillon Ogre",
-    "source": "2024",
     "hp": 52,
     "ac": 12,
     "type": "Large Giant",
@@ -23703,7 +23194,6 @@
   {
     "id": "2024-oinoloth",
     "name": "Oinoloth",
-    "source": "2024",
     "hp": 119,
     "ac": 17,
     "type": "Medium Fiend (yugoloth)",
@@ -23758,7 +23248,6 @@
   {
     "id": "2024-oni",
     "name": "Oni",
-    "source": "2024",
     "hp": 119,
     "ac": 17,
     "type": "Large Fiend",
@@ -23815,7 +23304,6 @@
   {
     "id": "2024-orcus",
     "name": "Orcus",
-    "source": "2024",
     "hp": 405,
     "ac": 17,
     "type": "Huge Fiend (demon)",
@@ -23900,7 +23388,6 @@
   {
     "id": "2024-orthon",
     "name": "Orthon",
-    "source": "2024",
     "hp": 105,
     "ac": 17,
     "type": "Large Fiend (devil)",
@@ -23949,7 +23436,6 @@
   {
     "id": "2024-otyugh",
     "name": "Otyugh",
-    "source": "2024",
     "hp": 104,
     "ac": 14,
     "type": "Large Aberration",
@@ -23991,7 +23477,6 @@
   {
     "id": "2024-owl",
     "name": "Owl",
-    "source": "2024",
     "hp": 1,
     "ac": 11,
     "type": "Tiny Beast",
@@ -24025,7 +23510,6 @@
   {
     "id": "2024-owlbear",
     "name": "Owlbear",
-    "source": "2024",
     "hp": 59,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -24057,7 +23541,6 @@
   {
     "id": "2024-ox",
     "name": "Ox",
-    "source": "2024",
     "hp": 15,
     "ac": 10,
     "type": "Large Beast (cattle)",
@@ -24090,7 +23573,6 @@
   {
     "id": "2024-panther",
     "name": "Panther",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Medium Beast",
@@ -24118,7 +23600,6 @@
   {
     "id": "2024-pegasus",
     "name": "Pegasus",
-    "source": "2024",
     "hp": 59,
     "ac": 12,
     "type": "Large Celestial",
@@ -24147,7 +23628,6 @@
   {
     "id": "2024-performer",
     "name": "Performer",
-    "source": "2024",
     "hp": 27,
     "ac": 13,
     "type": "Small/Medium Humanoid",
@@ -24182,7 +23662,6 @@
   {
     "id": "2024-performer-legend",
     "name": "Performer Legend",
-    "source": "2024",
     "hp": 162,
     "ac": 20,
     "type": "Small/Medium Humanoid",
@@ -24231,7 +23710,6 @@
   {
     "id": "2024-performer-maestro",
     "name": "Performer Maestro",
-    "source": "2024",
     "hp": 110,
     "ac": 18,
     "type": "Small/Medium Humanoid",
@@ -24274,7 +23752,6 @@
   {
     "id": "2024-peryton",
     "name": "Peryton",
-    "source": "2024",
     "hp": 33,
     "ac": 13,
     "type": "Medium Monstrosity",
@@ -24316,7 +23793,6 @@
   {
     "id": "2024-phase-spider",
     "name": "Phase Spider",
-    "source": "2024",
     "hp": 45,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -24362,7 +23838,6 @@
   {
     "id": "2024-phoenix",
     "name": "Phoenix",
-    "source": "2024",
     "hp": 175,
     "ac": 18,
     "type": "Gargantuan Elemental",
@@ -24442,7 +23917,6 @@
   {
     "id": "2024-piercer",
     "name": "Piercer",
-    "source": "2024",
     "hp": 22,
     "ac": 15,
     "type": "Medium Aberration",
@@ -24480,7 +23954,6 @@
   {
     "id": "2024-piranha",
     "name": "Piranha",
-    "source": "2024",
     "hp": 1,
     "ac": 13,
     "type": "Tiny Beast",
@@ -24514,7 +23987,6 @@
   {
     "id": "2024-pirate",
     "name": "Pirate",
-    "source": "2024",
     "hp": 33,
     "ac": 14,
     "type": "Small/Medium Humanoid",
@@ -24551,7 +24023,6 @@
   {
     "id": "2024-pirate-admiral",
     "name": "Pirate Admiral",
-    "source": "2024",
     "hp": 182,
     "ac": 20,
     "type": "Small/Medium Humanoid",
@@ -24594,7 +24065,6 @@
   {
     "id": "2024-pirate-captain",
     "name": "Pirate Captain",
-    "source": "2024",
     "hp": 84,
     "ac": 17,
     "type": "Small/Medium Humanoid",
@@ -24637,7 +24107,6 @@
   {
     "id": "2024-pit-fiend",
     "name": "Pit Fiend",
-    "source": "2024",
     "hp": 337,
     "ac": 21,
     "type": "Large Fiend (devil)",
@@ -24704,7 +24173,6 @@
   {
     "id": "2024-pixie",
     "name": "Pixie",
-    "source": "2024",
     "hp": 9,
     "ac": 15,
     "type": "Tiny Fey",
@@ -24742,7 +24210,6 @@
   {
     "id": "2024-pixie-wonderbringer",
     "name": "Pixie Wonderbringer",
-    "source": "2024",
     "hp": 60,
     "ac": 15,
     "type": "Tiny Fey",
@@ -24788,7 +24255,6 @@
   {
     "id": "2024-planetar",
     "name": "Planetar",
-    "source": "2024",
     "hp": 262,
     "ac": 19,
     "type": "Large Celestial (angel)",
@@ -24850,7 +24316,6 @@
   {
     "id": "2024-plesiosaurus",
     "name": "Plesiosaurus",
-    "source": "2024",
     "hp": 68,
     "ac": 13,
     "type": "Large Beast (dinosaur)",
@@ -24883,7 +24348,6 @@
   {
     "id": "2024-polar-bear",
     "name": "Polar Bear",
-    "source": "2024",
     "hp": 42,
     "ac": 12,
     "type": "Large Beast",
@@ -24916,7 +24380,6 @@
   {
     "id": "2024-poltergeist",
     "name": "Poltergeist",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Small/Medium Undead",
@@ -24962,7 +24425,6 @@
   {
     "id": "2024-pony",
     "name": "Pony",
-    "source": "2024",
     "hp": 11,
     "ac": 10,
     "type": "Medium Beast",
@@ -24990,7 +24452,6 @@
   {
     "id": "2024-priest",
     "name": "Priest",
-    "source": "2024",
     "hp": 38,
     "ac": 13,
     "type": "Small/Medium Humanoid (cleric)",
@@ -25036,7 +24497,6 @@
   {
     "id": "2024-priest-acolyte",
     "name": "Priest Acolyte",
-    "source": "2024",
     "hp": 11,
     "ac": 13,
     "type": "Small/Medium Humanoid (cleric)",
@@ -25078,7 +24538,6 @@
   {
     "id": "2024-primeval-owlbear",
     "name": "Primeval Owlbear",
-    "source": "2024",
     "hp": 126,
     "ac": 16,
     "type": "Huge Monstrosity",
@@ -25121,7 +24580,6 @@
   {
     "id": "2024-pseudodragon",
     "name": "Pseudodragon",
-    "source": "2024",
     "hp": 10,
     "ac": 14,
     "type": "Tiny Dragon",
@@ -25164,7 +24622,6 @@
   {
     "id": "2024-psychic-gray-ooze",
     "name": "Psychic Gray Ooze",
-    "source": "2024",
     "hp": 37,
     "ac": 9,
     "type": "Medium Ooze",
@@ -25210,7 +24667,6 @@
   {
     "id": "2024-pteranodon",
     "name": "Pteranodon",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Medium Beast (dinosaur)",
@@ -25243,7 +24699,6 @@
   {
     "id": "2024-purple-worm",
     "name": "Purple Worm",
-    "source": "2024",
     "hp": 247,
     "ac": 18,
     "type": "Gargantuan Monstrosity",
@@ -25286,7 +24741,6 @@
   {
     "id": "2024-quaggoth",
     "name": "Quaggoth",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Medium Monstrosity",
@@ -25327,7 +24781,6 @@
   {
     "id": "2024-quaggoth-thonot",
     "name": "Quaggoth Thonot",
-    "source": "2024",
     "hp": 67,
     "ac": 15,
     "type": "Medium Monstrosity",
@@ -25376,7 +24829,6 @@
   {
     "id": "2024-quasit",
     "name": "Quasit",
-    "source": "2024",
     "hp": 25,
     "ac": 13,
     "type": "Tiny Fiend (demon)",
@@ -25426,7 +24878,6 @@
   {
     "id": "2024-questing-knight",
     "name": "Questing Knight",
-    "source": "2024",
     "hp": 202,
     "ac": 18,
     "type": "Small/Medium Humanoid",
@@ -25474,7 +24925,6 @@
   {
     "id": "2024-quetzalcoatlus",
     "name": "Quetzalcoatlus",
-    "source": "2024",
     "hp": 30,
     "ac": 13,
     "type": "Huge Beast (dinosaur)",
@@ -25507,7 +24957,6 @@
   {
     "id": "2024-quickling",
     "name": "Quickling",
-    "source": "2024",
     "hp": 10,
     "ac": 16,
     "type": "Tiny Fey",
@@ -25550,7 +24999,6 @@
   {
     "id": "2024-rakshasa",
     "name": "Rakshasa",
-    "source": "2024",
     "hp": 221,
     "ac": 17,
     "type": "Medium Fiend",
@@ -25602,7 +25050,6 @@
   {
     "id": "2024-rat",
     "name": "Rat",
-    "source": "2024",
     "hp": 1,
     "ac": 10,
     "type": "Tiny Beast",
@@ -25636,7 +25083,6 @@
   {
     "id": "2024-raven",
     "name": "Raven",
-    "source": "2024",
     "hp": 2,
     "ac": 12,
     "type": "Tiny Beast",
@@ -25669,7 +25115,6 @@
   {
     "id": "2024-red-abishai",
     "name": "Red Abishai",
-    "source": "2024",
     "hp": 289,
     "ac": 22,
     "type": "Medium Fiend (devil)",
@@ -25732,7 +25177,6 @@
   {
     "id": "2024-red-dragon-wyrmling",
     "name": "Red Dragon Wyrmling",
-    "source": "2024",
     "hp": 75,
     "ac": 17,
     "type": "Medium Dragon (chromatic)",
@@ -25771,7 +25215,6 @@
   {
     "id": "2024-red-slaad",
     "name": "Red Slaad",
-    "source": "2024",
     "hp": 93,
     "ac": 14,
     "type": "Large Aberration",
@@ -25815,7 +25258,6 @@
   {
     "id": "2024-redcap",
     "name": "Redcap",
-    "source": "2024",
     "hp": 45,
     "ac": 14,
     "type": "Small Fey",
@@ -25862,7 +25304,6 @@
   {
     "id": "2024-reef-shark",
     "name": "Reef Shark",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Medium Beast",
@@ -25900,7 +25341,6 @@
   {
     "id": "2024-remorhaz",
     "name": "Remorhaz",
-    "source": "2024",
     "hp": 195,
     "ac": 17,
     "type": "Huge Monstrosity",
@@ -25935,7 +25375,6 @@
   {
     "id": "2024-retriever",
     "name": "Retriever",
-    "source": "2024",
     "hp": 210,
     "ac": 19,
     "type": "Large Construct",
@@ -25989,7 +25428,6 @@
   {
     "id": "2024-revenant",
     "name": "Revenant",
-    "source": "2024",
     "hp": 127,
     "ac": 13,
     "type": "Medium Undead",
@@ -26040,7 +25478,6 @@
   {
     "id": "2024-rhinoceros",
     "name": "Rhinoceros",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Large Beast",
@@ -26067,7 +25504,6 @@
   {
     "id": "2024-riding-horse",
     "name": "Riding Horse",
-    "source": "2024",
     "hp": 13,
     "ac": 11,
     "type": "Large Beast",
@@ -26094,7 +25530,6 @@
   {
     "id": "2024-roc",
     "name": "Roc",
-    "source": "2024",
     "hp": 248,
     "ac": 15,
     "type": "Gargantuan Monstrosity",
@@ -26130,7 +25565,6 @@
   {
     "id": "2024-roper",
     "name": "Roper",
-    "source": "2024",
     "hp": 93,
     "ac": 20,
     "type": "Large Aberration",
@@ -26176,7 +25610,6 @@
   {
     "id": "2024-rot-troll",
     "name": "Rot Troll",
-    "source": "2024",
     "hp": 138,
     "ac": 16,
     "type": "Large Giant",
@@ -26220,7 +25653,6 @@
   {
     "id": "2024-rust-monster",
     "name": "Rust Monster",
-    "source": "2024",
     "hp": 33,
     "ac": 14,
     "type": "Medium Monstrosity",
@@ -26272,7 +25704,6 @@
   {
     "id": "2024-rutterkin",
     "name": "Rutterkin",
-    "source": "2024",
     "hp": 37,
     "ac": 12,
     "type": "Medium Fiend (demon)",
@@ -26310,7 +25741,6 @@
   {
     "id": "2024-saber-toothed-tiger",
     "name": "Saber-Toothed Tiger",
-    "source": "2024",
     "hp": 52,
     "ac": 13,
     "type": "Large Beast",
@@ -26349,7 +25779,6 @@
   {
     "id": "2024-sacred-statue",
     "name": "Sacred Statue",
-    "source": "2024",
     "hp": 95,
     "ac": 19,
     "type": "Large Construct",
@@ -26408,7 +25837,6 @@
   {
     "id": "2024-sahuagin-baron",
     "name": "Sahuagin Baron",
-    "source": "2024",
     "hp": 76,
     "ac": 16,
     "type": "Large Fiend",
@@ -26463,7 +25891,6 @@
   {
     "id": "2024-sahuagin-priest",
     "name": "Sahuagin Priest",
-    "source": "2024",
     "hp": 38,
     "ac": 12,
     "type": "Medium Fiend",
@@ -26519,7 +25946,6 @@
   {
     "id": "2024-sahuagin-warrior",
     "name": "Sahuagin Warrior",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Medium Fiend",
@@ -26567,7 +25993,6 @@
   {
     "id": "2024-salamander",
     "name": "Salamander",
-    "source": "2024",
     "hp": 90,
     "ac": 15,
     "type": "Large Elemental",
@@ -26611,7 +26036,6 @@
   {
     "id": "2024-salamander-fire-snake",
     "name": "Salamander Fire Snake",
-    "source": "2024",
     "hp": 27,
     "ac": 14,
     "type": "Medium Elemental",
@@ -26647,7 +26071,6 @@
   {
     "id": "2024-salamander-inferno-master",
     "name": "Salamander Inferno Master",
-    "source": "2024",
     "hp": 256,
     "ac": 18,
     "type": "Large Elemental",
@@ -26696,7 +26119,6 @@
   {
     "id": "2024-satyr",
     "name": "Satyr",
-    "source": "2024",
     "hp": 31,
     "ac": 13,
     "type": "Medium Fey",
@@ -26734,7 +26156,6 @@
   {
     "id": "2024-satyr-revelmaster",
     "name": "Satyr Revelmaster",
-    "source": "2024",
     "hp": 82,
     "ac": 17,
     "type": "Medium Fey",
@@ -26777,7 +26198,6 @@
   {
     "id": "2024-scarecrow",
     "name": "Scarecrow",
-    "source": "2024",
     "hp": 27,
     "ac": 11,
     "type": "Medium Construct",
@@ -26812,7 +26232,6 @@
   {
     "id": "2024-scorpion",
     "name": "Scorpion",
-    "source": "2024",
     "hp": 1,
     "ac": 11,
     "type": "Tiny Beast",
@@ -26840,7 +26259,6 @@
   {
     "id": "2024-scout",
     "name": "Scout",
-    "source": "2024",
     "hp": 16,
     "ac": 13,
     "type": "Small/Medium Humanoid",
@@ -26876,7 +26294,6 @@
   {
     "id": "2024-scout-captain",
     "name": "Scout Captain",
-    "source": "2024",
     "hp": 66,
     "ac": 15,
     "type": "Small/Medium Humanoid",
@@ -26919,7 +26336,6 @@
   {
     "id": "2024-sea-hag",
     "name": "Sea Hag",
-    "source": "2024",
     "hp": 52,
     "ac": 14,
     "type": "Medium Fey",
@@ -26970,7 +26386,6 @@
   {
     "id": "2024-sea-spawn",
     "name": "Sea Spawn",
-    "source": "2024",
     "hp": 32,
     "ac": 11,
     "type": "Medium Monstrosity",
@@ -27013,7 +26428,6 @@
   {
     "id": "2024-seahorse",
     "name": "Seahorse",
-    "source": "2024",
     "hp": 1,
     "ac": 12,
     "type": "Tiny Beast",
@@ -27046,7 +26460,6 @@
   {
     "id": "2024-shadar-kai-gloom-weaver",
     "name": "Shadar-kai Gloom Weaver",
-    "source": "2024",
     "hp": 104,
     "ac": 14,
     "type": "Medium Humanoid (elf)",
@@ -27102,7 +26515,6 @@
   {
     "id": "2024-shadar-kai-shadow-dancer",
     "name": "Shadar-kai Shadow Dancer",
-    "source": "2024",
     "hp": 71,
     "ac": 15,
     "type": "Medium Humanoid (elf)",
@@ -27144,7 +26556,6 @@
   {
     "id": "2024-shadar-kai-soul-monger",
     "name": "Shadar-kai Soul Monger",
-    "source": "2024",
     "hp": 136,
     "ac": 15,
     "type": "Medium Humanoid (elf)",
@@ -27206,7 +26617,6 @@
   {
     "id": "2024-shadow",
     "name": "Shadow",
-    "source": "2024",
     "hp": 27,
     "ac": 12,
     "type": "Medium Undead",
@@ -27247,7 +26657,6 @@
   {
     "id": "2024-shadow-demon",
     "name": "Shadow Demon",
-    "source": "2024",
     "hp": 66,
     "ac": 14,
     "type": "Medium Fiend (demon)",
@@ -27294,7 +26703,6 @@
   {
     "id": "2024-shadow-dragon",
     "name": "Shadow Dragon",
-    "source": "2024",
     "hp": 189,
     "ac": 16,
     "type": "Huge Dragon",
@@ -27358,7 +26766,6 @@
   {
     "id": "2024-shadow-mastiff",
     "name": "Shadow Mastiff",
-    "source": "2024",
     "hp": 33,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -27397,7 +26804,6 @@
   {
     "id": "2024-shadow-mastiff-alpha",
     "name": "Shadow Mastiff Alpha",
-    "source": "2024",
     "hp": 44,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -27440,7 +26846,6 @@
   {
     "id": "2024-shambling-mound",
     "name": "Shambling Mound",
-    "source": "2024",
     "hp": 110,
     "ac": 15,
     "type": "Large Plant",
@@ -27485,7 +26890,6 @@
   {
     "id": "2024-shield-guardian",
     "name": "Shield Guardian",
-    "source": "2024",
     "hp": 142,
     "ac": 17,
     "type": "Large Construct",
@@ -27540,7 +26944,6 @@
   {
     "id": "2024-shoosuva",
     "name": "Shoosuva",
-    "source": "2024",
     "hp": 136,
     "ac": 14,
     "type": "Large Fiend (demon)",
@@ -27581,7 +26984,6 @@
   {
     "id": "2024-shrieker-fungus",
     "name": "Shrieker Fungus",
-    "source": "2024",
     "hp": 13,
     "ac": 5,
     "type": "Medium Plant",
@@ -27611,7 +27013,6 @@
   {
     "id": "2024-sibriex",
     "name": "Sibriex",
-    "source": "2024",
     "hp": 150,
     "ac": 19,
     "type": "Huge Fiend (demon)",
@@ -27688,7 +27089,6 @@
   {
     "id": "2024-silver-dragon-wyrmling",
     "name": "Silver Dragon Wyrmling",
-    "source": "2024",
     "hp": 45,
     "ac": 17,
     "type": "Medium Dragon (metallic)",
@@ -27731,7 +27131,6 @@
   {
     "id": "2024-skeleton",
     "name": "Skeleton",
-    "source": "2024",
     "hp": 13,
     "ac": 14,
     "type": "Medium Undead",
@@ -27766,7 +27165,6 @@
   {
     "id": "2024-skulk",
     "name": "Skulk",
-    "source": "2024",
     "hp": 18,
     "ac": 14,
     "type": "Medium Monstrosity",
@@ -27807,7 +27205,6 @@
   {
     "id": "2024-skull-lord",
     "name": "Skull Lord",
-    "source": "2024",
     "hp": 112,
     "ac": 18,
     "type": "Medium Undead (sorcerer)",
@@ -27883,7 +27280,6 @@
   {
     "id": "2024-slaad-tadpole",
     "name": "Slaad Tadpole",
-    "source": "2024",
     "hp": 7,
     "ac": 12,
     "type": "Tiny Aberration",
@@ -27919,7 +27315,6 @@
   {
     "id": "2024-slithering-tracker",
     "name": "Slithering Tracker",
-    "source": "2024",
     "hp": 39,
     "ac": 14,
     "type": "Medium Ooze",
@@ -27968,7 +27363,6 @@
   {
     "id": "2024-smoke-mephit",
     "name": "Smoke Mephit",
-    "source": "2024",
     "hp": 13,
     "ac": 12,
     "type": "Small Elemental",
@@ -28009,7 +27403,6 @@
   {
     "id": "2024-solar",
     "name": "Solar",
-    "source": "2024",
     "hp": 297,
     "ac": 21,
     "type": "Large Celestial (angel)",
@@ -28084,7 +27477,6 @@
   {
     "id": "2024-spawn-of-kyuss",
     "name": "Spawn of Kyuss",
-    "source": "2024",
     "hp": 76,
     "ac": 10,
     "type": "Medium Undead",
@@ -28138,7 +27530,6 @@
   {
     "id": "2024-spectator",
     "name": "Spectator",
-    "source": "2024",
     "hp": 45,
     "ac": 14,
     "type": "Medium Aberration (beholder)",
@@ -28182,7 +27573,6 @@
   {
     "id": "2024-specter",
     "name": "Specter",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Medium Undead",
@@ -28224,7 +27614,6 @@
   {
     "id": "2024-sphinx-of-lore",
     "name": "Sphinx of Lore",
-    "source": "2024",
     "hp": 170,
     "ac": 17,
     "type": "Large Celestial",
@@ -28288,7 +27677,6 @@
   {
     "id": "2024-sphinx-of-secrets",
     "name": "Sphinx of Secrets",
-    "source": "2024",
     "hp": 136,
     "ac": 16,
     "type": "Large Celestial",
@@ -28342,7 +27730,6 @@
   {
     "id": "2024-sphinx-of-valor",
     "name": "Sphinx of Valor",
-    "source": "2024",
     "hp": 199,
     "ac": 17,
     "type": "Large Celestial",
@@ -28407,7 +27794,6 @@
   {
     "id": "2024-sphinx-of-wonder",
     "name": "Sphinx of Wonder",
-    "source": "2024",
     "hp": 24,
     "ac": 13,
     "type": "Tiny Celestial",
@@ -28449,7 +27835,6 @@
   {
     "id": "2024-spider",
     "name": "Spider",
-    "source": "2024",
     "hp": 1,
     "ac": 12,
     "type": "Tiny Beast",
@@ -28487,7 +27872,6 @@
   {
     "id": "2024-spined-devil",
     "name": "Spined Devil",
-    "source": "2024",
     "hp": 45,
     "ac": 13,
     "type": "Small Fiend (devil)",
@@ -28537,7 +27921,6 @@
   {
     "id": "2024-spirit-naga",
     "name": "Spirit Naga",
-    "source": "2024",
     "hp": 135,
     "ac": 17,
     "type": "Large Fiend",
@@ -28587,7 +27970,6 @@
   {
     "id": "2024-spirit-troll",
     "name": "Spirit Troll",
-    "source": "2024",
     "hp": 130,
     "ac": 17,
     "type": "Large Giant",
@@ -28637,7 +28019,6 @@
   {
     "id": "2024-spring-eladrin",
     "name": "Spring Eladrin",
-    "source": "2024",
     "hp": 165,
     "ac": 19,
     "type": "Medium Fey (elf)",
@@ -28689,7 +28070,6 @@
   {
     "id": "2024-sprite",
     "name": "Sprite",
-    "source": "2024",
     "hp": 10,
     "ac": 15,
     "type": "Tiny Fey",
@@ -28731,7 +28111,6 @@
   {
     "id": "2024-spy",
     "name": "Spy",
-    "source": "2024",
     "hp": 27,
     "ac": 12,
     "type": "Small/Medium Humanoid",
@@ -28763,7 +28142,6 @@
   {
     "id": "2024-spy-master",
     "name": "Spy Master",
-    "source": "2024",
     "hp": 137,
     "ac": 19,
     "type": "Small/Medium Humanoid",
@@ -28804,7 +28182,6 @@
   {
     "id": "2024-star-spawn-grue",
     "name": "Star Spawn Grue",
-    "source": "2024",
     "hp": 17,
     "ac": 11,
     "type": "Small Aberration",
@@ -28840,7 +28217,6 @@
   {
     "id": "2024-star-spawn-hulk",
     "name": "Star Spawn Hulk",
-    "source": "2024",
     "hp": 136,
     "ac": 16,
     "type": "Large Aberration",
@@ -28886,7 +28262,6 @@
   {
     "id": "2024-star-spawn-larva-mage",
     "name": "Star Spawn Larva Mage",
-    "source": "2024",
     "hp": 168,
     "ac": 16,
     "type": "Medium Aberration",
@@ -28961,7 +28336,6 @@
   {
     "id": "2024-star-spawn-mangler",
     "name": "Star Spawn Mangler",
-    "source": "2024",
     "hp": 71,
     "ac": 14,
     "type": "Medium Aberration",
@@ -29008,7 +28382,6 @@
   {
     "id": "2024-star-spawn-seer",
     "name": "Star Spawn Seer",
-    "source": "2024",
     "hp": 153,
     "ac": 17,
     "type": "Medium Aberration",
@@ -29065,7 +28438,6 @@
   {
     "id": "2024-steam-mephit",
     "name": "Steam Mephit",
-    "source": "2024",
     "hp": 17,
     "ac": 10,
     "type": "Small Elemental",
@@ -29110,7 +28482,6 @@
   {
     "id": "2024-steel-predator",
     "name": "Steel Predator",
-    "source": "2024",
     "hp": 207,
     "ac": 20,
     "type": "Large Construct",
@@ -29168,7 +28539,6 @@
   {
     "id": "2024-stegosaurus",
     "name": "Stegosaurus",
-    "source": "2024",
     "hp": 76,
     "ac": 13,
     "type": "Huge Beast (dinosaur)",
@@ -29195,7 +28565,6 @@
   {
     "id": "2024-stench-kow",
     "name": "Stench Kow",
-    "source": "2024",
     "hp": 15,
     "ac": 10,
     "type": "Large Fiend (cattle)",
@@ -29230,7 +28599,6 @@
   {
     "id": "2024-stirge",
     "name": "Stirge",
-    "source": "2024",
     "hp": 5,
     "ac": 13,
     "type": "Tiny Monstrosity",
@@ -29258,7 +28626,6 @@
   {
     "id": "2024-stone-cursed",
     "name": "Stone Cursed",
-    "source": "2024",
     "hp": 19,
     "ac": 17,
     "type": "Medium Construct",
@@ -29302,7 +28669,6 @@
   {
     "id": "2024-stone-giant",
     "name": "Stone Giant",
-    "source": "2024",
     "hp": 126,
     "ac": 17,
     "type": "Huge Giant",
@@ -29346,7 +28712,6 @@
   {
     "id": "2024-stone-giant-dreamwalker",
     "name": "Stone Giant Dreamwalker",
-    "source": "2024",
     "hp": 161,
     "ac": 18,
     "type": "Huge Giant",
@@ -29395,7 +28760,6 @@
   {
     "id": "2024-stone-golem",
     "name": "Stone Golem",
-    "source": "2024",
     "hp": 220,
     "ac": 18,
     "type": "Large Construct",
@@ -29448,7 +28812,6 @@
   {
     "id": "2024-storm-giant",
     "name": "Storm Giant",
-    "source": "2024",
     "hp": 230,
     "ac": 16,
     "type": "Huge Giant",
@@ -29502,7 +28865,6 @@
   {
     "id": "2024-storm-giant-quintessent",
     "name": "Storm Giant Quintessent",
-    "source": "2024",
     "hp": 230,
     "ac": 12,
     "type": "Huge Giant",
@@ -29566,7 +28928,6 @@
   {
     "id": "2024-succubus",
     "name": "Succubus",
-    "source": "2024",
     "hp": 71,
     "ac": 15,
     "type": "Medium Fiend",
@@ -29614,7 +28975,6 @@
   {
     "id": "2024-summer-eladrin",
     "name": "Summer Eladrin",
-    "source": "2024",
     "hp": 165,
     "ac": 19,
     "type": "Medium Fey (elf)",
@@ -29668,7 +29028,6 @@
   {
     "id": "2024-swarm-of-bats",
     "name": "Swarm of Bats",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Large Beast",
@@ -29704,7 +29063,6 @@
   {
     "id": "2024-swarm-of-cranium-rats",
     "name": "Swarm of Cranium Rats",
-    "source": "2024",
     "hp": 76,
     "ac": 12,
     "type": "Medium Aberration",
@@ -29749,7 +29107,6 @@
   {
     "id": "2024-swarm-of-crawling-claws",
     "name": "Swarm of Crawling Claws",
-    "source": "2024",
     "hp": 49,
     "ac": 12,
     "type": "Medium Undead",
@@ -29787,7 +29144,6 @@
   {
     "id": "2024-swarm-of-dretches",
     "name": "Swarm of Dretches",
-    "source": "2024",
     "hp": 45,
     "ac": 12,
     "type": "Large Fiend (demon)",
@@ -29833,7 +29189,6 @@
   {
     "id": "2024-swarm-of-insects",
     "name": "Swarm of Insects",
-    "source": "2024",
     "hp": 19,
     "ac": 11,
     "type": "Medium Beast",
@@ -29873,7 +29228,6 @@
   {
     "id": "2024-swarm-of-larvae",
     "name": "Swarm of Larvae",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Large Fiend",
@@ -29910,7 +29264,6 @@
   {
     "id": "2024-swarm-of-lemures",
     "name": "Swarm of Lemures",
-    "source": "2024",
     "hp": 45,
     "ac": 12,
     "type": "Large Fiend (devil)",
@@ -29956,7 +29309,6 @@
   {
     "id": "2024-swarm-of-piranhas",
     "name": "Swarm of Piranhas",
-    "source": "2024",
     "hp": 28,
     "ac": 13,
     "type": "Medium Beast",
@@ -29996,7 +29348,6 @@
   {
     "id": "2024-swarm-of-rats",
     "name": "Swarm of Rats",
-    "source": "2024",
     "hp": 14,
     "ac": 10,
     "type": "Medium Beast",
@@ -30032,7 +29383,6 @@
   {
     "id": "2024-swarm-of-ravens",
     "name": "Swarm of Ravens",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Medium Beast",
@@ -30071,7 +29421,6 @@
   {
     "id": "2024-swarm-of-rot-grubs",
     "name": "Swarm of Rot Grubs",
-    "source": "2024",
     "hp": 22,
     "ac": 8,
     "type": "Medium Beast",
@@ -30107,7 +29456,6 @@
   {
     "id": "2024-swarm-of-stirges",
     "name": "Swarm of Stirges",
-    "source": "2024",
     "hp": 36,
     "ac": 14,
     "type": "Medium Monstrosity",
@@ -30143,7 +29491,6 @@
   {
     "id": "2024-swarm-of-venomous-snakes",
     "name": "Swarm of Venomous Snakes",
-    "source": "2024",
     "hp": 36,
     "ac": 14,
     "type": "Medium Beast",
@@ -30179,7 +29526,6 @@
   {
     "id": "2024-swashbuckler",
     "name": "Swashbuckler",
-    "source": "2024",
     "hp": 66,
     "ac": 17,
     "type": "Medium Humanoid",
@@ -30221,7 +29567,6 @@
   {
     "id": "2024-sword-wraith-commander",
     "name": "Sword Wraith Commander",
-    "source": "2024",
     "hp": 127,
     "ac": 18,
     "type": "Medium Undead",
@@ -30275,7 +29620,6 @@
   {
     "id": "2024-sword-wraith-warrior",
     "name": "Sword Wraith Warrior",
-    "source": "2024",
     "hp": 45,
     "ac": 16,
     "type": "Medium Undead",
@@ -30317,7 +29661,6 @@
   {
     "id": "2024-tanarukk",
     "name": "Tanarukk",
-    "source": "2024",
     "hp": 95,
     "ac": 14,
     "type": "Medium Fiend (demon)",
@@ -30367,7 +29710,6 @@
   {
     "id": "2024-tarrasque",
     "name": "Tarrasque",
-    "source": "2024",
     "hp": 697,
     "ac": 25,
     "type": "Gargantuan Monstrosity (titan)",
@@ -30443,7 +29785,6 @@
   {
     "id": "2024-thorny-vegepygmy",
     "name": "Thorny Vegepygmy",
-    "source": "2024",
     "hp": 27,
     "ac": 14,
     "type": "Medium Plant",
@@ -30486,7 +29827,6 @@
   {
     "id": "2024-thri-kreen-marauder",
     "name": "Thri-kreen Marauder",
-    "source": "2024",
     "hp": 33,
     "ac": 15,
     "type": "Medium Monstrosity",
@@ -30523,7 +29863,6 @@
   {
     "id": "2024-thri-kreen-psion",
     "name": "Thri-kreen Psion",
-    "source": "2024",
     "hp": 149,
     "ac": 16,
     "type": "Medium Monstrosity",
@@ -30564,7 +29903,6 @@
   {
     "id": "2024-tiger",
     "name": "Tiger",
-    "source": "2024",
     "hp": 30,
     "ac": 13,
     "type": "Large Beast",
@@ -30592,7 +29930,6 @@
   {
     "id": "2024-titivilus",
     "name": "Titivilus",
-    "source": "2024",
     "hp": 150,
     "ac": 20,
     "type": "Medium Fiend (devil)",
@@ -30677,7 +30014,6 @@
   {
     "id": "2024-tlincalli",
     "name": "Tlincalli",
-    "source": "2024",
     "hp": 85,
     "ac": 15,
     "type": "Large Monstrosity",
@@ -30718,7 +30054,6 @@
   {
     "id": "2024-tortle",
     "name": "Tortle",
-    "source": "2024",
     "hp": 22,
     "ac": 17,
     "type": "Medium Humanoid",
@@ -30764,7 +30099,6 @@
   {
     "id": "2024-tortle-druid",
     "name": "Tortle Druid",
-    "source": "2024",
     "hp": 33,
     "ac": 17,
     "type": "Medium Humanoid",
@@ -30814,7 +30148,6 @@
   {
     "id": "2024-tough",
     "name": "Tough",
-    "source": "2024",
     "hp": 32,
     "ac": 12,
     "type": "Small/Medium Humanoid",
@@ -30852,7 +30185,6 @@
   {
     "id": "2024-tough-boss",
     "name": "Tough Boss",
-    "source": "2024",
     "hp": 82,
     "ac": 16,
     "type": "Small/Medium Humanoid",
@@ -30895,7 +30227,6 @@
   {
     "id": "2024-transmuter-wizard",
     "name": "Transmuter Wizard",
-    "source": "2024",
     "hp": 49,
     "ac": 12,
     "type": "Medium Humanoid",
@@ -30938,7 +30269,6 @@
   {
     "id": "2024-trapper",
     "name": "Trapper",
-    "source": "2024",
     "hp": 68,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -30976,7 +30306,6 @@
   {
     "id": "2024-treant",
     "name": "Treant",
-    "source": "2024",
     "hp": 138,
     "ac": 16,
     "type": "Huge Plant",
@@ -31023,7 +30352,6 @@
   {
     "id": "2024-tree-blight",
     "name": "Tree Blight",
-    "source": "2024",
     "hp": 115,
     "ac": 15,
     "type": "Huge Plant",
@@ -31061,7 +30389,6 @@
   {
     "id": "2024-triceratops",
     "name": "Triceratops",
-    "source": "2024",
     "hp": 114,
     "ac": 14,
     "type": "Huge Beast (dinosaur)",
@@ -31092,7 +30419,6 @@
   {
     "id": "2024-troglodyte",
     "name": "Troglodyte",
-    "source": "2024",
     "hp": 13,
     "ac": 11,
     "type": "Medium Monstrosity",
@@ -31131,7 +30457,6 @@
   {
     "id": "2024-troll",
     "name": "Troll",
-    "source": "2024",
     "hp": 94,
     "ac": 15,
     "type": "Large Giant",
@@ -31174,7 +30499,6 @@
   {
     "id": "2024-troll-limb",
     "name": "Troll Limb",
-    "source": "2024",
     "hp": 14,
     "ac": 13,
     "type": "Small Giant",
@@ -31212,7 +30536,6 @@
   {
     "id": "2024-twig-blight",
     "name": "Twig Blight",
-    "source": "2024",
     "hp": 7,
     "ac": 14,
     "type": "Small Plant",
@@ -31248,7 +30571,6 @@
   {
     "id": "2024-tyrannosaurus-rex",
     "name": "Tyrannosaurus Rex",
-    "source": "2024",
     "hp": 136,
     "ac": 13,
     "type": "Huge Beast (dinosaur)",
@@ -31284,7 +30606,6 @@
   {
     "id": "2024-ulitharid",
     "name": "Ulitharid",
-    "source": "2024",
     "hp": 127,
     "ac": 15,
     "type": "Large Aberration (mind flayer)",
@@ -31340,7 +30661,6 @@
   {
     "id": "2024-ultroloth",
     "name": "Ultroloth",
-    "source": "2024",
     "hp": 221,
     "ac": 19,
     "type": "Medium Fiend (yugoloth)",
@@ -31398,7 +30718,6 @@
   {
     "id": "2024-umber-hulk",
     "name": "Umber Hulk",
-    "source": "2024",
     "hp": 93,
     "ac": 18,
     "type": "Large Monstrosity",
@@ -31437,7 +30756,6 @@
   {
     "id": "2024-unicorn",
     "name": "Unicorn",
-    "source": "2024",
     "hp": 97,
     "ac": 12,
     "type": "Large Celestial",
@@ -31504,7 +30822,6 @@
   {
     "id": "2024-vampire",
     "name": "Vampire",
-    "source": "2024",
     "hp": 195,
     "ac": 16,
     "type": "Small/Medium Undead",
@@ -31575,7 +30892,6 @@
   {
     "id": "2024-vampire-familiar",
     "name": "Vampire Familiar",
-    "source": "2024",
     "hp": 65,
     "ac": 15,
     "type": "Small/Medium Humanoid",
@@ -31617,7 +30933,6 @@
   {
     "id": "2024-vampire-nightbringer",
     "name": "Vampire Nightbringer",
-    "source": "2024",
     "hp": 142,
     "ac": 16,
     "type": "Small/Medium Undead",
@@ -31663,7 +30978,6 @@
   {
     "id": "2024-vampire-spawn",
     "name": "Vampire Spawn",
-    "source": "2024",
     "hp": 90,
     "ac": 16,
     "type": "Small/Medium Undead",
@@ -31712,7 +31026,6 @@
   {
     "id": "2024-vampire-umbral-lord",
     "name": "Vampire Umbral Lord",
-    "source": "2024",
     "hp": 187,
     "ac": 16,
     "type": "Small/Medium Undead",
@@ -31780,7 +31093,6 @@
   {
     "id": "2024-vampiric-mist",
     "name": "Vampiric Mist",
-    "source": "2024",
     "hp": 30,
     "ac": 13,
     "type": "Medium Undead",
@@ -31834,7 +31146,6 @@
   {
     "id": "2024-vargouille",
     "name": "Vargouille",
-    "source": "2024",
     "hp": 18,
     "ac": 12,
     "type": "Tiny Fiend",
@@ -31874,7 +31185,6 @@
   {
     "id": "2024-vegepygmy",
     "name": "Vegepygmy",
-    "source": "2024",
     "hp": 13,
     "ac": 13,
     "type": "Small Plant",
@@ -31918,7 +31228,6 @@
   {
     "id": "2024-vegepygmy-chief",
     "name": "Vegepygmy Chief",
-    "source": "2024",
     "hp": 33,
     "ac": 14,
     "type": "Small Plant",
@@ -31970,7 +31279,6 @@
   {
     "id": "2024-velociraptor",
     "name": "Velociraptor",
-    "source": "2024",
     "hp": 10,
     "ac": 13,
     "type": "Tiny Beast (dinosaur)",
@@ -32011,7 +31319,6 @@
   {
     "id": "2024-venom-troll",
     "name": "Venom Troll",
-    "source": "2024",
     "hp": 94,
     "ac": 15,
     "type": "Large Giant",
@@ -32064,7 +31371,6 @@
   {
     "id": "2024-venomous-snake",
     "name": "Venomous Snake",
-    "source": "2024",
     "hp": 5,
     "ac": 12,
     "type": "Tiny Beast",
@@ -32092,7 +31398,6 @@
   {
     "id": "2024-vine-blight",
     "name": "Vine Blight",
-    "source": "2024",
     "hp": 19,
     "ac": 12,
     "type": "Medium Plant",
@@ -32128,7 +31433,6 @@
   {
     "id": "2024-violet-fungus",
     "name": "Violet Fungus",
-    "source": "2024",
     "hp": 18,
     "ac": 5,
     "type": "Medium Plant",
@@ -32161,7 +31465,6 @@
   {
     "id": "2024-violet-fungus-necrohulk",
     "name": "Violet Fungus Necrohulk",
-    "source": "2024",
     "hp": 123,
     "ac": 17,
     "type": "Large Plant",
@@ -32199,7 +31502,6 @@
   {
     "id": "2024-vrock",
     "name": "Vrock",
-    "source": "2024",
     "hp": 152,
     "ac": 15,
     "type": "Large Fiend (demon)",
@@ -32254,7 +31556,6 @@
   {
     "id": "2024-vulture",
     "name": "Vulture",
-    "source": "2024",
     "hp": 5,
     "ac": 10,
     "type": "Medium Beast",
@@ -32287,7 +31588,6 @@
   {
     "id": "2024-war-priest",
     "name": "War Priest",
-    "source": "2024",
     "hp": 117,
     "ac": 18,
     "type": "Medium Humanoid (cleric)",
@@ -32330,7 +31630,6 @@
   {
     "id": "2024-warhorse",
     "name": "Warhorse",
-    "source": "2024",
     "hp": 19,
     "ac": 11,
     "type": "Large Beast",
@@ -32358,7 +31657,6 @@
   {
     "id": "2024-warhorse-skeleton",
     "name": "Warhorse Skeleton",
-    "source": "2024",
     "hp": 22,
     "ac": 13,
     "type": "Large Undead",
@@ -32388,7 +31686,6 @@
   {
     "id": "2024-warlock-of-the-archfey",
     "name": "Warlock of the Archfey",
-    "source": "2024",
     "hp": 67,
     "ac": 13,
     "type": "Medium Humanoid",
@@ -32438,7 +31735,6 @@
   {
     "id": "2024-warlock-of-the-fiend",
     "name": "Warlock of the Fiend",
-    "source": "2024",
     "hp": 78,
     "ac": 13,
     "type": "Medium Humanoid",
@@ -32492,7 +31788,6 @@
   {
     "id": "2024-warlock-of-the-great-old-one",
     "name": "Warlock of the Great Old One",
-    "source": "2024",
     "hp": 91,
     "ac": 13,
     "type": "Medium Humanoid",
@@ -32541,7 +31836,6 @@
   {
     "id": "2024-warlord",
     "name": "Warlord",
-    "source": "2024",
     "hp": 229,
     "ac": 18,
     "type": "Medium Humanoid",
@@ -32602,7 +31896,6 @@
   {
     "id": "2024-warrior-commander",
     "name": "Warrior Commander",
-    "source": "2024",
     "hp": 161,
     "ac": 18,
     "type": "Small/Medium Humanoid",
@@ -32645,7 +31938,6 @@
   {
     "id": "2024-warrior-infantry",
     "name": "Warrior Infantry",
-    "source": "2024",
     "hp": 9,
     "ac": 13,
     "type": "Small/Medium Humanoid",
@@ -32679,7 +31971,6 @@
   {
     "id": "2024-warrior-veteran",
     "name": "Warrior Veteran",
-    "source": "2024",
     "hp": 65,
     "ac": 17,
     "type": "Small/Medium Humanoid",
@@ -32721,7 +32012,6 @@
   {
     "id": "2024-wastrilith",
     "name": "Wastrilith",
-    "source": "2024",
     "hp": 157,
     "ac": 18,
     "type": "Large Fiend (demon)",
@@ -32780,7 +32070,6 @@
   {
     "id": "2024-water-elemental",
     "name": "Water Elemental",
-    "source": "2024",
     "hp": 114,
     "ac": 14,
     "type": "Large Elemental",
@@ -32830,7 +32119,6 @@
   {
     "id": "2024-water-elemental-myrmidon",
     "name": "Water Elemental Myrmidon",
-    "source": "2024",
     "hp": 127,
     "ac": 18,
     "type": "Medium Elemental",
@@ -32870,7 +32158,6 @@
   {
     "id": "2024-water-weird",
     "name": "Water Weird",
-    "source": "2024",
     "hp": 65,
     "ac": 13,
     "type": "Large Elemental",
@@ -32912,7 +32199,6 @@
   {
     "id": "2024-weasel",
     "name": "Weasel",
-    "source": "2024",
     "hp": 1,
     "ac": 13,
     "type": "Tiny Beast",
@@ -32940,7 +32226,6 @@
   {
     "id": "2024-werebear",
     "name": "Werebear",
-    "source": "2024",
     "hp": 135,
     "ac": 15,
     "type": "Small/Medium Monstrosity (lycanthrope)",
@@ -32981,7 +32266,6 @@
   {
     "id": "2024-wereboar",
     "name": "Wereboar",
-    "source": "2024",
     "hp": 97,
     "ac": 15,
     "type": "Small/Medium Monstrosity (lycanthrope)",
@@ -33021,7 +32305,6 @@
   {
     "id": "2024-wererat",
     "name": "Wererat",
-    "source": "2024",
     "hp": 60,
     "ac": 13,
     "type": "Small/Medium Monstrosity (lycanthrope)",
@@ -33062,7 +32345,6 @@
   {
     "id": "2024-weretiger",
     "name": "Weretiger",
-    "source": "2024",
     "hp": 120,
     "ac": 12,
     "type": "Small/Medium Monstrosity (lycanthrope)",
@@ -33103,7 +32385,6 @@
   {
     "id": "2024-werewolf",
     "name": "Werewolf",
-    "source": "2024",
     "hp": 71,
     "ac": 15,
     "type": "Small/Medium Monstrosity (lycanthrope)",
@@ -33150,7 +32431,6 @@
   {
     "id": "2024-white-abishai",
     "name": "White Abishai",
-    "source": "2024",
     "hp": 68,
     "ac": 15,
     "type": "Medium Fiend (devil)",
@@ -33215,7 +32495,6 @@
   {
     "id": "2024-white-dragon-wyrmling",
     "name": "White Dragon Wyrmling",
-    "source": "2024",
     "hp": 32,
     "ac": 16,
     "type": "Medium Dragon (chromatic)",
@@ -33260,7 +32539,6 @@
   {
     "id": "2024-wight",
     "name": "Wight",
-    "source": "2024",
     "hp": 82,
     "ac": 14,
     "type": "Medium Undead",
@@ -33310,7 +32588,6 @@
   {
     "id": "2024-will-o-wisp",
     "name": "Will-o'-Wisp",
-    "source": "2024",
     "hp": 27,
     "ac": 19,
     "type": "Tiny Undead",
@@ -33356,7 +32633,6 @@
   {
     "id": "2024-winged-kobold",
     "name": "Winged Kobold",
-    "source": "2024",
     "hp": 10,
     "ac": 15,
     "type": "Small Dragon",
@@ -33399,7 +32675,6 @@
   {
     "id": "2024-winter-eladrin",
     "name": "Winter Eladrin",
-    "source": "2024",
     "hp": 165,
     "ac": 19,
     "type": "Medium Fey (elf)",
@@ -33457,7 +32732,6 @@
   {
     "id": "2024-winter-wolf",
     "name": "Winter Wolf",
-    "source": "2024",
     "hp": 75,
     "ac": 13,
     "type": "Large Monstrosity",
@@ -33496,7 +32770,6 @@
   {
     "id": "2024-wolf",
     "name": "Wolf",
-    "source": "2024",
     "hp": 11,
     "ac": 12,
     "type": "Medium Beast",
@@ -33530,7 +32803,6 @@
   {
     "id": "2024-wood-woad",
     "name": "Wood Woad",
-    "source": "2024",
     "hp": 75,
     "ac": 18,
     "type": "Medium Plant",
@@ -33579,7 +32851,6 @@
   {
     "id": "2024-worg",
     "name": "Worg",
-    "source": "2024",
     "hp": 26,
     "ac": 13,
     "type": "Large Fey",
@@ -33608,7 +32879,6 @@
   {
     "id": "2024-wraith",
     "name": "Wraith",
-    "source": "2024",
     "hp": 67,
     "ac": 13,
     "type": "Small/Medium Undead",
@@ -33654,7 +32924,6 @@
   {
     "id": "2024-wretched-sorrowsworn",
     "name": "Wretched Sorrowsworn",
-    "source": "2024",
     "hp": 10,
     "ac": 15,
     "type": "Small Monstrosity",
@@ -33689,7 +32958,6 @@
   {
     "id": "2024-wyvern",
     "name": "Wyvern",
-    "source": "2024",
     "hp": 127,
     "ac": 14,
     "type": "Large Dragon",
@@ -33725,7 +32993,6 @@
   {
     "id": "2024-xorn",
     "name": "Xorn",
-    "source": "2024",
     "hp": 84,
     "ac": 19,
     "type": "Medium Elemental",
@@ -33774,7 +33041,6 @@
   {
     "id": "2024-xvart",
     "name": "Xvart",
-    "source": "2024",
     "hp": 7,
     "ac": 13,
     "type": "Small Monstrosity",
@@ -33813,7 +33079,6 @@
   {
     "id": "2024-xvart-warlock-of-raxivort",
     "name": "Xvart Warlock of Raxivort",
-    "source": "2024",
     "hp": 22,
     "ac": 12,
     "type": "Small Monstrosity",
@@ -33864,7 +33129,6 @@
   {
     "id": "2024-yagnoloth",
     "name": "Yagnoloth",
-    "source": "2024",
     "hp": 147,
     "ac": 17,
     "type": "Large Fiend (yugoloth)",
@@ -33927,7 +33191,6 @@
   {
     "id": "2024-yeenoghu",
     "name": "Yeenoghu",
-    "source": "2024",
     "hp": 333,
     "ac": 20,
     "type": "Huge Fiend (demon)",
@@ -33996,7 +33259,6 @@
   {
     "id": "2024-yeth-hound",
     "name": "Yeth Hound",
-    "source": "2024",
     "hp": 51,
     "ac": 14,
     "type": "Large Fey",
@@ -34041,7 +33303,6 @@
   {
     "id": "2024-yeti",
     "name": "Yeti",
-    "source": "2024",
     "hp": 51,
     "ac": 12,
     "type": "Large Monstrosity",
@@ -34089,7 +33350,6 @@
   {
     "id": "2024-yochlol",
     "name": "Yochlol",
-    "source": "2024",
     "hp": 153,
     "ac": 15,
     "type": "Medium Fiend (demon)",
@@ -34154,7 +33414,6 @@
   {
     "id": "2024-young-black-dragon",
     "name": "Young Black Dragon",
-    "source": "2024",
     "hp": 127,
     "ac": 18,
     "type": "Large Dragon (chromatic)",
@@ -34199,7 +33458,6 @@
   {
     "id": "2024-young-blue-dragon",
     "name": "Young Blue Dragon",
-    "source": "2024",
     "hp": 152,
     "ac": 18,
     "type": "Large Dragon (chromatic)",
@@ -34238,7 +33496,6 @@
   {
     "id": "2024-young-brass-dragon",
     "name": "Young Brass Dragon",
-    "source": "2024",
     "hp": 110,
     "ac": 17,
     "type": "Large Dragon (metallic)",
@@ -34281,7 +33538,6 @@
   {
     "id": "2024-young-bronze-dragon",
     "name": "Young Bronze Dragon",
-    "source": "2024",
     "hp": 142,
     "ac": 17,
     "type": "Large Dragon (metallic)",
@@ -34330,7 +33586,6 @@
   {
     "id": "2024-young-copper-dragon",
     "name": "Young Copper Dragon",
-    "source": "2024",
     "hp": 119,
     "ac": 17,
     "type": "Large Dragon (metallic)",
@@ -34373,7 +33628,6 @@
   {
     "id": "2024-young-gold-dragon",
     "name": "Young Gold Dragon",
-    "source": "2024",
     "hp": 178,
     "ac": 18,
     "type": "Large Dragon (metallic)",
@@ -34422,7 +33676,6 @@
   {
     "id": "2024-young-green-dragon",
     "name": "Young Green Dragon",
-    "source": "2024",
     "hp": 136,
     "ac": 18,
     "type": "Large Dragon (chromatic)",
@@ -34468,7 +33721,6 @@
   {
     "id": "2024-young-kruthik",
     "name": "Young Kruthik",
-    "source": "2024",
     "hp": 9,
     "ac": 16,
     "type": "Small Monstrosity",
@@ -34507,7 +33759,6 @@
   {
     "id": "2024-young-red-dragon",
     "name": "Young Red Dragon",
-    "source": "2024",
     "hp": 178,
     "ac": 18,
     "type": "Large Dragon (chromatic)",
@@ -34546,7 +33797,6 @@
   {
     "id": "2024-young-remorhaz",
     "name": "Young Remorhaz",
-    "source": "2024",
     "hp": 93,
     "ac": 14,
     "type": "Large Monstrosity",
@@ -34581,7 +33831,6 @@
   {
     "id": "2024-young-silver-dragon",
     "name": "Young Silver Dragon",
-    "source": "2024",
     "hp": 168,
     "ac": 18,
     "type": "Large Dragon (metallic)",
@@ -34624,7 +33873,6 @@
   {
     "id": "2024-young-white-dragon",
     "name": "Young White Dragon",
-    "source": "2024",
     "hp": 123,
     "ac": 17,
     "type": "Large Dragon (chromatic)",
@@ -34669,7 +33917,6 @@
   {
     "id": "2024-yuan-ti-abomination",
     "name": "Yuan-ti Abomination",
-    "source": "2024",
     "hp": 127,
     "ac": 15,
     "type": "Large Monstrosity",
@@ -34722,7 +33969,6 @@
   {
     "id": "2024-yuan-ti-anathema",
     "name": "Yuan-ti Anathema",
-    "source": "2024",
     "hp": 189,
     "ac": 16,
     "type": "Huge Monstrosity",
@@ -34784,7 +34030,6 @@
   {
     "id": "2024-yuan-ti-broodguard",
     "name": "Yuan-ti Broodguard",
-    "source": "2024",
     "hp": 45,
     "ac": 14,
     "type": "Medium Monstrosity",
@@ -34830,7 +34075,6 @@
   {
     "id": "2024-yuan-ti-infiltrator",
     "name": "Yuan-ti Infiltrator",
-    "source": "2024",
     "hp": 40,
     "ac": 11,
     "type": "Medium Monstrosity",
@@ -34879,7 +34123,6 @@
   {
     "id": "2024-yuan-ti-malison-type-1",
     "name": "Yuan-ti Malison (Type 1)",
-    "source": "2024",
     "hp": 66,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -34928,7 +34171,6 @@
   {
     "id": "2024-yuan-ti-malison-type-2",
     "name": "Yuan-ti Malison (Type 2)",
-    "source": "2024",
     "hp": 66,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -34973,7 +34215,6 @@
   {
     "id": "2024-yuan-ti-malison-type-3",
     "name": "Yuan-ti Malison (Type 3)",
-    "source": "2024",
     "hp": 66,
     "ac": 12,
     "type": "Medium Monstrosity",
@@ -35022,7 +34263,6 @@
   {
     "id": "2024-yuan-ti-mind-whisperer",
     "name": "Yuan-ti Mind Whisperer",
-    "source": "2024",
     "hp": 71,
     "ac": 14,
     "type": "Medium Monstrosity (warlock)",
@@ -35084,7 +34324,6 @@
   {
     "id": "2024-yuan-ti-nightmare-speaker",
     "name": "Yuan-ti Nightmare Speaker",
-    "source": "2024",
     "hp": 71,
     "ac": 14,
     "type": "Medium Monstrosity (warlock)",
@@ -35146,7 +34385,6 @@
   {
     "id": "2024-yuan-ti-pit-master",
     "name": "Yuan-ti Pit Master",
-    "source": "2024",
     "hp": 88,
     "ac": 14,
     "type": "Medium Monstrosity (warlock)",
@@ -35204,7 +34442,6 @@
   {
     "id": "2024-zaratan",
     "name": "Zaratan",
-    "source": "2024",
     "hp": 307,
     "ac": 21,
     "type": "Gargantuan Elemental",
@@ -35288,7 +34525,6 @@
   {
     "id": "2024-zariel",
     "name": "Zariel",
-    "source": "2024",
     "hp": 420,
     "ac": 21,
     "type": "Large Fiend (devil)",
@@ -35369,7 +34605,6 @@
   {
     "id": "2024-zombie",
     "name": "Zombie",
-    "source": "2024",
     "hp": 15,
     "ac": 8,
     "type": "Medium Undead",
@@ -35407,7 +34642,6 @@
   {
     "id": "2024-zuggtmoy",
     "name": "Zuggtmoy",
-    "source": "2024",
     "hp": 304,
     "ac": 18,
     "type": "Large Fiend (demon)",

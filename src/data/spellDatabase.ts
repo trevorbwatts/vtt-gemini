@@ -1,5 +1,4 @@
-import spells2014 from './spells-2014.json';
-import spells2024 from './spells-2024.json';
+import spellData from './spells.json';
 
 export interface SpellEntry {
   name: string;
@@ -12,7 +11,6 @@ export interface SpellEntry {
   effectRadius?: number;
   saveAbility?: string;
   halfDamageOnSave?: boolean;
-  source?: '2014' | '2024';
   // --- wall-shape spells (Wall of Sand, etc.) ---
   shapeType?: 'wall';
   maxLength?: number;
@@ -28,36 +26,20 @@ export interface SpellEntry {
   condition?: string;
 }
 
-const allSpells: SpellEntry[] = [
-  ...(spells2014 as SpellEntry[]),
-  ...(spells2024 as SpellEntry[]),
-];
+const allSpells: SpellEntry[] = spellData as SpellEntry[];
 
-// Simple name → first match (prefers 2014 since it's first in the array)
 const spellMap = new Map<string, SpellEntry>();
 allSpells.forEach(spell => {
-  const key = spell.name.toLowerCase();
-  if (!spellMap.has(key)) spellMap.set(key, spell);
+  spellMap.set(spell.name.toLowerCase(), spell);
 });
 
-// Composite key for edition-specific lookups
-const spellMapByEdition = new Map<string, SpellEntry>();
-allSpells.forEach(spell => {
-  spellMapByEdition.set(`${spell.name.toLowerCase()}|${spell.source}`, spell);
-});
-
-/** Look up a spell by name (case-insensitive). When `source` is provided, prefer that edition. */
-export function lookupSpell(name: string, source?: '2014' | '2024'): SpellEntry | undefined {
-  const key = name.toLowerCase().trim();
-  if (source) {
-    const editionMatch = spellMapByEdition.get(`${key}|${source}`);
-    if (editionMatch) return editionMatch;
-  }
-  return spellMap.get(key);
+/** Look up a spell by name (case-insensitive). */
+export function lookupSpell(name: string): SpellEntry | undefined {
+  return spellMap.get(name.toLowerCase().trim());
 }
 
 /** Look up multiple spell names and return structured Combatant-compatible spell objects */
-export function resolveSpells(spellNames: string[], source?: '2014' | '2024'): {
+export function resolveSpells(spellNames: string[]): {
   name: string;
   level: number;
   desc: string;
@@ -89,7 +71,7 @@ export function resolveSpells(spellNames: string[], source?: '2014' | '2024'): {
     if (!cleanName || cleanName.length < 3 || seen.has(cleanName.toLowerCase())) continue;
     seen.add(cleanName.toLowerCase());
 
-    const entry = lookupSpell(cleanName, source);
+    const entry = lookupSpell(cleanName);
     if (entry) {
       results.push({
         name: entry.name,
@@ -128,22 +110,15 @@ export function resolveSpells(spellNames: string[], source?: '2014' | '2024'): {
 export function searchSpells(
   query: string,
   limit = 20,
-  filter?: { sources?: Set<'2014' | '2024'>; aoeOnly?: boolean },
+  filter?: { aoeOnly?: boolean },
 ): SpellEntry[] {
   if (!query.trim()) return [];
   const lower = query.toLowerCase().trim();
   const results: SpellEntry[] = [];
-  const seen = new Set<string>();
 
   for (const spell of allSpells) {
     if (!spell.name.toLowerCase().includes(lower)) continue;
-    if (filter?.sources && spell.source && !filter.sources.has(spell.source)) continue;
     if (filter?.aoeOnly && !(spell.aoeType && spell.aoeSize)) continue;
-
-    // Deduplicate by name when both editions match
-    const dedupeKey = spell.name.toLowerCase();
-    if (seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
 
     results.push(spell);
   }

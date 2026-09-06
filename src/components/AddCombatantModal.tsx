@@ -45,8 +45,6 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   const [avatar, setAvatar] = useState<string | null>(null);
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [monsterSearch, setMonsterSearch] = useState('');
-  const [showSource2014, setShowSource2014] = useState(false);
-  const [showSource2024, setShowSource2024] = useState(true);
   const [rawImage, setRawImage] = useState<string | null>(null);
   const [sizeChoice, setSizeChoice] = useState<string>('Medium');
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -112,8 +110,8 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
     // Destructure conflicting Monster fields before spreading:
     // - Monster.type is a creature string (e.g. "Medium Humanoid") → Combatant.creatureType
     // - Monster.speed is a string (e.g. "30 ft.") → Combatant.speedText
-    // - Monster.source and Monster.id are not Combatant fields
-    const { type: creatureType, speed: speedText, source: _source, id: _id, ...monsterRest } = selectedMonster;
+    // - Monster.id is not a Combatant field
+    const { type: creatureType, speed: speedText, id: _id, ...monsterRest } = selectedMonster;
     const resolvedSize = selectedMonster.size?.includes('/') ? sizeChoice : (selectedMonster.size || 'Medium');
     onAdd({
       ...monsterRest,
@@ -179,8 +177,7 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
   };
 
   const filteredMonsters = BESTIARY.filter(m =>
-    m.name.toLowerCase().includes(monsterSearch.toLowerCase()) &&
-    ((showSource2014 && m.source === '2014') || (showSource2024 && m.source === '2024'))
+    m.name.toLowerCase().includes(monsterSearch.toLowerCase())
   );
 
   if (!isOpen) return null;
@@ -423,16 +420,6 @@ export const AddCombatantModal: React.FC<AddCombatantModalProps> = ({ isOpen, on
                         className="w-full bg-black border border-[var(--line)] rounded-md pl-7 pr-2 py-1.5 text-sm outline-none focus:border-[var(--accent)] transition-colors"
                       />
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--line)]">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={showSource2014} onChange={(e) => setShowSource2014(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                      <span className="text-xs opacity-60">2014</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={showSource2024} onChange={(e) => setShowSource2024(e.target.checked)} className="w-3 h-3 accent-[var(--accent)]" />
-                      <span className="text-xs opacity-60">2024</span>
-                    </label>
                   </div>
                   {/* Same virtualized list the Bestiary uses, so both routes to
                       picking a monster look and perform identically. */}
